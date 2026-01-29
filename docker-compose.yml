@@ -1,0 +1,75 @@
+services:
+  # 1. Apache + PHP (Bundled)
+  web:
+    container_name: pos_app
+    build: 
+      context: .
+      dockerfile: docker/php/Dockerfile
+    ports:
+      - "${APP_PORT:-8090}:80"
+    volumes:
+      - ./:/var/www/html  # Maps the whole project root
+    environment:
+      APP_ENV: ${APP_ENV}
+      DB_HOST: ${DB_HOST}
+      DB_NAME: ${DB_NAME}
+      DB_USER: root       # Using root for dev simplicity
+      DB_PASS: ${DB_ROOT_PASS}
+    depends_on:
+      db:
+        condition: service_started
+    networks:
+      - pos-net
+
+  # 2. Database
+  db:
+    container_name: pos_db
+    image: mysql:8.3
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+      MYSQL_ROOT_HOST: "%" # Allows remote root login
+      TZ: ${TZ}
+    ports:
+      - "${DB_PORT_EXTERNAL:-8091}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - pos-net
+
+  # 3. phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: pos_pma
+    ports:
+      - "${PHPMYADMIN_PORT:-8092}:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - db
+    networks:
+      - pos-net
+
+  # 4. Adminer
+  adminer:
+    image: adminer
+    container_name: pos_adminer
+    ports:
+      - "${ADMINER_PORT:-8093}:8080"
+    depends_on:
+      - db
+    networks:
+      - pos-net
+
+volumes:
+  db_data:
+
+networks:
+  pos-net:
+    driver: bridge
