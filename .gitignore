@@ -1,0 +1,23 @@
+# --- Security & Secrets ---
+.env
+auth.json
+
+# --- Docker & Database ---
+db_data/
+mysql/
+docker/mysql/data/
+
+# --- Dependencies ---
+vendor/
+node_modules/
+
+# --- OS & IDE Junk ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# --- Logs ---
+*.log
+
