@@ -27,6 +27,13 @@
             <i class="bi bi-cart4 text-primary"></i> POS Terminal
         </div>
         <div>
+            <a href="index.php?page=pickup" target="_blank" class="btn btn-outline-warning btn-sm me-3 position-relative">
+                <i class="bi bi-bell-fill"></i> Pickup Screen
+                <span id="pickupBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">
+                    0
+                </span>
+            </a>
+
             <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm me-2">Exit to Dashboard</a>
         </div>
     </div>
@@ -179,6 +186,27 @@
     document.addEventListener("DOMContentLoaded", function() {
         document.getElementById("searchBox").focus();
     });
+
+    // --- LIVE PICKUP BADGE UPDATE ---
+    function checkPickupCount() {
+        fetch('index.php?page=pos&ajax_ready_count=1')
+            .then(response => response.text())
+            .then(count => {
+                let badge = document.getElementById('pickupBadge');
+                if (parseInt(count) > 0) {
+                    badge.innerText = count;
+                    badge.style.display = 'inline-block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(err => console.error('Badge Error:', err));
+    }
+    // Poll every 5 seconds
+    setInterval(checkPickupCount, 5000);
+    // Check immediately on load
+    checkPickupCount();
+
 
     // CHECK FOR RECEIPT TRIGGER
     <?php if (isset($_SESSION['last_sale_id'])): ?>

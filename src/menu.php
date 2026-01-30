@@ -7,6 +7,14 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['chef', 'head_che
     exit;
 }
 
+// --- CONFIG: DEFINING KITCHEN CATEGORIES ---
+// We filter categories to ensure Chefs only manage food.
+// Adjust this list to match your exact Category Names.
+$kitchenCategories = ['Meal', 'Meals', 'Snack', 'Snacks', 'Dessert', 'Food', 'Kitchen', 'Starters'];
+
+// Helper to create SQL IN clause placeholders
+$placeholders = implode(',', array_fill(0, count($kitchenCategories), '?'));
+
 // --- HANDLE ACTIONS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
@@ -20,14 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['swal_type'] = 'error';
             $_SESSION['swal_msg'] = "Invalid Name or Price.";
         } else {
-            // Default stock to 1000 for non-tracked items or 0
-            // For a restaurant, 'quantity' in location_stock matters, but here we define the catalog.
-            // We insert into products. Location stock is managed in Transfers/Receiving.
             $stmt = $pdo->prepare("INSERT INTO products (name, category_id, price, is_active) VALUES (?, ?, ?, 1)");
             $stmt->execute([$name, $catId, $price]);
             
             $_SESSION['swal_type'] = 'success';
-            $_SESSION['swal_msg'] = "Dish '$name' added to Menu.";
+            $_SESSION['swal_msg'] = "Dish '$name' added to Kitchen Menu.";
         }
     }
 
@@ -45,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['swal_msg'] = "Menu item updated.";
     }
 
-    // 3. TOGGLE AVAILABILITY (The "86" Button)
+    // 3. TOGGLE AVAILABILITY (86'd)
     if (isset($_POST['toggle_status'])) {
         $id = $_POST['product_id'];
         $currentStatus = $_POST['current_status'];
@@ -62,13 +67,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// --- FETCH DATA ---
-$products = $pdo->query("
+// --- FETCH DATA (FILTERED) ---
+
+// 1. Fetch only Kitchen Categories for the dropdown
+$catStmt = $pdo->prepare("SELECT * FROM categories WHERE name IN ($placeholders) ORDER BY name ASC");
+$catStmt->execute($kitchenCategories);
+$categories = $catStmt->fetchAll();
+
+// 2. Fetch only Products belonging to Kitchen Categories
+// We reuse the same list to filter the product view
+$prodStmt = $pdo->prepare("
     SELECT p.*, c.name as category_name 
     FROM products p 
-    LEFT JOIN categories c ON p.category_id = c.id 
+    JOIN categories c ON p.category_id = c.id 
+    WHERE c.name IN ($placeholders)
     ORDER BY c.name ASC, p.name ASC
-")->fetchAll();
-
-$categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll();
+");
+$prodStmt->execute($kitchenCategories);
+$products = $prodStmt->fetchAll();
 ?>

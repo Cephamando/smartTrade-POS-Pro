@@ -5,6 +5,20 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 $userId = $_SESSION['user_id'];
 $locId  = $_SESSION['location_id'];
 
+// --- AJAX: CHECK READY COUNT ---
+if (isset($_GET['ajax_ready_count'])) {
+    // Count distinct orders that have items marked as 'ready' for this location
+    $stmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT si.sale_id) 
+        FROM sale_items si 
+        JOIN sales s ON si.sale_id = s.id 
+        WHERE si.status = 'ready' AND s.location_id = ?
+    ");
+    $stmt->execute([$locId]);
+    echo $stmt->fetchColumn();
+    exit; // Stop here, don't load the whole page
+}
+
 // 1. CHECK FOR OPEN SHIFT
 $stmt = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open' LIMIT 1");
 $stmt->execute([$userId]);
@@ -22,7 +36,6 @@ $shiftId = $shift['id'];
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
-
 foreach ($_SESSION['cart'] as $pid => $item) {
     if (!is_array($item) || !isset($item['name']) || !isset($item['price']) || !isset($item['qty'])) {
         $_SESSION['cart'] = []; 
@@ -85,18 +98,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stockStmt = $pdo->prepare("UPDATE location_stock SET quantity = quantity - ? WHERE location_id = ? AND product_id = ?");
 
                 foreach ($_SESSION['cart'] as $pid => $item) {
-                    $status = ($item['cat_id'] == 1) ? 'pending' : 'served';
+                    $status = ($item['cat_id'] == 1) ? 'pending' : 'served'; // If Food (Cat 1) -> Pending
                     $itemStmt->execute([$saleId, $pid, $item['qty'], $item['price'], $status]);
                     $stockStmt->execute([$item['qty'], $locId, $pid]);
                 }
 
                 $pdo->commit();
                 $_SESSION['cart'] = [];
-                $_SESSION['last_sale_id'] = $saleId; // STORE FOR RECEIPT POPUP
-
+                $_SESSION['last_sale_id'] = $saleId;
 
                 // Redirect to POS (Triggers Modal)
-
                 header("Location: index.php?page=pos");
                 exit;
 
@@ -113,13 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 4. FETCH PRODUCTS (FLAT LIST - CRITICAL FIX)
+// 4. FETCH PRODUCTS (Flat List)
 $sql = "SELECT p.*, c.name as category 
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.id 
         WHERE p.is_active = 1 
         ORDER BY p.category_id ASC, p.name ASC";
-
-// Ensure we fetch a flat array, NOT grouped
 $products = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC); 
 ?>
