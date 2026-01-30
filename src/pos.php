@@ -22,6 +22,7 @@ $shiftId = $shift['id'];
 if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
+
 foreach ($_SESSION['cart'] as $pid => $item) {
     if (!is_array($item) || !isset($item['name']) || !isset($item['price']) || !isset($item['qty'])) {
         $_SESSION['cart'] = []; 
@@ -93,7 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['cart'] = [];
                 $_SESSION['last_sale_id'] = $saleId; // STORE FOR RECEIPT POPUP
 
-                // *** CRITICAL FIX: REDIRECT TO POS, NOT RECEIPT ***
+
+                // Redirect to POS (Triggers Modal)
+
                 header("Location: index.php?page=pos");
                 exit;
 
@@ -110,7 +113,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 4. FETCH PRODUCTS
-$sql = "SELECT p.*, c.name as category FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.is_active = 1 ORDER BY p.category_id ASC, p.name ASC";
-$products = $pdo->query($sql)->fetchAll(); 
+// 4. FETCH PRODUCTS (FLAT LIST - CRITICAL FIX)
+$sql = "SELECT p.*, c.name as category 
+        FROM products p 
+        LEFT JOIN categories c ON p.category_id = c.id 
+        WHERE p.is_active = 1 
+        ORDER BY p.category_id ASC, p.name ASC";
+
+// Ensure we fetch a flat array, NOT grouped
+$products = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC); 
 ?>

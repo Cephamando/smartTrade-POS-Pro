@@ -62,7 +62,8 @@ function isActive($p) { global $page; return $page === $p ? 'active' : ''; }
                         <li><a class="dropdown-item" href="index.php?page=products">Products</a></li>
                         <li><a class="dropdown-item" href="index.php?page=inventory">Stock Levels</a></li>
                         <li><a class="dropdown-item" href="index.php?page=receive">Receive Stock (GRV)</a></li>
-                        <li><a class="dropdown-item" href="index.php?page=transfers">Transfers</a></li>
+
+                        <li><a class="dropdown-item" href="index.php?page=transfers">Transfers</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="index.php?page=locations">Locations</a></li>
                     </ul>
                 </li>
                 <li class="nav-item"><a class="nav-link <?= isActive('users') ?>" href="index.php?page=users">Users</a></li>

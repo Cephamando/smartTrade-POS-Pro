@@ -13,11 +13,11 @@ require_once __DIR__ . '/../src/config.php';
 $page = $_GET['page'] ?? 'dashboard';
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-// 4. Page Allowlist
+// 4. Page Allowlist (ALL VALID PAGES)
 $allowed_pages = [
     'login', 'dashboard', 'pos', 'shifts', 'products', 'reports', 
     'inventory', 'users', 'settings', 'kds', 'pickup', 'change_password',
-    'receive', 'transfers', 'receipt'
+    'receive', 'transfers', 'receipt', 'vendors', 'locations'
 ];
 
 if (!in_array($page, $allowed_pages)) {
@@ -44,7 +44,10 @@ if (file_exists($logicFile)) {
 }
 
 // 8. Render View
+
 // UPDATED: Added 'receipt' to this list
+
+// ONLY these pages should be full-screen (No Header/Footer)
 $hideLayout = in_array($page, ['login', 'pos', 'kds', 'pickup', 'receipt']);
 
 if (!$hideLayout) {
