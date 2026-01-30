@@ -6,11 +6,19 @@
             </div>
             <div class="card-body p-4">
                 
+                <?php if (!empty($_SESSION['force_change'])): ?>
+                    <div class="alert alert-warning border-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i> 
+                        <strong>Security Notice:</strong><br>
+                        You must change your password before continuing.
+                    </div>
+                <?php endif; ?>
+
                 <form method="POST" action="index.php?page=change_password">
                     
                     <div class="mb-3">
                         <label class="form-label fw-bold">Current Password</label>
-                        <input type="password" name="current_password" class="form-control" required autofocus>
+                        <input type="password" name="current_password" class="form-control" required autofocus placeholder="Enter temporary password">
                     </div>
 
                     <hr class="my-4">
@@ -28,7 +36,12 @@
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">Update Password</button>
-                        <a href="index.php?page=dashboard" class="btn btn-outline-secondary">Cancel</a>
+                        
+                        <?php if (empty($_SESSION['force_change'])): ?>
+                            <a href="index.php?page=dashboard" class="btn btn-outline-secondary">Cancel</a>
+                        <?php else: ?>
+                            <a href="index.php?action=logout" class="btn btn-outline-danger btn-sm mt-3">Logout</a>
+                        <?php endif; ?>
                     </div>
                 </form>
 

@@ -13,7 +13,7 @@ require_once __DIR__ . '/../src/config.php';
 $page = $_GET['page'] ?? 'dashboard';
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
-// 4. Page Allowlist (ALL VALID PAGES)
+// 4. Page Allowlist
 $allowed_pages = [
     'login', 'dashboard', 'pos', 'shifts', 'products', 'reports', 
     'inventory', 'users', 'settings', 'kds', 'pickup', 'change_password',
@@ -30,6 +30,16 @@ if (!isset($_SESSION['user_id']) && $page !== 'login') {
     exit;
 }
 
+// --- NEW: FORCE PASSWORD CHANGE GATEKEEPER ---
+if (isset($_SESSION['force_change']) && $_SESSION['force_change'] == 1) {
+    // Only allow them to be on the change_password page OR to logout
+    if ($page !== 'change_password' && $action !== 'logout') {
+        header("Location: index.php?page=change_password");
+        exit;
+    }
+}
+// ---------------------------------------------
+
 // 6. Logout Logic
 if ($action === 'logout') {
     session_destroy();
@@ -44,10 +54,6 @@ if (file_exists($logicFile)) {
 }
 
 // 8. Render View
-
-// UPDATED: Added 'receipt' to this list
-
-// ONLY these pages should be full-screen (No Header/Footer)
 $hideLayout = in_array($page, ['login', 'pos', 'kds', 'pickup', 'receipt']);
 
 if (!$hideLayout) {

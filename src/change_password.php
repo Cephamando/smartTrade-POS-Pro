@@ -26,16 +26,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if ($user && password_verify($currentPass, $user['password_hash'])) {
-            // 3. Update Password & Clear 'Force Change' Flag
+            // 3. Update Password & Clear 'Force Change' Flag in DB
             $newHash = password_hash($newPass, PASSWORD_DEFAULT);
             
             $update = $pdo->prepare("UPDATE users SET password_hash = ?, force_password_change = 0 WHERE id = ?");
             $update->execute([$newHash, $userId]);
+            
+            // 4. CLEAR SESSION FLAG
+            $_SESSION['force_change'] = 0;
 
             $_SESSION['swal_type'] = 'success';
             $_SESSION['swal_msg'] = "Password changed successfully!";
             
-            // Redirect to dashboard (or wherever)
+            // Redirect to dashboard
             header("Location: index.php?page=dashboard");
             exit;
         } else {

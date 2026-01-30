@@ -1,52 +1,47 @@
 <?php
-// Prevent direct access to this file if not via index.php
-if (!defined('PDO::ATTR_DRIVER_NAME')) {
-    // If PDO isn't defined, we probably aren't in the router.
-    // A safer check is usually looking for a constant defined in index.php, 
-    // but for now, we assume the router handles traffic.
+// START SESSION (if not already started)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
 
-$error = '';
+// IF ALREADY LOGGED IN
+if (isset($_SESSION['user_id'])) {
+    header("Location: index.php?page=dashboard");
+    exit;
+}
 
+// HANDLE LOGIN POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    $username = trim($_POST['username']);
+    $password = $_POST['password'];
 
     if (empty($username) || empty($password)) {
-        $error = "Please enter both username and password.";
+        $error = "Please fill in all fields.";
     } else {
-        // Fetch User
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+        // Fetch user AND the force_change flag
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, location_id, force_password_change FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
-            
-            // 1. REGENERATE ID (Security: Prevent Session Fixation)
-            session_regenerate_id(true);
-
-            // 2. SET SESSION
+            // SUCCESS: Set Session
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
-            
-            // 3. SET LOCATION
-            // Devs default to their DB location but can switch later.
-            // Everyone else is hard-locked.
             $_SESSION['location_id'] = $user['location_id'];
+            
+            // CRITICAL: Store the Force Change Flag
+            $_SESSION['force_change'] = $user['force_password_change'];
 
-            // 4. CHECK FORCE PASSWORD CHANGE
+            // Redirect based on flag
             if ($user['force_password_change'] == 1) {
-                header("Location: index.php?page=change_password");
-                exit;
+                 header("Location: index.php?page=change_password");
+            } else {
+                 header("Location: index.php?page=dashboard");
             }
-
-            // 5. SUCCESS REDIRECT
-            header("Location: index.php?page=dashboard");
             exit;
-
         } else {
-            $error = "Invalid username or password.";
+            $error = "Invalid credentials.";
         }
     }
 }
