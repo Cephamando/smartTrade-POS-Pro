@@ -59,7 +59,8 @@ CREATE TABLE `grv_items` (
 TRUNCATE `grv_items`;
 INSERT INTO `grv_items` (`id`, `grv_id`, `product_id`, `quantity`, `unit_cost`) VALUES
 (1, 1,  1,  100.00, 130.00),
-(2, 2,  2,  500.00, 750.00);
+(2, 2,  2,  500.00, 750.00),
+(3, 3,  1,  50.00,  130.00);
 
 DROP TABLE IF EXISTS `grvs`;
 CREATE TABLE `grvs` (
@@ -82,7 +83,29 @@ CREATE TABLE `grvs` (
 TRUNCATE `grvs`;
 INSERT INTO `grvs` (`id`, `vendor_id`, `location_id`, `received_by`, `total_cost`, `reference_no`, `created_at`) VALUES
 (1, 1,  1,  1,  13000.00, 'INV-001-300126', '2026-01-30 05:35:11'),
-(2, 3,  3,  5,  375000.00,  '', '2026-01-30 07:16:02');
+(2, 3,  3,  5,  375000.00,  '', '2026-01-30 07:16:02'),
+(3, 1,  3,  5,  6500.00,  '', '2026-01-30 08:02:25');
+
+DROP TABLE IF EXISTS `inventory_transfers`;
+CREATE TABLE `inventory_transfers` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `source_location_id` int NOT NULL,
+  `dest_location_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `quantity` decimal(10,2) NOT NULL,
+  `user_id` int NOT NULL,
+  `status` enum('pending','in_transit','completed','cancelled') DEFAULT 'pending',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `dispatched_at` datetime DEFAULT NULL,
+  `received_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+TRUNCATE `inventory_transfers`;
+INSERT INTO `inventory_transfers` (`id`, `source_location_id`, `dest_location_id`, `product_id`, `quantity`, `user_id`, `status`, `created_at`, `dispatched_at`, `received_at`) VALUES
+(1, 7,  3,  2,  10.00,  5,  'cancelled',  '2026-01-30 09:54:39',  NULL, NULL),
+(2, 3,  2,  1,  5.00, 8,  'completed',  '2026-01-30 10:01:12',  '2026-01-30 10:03:04',  '2026-01-30 10:04:33'),
+(3, 3,  1,  2,  5.00, 4,  'completed',  '2026-01-30 10:05:13',  '2026-01-30 10:05:29',  '2026-01-30 10:07:22');
 
 DROP TABLE IF EXISTS `location_stock`;
 CREATE TABLE `location_stock` (
@@ -100,8 +123,10 @@ CREATE TABLE `location_stock` (
 TRUNCATE `location_stock`;
 INSERT INTO `location_stock` (`id`, `location_id`, `product_id`, `quantity`) VALUES
 (1, 1,  1,  99.00),
-(2, 3,  2,  450.00),
-(3, 1,  2,  50.00);
+(2, 3,  2,  455.00),
+(3, 1,  2,  55.00),
+(4, 3,  1,  55.00),
+(6, 2,  1,  5.00);
 
 DROP TABLE IF EXISTS `locations`;
 CREATE TABLE `locations` (
@@ -329,7 +354,8 @@ INSERT INTO `users` (`id`, `username`, `password_hash`, `role`, `location_id`, `
 (4, 'head_chef',  '$2y$10$LiKgNH0oFUoSHcZ.HcIcSOPBqGxJMmOCi4.NuhuCuPVnzrzJtr4W2', 'head_chef',  1,  '2026-01-30 05:37:27',  0),
 (5, 'stores_manager', '$2y$10$Ag0AEaK7JwiDJqHQhzsMD.LYv9jXfJC0NyTHOaU/gPCZHBVwAC7Ze', 'manager',  3,  '2026-01-30 06:39:29',  0),
 (6, 'chef', '$2y$10$ebU1RxFhof8h9wcL6KkWE.zyjD/1Fzs2hGOQsur/zwwk7l9hmKVLa', 'chef', 1,  '2026-01-30 06:40:05',  0),
-(7, 'Main_bartender', '$2y$10$PA0I9uOWrx7OFbt9MN8nJesCb/zLwryHuZzZuW.AtX5H2rBaBKw1O', 'bartender',  2,  '2026-01-30 06:40:57',  0);
+(7, 'Main_bartender', '$2y$10$PA0I9uOWrx7OFbt9MN8nJesCb/zLwryHuZzZuW.AtX5H2rBaBKw1O', 'bartender',  2,  '2026-01-30 06:40:57',  0),
+(8, 'Bar_Manager',  '$2y$10$nZHpDBrnEPQTQW/qnvOoeOIT2V97h9hF0JyXkc9KHgHQejL682/Cq', 'manager',  2,  '2026-01-30 07:59:03',  0);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -346,4 +372,4 @@ INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
 (2, 'Coca Cola Zambia', 'Mr. Daliso', ''),
 (3, 'Shoprite Zambia',  'Mr. Choogo', '');
 
--- 2026-01-30 07:28:59 UTC
+-- 2026-01-30 08:12:31 UTC

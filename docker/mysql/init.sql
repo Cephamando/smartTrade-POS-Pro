@@ -69,6 +69,22 @@ CREATE TABLE `grvs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
+DROP TABLE IF EXISTS `inventory_transfers`;
+CREATE TABLE `inventory_transfers` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `source_location_id` int NOT NULL,
+  `dest_location_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `quantity` decimal(10,2) NOT NULL,
+  `user_id` int NOT NULL,
+  `status` enum('pending','in_transit','completed','cancelled') DEFAULT 'pending',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `dispatched_at` datetime DEFAULT NULL,
+  `received_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 DROP TABLE IF EXISTS `location_stock`;
 CREATE TABLE `location_stock` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -269,6 +285,15 @@ CREATE TABLE `users` (
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `users`;
+INSERT INTO `users` (`id`, `username`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
+(1, 'odelia_admin', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  3,  '2026-01-29 12:55:36',  0),
+(3, 'cashier',  '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'cashier',  1,  '2026-01-29 12:55:36',  0),
+(4, 'head_chef',  '$2y$10$LiKgNH0oFUoSHcZ.HcIcSOPBqGxJMmOCi4.NuhuCuPVnzrzJtr4W2', 'head_chef',  1,  '2026-01-30 05:37:27',  0),
+(5, 'stores_manager', '$2y$10$Ag0AEaK7JwiDJqHQhzsMD.LYv9jXfJC0NyTHOaU/gPCZHBVwAC7Ze', 'manager',  3,  '2026-01-30 06:39:29',  0),
+(6, 'chef', '$2y$10$ebU1RxFhof8h9wcL6KkWE.zyjD/1Fzs2hGOQsur/zwwk7l9hmKVLa', 'chef', 1,  '2026-01-30 06:40:05',  0),
+(7, 'Main_bartender', '$2y$10$PA0I9uOWrx7OFbt9MN8nJesCb/zLwryHuZzZuW.AtX5H2rBaBKw1O', 'bartender',  2,  '2026-01-30 06:40:57',  0),
+(8, 'Bar_Manager',  '$2y$10$nZHpDBrnEPQTQW/qnvOoeOIT2V97h9hF0JyXkc9KHgHQejL682/Cq', 'manager',  2,  '2026-01-30 07:59:03',  0);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -280,4 +305,4 @@ CREATE TABLE `vendors` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
--- 2026-01-30 07:33:36 UTC
+-- 2026-01-30 08:11:49 UTC

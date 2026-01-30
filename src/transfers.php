@@ -1,87 +1,174 @@
 <?php
-// SECURITY: Managers/Admins Only
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
-    header("Location: index.php?page=dashboard");
+// SECURITY: Logged in users only
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php?page=login");
     exit;
 }
 
-$userId = $_SESSION['user_id'];
-$sourceLocId = $_SESSION['location_id']; // Sending FROM current location
+$userRole = $_SESSION['role'];
+$userLoc = $_SESSION['location_id'];
 
-// --- HANDLE POST: CREATE TRANSFER ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_transfer'])) {
-    try {
-        $destLocId = $_POST['destination_id'];
-        $productIds = $_POST['product_ids'] ?? [];
-        $quantities = $_POST['quantities'] ?? [];
+// --- HANDLE POST ACTIONS ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-        if (empty($destLocId) || empty($productIds)) throw new Exception("Invalid Transfer details.");
-        if ($destLocId == $sourceLocId) throw new Exception("Cannot transfer to the same location.");
+    // 1. CREATE REQUISITION (Request Stock)
+    if (isset($_POST['create_request'])) {
+        $sourceId = $_POST['source_location_id'];
+        $destId = $_POST['dest_location_id'];
+        $prodId = $_POST['product_id'];
+        $qty = floatval($_POST['quantity']);
 
-        $pdo->beginTransaction();
-
-        // 1. Create Transfer Header
-        $stmt = $pdo->prepare("INSERT INTO stock_transfers (source_location_id, destination_location_id, user_id, status, created_at) VALUES (?, ?, ?, 'completed', NOW())");
-        $stmt->execute([$sourceLocId, $destLocId, $userId]);
-        $transferId = $pdo->lastInsertId();
-
-        // 2. Process Items
-        $checkStock = $pdo->prepare("SELECT quantity FROM location_stock WHERE location_id = ? AND product_id = ?");
-        $deductStock = $pdo->prepare("UPDATE location_stock SET quantity = quantity - ? WHERE location_id = ? AND product_id = ?");
-        $addStock = $pdo->prepare("INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + ?");
-        $logItem = $pdo->prepare("INSERT INTO stock_transfer_items (transfer_id, product_id, quantity_requested, quantity_sent, quantity_received) VALUES (?, ?, ?, ?, ?)");
-
-        foreach ($productIds as $k => $pid) {
-            $qty = floatval($quantities[$k]);
-            if ($qty <= 0) continue;
-
-            // CHECK AVAILABILITY
-            $checkStock->execute([$sourceLocId, $pid]);
-            $currentQty = $checkStock->fetchColumn() ?: 0;
-
-            if ($currentQty < $qty) {
-                throw new Exception("Insufficient Stock for Product ID $pid. Available: $currentQty");
-            }
-
-            // DEDUCT FROM SOURCE
-            $deductStock->execute([$qty, $sourceLocId, $pid]);
-
-            // ADD TO DESTINATION (Immediate 'completed' for simplified demo flow)
-            // In a complex app, you'd set status='pending' and make destination 'accept' it.
-            $addStock->execute([$destLocId, $pid, $qty, $qty]);
-
-            // LOG
-            $logItem->execute([$transferId, $pid, $qty, $qty, $qty]);
+        if ($qty <= 0) {
+            $_SESSION['swal_type'] = 'error';
+            $_SESSION['swal_msg'] = "Quantity must be greater than 0.";
+        } elseif ($sourceId == $destId) {
+            $_SESSION['swal_type'] = 'error';
+            $_SESSION['swal_msg'] = "Source and Destination cannot be the same.";
+        } else {
+            // Create Pending Transfer
+            $stmt = $pdo->prepare("INSERT INTO inventory_transfers (source_location_id, dest_location_id, product_id, quantity, user_id, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', NOW())");
+            $stmt->execute([$sourceId, $destId, $prodId, $qty, $_SESSION['user_id']]);
+            
+            $_SESSION['swal_type'] = 'success';
+            $_SESSION['swal_msg'] = "Requisition sent! Waiting for Dispatch.";
         }
+    }
 
-        $pdo->commit();
+    // 2. DISPATCH (Source Manager Approves)
+    if (isset($_POST['dispatch_transfer'])) {
+        $transferId = $_POST['transfer_id'];
+        
+        // Fetch Transfer Details
+        $t = $pdo->prepare("SELECT * FROM inventory_transfers WHERE id = ?");
+        $t->execute([$transferId]);
+        $transfer = $t->fetch();
+
+        if ($transfer && $transfer['status'] === 'pending') {
+            // Check Source Stock
+            $check = $pdo->prepare("SELECT quantity FROM location_stock WHERE location_id = ? AND product_id = ?");
+            $check->execute([$transfer['source_location_id'], $transfer['product_id']]);
+            $stock = $check->fetchColumn() ?: 0;
+
+            if ($stock < $transfer['quantity']) {
+                $_SESSION['swal_type'] = 'error';
+                $_SESSION['swal_msg'] = "Insufficient stock at source to dispatch.";
+            } else {
+                try {
+                    $pdo->beginTransaction();
+                    
+                    // Deduct from Source NOW
+                    $deduct = $pdo->prepare("INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, -?) ON DUPLICATE KEY UPDATE quantity = quantity - VALUES(quantity)");
+                    $deduct->execute([$transfer['source_location_id'], $transfer['product_id'], $transfer['quantity']]);
+
+                    // Update Status
+                    $update = $pdo->prepare("UPDATE inventory_transfers SET status = 'in_transit', dispatched_at = NOW() WHERE id = ?");
+                    $update->execute([$transferId]);
+
+                    $pdo->commit();
+                    $_SESSION['swal_type'] = 'success';
+                    $_SESSION['swal_msg'] = "Stock Dispatched! It is now in transit.";
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $_SESSION['swal_type'] = 'error';
+                    $_SESSION['swal_msg'] = "Error dispatching stock.";
+                }
+            }
+        }
+    }
+
+    // 3. RECEIVE (Destination Manager Accepts)
+    if (isset($_POST['receive_transfer'])) {
+        $transferId = $_POST['transfer_id'];
+
+        $t = $pdo->prepare("SELECT * FROM inventory_transfers WHERE id = ?");
+        $t->execute([$transferId]);
+        $transfer = $t->fetch();
+
+        if ($transfer && $transfer['status'] === 'in_transit') {
+            try {
+                $pdo->beginTransaction();
+
+                // Add to Destination NOW
+                $add = $pdo->prepare("INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)");
+                $add->execute([$transfer['dest_location_id'], $transfer['product_id'], $transfer['quantity']]);
+
+                // Finalize Status
+                $update = $pdo->prepare("UPDATE inventory_transfers SET status = 'completed', received_at = NOW() WHERE id = ?");
+                $update->execute([$transferId]);
+
+                $pdo->commit();
+                $_SESSION['swal_type'] = 'success';
+                $_SESSION['swal_msg'] = "Stock Received successfully!";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $_SESSION['swal_type'] = 'error';
+                $_SESSION['swal_msg'] = "Error receiving stock.";
+            }
+        }
+    }
+
+    // 4. CANCEL (Cleanup)
+    if (isset($_POST['cancel_transfer'])) {
+        $transferId = $_POST['transfer_id'];
+        // Only allow cancel if pending (no stock moved yet)
+        $pdo->prepare("UPDATE inventory_transfers SET status = 'cancelled' WHERE id = ? AND status = 'pending'")->execute([$transferId]);
         $_SESSION['swal_type'] = 'success';
-        $_SESSION['swal_msg'] = "Transfer #$transferId Completed Successfully.";
-
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $_SESSION['swal_type'] = 'error';
-        $_SESSION['swal_msg'] = $e->getMessage();
+        $_SESSION['swal_msg'] = "Requisition cancelled.";
     }
 
     header("Location: index.php?page=transfers");
     exit;
 }
 
-// FETCH DATA
-// 1. Destinations (All locations except current)
-$stmt = $pdo->prepare("SELECT * FROM locations WHERE id != ? ORDER BY name ASC");
-$stmt->execute([$sourceLocId]);
-$destinations = $stmt->fetchAll();
+// --- FETCH DATA ---
 
-// 2. Available Products (Only showing what we actually have in stock)
-$pStmt = $pdo->prepare("
-    SELECT p.id, p.name, p.unit, ls.quantity 
-    FROM products p
-    JOIN location_stock ls ON p.id = ls.product_id
-    WHERE ls.location_id = ? AND ls.quantity > 0
-    ORDER BY p.name ASC
-");
-$pStmt->execute([$sourceLocId]);
-$availableProducts = $pStmt->fetchAll();
+// 1. Pending Dispatches (Outgoing from MY location)
+// If Admin, show ALL pending. If Manager, show pending where Source = My Location
+$dispatchSql = "
+    SELECT t.*, p.name as product_name, l1.name as source_name, l2.name as dest_name 
+    FROM inventory_transfers t
+    JOIN products p ON t.product_id = p.id
+    JOIN locations l1 ON t.source_location_id = l1.id
+    JOIN locations l2 ON t.dest_location_id = l2.id
+    WHERE t.status = 'pending'
+";
+if ($userRole !== 'admin' && $userRole !== 'dev') {
+    $dispatchSql .= " AND t.source_location_id = $userLoc";
+}
+$pendingDispatch = $pdo->query($dispatchSql)->fetchAll();
+
+// 2. Pending Reception (Incoming to MY location)
+// If Admin, show ALL in_transit. If Manager, show in_transit where Dest = My Location
+$receiveSql = "
+    SELECT t.*, p.name as product_name, l1.name as source_name, l2.name as dest_name 
+    FROM inventory_transfers t
+    JOIN products p ON t.product_id = p.id
+    JOIN locations l1 ON t.source_location_id = l1.id
+    JOIN locations l2 ON t.dest_location_id = l2.id
+    WHERE t.status = 'in_transit'
+";
+if ($userRole !== 'admin' && $userRole !== 'dev') {
+    $receiveSql .= " AND t.dest_location_id = $userLoc";
+}
+$incomingStock = $pdo->query($receiveSql)->fetchAll();
+
+// 3. My Recent Requests (To track what I asked for)
+$myRequestsSql = "
+    SELECT t.*, p.name as product_name, l1.name as source_name, l2.name as dest_name 
+    FROM inventory_transfers t
+    JOIN products p ON t.product_id = p.id
+    JOIN locations l1 ON t.source_location_id = l1.id
+    JOIN locations l2 ON t.dest_location_id = l2.id
+    WHERE t.dest_location_id = $userLoc AND t.status = 'pending'
+    ORDER BY t.created_at DESC LIMIT 20
+";
+// Admins see everything
+if ($userRole === 'admin' || $userRole === 'dev') {
+    $myRequestsSql = str_replace("WHERE t.dest_location_id = $userLoc AND", "WHERE", $myRequestsSql);
+}
+$myRequests = $pdo->query($myRequestsSql)->fetchAll();
+
+
+$locations = $pdo->query("SELECT * FROM locations ORDER BY name ASC")->fetchAll();
+$products = $pdo->query("SELECT * FROM products WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
 ?>

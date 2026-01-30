@@ -54,7 +54,7 @@ function isActive($p) { global $page; return $page === $p ? 'active' : ''; }
                 <?php endif; ?>
 
                 <li class="nav-item"><a class="nav-link <?= isActive('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts</a></li>
-
+                <?php if ($isManager): ?><li class="nav-item"><a class="nav-link <?= isActive('reports') ?>" href="index.php?page=reports"><i class="bi bi-graph-up"></i> Reports</a></li><?php endif; ?>
                 <?php if ($isManager): ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Inventory</a>
