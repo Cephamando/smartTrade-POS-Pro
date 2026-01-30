@@ -22,6 +22,7 @@ $isAdmin = in_array($role, ['admin', 'dev']);
 $isManager = in_array($role, ['admin', 'manager', 'dev', 'head_chef']);
 $isStaff = in_array($role, ['cashier', 'waiter', 'bartender']);
 $isKitchen = in_array($role, ['chef', 'admin', 'head_chef', 'dev']);
+$isChef = in_array($_SESSION['role'] ?? '', ['chef', 'head_chef', 'admin', 'dev']);
 // Allow basically everyone except maybe Chef to see Pickup
 $canPickup = in_array($role, ['admin', 'manager', 'dev', 'cashier', 'waiter', 'bartender']);
 
@@ -43,6 +44,12 @@ function isActive($p) { global $page; return $page === $p ? 'active' : ''; }
 
                 <?php if ($isStaff || $isManager): ?>
                 <li class="nav-item"><a class="nav-link <?= isActive('pos') ?>" href="index.php?page=pos"><i class="bi bi-cart4"></i> POS</a></li>
+                <?php endif; ?>
+
+                <?php if ($isChef): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= isActive('menu') ?>" href="index.php?page=menu"><i class="bi bi-egg-fried"></i> Menu Manager</a>
+                    </li>
                 <?php endif; ?>
 
                 <?php if ($isKitchen): ?>
