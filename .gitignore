@@ -4,7 +4,7 @@ auth.json
 
 # --- Docker & Database ---
 db_data/
-mysql/
+mysql/init_with_data.sql
 docker/mysql/data/
 
 # --- Dependencies ---
