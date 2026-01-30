@@ -17,7 +17,7 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $allowed_pages = [
     'login', 'dashboard', 'pos', 'shifts', 'products', 'reports', 
     'inventory', 'users', 'settings', 'kds', 'pickup', 'change_password',
-    'receive', 'transfers', 'receipt', 'vendors', 'locations'
+    'receive', 'transfers', 'receipt', 'vendors', 'locations', 'categories'
 ];
 
 if (!in_array($page, $allowed_pages)) {

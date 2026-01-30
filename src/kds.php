@@ -1,6 +1,6 @@
 <?php
 // SECURITY: Kitchen/Admin/Manager Roles
-$allowed = ['admin', 'manager', 'dev', 'chef'];
+$allowed = ['admin', 'manager', 'dev', 'head_chef', 'chef'];
 if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], $allowed)) {
     header("Location: index.php?page=dashboard");
     exit;

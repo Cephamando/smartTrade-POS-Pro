@@ -19,9 +19,9 @@
 <?php
 $role = $_SESSION['role'] ?? 'cashier';
 $isAdmin = in_array($role, ['admin', 'dev']);
-$isManager = in_array($role, ['admin', 'manager', 'dev']);
+$isManager = in_array($role, ['admin', 'manager', 'dev', 'head_chef']);
 $isStaff = in_array($role, ['cashier', 'waiter', 'bartender']);
-$isKitchen = in_array($role, ['chef', 'admin', 'dev']);
+$isKitchen = in_array($role, ['chef', 'admin', 'head_chef', 'dev']);
 // Allow basically everyone except maybe Chef to see Pickup
 $canPickup = in_array($role, ['admin', 'manager', 'dev', 'cashier', 'waiter', 'bartender']);
 
@@ -60,9 +60,9 @@ function isActive($p) { global $page; return $page === $p ? 'active' : ''; }
                     <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Inventory</a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="index.php?page=products">Products</a></li>
+                        <li><a class="dropdown-item" href="index.php?page=categories">Categories</a></li>
                         <li><a class="dropdown-item" href="index.php?page=inventory">Stock Levels</a></li>
-                        <li><a class="dropdown-item" href="index.php?page=receive">Receive Stock (GRV)</a></li>
-
+                        <li><a class="dropdown-item" href="index.php?page=vendors">Manage Vendors</a></li><li><a class="dropdown-item" href="index.php?page=receive">Receive Stock (GRV)</a></li>
                         <li><a class="dropdown-item" href="index.php?page=transfers">Transfers</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="index.php?page=locations">Locations</a></li>
                     </ul>
                 </li>
