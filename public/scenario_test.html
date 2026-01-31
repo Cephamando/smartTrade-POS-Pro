@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HODMAS POS - End-to-End UAT Scenario</title>
+    <style>
+        /* General Reset & Typography */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #000;
+            background: #ccc; /* Grey background for screen, white for print */
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* A4 Paper Dimensions */
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 10mm auto;
+            border: 1px solid #d3d3d3;
+            border-radius: 5px;
+            background: white;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* Headers */
+        h1 { font-size: 24px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        h2 { font-size: 18px; color: #333; margin-top: 25px; border-left: 5px solid #000; padding-left: 10px; background: #f4f4f4; padding-top: 5px; padding-bottom: 5px; }
+        h3 { font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; text-transform: uppercase; color: #555; }
+
+        /* Content Styling */
+        p { font-size: 12pt; margin-bottom: 5px; line-height: 1.4; }
+        ul { margin-top: 5px; margin-bottom: 15px; padding-left: 20px; }
+        li { font-size: 11pt; margin-bottom: 4px; }
+        
+        /* Utility Classes */
+        .meta-info { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+        .checkbox { display: inline-block; width: 15px; height: 15px; border: 1px solid #000; margin-right: 10px; position: relative; top: 3px; }
+        .bold { font-weight: bold; }
+        .highlight { background-color: #eee; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
+        
+        /* Checklist Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #000; padding: 10px; text-align: left; }
+        th { background-color: #f0f0f0; }
+
+        /* PRINT SETTINGS */
+        @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .page { width: 100%; margin: 0; border: none; box-shadow: none; padding: 0; height: auto; }
+            .no-print { display: none; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print" style="text-align: center; margin-bottom: 20px;">
+        <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #000; color: white; border: none;">PRINT TEST SCENARIO</button>
+    </div>
+
+    <div class="page">
+        <div class="meta-info">
+            <div><strong>System:</strong> HODMAS POS v1.0</div>
+            <div><strong>Scenario:</strong> "The Busy Friday Night"</div>
+            <div><strong>Date:</strong> __________________</div>
+        </div>
+
+        <h1>End-to-End User Acceptance Test (UAT)</h1>
+
+        <p><strong>Objective:</strong> Validate data flow from Inventory (Back Office) to Kitchen (Production) to Customer (Collection).</p>
+
+        <h3>Pre-Requisites</h3>
+        <ul>
+            <li><span class="checkbox"></span> Admin/Manager PC logged in.</li>
+            <li><span class="checkbox"></span> POS Terminal (or Cashier login) ready.</li>
+            <li><span class="checkbox"></span> Kitchen Display (Chef login) ready.</li>
+        </ul>
+
+        <h2>Phase 1: The Supply Chain (Inventory)</h2>
+        <p><em>Goal: Ensure the kitchen has stock to sell.</em></p>
+        <ol>
+            <li><strong>Create Test Item:</strong>
+                <ul>
+                    <li>Name: <span class="highlight">Test Burger</span> | Price: 150.00 | Category: Food.</li>
+                </ul>
+            </li>
+            <li><strong>Receive Stock (Warehouse):</strong>
+                <ul>
+                    <li>Add <strong>100 units</strong> to Main Warehouse.</li>
+                    <li><em>Verify:</em> Stock count reflects 100.</li>
+                </ul>
+            </li>
+            <li><strong>Internal Requisition:</strong>
+                <ul>
+                    <li>Transfer <strong>20 units</strong> from Main Warehouse -> Kitchen.</li>
+                    <li><em>Verify:</em> Warehouse = 80, Kitchen = 20.</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2>Phase 2: The Sale (Front of House)</h2>
+        <p><em>Goal: Process a customer order correctly.</em></p>
+        <ol>
+            <li><strong>Log in as Cashier</strong> and open POS.</li>
+            <li><strong>Process Transaction:</strong>
+                <ul>
+                    <li>Search for <span class="highlight">Test Burger</span>.</li>
+                    <li>Add <strong>Qty: 2</strong> to cart.</li>
+                    <li>Total should be <strong>300.00</strong>.</li>
+                    <li>Pay via <strong>Cash</strong>.</li>
+                </ul>
+            </li>
+            <li><strong>Initial Receipt Check:</strong>
+                <ul>
+                    <li>Verify printed receipt says <span class="bold" style="color:red">[NOT COLLECTED]</span>.</li>
+                </ul>
+            </li>
+            <li><strong>Background Check:</strong>
+                <ul>
+                    <li>Kitchen stock for Test Burger should now be <strong>18</strong>.</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2>Phase 3: Production (KDS)</h2>
+        <p><em>Goal: Kitchen receives and completes the order.</em></p>
+        <ol>
+            <li><strong>Open KDS Screen (Chef View):</strong>
+                <ul>
+                    <li>Locate new ticket for <strong>2 x Test Burger</strong>.</li>
+                    <li>Verify Timer has started (0m).</li>
+                </ul>
+            </li>
+            <li><strong>Cooking Process:</strong>
+                <ul>
+                    <li>Click <span class="highlight">START COOKING</span> (Button turns green).</li>
+                    <li>Click <span class="highlight">MARK READY</span>.</li>
+                    <li><em>Verify:</em> Ticket disappears from active screen.</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="page page-break">
+        
+        <h1>End-to-End UAT (Continued)</h1>
+
+        <h2>Phase 4: The Handoff (Pickup Screen)</h2>
+        <p><em>Goal: Server collects food, system logs the chain of custody.</em></p>
+        <ol>
+            <li><strong>Open Pickup Screen (Server View):</strong>
+                <ul>
+                    <li>Verify Order Card is flashing.</li>
+                    <li>Verify "Server Name" matches the Cashier.</li>
+                </ul>
+            </li>
+            <li><strong>Validation Test:</strong>
+                <ul>
+                    <li>Attempt to click <span class="highlight">CONFIRM</span> without selecting a name.</li>
+                    <li><em>Result:</em> Button must be disabled.</li>
+                </ul>
+            </li>
+            <li><strong>Process Collection:</strong>
+                <ul>
+                    <li>Select Collector: <span class="highlight">Your Name</span>.</li>
+                    <li>Click <span class="highlight">CONFIRM</span>.</li>
+                    <li><em>Result:</em> Order card disappears immediately.</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h2>Phase 5: Documentation (Receipts)</h2>
+        <p><em>Goal: Verify double-printing and status updates.</em></p>
+        <ol>
+            <li><strong>Modal Popup:</strong>
+                <ul>
+                    <li>A popup should appear immediately after confirmation.</li>
+                </ul>
+            </li>
+            <li><strong>Verify Copy 1 (Client):</strong>
+                <ul>
+                    <li>Label: <strong>*** CLIENT COPY ***</strong></li>
+                    <li>Text: <span class="bold">SERVED BY: [Name]</span></li>
+                </ul>
+            </li>
+            <li><strong>Verify Copy 2 (Kitchen):</strong>
+                <ul>
+                    <li>Label: <strong>*** KITCHEN COPY ***</strong></li>
+                    <li>Text: <span class="bold">COLLECTED BY: [Name]</span></li>
+                    <li>Verify Cut Line (✂) exists between copies.</li>
+                </ul>
+            </li>
+        </ol>
+
+        <hr style="border: 0; border-top: 2px solid #000; margin: 30px 0;">
+
+        <h2>Final Sign-Off Checklist</h2>
+        <p>Complete this section to certify the system is ready for Go-Live.</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 70%;">Validation Step</th>
+                    <th style="width: 15%; text-align: center;">Pass</th>
+                    <th style="width: 15%; text-align: center;">Fail</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Inventory:</strong> Stock deducted correctly (Warehouse -> Kitchen -> Sold)?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+                <tr>
+                    <td><strong>POS:</strong> Sale completed smoothly with correct totals?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+                <tr>
+                    <td><strong>KDS:</strong> Ticket appeared on screen and was legally closed?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+                <tr>
+                    <td><strong>Pickup:</strong> Validation prevented collection without a name?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+                <tr>
+                    <td><strong>Receipts:</strong> Status updated from "Not Collected" to "Served By"?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+                <tr>
+                    <td><strong>Security:</strong> "Exit to Dashboard" works; No new tabs opened?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="margin-top: 50px; display: flex; justify-content: space-between;">
+            <div>
+                <p><strong>Tester Signature:</strong> _______________________</p>
+            </div>
+            <div>
+                <p><strong>Date:</strong> _______________________</p>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
