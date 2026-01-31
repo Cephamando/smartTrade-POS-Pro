@@ -1,7 +1,7 @@
 <?php
 // SECURITY: Cashiers, Managers, Admins Only
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
-if (!in_array($_SESSION['role'], ['cashier', 'manager', 'admin', 'bartender', 'dev'])) {
+if (!in_array($_SESSION['role'], ['cashier', 'manager', 'admin', 'dev'])) {
     $_SESSION['swal_type'] = 'error';
     $_SESSION['swal_msg'] = "Access Denied: POS is for Cashiers only.";
     header("Location: index.php?page=dashboard");
@@ -23,7 +23,6 @@ if (isset($_GET['ajax_ready_count'])) {
 $stmt = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open' LIMIT 1");
 $stmt->execute([$userId]);
 $shift = $stmt->fetch();
-
 if (!$shift) {
     $_SESSION['swal_type'] = 'warning';
     $_SESSION['swal_msg'] = 'You must Clock In before making sales.';
@@ -38,32 +37,45 @@ if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) { $_SESSION['cart
 // 3. HANDLE ACTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // ADD ITEM (ROBUST FIX)
+    // ADD ITEM (WITH STOCK CHECK)
     if (isset($_POST['add_item'])) {
         $pid = $_POST['product_id'];
-        $qty = 1;
         
-        // FETCH PRODUCT DETAILS FROM DB (Secure Source of Truth)
+        // A. FETCH PRODUCT DETAILS & CURRENT STOCK
         $stmt = $pdo->prepare("
-            SELECT p.id, p.name, p.price, p.category_id, c.name as category_name 
+            SELECT p.id, p.name, p.price, p.category_id, c.name as category_name,
+                   COALESCE(ls.quantity, 0) as current_stock
             FROM products p 
             LEFT JOIN categories c ON p.category_id = c.id 
+            LEFT JOIN location_stock ls ON (p.id = ls.product_id AND ls.location_id = ?)
             WHERE p.id = ?
         ");
-        $stmt->execute([$pid]);
+        $stmt->execute([$locId, $pid]);
         $prod = $stmt->fetch();
 
         if ($prod) {
-            if (isset($_SESSION['cart'][$pid])) {
-                $_SESSION['cart'][$pid]['qty']++;
+            // B. CALCULATE REQUESTED QTY
+            $currentCartQty = isset($_SESSION['cart'][$pid]) ? $_SESSION['cart'][$pid]['qty'] : 0;
+            $newQty = $currentCartQty + 1;
+
+            // C. VALIDATE STOCK
+            if ($newQty > $prod['current_stock']) {
+                $_SESSION['swal_type'] = 'warning';
+                // HTML in SweetAlert for the Requisition Link
+                $_SESSION['swal_msg'] = "Out of Stock! Available: " . floatval($prod['current_stock']) . ". <br><br>Please create a <a href='index.php?page=transfers' style='color: #0d6efd; font-weight: bold;'>Stock Requisition</a>.";
             } else {
-                $_SESSION['cart'][$pid] = [
-                    'name' => $prod['name'], 
-                    'price' => floatval($prod['price']), 
-                    'qty' => 1, 
-                    'cat_id' => $prod['category_id'],
-                    'cat_name' => $prod['category_name'] // Now guaranteed to be correct
-                ];
+                // D. ADD TO CART
+                if (isset($_SESSION['cart'][$pid])) {
+                    $_SESSION['cart'][$pid]['qty']++;
+                } else {
+                    $_SESSION['cart'][$pid] = [
+                        'name' => $prod['name'], 
+                        'price' => floatval($prod['price']), 
+                        'qty' => 1, 
+                        'cat_id' => $prod['category_id'],
+                        'cat_name' => $prod['category_name']
+                    ];
+                }
             }
         }
     }
@@ -81,33 +93,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->beginTransaction();
                 
+                // Final Stock Re-Check (Race condition prevention)
+                foreach ($_SESSION['cart'] as $pid => $item) {
+                    $chk = $pdo->prepare("SELECT quantity FROM location_stock WHERE location_id = ? AND product_id = ?");
+                    $chk->execute([$locId, $pid]);
+                    $avail = $chk->fetchColumn() ?: 0;
+                    if ($avail < $item['qty']) {
+                        throw new Exception("Stock changed for {$item['name']}. Only $avail remaining.");
+                    }
+                }
+
                 $total = 0;
                 foreach ($_SESSION['cart'] as $item) $total += ($item['price'] * $item['qty']);
                 $payMethod = $_POST['payment_method'];
 
-                // Sale Header
                 $sql = "INSERT INTO sales (location_id, user_id, shift_id, total_amount, final_total, payment_method, status, created_at) 
                         VALUES (?, ?, ?, ?, ?, ?, 'completed', NOW())";
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute([$locId, $userId, $shiftId, $total, $total, $payMethod]);
                 $saleId = $pdo->lastInsertId();
 
-                // Items & Stock
                 $itemStmt = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, ?)");
                 $stockStmt = $pdo->prepare("UPDATE location_stock SET quantity = quantity - ? WHERE location_id = ? AND product_id = ?");
 
-                // KITCHEN ROUTING LIST
-                // Ensure your Category Names in the DB match one of these (case-insensitive)
                 $kitchenCats = ['meal', 'meals', 'food', 'snack', 'snacks', 'starter', 'starters', 'kitchen', 'dessert', 'main course'];
 
                 foreach ($_SESSION['cart'] as $pid => $item) {
-                    // ROUTING CHECK
                     $catCheck = strtolower(trim($item['cat_name'] ?? ''));
-                    $isKitchen = in_array($catCheck, $kitchenCats);
-                    
-                    // IF KITCHEN -> 'pending' (Show on KDS)
-                    // IF BAR -> 'served' (Skip KDS)
-                    $status = $isKitchen ? 'pending' : 'served';
+                    $status = in_array($catCheck, $kitchenCats) ? 'pending' : 'served';
                     
                     $itemStmt->execute([$saleId, $pid, $item['qty'], $item['price'], $status]);
                     $stockStmt->execute([$item['qty'], $locId, $pid]);

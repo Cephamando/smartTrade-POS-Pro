@@ -55,14 +55,14 @@
                                 <form method="POST" action="index.php?page=pos" class="h-100">
                                     <input type="hidden" name="add_item" value="1">
                                     <input type="hidden" name="product_id" value="<?= $p['id'] ?>">
-                                    <input type="hidden" name="name" value="<?= htmlspecialchars($p['name']) ?>">
-                                    <input type="hidden" name="price" value="<?= $p['price'] ?>">
-                                    <input type="hidden" name="category_id" value="<?= $p['category_id'] ?>"><input type="hidden" name="category_name" value="<?= htmlspecialchars($p['category_name'] ?? '') ?>">
+                                    <input type="hidden" name="category_id" value="<?= $p['category_id'] ?>">
+                                    <input type="hidden" name="category_name" value="<?= htmlspecialchars($p['category_name'] ?? '') ?>">
+
                                     <button type="submit" class="btn btn-white border w-100 h-100 p-3 text-start shadow-sm hover-shadow d-flex flex-column justify-content-between">
                                         <div class="fw-bold text-dark mb-1" style="line-height: 1.2;"><?= htmlspecialchars($p['name']) ?></div>
                                         <div>
                                             <div class="text-primary fw-bold fs-5">ZMW <?= number_format((float)$p['price'], 2) ?></div>
-                                            <small class="text-muted"><?= htmlspecialchars($p['category'] ?? '-') ?></small>
+                                            <small class="text-muted"><?= htmlspecialchars($p['category_name'] ?? '-') ?></small>
                                         </div>
                                     </button>
                                 </form>
@@ -202,9 +202,7 @@
             })
             .catch(err => console.error('Badge Error:', err));
     }
-    // Poll every 5 seconds
     setInterval(checkPickupCount, 5000);
-    // Check immediately on load
     checkPickupCount();
 
 
@@ -216,15 +214,17 @@
         <?php unset($_SESSION['last_sale_id']); ?>
     <?php endif; ?>
 
-    // SUCCESS ALERTS
+    // SUCCESS/WARNING ALERTS (Updated for HTML Links)
     <?php if (isset($_SESSION['swal_type'])): ?>
     document.addEventListener("DOMContentLoaded", function() {
         Swal.fire({
             icon: '<?= $_SESSION['swal_type'] ?>',
             title: '<?= $_SESSION['swal_type'] === "success" ? "Success" : "Notice" ?>',
-            text: '<?= addslashes($_SESSION['swal_msg']) ?>',
-            timer: 2000,
-            showConfirmButton: false
+            html: '<?= addslashes($_SESSION['swal_msg']) ?>', // CHANGED text -> html
+            // Warning alerts (like stock issues) stay open until clicked; Success alerts close in 2s
+            timer: <?= $_SESSION['swal_type'] === 'warning' ? 'null' : '2000' ?>,
+            showConfirmButton: <?= $_SESSION['swal_type'] === 'warning' ? 'true' : 'false' ?>,
+            confirmButtonText: 'OK'
         });
     });
     <?php unset($_SESSION['swal_type']); unset($_SESSION['swal_msg']); ?>
