@@ -1,7 +1,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3>👋 Welcome, <?= htmlspecialchars($_SESSION['username']) ?></h3>
-        <p class="text-muted">Location: <?= htmlspecialchars($user['location_name']) ?></p>
+        <h3>👋 Welcome, <?= htmlspecialchars($_SESSION['username'] ?? 'Guest') ?></h3>
+        <p class="text-muted">Location: <?= htmlspecialchars($user['location_name'] ?? 'Unknown') ?></p>
     </div>
     <div>
         <a href="index.php?page=pickup" target="_blank" class="btn btn-outline-warning position-relative me-2">
