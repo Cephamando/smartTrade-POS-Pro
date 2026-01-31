@@ -1,7 +1,7 @@
 <?php
 // SECURITY: Cashiers, Managers, Admins Only
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
-if (!in_array($_SESSION['role'], ['cashier', 'manager', 'admin', 'dev'])) {
+if (!in_array($_SESSION['role'], ['cashier', 'shopkeeper', 'bartender', 'manager', 'admin', 'dev'])) {
     $_SESSION['swal_type'] = 'error';
     $_SESSION['swal_msg'] = "Access Denied: POS is for Cashiers only.";
     header("Location: index.php?page=dashboard");

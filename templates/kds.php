@@ -15,11 +15,10 @@
             border-radius: 8px;
             border-top: 5px solid #6c757d; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            /* Removed height: 100% to allow auto-sizing */
         }
         .ticket-header { background-color: #f8f9fa; border-bottom: 2px dashed #dee2e6; padding: 10px 15px; border-radius: 8px 8px 0 0; }
         .ticket-body { 
-            max-height: 50vh; /* Limit height for massive orders only */
+            max-height: 50vh; 
             overflow-y: auto; 
             padding: 0; 
         }
@@ -34,7 +33,12 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="m-0 fw-bold"><i class="bi bi-grid-3x3-gap-fill text-warning"></i> KITCHEN DISPLAY</h4>
-        <div class="fs-4 font-monospace bg-dark px-3 py-1 rounded text-warning" id="clock"><?= date('H:i') ?></div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="fs-4 font-monospace bg-dark px-3 py-1 rounded text-warning" id="clock"><?= date('H:i') ?></div>
+            <a href="index.php?page=dashboard" class="btn btn-outline-light">
+                Exit to Dashboard
+            </a>
+        </div>
     </div>
 
     <div class="d-flex flex-nowrap overflow-auto gap-3 h-100 pb-2 align-items-start">

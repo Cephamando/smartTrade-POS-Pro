@@ -4,20 +4,33 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 
 $locId = $_SESSION['location_id'];
 
-// HANDLE "COLLECTED" ACTION
+// HANDLE "COLLECTED" ACTION (AJAX & STANDARD)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['collect_order'])) {
     $saleId = $_POST['sale_id'];
-    
-    // Mark items as 'served' to clear them from the screen/badge
-    $stmt = $pdo->prepare("UPDATE sale_items SET status = 'served' WHERE sale_id = ? AND status = 'ready'");
-    $stmt->execute([$saleId]);
-    
-    header("Location: index.php?page=pickup");
-    exit;
+    $collectedBy = $_POST['collected_by'];
+
+    if (!empty($collectedBy)) {
+        // 1. Mark items as 'served'
+        $stmt = $pdo->prepare("UPDATE sale_items SET status = 'served' WHERE sale_id = ? AND status = 'ready'");
+        $stmt->execute([$saleId]);
+
+        // 2. Record who collected it
+        $stmt = $pdo->prepare("UPDATE sales SET collected_by = ? WHERE id = ?");
+        $stmt->execute([$collectedBy, $saleId]);
+        
+        // 3. IF AJAX, RETURN JSON (Don't Redirect)
+        if (isset($_POST['ajax'])) {
+            echo json_encode(['status' => 'success', 'sale_id' => $saleId]);
+            exit;
+        }
+
+        // Fallback for non-JS
+        header("Location: index.php?page=receipt&sale_id=$saleId&print_collection=1");
+        exit;
+    }
 }
 
 // FETCH READY ORDERS
-// We group by Sale ID (Ticket #)
 $sql = "
     SELECT DISTINCT s.id as sale_id, s.created_at, u.username as server
     FROM sale_items si
@@ -28,7 +41,8 @@ $sql = "
 ";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$locId]);
+$readyOrders = $stmt->fetchAll();
 
-// THIS IS THE VARIABLE THE TEMPLATE NEEDS:
-$readyOrders = $stmt->fetchAll(); 
+// FETCH WAITERS
+$waiters = $pdo->query("SELECT full_name FROM users WHERE role IN ('cashier', 'manager', 'admin', 'dev') AND location_id = $locId ORDER BY full_name ASC")->fetchAll(PDO::FETCH_COLUMN);
 ?>

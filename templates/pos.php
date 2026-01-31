@@ -27,7 +27,7 @@
             <i class="bi bi-cart4 text-primary"></i> POS Terminal
         </div>
         <div>
-            <a href="index.php?page=pickup" target="_blank" class="btn btn-outline-warning btn-sm me-3 position-relative">
+            <a href="index.php?page=pickup" class="btn btn-outline-warning btn-sm me-3 position-relative">
                 <i class="bi bi-bell-fill"></i> Pickup Screen
                 <span id="pickupBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">
                     0
@@ -205,8 +205,6 @@
     setInterval(checkPickupCount, 5000);
     checkPickupCount();
 
-
-    // CHECK FOR RECEIPT TRIGGER
     <?php if (isset($_SESSION['last_sale_id'])): ?>
         var receiptModal = new bootstrap.Modal(document.getElementById('receiptModal'));
         document.getElementById('receiptFrame').src = 'index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>';
@@ -214,14 +212,12 @@
         <?php unset($_SESSION['last_sale_id']); ?>
     <?php endif; ?>
 
-    // SUCCESS/WARNING ALERTS (Updated for HTML Links)
     <?php if (isset($_SESSION['swal_type'])): ?>
     document.addEventListener("DOMContentLoaded", function() {
         Swal.fire({
             icon: '<?= $_SESSION['swal_type'] ?>',
             title: '<?= $_SESSION['swal_type'] === "success" ? "Success" : "Notice" ?>',
-            html: '<?= addslashes($_SESSION['swal_msg']) ?>', // CHANGED text -> html
-            // Warning alerts (like stock issues) stay open until clicked; Success alerts close in 2s
+            html: '<?= addslashes($_SESSION['swal_msg']) ?>',
             timer: <?= $_SESSION['swal_type'] === 'warning' ? 'null' : '2000' ?>,
             showConfirmButton: <?= $_SESSION['swal_type'] === 'warning' ? 'true' : 'false' ?>,
             confirmButtonText: 'OK'

@@ -107,6 +107,7 @@ CREATE TABLE `locations` (
   `can_sell` tinyint(1) DEFAULT '1',
   `can_receive_from_vendor` tinyint(1) DEFAULT '0',
   `address` text,
+  `phone` varchar(50) DEFAULT '555-0000',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -188,6 +189,7 @@ CREATE TABLE `sales` (
   `payment_method` enum('cash','card','mobile_money') DEFAULT 'cash',
   `status` enum('completed','refund_requested','refunded','partially_refunded') DEFAULT 'completed',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `collected_by` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `location_id` (`location_id`),
   KEY `user_id` (`user_id`),
@@ -276,7 +278,7 @@ CREATE TABLE `users` (
   `username` varchar(50) NOT NULL,
   `full_name` varchar(100) DEFAULT NULL,
   `password_hash` varchar(255) NOT NULL,
-  `role` enum('admin','manager','cashier','dev','chef','waiter','head_chef','bartender') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'cashier',
+  `role` enum('admin','shopkeeper','manager','cashier','dev','chef','waiter','head_chef','bartender') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'cashier',
   `location_id` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `force_password_change` tinyint(1) DEFAULT '0',
@@ -289,14 +291,15 @@ CREATE TABLE `users` (
 TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
 (1, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  9,  '2026-01-29 12:55:36',  0),
-(3, 'cashier',  'Mwale Kitchen Cashier',  '$2y$10$iXhMsvOg9qW/gEPTbKVLp.Y/4mfpJCGXlwNA5uAUCu7Z95qpFXhVi', 'cashier',  1,  '2026-01-29 12:55:36',  1),
-(4, 'head_chef',  'Head Chef',  '$2y$10$REztQL/FHtYczjBIxtrND.hj8EHVm9j9LG9Rc4mLC.tHOTWjLSP6e', 'head_chef',  1,  '2026-01-30 05:37:27',  1),
-(5, 'stores_manager', 'Choolwe Stores Manager', '$2y$10$aUaopWjfKx0slywGz85DteWsArR2eQrdc7UaL8DqJdsehzyID2vCa', 'manager',  3,  '2026-01-30 06:39:29',  1),
-(6, 'chef', 'Sililo Chef',  '$2y$10$PPd95Dhb2Cw0X5OkI.C62Omoh2KjmNAVCx1ZJf6hlbDmdb2pKUAM.', 'chef', 1,  '2026-01-30 06:40:05',  1),
-(7, 'Main_bartender', 'Main Bar Bartender', '$2y$10$B0ncXiVhYSXvkO9/oRtqD.YYh7wJrunoHztUnemr0SGzfJZPSroX6', 'bartender',  2,  '2026-01-30 06:40:57',  1),
+(3, 'cashier',  'Mwale Kitchen Cashier',  '$2y$10$dorPozd1gh1C8YoG5MqBbe4DPQff/U9QQbTOduBMf2T5y4u6BZSpO', 'cashier',  1,  '2026-01-29 12:55:36',  1),
+(4, 'head_chef',  'Head Chef',  '$2y$10$SdL7lTZSPTS5QLhje3BCeeq08kcW5jLd3SNZpWTvoVbgWboXSut9O', 'head_chef',  1,  '2026-01-30 05:37:27',  1),
+(5, 'stores_manager', 'Choolwe Stores Manager', '$2y$10$FB40ePAQ5abCVXLEhjuVI.G8Ebe/9s8rWxCUPGRcWvXHxy85Ufifi', 'manager',  3,  '2026-01-30 06:39:29',  1),
+(6, 'chef', 'Sililo Chef',  '$2y$10$hAAvflXVOdkSTkpgESAj5O2w3TfRlZe4uW/OiKw0WlusFUdzmseWK', 'chef', 1,  '2026-01-30 06:40:05',  1),
+(7, 'Main_bartender', 'Main Bar Bartender', '$2y$10$1LpLTw/HiJsIEbNjwZ44zuNm.K.DiDtFretzcA65M7RV6tliGCN86', 'bartender',  2,  '2026-01-30 06:40:57',  1),
 (8, 'Bar_Manager',  'Mumba Bar-Manager',  '$2y$10$LYO5xnXXOYai3a9S2qZMIuH4loofSX3UzXRD/lUKanlykNt9UDh1S', 'manager',  2,  '2026-01-30 07:59:03',  1),
-(10,  'Daliso', 'Daliso Nindi', '$2y$10$jlbyPlm3RQd1Jcuvzzb4xOpeUbYqoa52mQBVZ6jrvYgMd1KqzchjW', 'admin',  9,  '2026-01-30 18:19:15',  1),
-(11,  'Admin',  'Admininistaror Account', '$2y$10$neSVgyAH9HcitctJVMnTh.b4hN9X.f3.T404qS20xtlMMAyBSQQj.', 'admin',  9,  '2026-01-31 07:09:34',  0);
+(10,  'Daliso', 'Daliso Nindi', '$2y$10$VlTfRDkhaOa3Mi.l7Eubd.fr/yfJ5m5fixiDVgs45nZroOUPhtYty', 'admin',  9,  '2026-01-30 18:19:15',  1),
+(11,  'Admin',  'Admininistaror Account', '$2y$10$ko3GeD23e0xGx5uVI.sFl.kCwhrw56eHBD9XtS9iwUo9ov2b9uZ2u', 'admin',  9,  '2026-01-31 07:09:34',  1),
+(12,  'mary_sales', 'Mary sales lady',  '$2y$10$G5lCwVTFpHyZGUTgUR5oZOlZA71YAa3sm/VMh8hp087ePV2E3/iM.', 'shopkeeper', 12, '2026-01-31 14:06:24',  1);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -308,4 +311,4 @@ CREATE TABLE `vendors` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
--- 2026-01-31 07:19:12 UTC
+-- 2026-01-31 14:10:22 UTC
