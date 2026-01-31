@@ -293,7 +293,8 @@ INSERT INTO `users` (`id`, `username`, `password_hash`, `role`, `location_id`, `
 (5, 'stores_manager', '$2y$10$Ag0AEaK7JwiDJqHQhzsMD.LYv9jXfJC0NyTHOaU/gPCZHBVwAC7Ze', 'manager',  3,  '2026-01-30 06:39:29',  0),
 (6, 'chef', '$2y$10$ebU1RxFhof8h9wcL6KkWE.zyjD/1Fzs2hGOQsur/zwwk7l9hmKVLa', 'chef', 1,  '2026-01-30 06:40:05',  0),
 (7, 'Main_bartender', '$2y$10$PA0I9uOWrx7OFbt9MN8nJesCb/zLwryHuZzZuW.AtX5H2rBaBKw1O', 'bartender',  2,  '2026-01-30 06:40:57',  0),
-(8, 'Bar_Manager',  '$2y$10$nZHpDBrnEPQTQW/qnvOoeOIT2V97h9hF0JyXkc9KHgHQejL682/Cq', 'manager',  2,  '2026-01-30 07:59:03',  0);
+(8, 'Bar_Manager',  '$2y$10$nZHpDBrnEPQTQW/qnvOoeOIT2V97h9hF0JyXkc9KHgHQejL682/Cq', 'manager',  2,  '2026-01-30 07:59:03',  0),
+(10,  'Daliso', '$2y$10$5q2OGn9TRgeDLgv2lfJ.jOf32Cx6T7/ysTn.i99Mqv8lIIWQujVGW', 'admin',  3,  '2026-01-30 18:19:15',  1);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -305,4 +306,4 @@ CREATE TABLE `vendors` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
--- 2026-01-30 08:11:49 UTC
+-- 2026-01-31 04:21:05 UTC
