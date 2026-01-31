@@ -1,22 +1,22 @@
 <?php
-// SECURITY: Logged in users only
+// SECURITY: Cashiers, Managers, Admins Only
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
+if (!in_array($_SESSION['role'], ['cashier', 'manager', 'admin', 'bartender', 'dev'])) {
+    $_SESSION['swal_type'] = 'error';
+    $_SESSION['swal_msg'] = "Access Denied: POS is for Cashiers only.";
+    header("Location: index.php?page=dashboard");
+    exit;
+}
 
 $userId = $_SESSION['user_id'];
 $locId  = $_SESSION['location_id'];
 
 // --- AJAX: CHECK READY COUNT ---
 if (isset($_GET['ajax_ready_count'])) {
-    // Count distinct orders that have items marked as 'ready' for this location
-    $stmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT si.sale_id) 
-        FROM sale_items si 
-        JOIN sales s ON si.sale_id = s.id 
-        WHERE si.status = 'ready' AND s.location_id = ?
-    ");
+    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT si.sale_id) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.status = 'ready' AND s.location_id = ?");
     $stmt->execute([$locId]);
     echo $stmt->fetchColumn();
-    exit; // Stop here, don't load the whole page
+    exit; 
 }
 
 // 1. CHECK FOR OPEN SHIFT
@@ -32,45 +32,45 @@ if (!$shift) {
 }
 $shiftId = $shift['id'];
 
-// 2. INITIALIZE & SELF-HEAL CART
-if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
-    $_SESSION['cart'] = [];
-}
-foreach ($_SESSION['cart'] as $pid => $item) {
-    if (!is_array($item) || !isset($item['name']) || !isset($item['price']) || !isset($item['qty'])) {
-        $_SESSION['cart'] = []; 
-        break;
-    }
-}
+// 2. SELF-HEAL CART
+if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) { $_SESSION['cart'] = []; }
 
 // 3. HANDLE ACTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    // ADD ITEM
+    // ADD ITEM (ROBUST FIX)
     if (isset($_POST['add_item'])) {
         $pid = $_POST['product_id'];
-        $name = $_POST['name'];
-        $price = floatval($_POST['price']);
-        $catId = $_POST['category_id'];
+        $qty = 1;
         
-        if (isset($_SESSION['cart'][$pid])) {
-            $_SESSION['cart'][$pid]['qty']++;
-        } else {
-            $_SESSION['cart'][$pid] = [
-                'name' => $name, 'price' => $price, 'qty' => 1, 'cat_id' => $catId
-            ];
+        // FETCH PRODUCT DETAILS FROM DB (Secure Source of Truth)
+        $stmt = $pdo->prepare("
+            SELECT p.id, p.name, p.price, p.category_id, c.name as category_name 
+            FROM products p 
+            LEFT JOIN categories c ON p.category_id = c.id 
+            WHERE p.id = ?
+        ");
+        $stmt->execute([$pid]);
+        $prod = $stmt->fetch();
+
+        if ($prod) {
+            if (isset($_SESSION['cart'][$pid])) {
+                $_SESSION['cart'][$pid]['qty']++;
+            } else {
+                $_SESSION['cart'][$pid] = [
+                    'name' => $prod['name'], 
+                    'price' => floatval($prod['price']), 
+                    'qty' => 1, 
+                    'cat_id' => $prod['category_id'],
+                    'cat_name' => $prod['category_name'] // Now guaranteed to be correct
+                ];
+            }
         }
     }
 
-    // REMOVE ITEM
-    if (isset($_POST['remove_item'])) {
-        unset($_SESSION['cart'][$_POST['product_id']]);
-    }
-
-    // CLEAR CART
-    if (isset($_POST['clear_cart'])) {
-        $_SESSION['cart'] = [];
-    }
+    // REMOVE & CLEAR ITEMS
+    if (isset($_POST['remove_item'])) unset($_SESSION['cart'][$_POST['product_id']]);
+    if (isset($_POST['clear_cart'])) $_SESSION['cart'] = [];
 
     // CHECKOUT
     if (isset($_POST['checkout'])) {
@@ -83,7 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $total = 0;
                 foreach ($_SESSION['cart'] as $item) $total += ($item['price'] * $item['qty']);
-                
                 $payMethod = $_POST['payment_method'];
 
                 // Sale Header
@@ -93,12 +92,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$locId, $userId, $shiftId, $total, $total, $payMethod]);
                 $saleId = $pdo->lastInsertId();
 
-                // Sale Items & Stock
+                // Items & Stock
                 $itemStmt = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, ?)");
                 $stockStmt = $pdo->prepare("UPDATE location_stock SET quantity = quantity - ? WHERE location_id = ? AND product_id = ?");
 
+                // KITCHEN ROUTING LIST
+                // Ensure your Category Names in the DB match one of these (case-insensitive)
+                $kitchenCats = ['meal', 'meals', 'food', 'snack', 'snacks', 'starter', 'starters', 'kitchen', 'dessert', 'main course'];
+
                 foreach ($_SESSION['cart'] as $pid => $item) {
-                    $status = ($item['cat_id'] == 1) ? 'pending' : 'served'; // If Food (Cat 1) -> Pending
+                    // ROUTING CHECK
+                    $catCheck = strtolower(trim($item['cat_name'] ?? ''));
+                    $isKitchen = in_array($catCheck, $kitchenCats);
+                    
+                    // IF KITCHEN -> 'pending' (Show on KDS)
+                    // IF BAR -> 'served' (Skip KDS)
+                    $status = $isKitchen ? 'pending' : 'served';
+                    
                     $itemStmt->execute([$saleId, $pid, $item['qty'], $item['price'], $status]);
                     $stockStmt->execute([$item['qty'], $locId, $pid]);
                 }
@@ -106,8 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->commit();
                 $_SESSION['cart'] = [];
                 $_SESSION['last_sale_id'] = $saleId;
-
-                // Redirect to POS (Triggers Modal)
+                
                 header("Location: index.php?page=pos");
                 exit;
 
@@ -118,17 +127,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    
-    // Default Redirect if not checkout
     header("Location: index.php?page=pos");
     exit;
 }
 
-// 4. FETCH PRODUCTS (Flat List)
-$sql = "SELECT p.*, c.name as category 
+// 4. FETCH PRODUCTS FOR GRID
+$sql = "SELECT p.*, c.name as category_name 
         FROM products p 
         LEFT JOIN categories c ON p.category_id = c.id 
-        WHERE p.is_active = 1 
+        WHERE p.is_active = 1 AND p.price > 0
+        AND (c.name IS NULL OR c.name NOT IN ('Ingredients', 'Raw Materials'))
         ORDER BY p.category_id ASC, p.name ASC";
 $products = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC); 
 ?>

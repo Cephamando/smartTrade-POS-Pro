@@ -57,7 +57,7 @@
                                     <input type="hidden" name="product_id" value="<?= $p['id'] ?>">
                                     <input type="hidden" name="name" value="<?= htmlspecialchars($p['name']) ?>">
                                     <input type="hidden" name="price" value="<?= $p['price'] ?>">
-                                    <input type="hidden" name="category_id" value="<?= $p['category_id'] ?>">
+                                    <input type="hidden" name="category_id" value="<?= $p['category_id'] ?>"><input type="hidden" name="category_name" value="<?= htmlspecialchars($p['category_name'] ?? '') ?>">
                                     <button type="submit" class="btn btn-white border w-100 h-100 p-3 text-start shadow-sm hover-shadow d-flex flex-column justify-content-between">
                                         <div class="fw-bold text-dark mb-1" style="line-height: 1.2;"><?= htmlspecialchars($p['name']) ?></div>
                                         <div>
