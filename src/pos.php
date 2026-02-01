@@ -1,155 +1,224 @@
 <?php
-// SECURITY: Cashiers, Managers, Admins Only
-if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
-if (!in_array($_SESSION['role'], ['cashier', 'shopkeeper', 'bartender', 'manager', 'admin', 'dev'])) {
-    $_SESSION['swal_type'] = 'error';
-    $_SESSION['swal_msg'] = "Access Denied: POS is for Cashiers only.";
-    header("Location: index.php?page=dashboard");
+// SECURITY: Ensure user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php?page=login");
     exit;
 }
 
 $userId = $_SESSION['user_id'];
-$locId  = $_SESSION['location_id'];
+$locationId = $_SESSION['location_id'];
 
-// --- AJAX: CHECK READY COUNT ---
-if (isset($_GET['ajax_ready_count'])) {
-    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT si.sale_id) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.status = 'ready' AND s.location_id = ?");
-    $stmt->execute([$locId]);
-    echo $stmt->fetchColumn();
-    exit; 
-}
+// --- GET LOCATION NAME ---
+// We fetch the name so we can display "POS - KITCHEN" or "POS - BAR"
+$locStmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
+$locStmt->execute([$locationId]);
+$locationName = $locStmt->fetchColumn() ?: 'Unknown Location';
 
-// 1. CHECK FOR OPEN SHIFT
-$stmt = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open' LIMIT 1");
-$stmt->execute([$userId]);
-$shift = $stmt->fetch();
-if (!$shift) {
-    $_SESSION['swal_type'] = 'warning';
-    $_SESSION['swal_msg'] = 'You must Clock In before making sales.';
-    header("Location: index.php?page=shifts");
-    exit;
-}
-$shiftId = $shift['id'];
-
-// 2. SELF-HEAL CART
-if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) { $_SESSION['cart'] = []; }
-
-// 3. HANDLE ACTIONS
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// --- ACTION: ADD TO CART (STRICT LOCATION CHECK) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
+    $pid = $_POST['product_id'];
+    $catId = $_POST['category_id'];
     
-    // ADD ITEM (WITH STOCK CHECK)
-    if (isset($_POST['add_item'])) {
-        $pid = $_POST['product_id'];
-        
-        // A. FETCH PRODUCT DETAILS & CURRENT STOCK
-        $stmt = $pdo->prepare("
-            SELECT p.id, p.name, p.price, p.category_id, c.name as category_name,
-                   COALESCE(ls.quantity, 0) as current_stock
-            FROM products p 
-            LEFT JOIN categories c ON p.category_id = c.id 
-            LEFT JOIN location_stock ls ON (p.id = ls.product_id AND ls.location_id = ?)
-            WHERE p.id = ?
-        ");
-        $stmt->execute([$locId, $pid]);
-        $prod = $stmt->fetch();
+    // 1. Get Current Stock FOR THIS LOCATION ONLY
+    $stockStmt = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
+    $stockStmt->execute([$pid, $locationId]);
+    $stockData = $stockStmt->fetch();
+    $realStock = $stockData ? $stockData['quantity'] : 0;
 
-        if ($prod) {
-            // B. CALCULATE REQUESTED QTY
-            $currentCartQty = isset($_SESSION['cart'][$pid]) ? $_SESSION['cart'][$pid]['qty'] : 0;
-            $newQty = $currentCartQty + 1;
+    // 2. Get Current Cart Quantity
+    $currentCartQty = isset($_SESSION['cart'][$pid]) ? $_SESSION['cart'][$pid]['qty'] : 0;
 
-            // C. VALIDATE STOCK
-            if ($newQty > $prod['current_stock']) {
-                $_SESSION['swal_type'] = 'warning';
-                // HTML in SweetAlert for the Requisition Link
-                $_SESSION['swal_msg'] = "Out of Stock! Available: " . floatval($prod['current_stock']) . ". <br><br>Please create a <a href='index.php?page=transfers' style='color: #0d6efd; font-weight: bold;'>Stock Requisition</a>.";
-            } else {
-                // D. ADD TO CART
-                if (isset($_SESSION['cart'][$pid])) {
-                    $_SESSION['cart'][$pid]['qty']++;
-                } else {
-                    $_SESSION['cart'][$pid] = [
-                        'name' => $prod['name'], 
-                        'price' => floatval($prod['price']), 
-                        'qty' => 1, 
-                        'cat_id' => $prod['category_id'],
-                        'cat_name' => $prod['category_name']
-                    ];
-                }
-            }
-        }
+    // 3. Validate
+    if (($currentCartQty + 1) > $realStock) {
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg'] = "Out of Stock at $locationName! Only $realStock available.";
+        header("Location: index.php?page=pos");
+        exit;
     }
 
-    // REMOVE & CLEAR ITEMS
-    if (isset($_POST['remove_item'])) unset($_SESSION['cart'][$_POST['product_id']]);
-    if (isset($_POST['clear_cart'])) $_SESSION['cart'] = [];
+    // 4. Proceed
+    $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?");
+    $stmt->execute([$pid]);
+    $product = $stmt->fetch();
 
-    // CHECKOUT
-    if (isset($_POST['checkout'])) {
-        if (empty($_SESSION['cart'])) {
-            $_SESSION['swal_type'] = 'error';
-            $_SESSION['swal_msg'] = "Cart is empty.";
+    if ($product) {
+        if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
+        
+        if (isset($_SESSION['cart'][$pid])) {
+            $_SESSION['cart'][$pid]['qty']++;
         } else {
-            try {
-                $pdo->beginTransaction();
-                
-                // Final Stock Re-Check (Race condition prevention)
-                foreach ($_SESSION['cart'] as $pid => $item) {
-                    $chk = $pdo->prepare("SELECT quantity FROM location_stock WHERE location_id = ? AND product_id = ?");
-                    $chk->execute([$locId, $pid]);
-                    $avail = $chk->fetchColumn() ?: 0;
-                    if ($avail < $item['qty']) {
-                        throw new Exception("Stock changed for {$item['name']}. Only $avail remaining.");
-                    }
-                }
-
-                $total = 0;
-                foreach ($_SESSION['cart'] as $item) $total += ($item['price'] * $item['qty']);
-                $payMethod = $_POST['payment_method'];
-
-                $sql = "INSERT INTO sales (location_id, user_id, shift_id, total_amount, final_total, payment_method, status, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, 'completed', NOW())";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$locId, $userId, $shiftId, $total, $total, $payMethod]);
-                $saleId = $pdo->lastInsertId();
-
-                $itemStmt = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, ?)");
-                $stockStmt = $pdo->prepare("UPDATE location_stock SET quantity = quantity - ? WHERE location_id = ? AND product_id = ?");
-
-                $kitchenCats = ['meal', 'meals', 'food', 'snack', 'snacks', 'starter', 'starters', 'kitchen', 'dessert', 'main course'];
-
-                foreach ($_SESSION['cart'] as $pid => $item) {
-                    $catCheck = strtolower(trim($item['cat_name'] ?? ''));
-                    $status = in_array($catCheck, $kitchenCats) ? 'pending' : 'served';
-                    
-                    $itemStmt->execute([$saleId, $pid, $item['qty'], $item['price'], $status]);
-                    $stockStmt->execute([$item['qty'], $locId, $pid]);
-                }
-
-                $pdo->commit();
-                $_SESSION['cart'] = [];
-                $_SESSION['last_sale_id'] = $saleId;
-                
-                header("Location: index.php?page=pos");
-                exit;
-
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                $_SESSION['swal_type'] = 'error';
-                $_SESSION['swal_msg'] = "Transaction Failed: " . $e->getMessage();
-            }
+            $_SESSION['cart'][$pid] = [
+                'name' => $product['name'],
+                'price' => $product['price'],
+                'qty' => 1,
+                'category_id' => $catId,
+                'category_name' => $_POST['category_name']
+            ];
         }
     }
     header("Location: index.php?page=pos");
     exit;
 }
 
-// 4. FETCH PRODUCTS FOR GRID
-$sql = "SELECT p.*, c.name as category_name 
-        FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.id 
-        WHERE p.is_active = 1 AND p.price > 0
-        AND (c.name IS NULL OR c.name NOT IN ('Ingredients', 'Raw Materials'))
-        ORDER BY p.category_id ASC, p.name ASC";
-$products = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC); 
+// --- ACTION: CLEAR CART ---
+if (isset($_POST['clear_cart'])) {
+    unset($_SESSION['cart']);
+    unset($_SESSION['current_tab_id']); 
+    header("Location: index.php?page=pos");
+    exit;
+}
+
+// --- ACTION: REMOVE ITEM ---
+if (isset($_POST['remove_item'])) {
+    $pid = $_POST['product_id'];
+    unset($_SESSION['cart'][$pid]);
+    header("Location: index.php?page=pos");
+    exit;
+}
+
+// --- ACTION: CHECKOUT ---
+if (isset($_POST['checkout'])) {
+    if (empty($_SESSION['cart'])) {
+        header("Location: index.php?page=pos");
+        exit;
+    }
+
+    $paymentMethod = $_POST['payment_method']; 
+    $customerName = !empty($_POST['customer_name']) ? $_POST['customer_name'] : 'Walk-in';
+    $tendered = isset($_POST['amount_tendered']) && $_POST['amount_tendered'] !== '' ? (float)$_POST['amount_tendered'] : 0.00;
+    
+    $total = 0;
+    foreach ($_SESSION['cart'] as $item) {
+        $total += $item['price'] * $item['qty'];
+    }
+    
+    $change = ($paymentMethod !== 'pending') ? ($tendered - $total) : 0;
+    $status = ($paymentMethod === 'pending') ? 'pending' : 'paid';
+
+    if (isset($_SESSION['current_tab_id'])) {
+        $saleId = $_SESSION['current_tab_id'];
+        $stmt = $pdo->prepare("UPDATE sales SET final_total = ?, payment_method = ?, payment_status = ?, customer_name = ?, amount_tendered = ?, change_due = ? WHERE id = ?");
+        $stmt->execute([$total, $paymentMethod, $status, $customerName, $tendered, $change, $saleId]);
+        $pdo->prepare("DELETE FROM sale_items WHERE sale_id = ?")->execute([$saleId]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, total_amount, discount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$userId, $locationId, $total, $total, $paymentMethod, $status, $customerName, $tendered, $change]);
+        $saleId = $pdo->lastInsertId();
+    }
+
+    $stmtItem = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, 'pending')");
+    // CRITICAL: Deduct stock ONLY from current location
+    $stmtStock = $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?");
+
+    foreach ($_SESSION['cart'] as $pid => $item) {
+        $stmtItem->execute([$saleId, $pid, $item['qty'], $item['price']]);
+        if (!isset($_SESSION['current_tab_id'])) {
+            $stmtStock->execute([$item['qty'], $pid, $locationId]);
+        }
+    }
+
+    unset($_SESSION['cart']);
+    unset($_SESSION['current_tab_id']);
+
+    if ($status === 'paid') {
+        $_SESSION['last_sale_id'] = $saleId;
+        $_SESSION['swal_type'] = 'success';
+        $_SESSION['swal_msg'] = "Sale Completed! Change: " . number_format($change, 2);
+    } else {
+        $_SESSION['swal_type'] = 'info';
+        $_SESSION['swal_msg'] = "Order Parked for $customerName";
+    }
+
+    header("Location: index.php?page=pos");
+    exit;
+}
+
+// --- ACTION: RECALL TAB ---
+if (isset($_POST['recall_tab'])) {
+    $saleId = $_POST['sale_id'];
+    // Strict location check on tab recall
+    $stmt = $pdo->prepare("SELECT * FROM sales WHERE id = ? AND location_id = ?");
+    $stmt->execute([$saleId, $locationId]);
+    $sale = $stmt->fetch();
+
+    if ($sale) {
+        $stmt = $pdo->prepare("SELECT si.*, p.name, p.category_id FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = ?");
+        $stmt->execute([$saleId]);
+        $items = $stmt->fetchAll();
+
+        $_SESSION['cart'] = [];
+        foreach ($items as $item) {
+            $_SESSION['cart'][$item['product_id']] = [
+                'name' => $item['name'],
+                'price' => $item['price_at_sale'],
+                'qty' => $item['quantity'],
+                'category_id' => $item['category_id'],
+                'category_name' => 'Restored' 
+            ];
+        }
+        $_SESSION['current_tab_id'] = $saleId;
+        $_SESSION['current_customer'] = $sale['customer_name'];
+    }
+    header("Location: index.php?page=pos");
+    exit;
+}
+
+// --- ACTION: CLOSE SHIFT REPORT ---
+if (isset($_GET['action']) && $_GET['action'] === 'close_shift_report') {
+    
+    $stmt = $pdo->prepare("SELECT created_at FROM expenses WHERE description = 'SHIFT_CLOSE' AND user_id = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$userId]);
+    $lastClose = $stmt->fetch();
+    $startTime = $lastClose['created_at'] ?? date('Y-m-d 00:00:00'); 
+
+    $salesParams = [$userId, $startTime];
+    // Filter sales by Current Location implicitly via User ID (users are tied to locations)
+    $sql = "
+        SELECT 
+            p.name as product_name, 
+            p.price as standard_price,
+            SUM(si.quantity) as qty_sold, 
+            SUM(si.quantity * si.price_at_sale) as actual_revenue
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        JOIN products p ON si.product_id = p.id
+        WHERE s.user_id = ? AND s.created_at >= ? AND s.payment_status = 'paid'
+        GROUP BY p.id
+    ";
+    $sales = $pdo->prepare($sql);
+    $sales->execute($salesParams);
+    $salesData = $sales->fetchAll();
+
+    $totals = $pdo->prepare("SELECT payment_method, SUM(final_total) as total FROM sales WHERE user_id = ? AND created_at >= ? AND payment_status = 'paid' GROUP BY payment_method");
+    $totals->execute($salesParams);
+    $totalsData = $totals->fetchAll();
+
+    $_SESSION['shift_report'] = [
+        'user' => $_SESSION['username'],
+        'location' => $locationName,
+        'start' => $startTime,
+        'end' => date('Y-m-d H:i:s'),
+        'sales' => $salesData,
+        'totals' => $totalsData
+    ];
+
+    require_once '/var/www/html/templates/shift_summary.php';
+    exit; 
+}
+
+// --- FETCH PRODUCTS (JOIN INVENTORY FOR THIS LOCATION) ---
+$sql = "
+    SELECT p.*, c.name as category_name, COALESCE(i.quantity, 0) as stock_qty 
+    FROM products p 
+    LEFT JOIN categories c ON p.category_id = c.id 
+    LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = ? 
+    ORDER BY p.name ASC
+";
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$locationId]);
+$products = $stmt->fetchAll();
+
+$tabsStmt = $pdo->prepare("SELECT id, customer_name, final_total, created_at FROM sales WHERE payment_status = 'pending' AND location_id = ? ORDER BY created_at DESC");
+$tabsStmt->execute([$locationId]);
+$openTabs = $tabsStmt->fetchAll();
 ?>

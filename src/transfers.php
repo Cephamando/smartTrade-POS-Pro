@@ -44,21 +44,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $transfer = $t->fetch();
 
         if ($transfer && $transfer['status'] === 'pending') {
-            // Check Source Stock
-            $check = $pdo->prepare("SELECT quantity FROM location_stock WHERE location_id = ? AND product_id = ?");
+            // FIX 1: Check Source Stock in 'inventory' table
+            $check = $pdo->prepare("SELECT quantity FROM inventory WHERE location_id = ? AND product_id = ?");
             $check->execute([$transfer['source_location_id'], $transfer['product_id']]);
             $stock = $check->fetchColumn() ?: 0;
 
             if ($stock < $transfer['quantity']) {
                 $_SESSION['swal_type'] = 'error';
-                $_SESSION['swal_msg'] = "Insufficient stock at source to dispatch.";
+                $_SESSION['swal_msg'] = "Insufficient stock at source (Qty: $stock) to dispatch.";
             } else {
                 try {
                     $pdo->beginTransaction();
                     
-                    // Deduct from Source NOW
-                    $deduct = $pdo->prepare("INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, -?) ON DUPLICATE KEY UPDATE quantity = quantity - VALUES(quantity)");
-                    $deduct->execute([$transfer['source_location_id'], $transfer['product_id'], $transfer['quantity']]);
+                    // FIX 2: Deduct from 'inventory' using direct UPDATE
+                    $deduct = $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE location_id = ? AND product_id = ?");
+                    $deduct->execute([$transfer['quantity'], $transfer['source_location_id'], $transfer['product_id']]);
 
                     // Update Status
                     $update = $pdo->prepare("UPDATE inventory_transfers SET status = 'in_transit', dispatched_at = NOW() WHERE id = ?");
@@ -88,8 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->beginTransaction();
 
-                // Add to Destination NOW
-                $add = $pdo->prepare("INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)");
+                // FIX 3: Add to 'inventory' table
+                // Uses INSERT ... ON DUPLICATE to handle cases where the destination might have 0 rows initially
+                $add = $pdo->prepare("INSERT INTO inventory (location_id, product_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)");
                 $add->execute([$transfer['dest_location_id'], $transfer['product_id'], $transfer['quantity']]);
 
                 // Finalize Status
@@ -123,7 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // --- FETCH DATA ---
 
 // 1. Pending Dispatches (Outgoing from MY location)
-// If Admin, show ALL pending. If Manager, show pending where Source = My Location
 $dispatchSql = "
     SELECT t.*, p.name as product_name, l1.name as source_name, l2.name as dest_name 
     FROM inventory_transfers t
@@ -138,7 +138,6 @@ if ($userRole !== 'admin' && $userRole !== 'dev') {
 $pendingDispatch = $pdo->query($dispatchSql)->fetchAll();
 
 // 2. Pending Reception (Incoming to MY location)
-// If Admin, show ALL in_transit. If Manager, show in_transit where Dest = My Location
 $receiveSql = "
     SELECT t.*, p.name as product_name, l1.name as source_name, l2.name as dest_name 
     FROM inventory_transfers t
@@ -152,7 +151,7 @@ if ($userRole !== 'admin' && $userRole !== 'dev') {
 }
 $incomingStock = $pdo->query($receiveSql)->fetchAll();
 
-// 3. My Recent Requests (To track what I asked for)
+// 3. My Recent Requests
 $myRequestsSql = "
     SELECT t.*, p.name as product_name, l1.name as source_name, l2.name as dest_name 
     FROM inventory_transfers t
@@ -162,12 +161,10 @@ $myRequestsSql = "
     WHERE t.dest_location_id = $userLoc AND t.status = 'pending'
     ORDER BY t.created_at DESC LIMIT 20
 ";
-// Admins see everything
 if ($userRole === 'admin' || $userRole === 'dev') {
     $myRequestsSql = str_replace("WHERE t.dest_location_id = $userLoc AND", "WHERE", $myRequestsSql);
 }
 $myRequests = $pdo->query($myRequestsSql)->fetchAll();
-
 
 $locations = $pdo->query("SELECT * FROM locations ORDER BY name ASC")->fetchAll();
 $products = $pdo->query("SELECT * FROM products WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
