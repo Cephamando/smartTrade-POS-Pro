@@ -18,31 +18,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['collect_order'])) {
         $stmt = $pdo->prepare("UPDATE sales SET collected_by = ? WHERE id = ?");
         $stmt->execute([$collectedBy, $saleId]);
         
-        // 3. IF AJAX, RETURN JSON (Don't Redirect)
+        // 3. IF AJAX, RETURN JSON
         if (isset($_POST['ajax'])) {
             echo json_encode(['status' => 'success', 'sale_id' => $saleId]);
             exit;
         }
 
-        // Fallback for non-JS
-        header("Location: index.php?page=receipt&sale_id=$saleId&print_collection=1");
+        header("Location: index.php?page=pickup");
         exit;
     }
 }
 
-// FETCH READY ORDERS
+// FETCH READY ORDERS - Filtered to exclude drinks
 $sql = "
     SELECT DISTINCT s.id as sale_id, s.created_at, u.username as server
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
+    JOIN products p ON si.product_id = p.id
+    JOIN categories c ON p.category_id = c.id
     JOIN users u ON s.user_id = u.id
-    WHERE si.status = 'ready' AND s.location_id = ?
+    WHERE si.status = 'ready' 
+    AND s.location_id = ?
+    AND c.type IN ('food', 'meal')
     ORDER BY s.created_at ASC
 ";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$locId]);
 $readyOrders = $stmt->fetchAll();
 
-// FETCH WAITERS
-$waiters = $pdo->query("SELECT full_name FROM users WHERE role IN ('cashier', 'manager', 'admin', 'dev') AND location_id = $locId ORDER BY full_name ASC")->fetchAll(PDO::FETCH_COLUMN);
+// FETCH WAITERS for the collection dropdown
+$waiters = $pdo->query("SELECT full_name FROM users WHERE role IN ('cashier', 'waiter', 'bartender', 'manager', 'admin', 'dev') AND location_id = $locId ORDER BY full_name ASC")->fetchAll(PDO::FETCH_COLUMN);
 ?>

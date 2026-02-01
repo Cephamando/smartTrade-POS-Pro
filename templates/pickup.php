@@ -29,8 +29,8 @@
         </h1>
         <div class="d-flex align-items-center gap-3">
             <h2 class="font-monospace text-warning m-0" id="clock"><?= date('H:i') ?></h2>
-            <a href="index.php?page=dashboard" class="btn btn-outline-light btn-lg">
-                <i class="bi bi-speedometer2"></i> Dashboard
+            <a href="index.php?page=pos" class="btn btn-outline-light btn-lg">
+                <i class="bi bi-cart4"></i> Back to POS
             </a>
         </div>
     </div>

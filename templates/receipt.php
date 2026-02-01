@@ -20,8 +20,12 @@
 <body>
 
     <?php 
-    // Determine copies
-    $copies = isset($_GET['print_collection']) ? ['CLIENT COPY', 'KITCHEN COPY'] : ['CUSTOMER RECEIPT'];
+    // LOGIC UPDATE: Check for 'print_collection' OR 'mode=double'
+    if (isset($_GET['print_collection']) || (isset($_GET['mode']) && $_GET['mode'] === 'double')) {
+        $copies = ['CLIENT COPY', 'KITCHEN/STORE COPY'];
+    } else {
+        $copies = ['CUSTOMER RECEIPT'];
+    }
     
     foreach ($copies as $index => $label): 
     ?>
@@ -69,7 +73,6 @@
                 if (empty($sale['collected_by'])) {
                     echo "NOT COLLECTED";
                 } else {
-                    // CHANGE: Client Copy says 'SERVED BY', Kitchen Copy says 'COLLECTED BY'
                     $prefix = ($label === 'CLIENT COPY') ? 'SERVED BY' : 'COLLECTED BY';
                     echo $prefix . ": " . strtoupper($sale['collected_by']);
                 }
