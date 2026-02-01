@@ -3,38 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HODMAS POS - End-to-End UAT Scenario</title>
+    <title>HODMAS POS - Complete System Validation</title>
     <style>
         /* General Reset & Typography */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #000;
-            background: #ccc; /* Grey background for screen, white for print */
-            margin: 0;
-            padding: 20px;
-        }
-
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #000; background: #ccc; margin: 0; padding: 20px; }
+        
         /* A4 Paper Dimensions */
-        .page {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 20mm;
-            margin: 10mm auto;
-            border: 1px solid #d3d3d3;
-            border-radius: 5px;
-            background: white;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-            position: relative;
-        }
-
+        .page { width: 210mm; min-height: 297mm; padding: 20mm; margin: 10mm auto; border: 1px solid #d3d3d3; border-radius: 5px; background: white; box-shadow: 0 0 5px rgba(0, 0, 0, 0.1); position: relative; }
+        
         /* Headers */
         h1 { font-size: 24px; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
         h2 { font-size: 18px; color: #333; margin-top: 25px; border-left: 5px solid #000; padding-left: 10px; background: #f4f4f4; padding-top: 5px; padding-bottom: 5px; }
         h3 { font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px; text-transform: uppercase; color: #555; }
-
+        
         /* Content Styling */
         p { font-size: 12pt; margin-bottom: 5px; line-height: 1.4; }
-        ul { margin-top: 5px; margin-bottom: 15px; padding-left: 20px; }
+        ul, ol { margin-top: 5px; margin-bottom: 15px; padding-left: 20px; }
         li { font-size: 11pt; margin-bottom: 4px; }
         
         /* Utility Classes */
@@ -60,139 +44,146 @@
 <body>
 
     <div class="no-print" style="text-align: center; margin-bottom: 20px;">
-        <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #000; color: white; border: none;">PRINT TEST SCENARIO</button>
+        <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer; background: #000; color: white; border: none;">PRINT FULL TEST PLAN</button>
     </div>
 
     <div class="page">
         <div class="meta-info">
-            <div><strong>System:</strong> HODMAS POS v1.0</div>
-            <div><strong>Scenario:</strong> "The Busy Friday Night"</div>
+            <div><strong>System:</strong> HODMAS POS v2.0</div>
+            <div><strong>Scope:</strong> Full System Audit</div>
             <div><strong>Date:</strong> __________________</div>
         </div>
 
-        <h1>End-to-End User Acceptance Test (UAT)</h1>
+        <h1>End-to-End User Acceptance Test</h1>
+        <p><strong>Objective:</strong> Validate the entire workflow from Inventory Setup -> Sales -> Kitchen -> Reporting.</p>
 
-        <p><strong>Objective:</strong> Validate data flow from Inventory (Back Office) to Kitchen (Production) to Customer (Collection).</p>
-
-        <h3>Pre-Requisites</h3>
-        <ul>
-            <li><span class="checkbox"></span> Admin/Manager PC logged in.</li>
-            <li><span class="checkbox"></span> POS Terminal (or Cashier login) ready.</li>
-            <li><span class="checkbox"></span> Kitchen Display (Chef login) ready.</li>
-        </ul>
-
-        <h2>Phase 1: The Supply Chain (Inventory)</h2>
-        <p><em>Goal: Ensure the kitchen has stock to sell.</em></p>
+        <h2>Phase 1: Setup & Station Logic</h2>
+        <p><em>Goal: Ensure stock history is tracking and work stations are enforced.</em></p>
         <ol>
-            <li><strong>Create Test Item:</strong>
+            <li><strong>Inventory History (Back Office):</strong>
                 <ul>
-                    <li>Name: <span class="highlight">Test Burger</span> | Price: 150.00 | Category: Food.</li>
+                    <li>Go to <strong>Inventory</strong>. Find an item (e.g., <span class="highlight">Coca Cola</span>).</li>
+                    <li>Click the <strong>History</strong> button.</li>
+                    <li><em>Verify:</em> A modal opens showing past movements (GRV, Sales, Transfers).</li>
                 </ul>
             </li>
-            <li><strong>Receive Stock (Warehouse):</strong>
+            <li><strong>POS Station Selection:</strong>
                 <ul>
-                    <li>Add <strong>100 units</strong> to Main Warehouse.</li>
-                    <li><em>Verify:</em> Stock count reflects 100.</li>
-                </ul>
-            </li>
-            <li><strong>Internal Requisition:</strong>
-                <ul>
-                    <li>Transfer <strong>20 units</strong> from Main Warehouse -> Kitchen.</li>
-                    <li><em>Verify:</em> Warehouse = 80, Kitchen = 20.</li>
+                    <li>Log in as a Cashier/Waiter. Open <strong>POS</strong>.</li>
+                    <li><em>Verify:</em> "Select Work Station" modal appears automatically.</li>
+                    <li>Select: <span class="highlight">Main Bar</span>.</li>
+                    <li><em>Verify:</em> Top bar displays "POS - Main Bar".</li>
                 </ul>
             </li>
         </ol>
 
-        <h2>Phase 2: The Sale (Front of House)</h2>
-        <p><em>Goal: Process a customer order correctly.</em></p>
+        <h2>Phase 2: Complex Sales & Payments</h2>
+        <p><em>Goal: Test Mobile Money providers, Stock Deductions, and Payment Restrictions.</em></p>
         <ol>
-            <li><strong>Log in as Cashier</strong> and open POS.</li>
-            <li><strong>Process Transaction:</strong>
+            <li><strong>Mobile Money Transaction:</strong>
                 <ul>
-                    <li>Search for <span class="highlight">Test Burger</span>.</li>
-                    <li>Add <strong>Qty: 2</strong> to cart.</li>
-                    <li>Total should be <strong>300.00</strong>.</li>
-                    <li>Pay via <strong>Cash</strong>.</li>
+                    <li>Add <strong>2 x Coca Cola</strong> to cart. Click <strong>Process Payment</strong>.</li>
+                    <li>Select Method: <span class="highlight">Mobile Money</span>.</li>
+                    <li><em>Verify:</em> Provider options (MTN, Airtel, Zamtel) appear.</li>
+                    <li>Select <strong>Airtel</strong>. Enter Amount. Click Confirm.</li>
+                    <li><em>Verify:</em> Receipt prints showing "Paid via Mobile Money (Airtel)".</li>
                 </ul>
             </li>
-            <li><strong>Initial Receipt Check:</strong>
+            <li><strong>"Pay Later" Restriction:</strong>
                 <ul>
-                    <li>Verify printed receipt says <span class="bold" style="color:red">[NOT COLLECTED]</span>.</li>
-                </ul>
-            </li>
-            <li><strong>Background Check:</strong>
-                <ul>
-                    <li>Kitchen stock for Test Burger should now be <strong>18</strong>.</li>
+                    <li>Create a new order. Select "Add to Tab (Pay Later)". Confirm.</li>
+                    <li>Go to <strong>Open Tabs</strong> and click <strong>Recall</strong> on that order.</li>
+                    <li>Try to checkout again by selecting "Add to Tab".</li>
+                    <li><em>Verify:</em> System blocks action (Error: "Cannot select Pay Later on Open Tab").</li>
+                    <li>Settles the debt using <strong>Cash</strong>.</li>
                 </ul>
             </li>
         </ol>
 
-        <h2>Phase 3: Production (KDS)</h2>
-        <p><em>Goal: Kitchen receives and completes the order.</em></p>
+        <h2>Phase 3: Automated Workflow (Dashboard)</h2>
+        <p><em>Goal: Verify auto-requisitions and dashboard alerts.</em></p>
         <ol>
-            <li><strong>Open KDS Screen (Chef View):</strong>
+            <li><strong>Critical Stock Trigger:</strong>
                 <ul>
-                    <li>Locate new ticket for <strong>2 x Test Burger</strong>.</li>
-                    <li>Verify Timer has started (0m).</li>
+                    <li>Sell enough of an item to drop stock below 3 units.</li>
+                    <li>Navigate to <strong>Dashboard</strong>.</li>
+                    <li><em>Verify:</em> Red "CRITICAL STOCK ALERT" banner appears.</li>
+                    <li><em>Verify:</em> "Pending Requisitions" count has increased by 1 (Auto-generated).</li>
                 </ul>
             </li>
-            <li><strong>Cooking Process:</strong>
+            <li><strong>Action Center Drill-Down:</strong>
                 <ul>
-                    <li>Click <span class="highlight">START COOKING</span> (Button turns green).</li>
-                    <li>Click <span class="highlight">MARK READY</span>.</li>
-                    <li><em>Verify:</em> Ticket disappears from active screen.</li>
+                    <li>Click the "Unpaid Invoices" card on the Dashboard.</li>
+                    <li><em>Verify:</em> It redirects straight to the POS screen (not Inventory or Reports).</li>
                 </ul>
             </li>
         </ol>
     </div>
 
     <div class="page page-break">
-        
         <h1>End-to-End UAT (Continued)</h1>
 
-        <h2>Phase 4: The Handoff (Pickup Screen)</h2>
-        <p><em>Goal: Server collects food, system logs the chain of custody.</em></p>
+        <h2>Phase 4: Production & Pickup (KDS)</h2>
+        <p><em>Goal: Verify Kitchen Display logic and Audio notifications.</em></p>
         <ol>
-            <li><strong>Open Pickup Screen (Server View):</strong>
+            <li><strong>KDS Filtering:</strong>
                 <ul>
-                    <li>Verify Order Card is flashing.</li>
-                    <li>Verify "Server Name" matches the Cashier.</li>
+                    <li>Place an order with 1 Food Item (Burger) and 1 Drink (Coke).</li>
+                    <li>Check KDS Screen.</li>
+                    <li><em>Verify:</em> Only the Burger appears (Drinks are filtered out).</li>
                 </ul>
             </li>
-            <li><strong>Validation Test:</strong>
+            <li><strong>Pickup Audio:</strong>
                 <ul>
-                    <li>Attempt to click <span class="highlight">CONFIRM</span> without selecting a name.</li>
-                    <li><em>Result:</em> Button must be disabled.</li>
+                    <li>Mark order as "Ready" on KDS.</li>
+                    <li>On Dashboard or Pickup Screen, wait 5 seconds.</li>
+                    <li><em>Verify:</em> "Ping" sound plays and red badge count updates.</li>
                 </ul>
             </li>
-            <li><strong>Process Collection:</strong>
+            <li><strong>Collection & Exit:</strong>
                 <ul>
-                    <li>Select Collector: <span class="highlight">Your Name</span>.</li>
-                    <li>Click <span class="highlight">CONFIRM</span>.</li>
-                    <li><em>Result:</em> Order card disappears immediately.</li>
+                    <li>On Pickup Screen, select "Collected By: [Name]". Confirm.</li>
+                    <li>Click <strong>Back to POS</strong> (Top Right Button).</li>
+                    <li><em>Verify:</em> Redirects to POS, not Dashboard.</li>
                 </ul>
             </li>
         </ol>
 
-        <h2>Phase 5: Documentation (Receipts)</h2>
-        <p><em>Goal: Verify double-printing and status updates.</em></p>
+        <h2>Phase 5: Manual Stock Control</h2>
+        <p><em>Goal: Test manual transfers and stock adjustments.</em></p>
         <ol>
-            <li><strong>Modal Popup:</strong>
+            <li><strong>Manual Transfer Cycle:</strong>
                 <ul>
-                    <li>A popup should appear immediately after confirmation.</li>
+                    <li><strong>Request:</strong> Go to Inventory -> Transfers. Request 5 units from Warehouse -> Bar.</li>
+                    <li><strong>Dispatch:</strong> Log in as Warehouse Manager. Click "Dispatch". (Status: In Transit).</li>
+                    <li><strong>Receive:</strong> Log in as Bar Manager. Click "Receive". (Status: Completed).</li>
+                    <li><em>Verify:</em> Bar stock increases by 5.</li>
                 </ul>
             </li>
-            <li><strong>Verify Copy 1 (Client):</strong>
+            <li><strong>Stock Adjustment (GRV/Damage):</strong>
                 <ul>
-                    <li>Label: <strong>*** CLIENT COPY ***</strong></li>
-                    <li>Text: <span class="bold">SERVED BY: [Name]</span></li>
+                    <li>Go to Inventory. Click <strong>Adjust</strong> on any item.</li>
+                    <li>Enter <strong>-1</strong> (Negative one). Reason: "Damaged".</li>
+                    <li><em>Verify:</em> Stock count drops by 1 immediately.</li>
                 </ul>
             </li>
-            <li><strong>Verify Copy 2 (Kitchen):</strong>
+        </ol>
+
+        <h2>Phase 6: Admin & Shifts</h2>
+        <p><em>Goal: Ensure cash control and security.</em></p>
+        <ol>
+            <li><strong>End Shift Report:</strong>
                 <ul>
-                    <li>Label: <strong>*** KITCHEN COPY ***</strong></li>
-                    <li>Text: <span class="bold">COLLECTED BY: [Name]</span></li>
-                    <li>Verify Cut Line (✂) exists between copies.</li>
+                    <li>On POS, click <strong>End Shift Report</strong>.</li>
+                    <li><em>Verify:</em> Report shows Total Cash vs Mobile Money.</li>
+                    <li><em>Verify:</em> Mobile Money is broken down by provider (e.g., Airtel: 50, MTN: 20).</li>
+                </ul>
+            </li>
+            <li><strong>Audit Trail:</strong>
+                <ul>
+                    <li>Go to <strong>Inventory -> Audit Trail</strong> (or History).</li>
+                    <li>Filter by Today's Date.</li>
+                    <li><em>Verify:</em> You see entries for "Sale", "Transfer_Out", and "Adjustment".</li>
                 </ul>
             </li>
         </ol>
@@ -200,44 +191,47 @@
         <hr style="border: 0; border-top: 2px solid #000; margin: 30px 0;">
 
         <h2>Final Sign-Off Checklist</h2>
-        <p>Complete this section to certify the system is ready for Go-Live.</p>
-
         <table>
             <thead>
                 <tr>
-                    <th style="width: 70%;">Validation Step</th>
-                    <th style="width: 15%; text-align: center;">Pass</th>
-                    <th style="width: 15%; text-align: center;">Fail</th>
+                    <th style="width: 60%;">Validation Step</th>
+                    <th style="width: 20%; text-align: center;">Pass</th>
+                    <th style="width: 20%; text-align: center;">Fail</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td><strong>Inventory:</strong> Stock deducted correctly (Warehouse -> Kitchen -> Sold)?</td>
+                    <td><strong>Work Station:</strong> Forced location selection works?</td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                 </tr>
                 <tr>
-                    <td><strong>POS:</strong> Sale completed smoothly with correct totals?</td>
+                    <td><strong>Stock Card:</strong> History shows User & Time of actions?</td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                 </tr>
                 <tr>
-                    <td><strong>KDS:</strong> Ticket appeared on screen and was legally closed?</td>
+                    <td><strong>Payments:</strong> Specific Mobile Money provider recorded?</td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                 </tr>
                 <tr>
-                    <td><strong>Pickup:</strong> Validation prevented collection without a name?</td>
+                    <td><strong>Auto-Stock:</strong> Low stock triggers auto-transfer?</td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                 </tr>
                 <tr>
-                    <td><strong>Receipts:</strong> Status updated from "Not Collected" to "Served By"?</td>
+                    <td><strong>Audio:</strong> "Ping" sound plays on Pickup?</td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                    <td style="text-align: center;"><span class="checkbox"></span></td>
+                </tr>
+                 <tr>
+                    <td><strong>Manual Transfer:</strong> Dispatch -> Receive cycle works?</td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                 </tr>
                 <tr>
-                    <td><strong>Security:</strong> "Exit to Dashboard" works; No new tabs opened?</td>
+                    <td><strong>Shifts:</strong> End Shift Report matches drawer cash?</td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                     <td style="text-align: center;"><span class="checkbox"></span></td>
                 </tr>
@@ -245,14 +239,9 @@
         </table>
 
         <div style="margin-top: 50px; display: flex; justify-content: space-between;">
-            <div>
-                <p><strong>Tester Signature:</strong> _______________________</p>
-            </div>
-            <div>
-                <p><strong>Date:</strong> _______________________</p>
-            </div>
+            <div><p><strong>Tester Signature:</strong> _______________________</p></div>
+            <div><p><strong>Date:</strong> _______________________</p></div>
         </div>
-
     </div>
 
 </body>

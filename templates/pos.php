@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>POS - Terminal</title>
+    <title>POS - <?= htmlspecialchars($locationName) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
@@ -16,7 +16,13 @@
 <body class="d-flex flex-column">
 
     <div class="bg-dark text-white p-2 d-flex justify-content-between align-items-center shadow">
-        <div class="fw-bold ms-2"><i class="bi bi-shop text-warning"></i> Odelia POS</div>
+        <div class="fw-bold ms-2">
+            <i class="bi bi-shop text-warning"></i> 
+            <?= htmlspecialchars($locationName) ?> 
+            <button class="btn btn-sm btn-outline-secondary ms-2 text-white border-white" data-bs-toggle="modal" data-bs-target="#locationModal">
+                <i class="bi bi-arrow-repeat"></i> Switch Station
+            </button>
+        </div>
         <div>
             <button class="btn btn-outline-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#tabsModal">
                 <i class="bi bi-clipboard-data"></i> Open Tabs
@@ -84,6 +90,29 @@
         </div>
     </div>
 
+    <div class="modal fade" id="locationModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">Select Work Station</h5>
+                </div>
+                <form method="POST">
+                    <div class="modal-body p-4 text-center">
+                        <p class="mb-3">Where are you selling from right now?</p>
+                        <input type="hidden" name="set_pos_location" value="1">
+                        <div class="d-grid gap-2">
+                            <?php foreach($sellableLocations as $loc): ?>
+                                <button type="submit" name="pos_location_id" value="<?= $loc['id'] ?>" class="btn btn-outline-primary btn-lg">
+                                    <i class="bi bi-shop"></i> <?= htmlspecialchars($loc['name']) ?>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="checkoutModal" tabindex="-1">
         <form method="POST" class="modal-dialog">
             <div class="modal-content">
@@ -98,7 +127,6 @@
                         <option value="cash">Cash</option>
                         <option value="card">Bank Card</option>
                         <option value="mobile_money">Mobile Money</option>
-                        
                         <?php if (!isset($_SESSION['current_tab_id'])): ?>
                             <option value="pending">Add to Tab (Pay Later)</option>
                         <?php endif; ?>
@@ -166,8 +194,6 @@
         function toggleMomo() {
             document.getElementById('momoOptions').style.display = (document.getElementById('payMethod').value === 'mobile_money') ? 'block' : 'none';
         }
-        
-        // NEW: Toggle 'required' on amount field
         function toggleAmountRequired() {
             const method = document.getElementById('payMethod').value;
             const input = document.getElementById('tendered');
@@ -177,7 +203,6 @@
                 input.setAttribute('required', 'required');
             }
         }
-
         function calcChange() {
             let total = parseFloat(<?= $total ?>);
             let tendered = parseFloat(document.getElementById('tendered').value) || 0;
@@ -196,7 +221,13 @@
             <?php unset($_SESSION['last_sale_id']); ?>
         <?php endif; ?>
         
-        // Initialize required check on load
+        // AUTO SHOW LOCATION SELECTOR IF NOT SET
+        <?php if ($showLocationModal): ?>
+            document.addEventListener("DOMContentLoaded", function() {
+                new bootstrap.Modal(document.getElementById('locationModal')).show();
+            });
+        <?php endif; ?>
+
         toggleAmountRequired();
     </script>
 </body>
