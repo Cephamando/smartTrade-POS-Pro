@@ -17,7 +17,7 @@ $isMoneyRole = in_array($userRole, $moneyRoles);
 function verifyManager($pdo, $password, $locationId, $currentUserId) {
     // Allow Admins, Devs, or Managers of this location
     $sql = "SELECT id, password_hash FROM users 
-            WHERE (role IN ('admin', 'dev') OR (role = 'manager' AND location_id = ?))";
+            WHERE (role IN ('admin', 'head_chef','dev') OR (role = 'manager' AND location_id = ?))";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$locationId]);
     $managers = $stmt->fetchAll();
