@@ -1,6 +1,11 @@
 <?php
-// SECURITY: Admins and Managers Only
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
+// SECURITY: Case-Insensitive Role Check
+$allowedRoles = ['admin', 'manager', 'dev'];
+$userRole = isset($_SESSION['role']) ? strtolower($_SESSION['role']) : '';
+
+if (!$userRole || !in_array($userRole, $allowedRoles)) {
+    $_SESSION['swal_type'] = 'error';
+    $_SESSION['swal_msg'] = "Access Denied.";
     header("Location: index.php?page=dashboard");
     exit;
 }
@@ -33,13 +38,22 @@ if ($actionFilter) {
 
 $sql .= " ORDER BY il.created_at DESC LIMIT 500";
 
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$logs = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $logs = $stmt->fetchAll();
 
-// Get action types for the dropdown from DB schema
-$typeStmt = $pdo->query("SHOW COLUMNS FROM inventory_logs LIKE 'action_type'");
-$typeRow = $typeStmt->fetch();
-preg_match("/^enum\(\'(.*)\'\)$/", $typeRow['Type'], $matches);
-$actionTypes = explode("','", $matches[1]);
+    // Get action types safely
+    $typeStmt = $pdo->query("SHOW COLUMNS FROM inventory_logs LIKE 'action_type'");
+    if ($typeRow = $typeStmt->fetch()) {
+        preg_match("/^enum\(\'(.*)\'\)$/", $typeRow['Type'], $matches);
+        $actionTypes = explode("','", $matches[1]);
+    } else {
+        $actionTypes = ['sale', 'grv', 'transfer_in', 'transfer_out', 'adjustment'];
+    }
+} catch (Exception $e) {
+    // If table missing, empty array to prevent crash
+    $logs = [];
+    $actionTypes = [];
+}
 ?>

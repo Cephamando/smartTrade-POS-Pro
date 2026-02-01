@@ -3,73 +3,60 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// Start Buffer
-ob_start(); 
+session_start();
 
-// 2. Load Config
-require_once __DIR__ . '/../src/config.php';
+// 2. DEFINE BASE PATH (The root of your project)
+define('BASE_PATH', dirname(__DIR__));
 
-// 3. Determine Page
-$page = $_GET['page'] ?? 'dashboard';
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+// 3. LOAD DATABASE CONFIGURATION (User specified location)
+$configFile = BASE_PATH . '/src/config.php';
 
-// 4. Page Allowlist
-$allowed_pages = [
-    'login', 'dashboard', 'pos', 'shifts', 'products', 'reports', 
-    'inventory', 'users', 'settings', 'kds', 'pickup', 'change_password',
-    'receive', 'transfers', 'receipt', 'vendors', 'locations', 'categories', 'menu'
-];
-
-if (!in_array($page, $allowed_pages)) {
-    $page = 'dashboard'; 
+if (file_exists($configFile)) {
+    require_once $configFile;
+} else {
+    die("<h1>System Error</h1><p>Configuration file not found at: <b>" . htmlspecialchars($configFile) . "</b></p>");
 }
 
-// 5. Authentication Check
-if (!isset($_SESSION['user_id']) && $page !== 'login') {
-    header("Location: index.php?page=login");
-    exit;
-}
+// 4. GET PAGE REQUEST
+$page = isset($_GET['page']) ? basename($_GET['page']) : 'login';
 
-// --- NEW: FORCE PASSWORD CHANGE GATEKEEPER ---
-if (isset($_SESSION['force_change']) && $_SESSION['force_change'] == 1) {
-    // Only allow them to be on the change_password page OR to logout
-    if ($page !== 'change_password' && $action !== 'logout') {
-        header("Location: index.php?page=change_password");
-        exit;
-    }
-}
-// ---------------------------------------------
-
-// 6. Logout Logic
-if ($action === 'logout') {
+// 5. HANDLE LOGOUT
+if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     session_destroy();
     header("Location: index.php?page=login");
     exit;
 }
 
-// 7. Load Logic (Controller)
-$logicFile = __DIR__ . "/../src/$page.php";
-if (file_exists($logicFile)) {
-    require_once $logicFile;
-}
+// 6. ROUTING LOGIC
+$controllerPath = BASE_PATH . "/src/{$page}.php";
+$templatePath   = BASE_PATH . "/templates/{$page}.php";
 
-// 8. Render View
-$hideLayout = in_array($page, ['login', 'pos', 'kds', 'pickup', 'receipt']);
+if (file_exists($controllerPath)) {
+    // Load the Controller (Logic)
+    require_once $controllerPath;
 
-if (!$hideLayout) {
-    require_once __DIR__ . '/../templates/header.php';
-}
-
-$viewFile = __DIR__ . "/../templates/$page.php";
-if (file_exists($viewFile)) {
-    require_once $viewFile;
+    // Load the View (Template)
+    if (file_exists($templatePath)) {
+        // Only load Header/Footer for standard pages (exclude Login, Receipt, simple scripts)
+        $isStandalone = in_array($page, ['login', 'receipt']);
+        
+        if (!$isStandalone && file_exists(BASE_PATH . "/templates/header.php")) {
+            require_once BASE_PATH . "/templates/header.php";
+        }
+        
+        require_once $templatePath;
+        
+        if (!$isStandalone && file_exists(BASE_PATH . "/templates/footer.php")) {
+            require_once BASE_PATH . "/templates/footer.php";
+        }
+    }
 } else {
-    echo "<div class='alert alert-warning'>View not found: $page</div>";
+    // 404 Handler - Redirect to Login or Dashboard
+    if (isset($_SESSION['user_id'])) {
+        header("Location: index.php?page=dashboard");
+    } else {
+        header("Location: index.php?page=login");
+    }
+    exit;
 }
-
-if (!$hideLayout) {
-    require_once __DIR__ . '/../templates/footer.php';
-}
-
-ob_end_flush();
 ?>

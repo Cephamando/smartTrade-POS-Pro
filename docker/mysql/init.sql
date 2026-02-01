@@ -163,6 +163,19 @@ INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_ven
 (9, 'Main Branch',  'warehouse',  1,  0,  '', '555-0000'),
 (12,  'shop', 'store',  1,  0,  '', '555-0000');
 
+DROP TABLE IF EXISTS `members`;
+CREATE TABLE `members` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `points_balance` decimal(10,2) DEFAULT '0.00',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `phone` (`phone`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 DROP TABLE IF EXISTS `pickup_notifications`;
 CREATE TABLE `pickup_notifications` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -246,6 +259,9 @@ CREATE TABLE `sales` (
   `customer_name` varchar(100) DEFAULT 'Walk-in',
   `amount_tendered` decimal(10,2) DEFAULT '0.00',
   `change_due` decimal(10,2) DEFAULT '0.00',
+  `member_id` int DEFAULT NULL,
+  `points_earned` decimal(10,2) DEFAULT '0.00',
+  `points_redeemed` decimal(10,2) DEFAULT '0.00',
   PRIMARY KEY (`id`),
   KEY `location_id` (`location_id`),
   KEY `user_id` (`user_id`),
@@ -348,7 +364,7 @@ TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
 (1, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  9,  '2026-01-29 12:55:36',  0),
 (3, 'Restaurant_cashier', 'Mwale Kitchen Cashier',  '$2y$10$L4IYlKv4CnIjvDEXQZMtfO8yB86t.2v2fd8lmobqJkI8XadeZzS.i', 'cashier',  1,  '2026-01-29 12:55:36',  0),
-(4, 'head_chef',  'Head Chef',  '$2y$10$L.uxw.MV8HL/ngCQI4.nmuqBg35IbHmjtOciNP3/qvm47aKUpJJnC', 'head_chef',  1,  '2026-01-30 05:37:27',  0),
+(4, 'head_chef',  'Head Chef',  '$2y$10$Zx4dvmsK6tetfu/o32qwaOHgzW5aCPYyXebrPHCuJxNDP5cg133Fu', 'admin',  1,  '2026-01-30 05:37:27',  0),
 (5, 'stores_manager', 'Choolwe Stores Manager', '$2y$10$FaqE3WQxADD.8GWugJw0ieRpGhIGsX9oerUqaY4bc2NNFfg9L4Ai2', 'manager',  3,  '2026-01-30 06:39:29',  0),
 (6, 'chef', 'Sililo Chef',  '$2y$10$JFws5wVFa6tAdwflrThJr.xFJJpRGYOtl0PW2wxm9xOprPlgbt2oS', 'chef', 1,  '2026-01-30 06:40:05',  0),
 (7, 'Main_bartender', 'Main Bar Bartender', '$2y$10$1LpLTw/HiJsIEbNjwZ44zuNm.K.DiDtFretzcA65M7RV6tliGCN86', 'bartender',  2,  '2026-01-30 06:40:57',  1),
@@ -375,4 +391,4 @@ INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
 (2, 'Coca Cola Zambia', 'Mr. Daliso', ''),
 (3, 'Shoprite Zambia',  'Mr. Choogo', '');
 
--- 2026-02-01 15:03:47 UTC
+-- 2026-02-01 18:40:58 UTC

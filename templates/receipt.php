@@ -9,8 +9,6 @@
         .line { border-bottom: 1px dashed #000; margin: 10px 0; }
         .item-row { display: flex; justify-content: space-between; }
         .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em; margin-top: 10px; }
-        .status-box { border: 2px solid <?= $statusColor ?>; color: <?= $statusColor ?>; padding: 5px; text-align: center; margin-top: 15px; font-weight: bold; }
-        .copy-label { text-align: center; font-weight: bold; font-size: 1.1em; margin-bottom: 5px; border: 1px solid #000; padding: 2px; }
         .cut-line { border-bottom: 2px dotted #000; margin: 30px 0; position: relative; text-align: center; height: 10px; }
         .cut-line span { background: #fff; padding: 0 10px; position: relative; top: -10px; font-size: 20px; }
         .no-print { margin-top: 20px; text-align: center; }
@@ -20,34 +18,18 @@
 <body>
 
     <?php 
-    // LOGIC UPDATE: Check for 'print_collection' OR 'mode=double'
-    if (isset($_GET['print_collection']) || (isset($_GET['mode']) && $_GET['mode'] === 'double')) {
-        $copies = ['CLIENT COPY', 'KITCHEN/STORE COPY'];
-    } else {
-        $copies = ['CUSTOMER RECEIPT'];
-    }
-    
+    $copies = (isset($_GET['mode']) && $_GET['mode'] === 'double') ? ['CLIENT COPY', 'KITCHEN/STORE COPY'] : ['CUSTOMER RECEIPT'];
     foreach ($copies as $index => $label): 
     ?>
 
-        <?php if ($index > 0): ?>
-            <div class="cut-line"><span>✂</span></div>
-        <?php endif; ?>
-
-        <div class="copy-label">*** <?= $label ?> ***</div>
-
+        <?php if ($index > 0): ?><div class="cut-line"><span>✂</span></div><?php endif; ?>
+        <div class="text-center bold">*** <?= $label ?> ***</div>
         <div class="text-center">
             <h3 style="margin:0;"><?= htmlspecialchars($sale['location_name'] ?? 'Store') ?></h3>
-            <div><?= htmlspecialchars($sale['address'] ?? '') ?></div>
-            <div>Tel: <?= htmlspecialchars($sale['phone'] ?? '') ?></div>
+            <div>Date: <?= date('d/m/y H:i', strtotime($sale['created_at'])) ?></div>
+            <div>Receipt #: <?= $sale['id'] ?></div>
+            <div>Cashier: <?= htmlspecialchars($sale['cashier_name'] ?? 'Staff') ?></div>
         </div>
-        
-        <div class="line"></div>
-        
-        <div>Date: <?= $sale['created_at'] ?></div>
-        <div>Receipt #: <?= $sale['id'] ?></div>
-        <div>Cashier: <?= htmlspecialchars($sale['cashier_name'] ?? 'Staff') ?></div>
-
         <div class="line"></div>
 
         <?php foreach ($lineItems as $item): ?>
@@ -59,29 +41,36 @@
 
         <div class="line"></div>
 
+        <?php if ($sale['points_redeemed'] > 0): ?>
+            <div class="item-row"><span>Subtotal:</span> <span><?= number_format($sale['total_amount'], 2) ?></span></div>
+            <div class="item-row"><span>Points Used:</span> <span>-<?= number_format($sale['points_redeemed'], 2) ?></span></div>
+        <?php endif; ?>
+
         <div class="total-row">
             <span>TOTAL</span>
             <span><?= number_format($sale['final_total'], 2) ?></span>
         </div>
         
-        <div class="text-center" style="margin-top:5px;">
+        <div class="text-center" style="margin-top:5px; font-size: 0.9em;">
             Paid via <?= ucfirst($sale['payment_method']) ?>
         </div>
 
-        <div class="status-box">
-            <?php 
-                if (empty($sale['collected_by'])) {
-                    echo "NOT COLLECTED";
-                } else {
-                    $prefix = ($label === 'CLIENT COPY') ? 'SERVED BY' : 'COLLECTED BY';
-                    echo $prefix . ": " . strtoupper($sale['collected_by']);
-                }
-            ?>
-        </div>
+        <?php if ($label === 'CLIENT COPY' || $label === 'CUSTOMER RECEIPT'): ?>
+            <?php if ($sale['member_id']): ?>
+                <div class="line"></div>
+                <div style="font-size: 0.9em;">
+                    <div class="bold">LOYALTY SUMMARY</div>
+                    <div class="item-row"><span>Points Earned:</span> <span><?= number_format($sale['points_earned'], 2) ?></span></div>
+                    <?php 
+                        // Note: To show "New Balance", we would ideally fetch from Member DB, 
+                        // but showing "Earned" is sufficient for the transaction record.
+                    ?>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
 
-        <div class="text-center" style="font-size: 0.8em; margin-top: 15px;">
-            Thank you for your support!<br>
-            Software by HODMAS
+        <div class="text-center" style="margin-top: 15px; font-size: 0.8em;">
+            Thank you for your support!<br>Software by HODMAS
         </div>
 
     <?php endforeach; ?>

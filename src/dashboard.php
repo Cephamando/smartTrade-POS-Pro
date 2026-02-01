@@ -30,7 +30,7 @@ if ($warehouseId && $warehouseId != $locationId) {
     }
 }
 
-// 4. Shift Stats
+// 4. Shift Stats (My Stats)
 $stmt = $pdo->prepare("SELECT COUNT(*) as txn_count, COALESCE(SUM(final_total), 0) as shift_total FROM sales WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'");
 $stmt->execute([$userId]);
 $myStats = $stmt->fetch();
@@ -41,13 +41,24 @@ $topItem->execute([$userId]);
 $myStats['top_item'] = $topItem->fetchColumn() ?: '-';
 $myStats['shift_status'] = 'Active'; 
 
-// 6. NEW: Unpaid Invoices (Open Tabs)
+// 6. Action Center (Unpaid Tabs & Requisitions)
 $tabStmt = $pdo->prepare("SELECT COUNT(id) as count, COALESCE(SUM(final_total), 0.00) as total FROM sales WHERE location_id = ? AND payment_status = 'pending'");
 $tabStmt->execute([$locationId]);
 $pendingTabs = $tabStmt->fetch();
 
-// 7. NEW: Pending Requisitions (My Requests + Incoming Dispatches)
 $reqStmt = $pdo->prepare("SELECT COUNT(id) FROM inventory_transfers WHERE (source_location_id = ? OR dest_location_id = ?) AND status IN ('pending', 'in_transit')");
 $reqStmt->execute([$locationId, $locationId]);
 $pendingReqs = $reqStmt->fetchColumn();
+
+// 7. NEW: ACTIVE STAFF MONITOR (Admin/Manager Only)
+$activeStaff = [];
+if (in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
+    $staffSql = "SELECT u.id, u.username, u.role, l.name as location_name, s.start_time, s.id as shift_id 
+                 FROM shifts s 
+                 JOIN users u ON s.user_id = u.id 
+                 JOIN locations l ON s.location_id = l.id 
+                 WHERE s.status = 'open' 
+                 ORDER BY s.start_time DESC";
+    $activeStaff = $pdo->query($staffSql)->fetchAll();
+}
 ?>
