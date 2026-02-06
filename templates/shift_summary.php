@@ -1,87 +1,78 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Shift Summary Report</title>
+    <meta charset="UTF-8">
+    <title>Shift Report</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #fff; font-size: 14px; }
-        .report-header { border-bottom: 2px solid #000; margin-bottom: 20px; padding-bottom: 10px; }
-        .table-summary th { background: #f8f9fa; }
-        .text-danger { color: #dc3545 !important; }
-        @media print { .no-print { display: none; } }
+        body { background: #fff; padding: 20px; font-family: monospace; }
+        .total-box { border: 2px solid #000; padding: 10px; margin-bottom: 20px; background: #f8f9fa; }
+        .table-sm td, .table-sm th { font-size: 0.9rem; }
+        @media print { .no-print { display: none !important; } }
     </style>
 </head>
-<body class="p-4">
-    <?php $data = $_SESSION['shift_report']; ?>
-    
-    <div class="report-header d-flex justify-content-between align-items-end">
-        <div>
-            <h2 class="mb-0">SHIFT SUMMARY</h2>
-            <p class="text-muted mb-0">Staff: <strong><?= $data['user'] ?></strong> | Period: <?= date('H:i', strtotime($data['start'])) ?> - <?= date('H:i', strtotime($data['end'])) ?></p>
-        </div>
-        <div class="text-end">
-            <h5 class="mb-0">Date: <?= date('d M Y') ?></h5>
-        </div>
+<body>
+
+    <div class="text-center mb-4">
+        <h3 class="fw-bold">SHIFT REPORT (X-READ)</h3>
+        <div>User: <?= htmlspecialchars($_SESSION['shift_report']['user']) ?></div>
+        <div>Start: <?= date('d/m/y H:i', strtotime($_SESSION['shift_report']['start'])) ?></div>
+        <div>End: <?= date('d/m/y H:i') ?></div>
     </div>
 
-    <div class="row mb-4">
-        <?php foreach ($data['totals'] as $pay): ?>
-        <div class="col">
-            <div class="border p-2 text-center">
-                <small class="text-uppercase text-muted"><?= $pay['payment_method'] ?> Total</small>
-                <div class="fw-bold fs-5">ZMW <?= number_format($pay['total'], 2) ?></div>
+    <div class="row">
+        <div class="col-6">
+            <h5 class="border-bottom">Payment Methods</h5>
+            <table class="table table-sm">
+                <?php 
+                $grandTotal = 0;
+                foreach ($_SESSION['shift_report']['totals'] as $row): 
+                    $grandTotal += $row['total'];
+                ?>
+                <tr>
+                    <td><?= ucwords(str_replace('_', ' ', $row['payment_method'])) ?></td>
+                    <td class="text-end fw-bold"><?= number_format($row['total'], 2) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        </div>
+        <div class="col-6">
+            <div class="total-box text-center">
+                <small class="text-muted">TOTAL REVENUE</small>
+                <h2 class="m-0 fw-bold">ZMW <?= number_format($grandTotal, 2) ?></h2>
             </div>
         </div>
-        <?php endforeach; ?>
     </div>
 
-    <table class="table table-bordered table-striped table-summary">
+    <h5 class="border-bottom mt-4">Product Breakdown</h5>
+    <table class="table table-sm table-striped">
         <thead>
             <tr>
-                <th>Product Name</th>
-                <th class="text-end">Price</th>
-                <th class="text-center">Qty Sold</th>
-                <th class="text-end">Revenue</th>
-                <th class="text-end">Adjustment</th>
+                <th>Item</th>
+                <th class="text-center">Qty</th>
+                <th class="text-end">Value</th>
             </tr>
         </thead>
         <tbody>
-            <?php 
-            $gTotalRev = 0; $gTotalAdj = 0;
-            foreach ($data['sales'] as $row): 
-                $standardRev = $row['standard_price'] * $row['qty_sold'];
-                $actualRev = $row['actual_revenue'];
-                $adjustment = $actualRev - $standardRev;
-                $gTotalRev += $actualRev;
-                $gTotalAdj += $adjustment;
-            ?>
+            <?php foreach ($_SESSION['shift_report']['sales'] as $sale): ?>
             <tr>
-                <td><?= htmlspecialchars($row['product_name']) ?></td>
-                <td class="text-end"><?= number_format($row['standard_price'], 2) ?></td>
-                <td class="text-center"><?= $row['qty_sold'] ?></td>
-                <td class="text-end"><?= number_format($actualRev, 2) ?></td>
-                <td class="text-end fw-bold <?= $adjustment < 0 ? 'text-danger' : '' ?>">
-                    <?= number_format($adjustment, 2) ?>
-                </td>
+                <td><?= htmlspecialchars($sale['product_name']) ?></td>
+                <td class="text-center"><?= $sale['qty_sold'] ?></td>
+                <td class="text-end"><?= number_format($sale['actual_revenue'], 2) ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>
-        <tfoot class="table-dark">
-            <tr>
-                <td colspan="3">GRAND TOTALS</td>
-                <td class="text-end">ZMW <?= number_format($gTotalRev, 2) ?></td>
-                <td class="text-end">ZMW <?= number_format($gTotalAdj, 2) ?></td>
-            </tr>
-        </tfoot>
     </table>
 
-    <div class="mt-5 d-flex justify-content-between">
-        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 5px;">Cashier Signature</div>
-        <div style="width: 200px; border-top: 1px solid #000; text-align: center; padding-top: 5px;">Manager Signature</div>
+    <div class="d-grid gap-2 mt-5 no-print">
+        <button onclick="window.print()" class="btn btn-outline-dark"><i class="bi bi-printer"></i> Print Report</button>
+        
+        <?php if (!$_SESSION['shift_report']['is_drill_down']): ?>
+            <form method="POST" action="index.php?page=end_shift_action" onsubmit="return confirm('Are you sure you want to close this shift? This cannot be undone.');">
+                <button type="submit" class="btn btn-danger w-100 py-3 fw-bold">CLOSE SHIFT & LOGOUT</button>
+            </form>
+        <?php endif; ?>
     </div>
 
-    <div class="no-print mt-4 text-center">
-        <button onclick="window.print()" class="btn btn-primary btn-lg"><i class="bi bi-printer"></i> Print Report</button>
-    </div>
 </body>
 </html>

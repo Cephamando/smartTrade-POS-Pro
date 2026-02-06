@@ -3,47 +3,80 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 
 $userId = $_SESSION['user_id'];
 
-// --- LOCATION HANDLING ---
+// --- 1. LOCATION HANDLING ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) {
     $_SESSION['pos_location_id'] = $_POST['pos_location_id'];
+    // Fetch name for display
+    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
+    $stmt->execute([$_POST['pos_location_id']]);
+    $_SESSION['pos_location_name'] = $stmt->fetchColumn();
     header("Location: index.php?page=pos"); exit;
 }
-$locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'];
+
+// Get Location (Default to 0, which is invalid)
+$locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
+$locationName = $_SESSION['pos_location_name'] ?? $_SESSION['location_name'] ?? 'Unknown Station';
+
 $sellableLocations = $pdo->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY name ASC")->fetchAll();
 
-// --- AJAX: CHECK FOR READY ORDERS ---
-if (isset($_GET['ajax_ready_count'])) {
-    $sql = "SELECT COUNT(DISTINCT s.id) FROM sale_items si JOIN sales s ON si.sale_id = s.id JOIN products p ON si.product_id = p.id JOIN categories c ON p.category_id = c.id WHERE si.status = 'ready' AND s.location_id = ? AND c.type IN ('food', 'meal')";
-    $stmt = $pdo->prepare($sql); $stmt->execute([$locationId]); echo $stmt->fetchColumn() ?: 0; exit;
+// --- 2. CHECK SHIFT STATUS (Only if Location is Valid) ---
+$activeShiftId = null;
+$pendingShift = null;
+
+if ($locationId > 0) {
+    $shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1");
+    $shiftStmt->execute([$userId]);
+    $currentShift = $shiftStmt->fetch();
+
+    $activeShiftId = ($currentShift && $currentShift['status'] === 'open') ? $currentShift['id'] : null;
+    $pendingShift  = ($currentShift && $currentShift['status'] === 'pending_approval') ? $currentShift : null;
 }
 
-// --- SHIFT REPORT LOGIC ---
-if (isset($_GET['action']) && $_GET['action'] === 'close_shift_report') {
-    $targetShiftId = null;
-    $isDrillDown = false;
-    if (isset($_GET['shift_id']) && in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
-        $targetShiftId = $_GET['shift_id']; $isDrillDown = true;
+// --- 3. HANDLE REQUEST START ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_start_shift'])) {
+    if ($locationId > 0) {
+        $startCash = floatval($_POST['starting_cash']);
+        try {
+            $pdo->prepare("INSERT INTO shifts (user_id, location_id, start_time, starting_cash, status) VALUES (?, ?, NOW(), ?, 'pending_approval')")
+                ->execute([$userId, $locationId, $startCash]);
+            header("Location: index.php?page=pos"); exit;
+        } catch (PDOException $e) {
+            $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Database Error: " . $e->getMessage();
+        }
     } else {
-        $shiftStmt = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1");
-        $shiftStmt->execute([$userId]); $targetShiftId = $shiftStmt->fetchColumn();
+        $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Please select a valid station first.";
     }
-    if ($targetShiftId) {
-        $meta = $pdo->prepare("SELECT s.*, u.username FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.id = ?");
-        $meta->execute([$targetShiftId]); $shiftMeta = $meta->fetch();
-        $sql = "SELECT p.name as product_name, p.price as standard_price, SUM(si.quantity) as qty_sold, SUM(si.quantity * si.price_at_sale) as actual_revenue FROM sale_items si JOIN sales s ON si.sale_id = s.id JOIN products p ON si.product_id = p.id WHERE s.shift_id = ? AND s.payment_status = 'paid' GROUP BY p.id";
-        $sales = $pdo->prepare($sql); $sales->execute([$targetShiftId]); $salesData = $sales->fetchAll();
-        $totals = $pdo->prepare("SELECT payment_method, SUM(final_total) as total FROM sales WHERE shift_id = ? AND payment_status = 'paid' GROUP BY payment_method");
-        $totals->execute([$targetShiftId]); $totalsData = $totals->fetchAll();
-        $_SESSION['shift_report'] = ['user' => $shiftMeta['username'], 'start' => $shiftMeta['start_time'], 'end' => date('Y-m-d H:i:s'), 'sales' => $salesData, 'totals' => $totalsData, 'is_drill_down' => $isDrillDown];
-        require_once '/var/www/html/templates/shift_summary.php'; 
-    } else { echo "<div class='alert alert-danger'>No active shift found.</div>"; }
-    exit; 
 }
 
-// --- HANDLE POST REQUESTS ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
-    // 1. MEMBER & LOCATION
+// --- 4. HANDLE MANAGER APPROVAL ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_shift_start'])) {
+    $mgrUser = $_POST['mgr_username'];
+    $mgrPass = $_POST['mgr_password'];
+    $shiftId = $_POST['pending_shift_id'];
+
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->execute([$mgrUser]);
+    $manager = $stmt->fetch();
+
+    if ($manager && password_verify($mgrPass, $manager['password_hash'])) {
+        if (in_array($manager['role'], ['admin', 'manager', 'dev'])) {
+            $pdo->prepare("UPDATE shifts SET status = 'open', start_verified_by = ?, start_verified_at = NOW() WHERE id = ?")->execute([$manager['id'], $shiftId]);
+            $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Shift Approved!"; header("Location: index.php?page=pos"); exit;
+        } else { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Approval Denied: Not a Manager."; }
+    } else { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Invalid Credentials."; }
+}
+
+// --- AJAX ---
+if (isset($_GET['ajax_ready_count'])) {
+    if ($locationId > 0) {
+        $sql = "SELECT COUNT(DISTINCT s.id) FROM sale_items si JOIN sales s ON si.sale_id = s.id JOIN products p ON si.product_id = p.id JOIN categories c ON p.category_id = c.id WHERE si.status = 'ready' AND s.location_id = ? AND c.type IN ('food', 'meal')";
+        $stmt = $pdo->prepare($sql); $stmt->execute([$locationId]); echo $stmt->fetchColumn() ?: 0;
+    } else { echo 0; }
+    exit;
+}
+
+// --- POS LOGIC (Only if Active) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
     if (isset($_POST['search_member'])) {
         $term = trim($_POST['member_search']);
         $stmt = $pdo->prepare("SELECT * FROM members WHERE phone LIKE ? OR name LIKE ? LIMIT 1");
@@ -54,56 +87,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (isset($_POST['detach_member'])) { unset($_SESSION['pos_member']); }
 
-    // 2. CART MANIPULATION
     if (isset($_POST['add_item'])) {
         $pid = $_POST['product_id'];
-        $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?"); $stmt->execute([$pid]);
-        $product = $stmt->fetch();
-        if ($product) {
-            if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
-            if (isset($_SESSION['cart'][$pid])) { $_SESSION['cart'][$pid]['qty']++; } 
-            else { $_SESSION['cart'][$pid] = ['name' => $product['name'], 'price' => $product['price'], 'qty' => 1]; }
-        }
+        $stockCheck = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
+        $stockCheck->execute([$pid, $locationId]);
+        $currentStock = $stockCheck->fetchColumn() ?: 0;
+
+        if ($currentStock > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ?"); $stmt->execute([$pid]);
+            $product = $stmt->fetch();
+            if ($product) {
+                if (!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
+                if (isset($_SESSION['cart'][$pid])) { 
+                    if ($_SESSION['cart'][$pid]['qty'] < $currentStock) { $_SESSION['cart'][$pid]['qty']++; } 
+                    else { $_SESSION['swal_type'] = 'warning'; $_SESSION['swal_msg'] = "Max stock reached!"; }
+                } else { $_SESSION['cart'][$pid] = ['name' => $product['name'], 'price' => $product['price'], 'qty' => 1]; }
+            }
+        } else { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Out of Stock!"; }
     }
 
-    // NEW: Handle + / - / Trash
     if (isset($_POST['update_qty'])) {
         $pid = $_POST['product_id'];
-        $action = $_POST['action']; // 'inc' or 'dec'
+        $action = $_POST['action']; 
+        $limitReached = false;
+        if ($action === 'inc') {
+            $stockCheck = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
+            $stockCheck->execute([$pid, $locationId]);
+            $max = $stockCheck->fetchColumn() ?: 0;
+            if (isset($_SESSION['cart'][$pid]) && $_SESSION['cart'][$pid]['qty'] >= $max) { $limitReached = true; }
+        }
         if (isset($_SESSION['cart'][$pid])) {
-            if ($action === 'inc') { $_SESSION['cart'][$pid]['qty']++; }
-            elseif ($action === 'dec') { 
-                $_SESSION['cart'][$pid]['qty']--; 
-                if ($_SESSION['cart'][$pid]['qty'] <= 0) { unset($_SESSION['cart'][$pid]); }
-            }
+            if ($action === 'inc' && !$limitReached) { $_SESSION['cart'][$pid]['qty']++; }
+            elseif ($action === 'dec') { $_SESSION['cart'][$pid]['qty']--; if ($_SESSION['cart'][$pid]['qty'] <= 0) unset($_SESSION['cart'][$pid]); }
         }
     }
-    
-    if (isset($_POST['remove_item'])) {
-        $pid = $_POST['product_id'];
-        unset($_SESSION['cart'][$pid]);
-    }
-    
+    if (isset($_POST['remove_item'])) { unset($_SESSION['cart'][$_POST['product_id']]); }
     if (isset($_POST['clear_cart'])) { unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['pos_member']); }
-
-    // 3. RECALL TAB & CHECKOUT
-    if (isset($_POST['recall_tab'])) {
-        $saleId = $_POST['sale_id'];
-        $stmt = $pdo->prepare("SELECT * FROM sales WHERE id = ?"); $stmt->execute([$saleId]); $sale = $stmt->fetch();
-        if ($sale) {
-            $items = $pdo->prepare("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = ?"); $items->execute([$saleId]);
-            $_SESSION['cart'] = [];
-            foreach ($items->fetchAll() as $i) { $_SESSION['cart'][$i['product_id']] = ['name' => $i['name'], 'price' => $i['price_at_sale'], 'qty' => $i['quantity']]; }
-            $_SESSION['current_tab_id'] = $saleId; $_SESSION['current_customer'] = $sale['customer_name'];
-            if ($sale['member_id']) { $m = $pdo->prepare("SELECT * FROM members WHERE id = ?"); $m->execute([$sale['member_id']]); $_SESSION['pos_member'] = $m->fetch(); }
-        }
-    }
 
     if (isset($_POST['checkout'])) {
         if (empty($_SESSION['cart'])) { header("Location: index.php?page=pos"); exit; }
-        $shiftStmt = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1");
-        $shiftStmt->execute([$userId]); $sid = $shiftStmt->fetchColumn();
-        if (!$sid) { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Start a Shift first."; header("Location: index.php?page=pos"); exit; }
+        if (!$activeShiftId) { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Start a Shift first."; header("Location: index.php?page=pos"); exit; }
 
         $cartTotal = 0; foreach ($_SESSION['cart'] as $item) { $cartTotal += $item['price'] * $item['qty']; }
         $pointsRedeemed = 0; $finalTotal = $cartTotal; $memberId = null;
@@ -134,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("DELETE FROM sale_items WHERE sale_id = ?")->execute([$saleId]);
             } else {
                 $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, collected_by, member_id, points_earned, points_redeemed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$userId, $locationId, $sid, $cartTotal, $finalTotal, $method, $status, $_POST['customer_name'], $tendered, ($tendered - $finalTotal), $collectedBy, $memberId, $pointsEarned, $pointsRedeemed]);
+                $stmt->execute([$userId, $locationId, $activeShiftId, $cartTotal, $finalTotal, $method, $status, $_POST['customer_name'], $tendered, ($tendered - $finalTotal), $collectedBy, $memberId, $pointsEarned, $pointsRedeemed]);
                 $saleId = $pdo->lastInsertId();
             }
             foreach ($_SESSION['cart'] as $pid => $item) {
@@ -158,9 +181,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: index.php?page=pos"); exit;
 }
 
-// FETCH DATA
-$locStmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?"); $locStmt->execute([$locationId]); $locationName = $locStmt->fetchColumn() ?: 'Unknown';
-$categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll(); // NEW: Fetch Categories
-$products = $pdo->query("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = $locationId WHERE p.is_active = 1 ORDER BY p.name ASC")->fetchAll();
-$openTabs = $pdo->query("SELECT s.id, s.customer_name, s.final_total, s.created_at, u.username as cashier, l.name as loc_name FROM sales s JOIN users u ON s.user_id = u.id JOIN locations l ON s.location_id = l.id WHERE s.payment_status = 'pending' ORDER BY s.created_at DESC")->fetchAll();
+$categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll();
+
+// Get Products (Only if Location Valid)
+if ($locationId > 0) {
+    $prodStmt = $pdo->prepare("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = ? WHERE p.is_active = 1 ORDER BY p.name ASC");
+    $prodStmt->execute([$locationId]);
+    $products = $prodStmt->fetchAll();
+    
+    $openTabs = $pdo->query("SELECT s.id, s.customer_name, s.final_total, s.created_at, u.username as cashier, l.name as loc_name FROM sales s JOIN users u ON s.user_id = u.id JOIN locations l ON s.location_id = l.id WHERE s.payment_status = 'pending' ORDER BY s.created_at DESC")->fetchAll();
+} else {
+    $products = [];
+    $openTabs = [];
+}
 ?>

@@ -362,7 +362,7 @@ CREATE TABLE `users` (
 
 TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
-(1, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  9,  '2026-01-29 12:55:36',  0),
+(1, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  3,  '2026-01-29 12:55:36',  0),
 (3, 'Restaurant_cashier', 'Mwale Kitchen Cashier',  '$2y$10$L4IYlKv4CnIjvDEXQZMtfO8yB86t.2v2fd8lmobqJkI8XadeZzS.i', 'cashier',  1,  '2026-01-29 12:55:36',  0),
 (4, 'head_chef',  'Head Chef',  '$2y$10$Zx4dvmsK6tetfu/o32qwaOHgzW5aCPYyXebrPHCuJxNDP5cg133Fu', 'admin',  1,  '2026-01-30 05:37:27',  0),
 (5, 'stores_manager', 'Choolwe Stores Manager', '$2y$10$FaqE3WQxADD.8GWugJw0ieRpGhIGsX9oerUqaY4bc2NNFfg9L4Ai2', 'manager',  3,  '2026-01-30 06:39:29',  0),
@@ -370,7 +370,7 @@ INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `lo
 (7, 'Main_bartender', 'Main Bar Bartender', '$2y$10$1LpLTw/HiJsIEbNjwZ44zuNm.K.DiDtFretzcA65M7RV6tliGCN86', 'bartender',  2,  '2026-01-30 06:40:57',  1),
 (8, 'Bar_Manager',  'Mumba Bar-Manager',  '$2y$10$7B0j9oNHDch0mRyfbUsopuhzwbFbVJAgrdN2spsxfNDYRDzyVKn4i', 'manager',  2,  '2026-01-30 07:59:03',  0),
 (10,  'Daliso', 'Daliso Nindi', '$2y$10$VlTfRDkhaOa3Mi.l7Eubd.fr/yfJ5m5fixiDVgs45nZroOUPhtYty', 'admin',  9,  '2026-01-30 18:19:15',  1),
-(11,  'Admin',  'Admininistaror Account', '$2y$10$VEERI3aWoz.dgcNFAL/zseiH4q47bs3UwACwrma64ET0pECHGkFpC', 'admin',  9,  '2026-01-31 07:09:34',  0),
+(11,  'Admin',  'Admininistaror Account', '$2y$10$VEERI3aWoz.dgcNFAL/zseiH4q47bs3UwACwrma64ET0pECHGkFpC', 'admin',  3,  '2026-01-31 07:09:34',  0),
 (12,  'mary_sales_Res_Bar', 'Mary sales lady',  '$2y$10$6X2lDe5vcBb/s1u.Vd7zruqS7p9HoP0UIbVM9ty.TU2C1RKjY163i', 'cashier',  4,  '2026-01-31 14:06:24',  0),
 (13,  'Restaurant_Manager', 'Restaurant Manager', '$2y$10$JlEq5qWHd9hF47RQL7MVzO2C.lHIcrtgAeoM9U204XoGfkqOjrgXC', 'manager',  1,  '2026-01-31 16:15:59',  0),
 (14,  'Mini_stores_manager',  'mini store manager', '$2y$10$4rpiSKKpnExkGbd0JUboQeOrzRpX6XkopWyt4AFsk6Jw1lXN/jfhq', 'manager',  7,  '2026-02-01 04:12:43',  0),
