@@ -19,13 +19,6 @@ CREATE TABLE `categories` (
   UNIQUE KEY `name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `categories`;
-INSERT INTO `categories` (`id`, `name`, `description`, `type`) VALUES
-(1, 'Food', NULL, 'food'),
-(2, 'Meal', NULL, 'meal'),
-(3, 'Beverages',  NULL, 'drink'),
-(4, 'Ingredient', NULL, 'ingredients');
-
 DROP TABLE IF EXISTS `expenses`;
 CREATE TABLE `expenses` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -42,6 +35,7 @@ CREATE TABLE `expenses` (
   CONSTRAINT `expenses_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `expenses`;
 
 DROP TABLE IF EXISTS `grv_items`;
 CREATE TABLE `grv_items` (
@@ -56,7 +50,6 @@ CREATE TABLE `grv_items` (
   CONSTRAINT `grv_items_ibfk_1` FOREIGN KEY (`grv_id`) REFERENCES `grvs` (`id`) ON DELETE CASCADE,
   CONSTRAINT `grv_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 
 DROP TABLE IF EXISTS `grvs`;
 CREATE TABLE `grvs` (
@@ -76,7 +69,6 @@ CREATE TABLE `grvs` (
   CONSTRAINT `grvs_ibfk_3` FOREIGN KEY (`received_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-
 DROP TABLE IF EXISTS `inventory`;
 CREATE TABLE `inventory` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -90,7 +82,6 @@ CREATE TABLE `inventory` (
   CONSTRAINT `inventory_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
   CONSTRAINT `inventory_ibfk_2` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 
 DROP TABLE IF EXISTS `inventory_logs`;
 CREATE TABLE `inventory_logs` (
@@ -108,7 +99,6 @@ CREATE TABLE `inventory_logs` (
   KEY `location_id` (`location_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-
 DROP TABLE IF EXISTS `inventory_transfers`;
 CREATE TABLE `inventory_transfers` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -124,7 +114,6 @@ CREATE TABLE `inventory_transfers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-
 DROP TABLE IF EXISTS `location_stock`;
 CREATE TABLE `location_stock` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -138,6 +127,7 @@ CREATE TABLE `location_stock` (
   CONSTRAINT `location_stock_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `location_stock`;
 
 DROP TABLE IF EXISTS `locations`;
 CREATE TABLE `locations` (
@@ -153,15 +143,10 @@ CREATE TABLE `locations` (
 
 TRUNCATE `locations`;
 INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_vendor`, `address`, `phone`) VALUES
-(1, 'Kitchen',  'store',  1,  0,  '', '555-0000'),
-(2, 'Main Bar', 'store',  1,  0,  '', '555-0000'),
-(3, 'Main Storeroom', 'warehouse',  1,  0,  '', '555-0000'),
-(4, 'Restaurant Bar', 'store',  1,  0,  '', '555-0000'),
-(5, 'Outside Bar',  'store',  1,  0,  '', '555-0000'),
-(7, 'Mini storeroom', 'store',  1,  0,  '', '555-0000'),
-(8, 'Warehouse',  'warehouse',  1,  0,  '', '555-0000'),
-(9, 'Main Branch',  'warehouse',  1,  0,  '', '555-0000'),
-(12,  'shop', 'store',  1,  0,  '', '555-0000');
+(5, 'Main Bar', 'store',  1,  0,  '', '555-0000'),
+(6, 'main storeroom', 'warehouse',  1,  0,  '', '555-0000'),
+(7, 'Kitchen',  'warehouse',  1,  0,  '', '555-0000'),
+(8, 'HQ', 'warehouse',  1,  0,  '', '555-0000');
 
 DROP TABLE IF EXISTS `members`;
 CREATE TABLE `members` (
@@ -175,6 +160,7 @@ CREATE TABLE `members` (
   UNIQUE KEY `phone` (`phone`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `members`;
 
 DROP TABLE IF EXISTS `pickup_notifications`;
 CREATE TABLE `pickup_notifications` (
@@ -187,6 +173,7 @@ CREATE TABLE `pickup_notifications` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `pickup_notifications`;
 
 DROP TABLE IF EXISTS `products`;
 CREATE TABLE `products` (
@@ -204,6 +191,10 @@ CREATE TABLE `products` (
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `products`;
+INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `category_id`, `is_active`) VALUES
+(5, 'Beef Sausage', NULL, 140.00, 100.00, 'KG', 3,  1),
+(6, 'Beef Burger',  NULL, 80.00,  50.00,  'Kg', 2,  1);
 
 DROP TABLE IF EXISTS `refund_requests`;
 CREATE TABLE `refund_requests` (
@@ -221,6 +212,7 @@ CREATE TABLE `refund_requests` (
   CONSTRAINT `refund_requests_ibfk_2` FOREIGN KEY (`requested_by_user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `refund_requests`;
 
 DROP TABLE IF EXISTS `sale_items`;
 CREATE TABLE `sale_items` (
@@ -239,6 +231,7 @@ CREATE TABLE `sale_items` (
   CONSTRAINT `sale_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `sale_items`;
 
 DROP TABLE IF EXISTS `sales`;
 CREATE TABLE `sales` (
@@ -269,6 +262,7 @@ CREATE TABLE `sales` (
   CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `sales`;
 
 DROP TABLE IF EXISTS `shifts`;
 CREATE TABLE `shifts` (
@@ -281,7 +275,7 @@ CREATE TABLE `shifts` (
   `closing_cash` decimal(10,2) DEFAULT '0.00',
   `expected_cash` decimal(10,2) DEFAULT '0.00',
   `manager_closing_cash` decimal(10,2) DEFAULT '0.00',
-  `status` enum('open','closed') DEFAULT 'open',
+  `status` enum('pending_approval','open','closed') DEFAULT 'pending_approval',
   `variance_reason` text,
   `handover_notes` text,
   `start_verified_by` int DEFAULT NULL,
@@ -299,7 +293,6 @@ CREATE TABLE `shifts` (
   CONSTRAINT `shifts_ibfk_4` FOREIGN KEY (`end_verified_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-
 DROP TABLE IF EXISTS `stock_transfer_items`;
 CREATE TABLE `stock_transfer_items` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -315,6 +308,7 @@ CREATE TABLE `stock_transfer_items` (
   CONSTRAINT `stock_transfer_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `stock_transfer_items`;
 
 DROP TABLE IF EXISTS `stock_transfers`;
 CREATE TABLE `stock_transfers` (
@@ -333,6 +327,7 @@ CREATE TABLE `stock_transfers` (
   CONSTRAINT `stock_transfers_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `stock_transfers`;
 
 DROP TABLE IF EXISTS `taxes`;
 CREATE TABLE `taxes` (
@@ -343,6 +338,7 @@ CREATE TABLE `taxes` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `taxes`;
 
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
@@ -362,19 +358,13 @@ CREATE TABLE `users` (
 
 TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
-(1, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  3,  '2026-01-29 12:55:36',  0),
-(3, 'Restaurant_cashier', 'Mwale Kitchen Cashier',  '$2y$10$L4IYlKv4CnIjvDEXQZMtfO8yB86t.2v2fd8lmobqJkI8XadeZzS.i', 'cashier',  1,  '2026-01-29 12:55:36',  0),
-(4, 'head_chef',  'Head Chef',  '$2y$10$Zx4dvmsK6tetfu/o32qwaOHgzW5aCPYyXebrPHCuJxNDP5cg133Fu', 'admin',  1,  '2026-01-30 05:37:27',  0),
-(5, 'stores_manager', 'Choolwe Stores Manager', '$2y$10$FaqE3WQxADD.8GWugJw0ieRpGhIGsX9oerUqaY4bc2NNFfg9L4Ai2', 'manager',  3,  '2026-01-30 06:39:29',  0),
-(6, 'chef', 'Sililo Chef',  '$2y$10$JFws5wVFa6tAdwflrThJr.xFJJpRGYOtl0PW2wxm9xOprPlgbt2oS', 'chef', 1,  '2026-01-30 06:40:05',  0),
-(7, 'Main_bartender', 'Main Bar Bartender', '$2y$10$1LpLTw/HiJsIEbNjwZ44zuNm.K.DiDtFretzcA65M7RV6tliGCN86', 'bartender',  2,  '2026-01-30 06:40:57',  1),
-(8, 'Bar_Manager',  'Mumba Bar-Manager',  '$2y$10$7B0j9oNHDch0mRyfbUsopuhzwbFbVJAgrdN2spsxfNDYRDzyVKn4i', 'manager',  2,  '2026-01-30 07:59:03',  0),
-(10,  'Daliso', 'Daliso Nindi', '$2y$10$VlTfRDkhaOa3Mi.l7Eubd.fr/yfJ5m5fixiDVgs45nZroOUPhtYty', 'admin',  9,  '2026-01-30 18:19:15',  1),
-(11,  'Admin',  'Admininistaror Account', '$2y$10$VEERI3aWoz.dgcNFAL/zseiH4q47bs3UwACwrma64ET0pECHGkFpC', 'admin',  3,  '2026-01-31 07:09:34',  0),
-(12,  'mary_sales_Res_Bar', 'Mary sales lady',  '$2y$10$6X2lDe5vcBb/s1u.Vd7zruqS7p9HoP0UIbVM9ty.TU2C1RKjY163i', 'cashier',  4,  '2026-01-31 14:06:24',  0),
-(13,  'Restaurant_Manager', 'Restaurant Manager', '$2y$10$JlEq5qWHd9hF47RQL7MVzO2C.lHIcrtgAeoM9U204XoGfkqOjrgXC', 'manager',  1,  '2026-01-31 16:15:59',  0),
-(14,  'Mini_stores_manager',  'mini store manager', '$2y$10$4rpiSKKpnExkGbd0JUboQeOrzRpX6XkopWyt4AFsk6Jw1lXN/jfhq', 'manager',  7,  '2026-02-01 04:12:43',  0),
-(15,  'Mwape_Res_Bar_manager',  'Mwape Restaurant Manager', '$2y$10$yLFmCN96bPn7JDftB7/9QOlLLHizCIPAB8/OHzK4zd9hc.2c1xiEm', 'manager',  4,  '2026-02-01 04:22:19',  0);
+(1, 'admin',  'System Admin', '$2y$10$dfhyz90y9fas1hTcUTlT0Oo5uQQf5IjqWTkXfcX1hLLDklfQw2cZa', 'admin',  8,  '2026-02-01 19:37:36',  0),
+(2, 'Bar_manager',  'Bar Manager',  '$2y$10$udKFL4BfJfgvhHGz.CKUCeiqOZ07NuOxmxG0IFl68NA3R2cSxV4Te', 'manager',  5,  '2026-02-01 19:37:36',  0),
+(3, 'Bartender',  'Bartender',  '$2y$10$q9q8XsdSitIP48lRVi8HTuE2rlltNx0JnwoAbJ/l0RMCYtC1hP0ni', 'bartender',  5,  '2026-02-01 19:37:36',  0),
+(4, 'head_chef',  'Head Chef',  '$2y$10$u/Al4A7tC9hIhlt4Ddbjze2vwqH5hL7rbIzccVnMirYRe9m0POMgG', 'manager',  7,  '2026-02-01 19:37:36',  0),
+(5, 'Daliso', 'Daliso Nindi', '$2y$10$oGlUSLx6gsXJnYNkWaBl2uYtp7YH7GkA6eSi6WAO/l5WHtMOFjvri', 'admin',  8,  '2026-02-01 19:49:13',  0),
+(6, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  NULL, '2026-01-29 10:55:36',  0),
+(7, 'chef', 'chef', '$2y$10$V7g.GgVgrpeCiBAVrRqpSOai6du5HBtuk9bw3aPNndZW.r1Wxxx/G', 'chef', 7,  '2026-02-06 14:35:58',  0);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -387,8 +377,7 @@ CREATE TABLE `vendors` (
 
 TRUNCATE `vendors`;
 INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
-(1, 'Zambeef Zambia', 'Mr. Phir', ''),
-(2, 'Coca Cola Zambia', 'Mr. Daliso', ''),
-(3, 'Shoprite Zambia',  'Mr. Choogo', '');
+(1, 'Coca Cola Zambia', 'Mr. Phiri',  NULL),
+(2, 'Zambeef',  'Sales Rep',  NULL);
 
--- 2026-02-01 18:40:58 UTC
+-- 2026-02-06 15:04:19 UTC
