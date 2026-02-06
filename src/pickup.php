@@ -1,32 +1,43 @@
 <?php
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
+// --- AJAX HANDLER FOR COLLECTION ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['collect_order'])) {
-    $saleId = $_POST['sale_id'];
-    $collectedBy = $_POST['collected_by'];
+    header('Content-Type: application/json'); 
     
+    $saleId = $_POST['sale_id'];
+    $collectedById = $_POST['collected_by']; // This is an INT (User ID)
+    
+    if (empty($collectedById)) {
+        echo json_encode(['status' => 'error', 'message' => 'Please select a waiter/staff member.']);
+        exit;
+    }
+
     try {
         $pdo->beginTransaction();
 
-        // 1. Update Notification Status
+        // 1. Update Notification Status (Remove from Pickup Board)
         $stmt = $pdo->prepare("UPDATE pickup_notifications SET status = 'collected', collected_by = ? WHERE sale_id = ?");
-        $stmt->execute([$collectedBy, $saleId]);
+        $stmt->execute([$collectedById, $saleId]);
 
-        // 2. CRITICAL: Update Sales Record for Receipt Reconciliation
+        // 2. Update Sales Record (For Receipt Reconciliation)
         $stmt2 = $pdo->prepare("UPDATE sales SET collected_by = ? WHERE id = ?");
-        $stmt2->execute([$collectedBy, $saleId]);
+        $stmt2->execute([$collectedById, $saleId]);
 
         $pdo->commit();
-
-        if (isset($_POST['ajax'])) { echo json_encode(['status' => 'success']); exit; }
+        
+        // SUCCESS: Return sale_id for the receipt popup
+        echo json_encode(['status' => 'success', 'sale_id' => $saleId]);
+        exit;
 
     } catch (Exception $e) {
         $pdo->rollBack();
-        if (isset($_POST['ajax'])) { echo json_encode(['status' => 'error', 'message' => $e->getMessage()]); exit; }
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
     }
-    header("Location: index.php?page=pickup"); exit;
 }
 
+// --- VIEW LOGIC (Initial Load) ---
 $sql = "
     SELECT DISTINCT p.sale_id, u.full_name as server, p.created_at
     FROM pickup_notifications p
@@ -37,8 +48,9 @@ $sql = "
 ";
 $readyOrders = $pdo->query($sql)->fetchAll();
 
+// Get Waiters List (ID and Name)
 try {
-    $waitersStmt = $pdo->query("SELECT full_name FROM users WHERE full_name IS NOT NULL AND full_name != '' ORDER BY full_name ASC");
-    $waiters = $waitersStmt->fetchAll(PDO::FETCH_COLUMN);
-} catch (PDOException $e) { $waiters = ['Staff']; }
+    $waitersStmt = $pdo->query("SELECT id, full_name FROM users WHERE role IN ('waiter', 'cashier', 'manager', 'admin') AND full_name IS NOT NULL ORDER BY full_name ASC");
+    $waiters = $waitersStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) { $waiters = []; }
 ?>

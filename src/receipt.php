@@ -4,12 +4,16 @@ if (!isset($_GET['sale_id'])) die("Sale ID required");
 
 $saleId = $_GET['sale_id'];
 
-// 1. Fetch Sale Details
+// 1. Fetch Sale Details (WITH LEFT JOIN for Collector Name)
 $stmt = $pdo->prepare("
-    SELECT s.*, u.full_name as cashier_name, l.name as location_name, l.address, l.phone 
+    SELECT s.*, 
+           u.full_name as cashier_name, 
+           c.full_name as collector_name,
+           l.name as location_name, l.address, l.phone 
     FROM sales s 
     JOIN users u ON s.user_id = u.id 
     JOIN locations l ON s.location_id = l.id 
+    LEFT JOIN users c ON s.collected_by = c.id
     WHERE s.id = ?
 ");
 $stmt->execute([$saleId]);
@@ -43,8 +47,8 @@ $collectionStatus = "";
 $statusColor = "black";
 
 if ($isKitchenOrder) {
-    if (!empty($sale['collected_by'])) {
-        $collectionStatus = "COLLECTED BY: " . strtoupper($sale['collected_by']);
+    if (!empty($sale['collector_name'])) {
+        $collectionStatus = "COLLECTED BY: " . strtoupper($sale['collector_name']);
         $statusColor = "green";
     } else {
         $collectionStatus = "NOT COLLECTED";
