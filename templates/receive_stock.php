@@ -1,6 +1,11 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3 class="fw-bold text-brown"><i class="bi bi-box-seam-fill text-gold"></i> Receive Stock (GRV)</h3>
-    <a href="index.php?page=inventory" class="btn btn-outline-dark">Back to Inventory</a>
+    <div>
+        <button type="button" class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#prodModal">
+            <i class="bi bi-plus-circle"></i> New Product
+        </button>
+        <a href="index.php?page=inventory" class="btn btn-outline-dark">Back to Inventory</a>
+    </div>
 </div>
 
 <div class="card shadow-sm border-0">
@@ -8,7 +13,7 @@
         <h5 class="mb-0">New Goods Received Voucher</h5>
     </div>
     <div class="card-body">
-        <form method="POST" id="grvForm">
+        <form method="POST" id="grvForm" action="index.php?page=receive_stock">
             <input type="hidden" name="receive_stock" value="1">
             
             <div class="row g-3 mb-4">
@@ -65,6 +70,58 @@
                 <button type="submit" class="btn btn-theme-orange px-5">PROCESS GRV</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="modal fade" id="prodModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=receive_stock">
+                <div class="modal-body">
+                    <input type="hidden" name="save_product" value="1">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Product Name</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Category</label>
+                            <select name="category_id" class="form-select">
+                                <option value="">-- None --</option>
+                                <?php foreach($categories as $c): ?>
+                                    <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Unit (e.g., kg)</label>
+                            <input type="text" name="unit" class="form-control" value="unit">
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Cost Price</label>
+                            <input type="number" step="0.01" name="cost_price" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Selling Price</label>
+                            <input type="number" step="0.01" name="price" class="form-control" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Product</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

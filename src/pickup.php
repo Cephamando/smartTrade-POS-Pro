@@ -4,17 +4,29 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['collect_order'])) {
     $saleId = $_POST['sale_id'];
     $collectedBy = $_POST['collected_by'];
+    
     try {
+        $pdo->beginTransaction();
+
+        // 1. Update Notification Status
         $stmt = $pdo->prepare("UPDATE pickup_notifications SET status = 'collected', collected_by = ? WHERE sale_id = ?");
         $stmt->execute([$collectedBy, $saleId]);
+
+        // 2. CRITICAL: Update Sales Record for Receipt Reconciliation
+        $stmt2 = $pdo->prepare("UPDATE sales SET collected_by = ? WHERE id = ?");
+        $stmt2->execute([$collectedBy, $saleId]);
+
+        $pdo->commit();
+
         if (isset($_POST['ajax'])) { echo json_encode(['status' => 'success']); exit; }
+
     } catch (Exception $e) {
+        $pdo->rollBack();
         if (isset($_POST['ajax'])) { echo json_encode(['status' => 'error', 'message' => $e->getMessage()]); exit; }
     }
     header("Location: index.php?page=pickup"); exit;
 }
 
-// FIXED QUERY: Added p.created_at to SELECT
 $sql = "
     SELECT DISTINCT p.sale_id, u.full_name as server, p.created_at
     FROM pickup_notifications p

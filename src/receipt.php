@@ -4,7 +4,7 @@ if (!isset($_GET['sale_id'])) die("Sale ID required");
 
 $saleId = $_GET['sale_id'];
 
-// 1. Fetch Sale Details (Includes Cashier Name & Collected By)
+// 1. Fetch Sale Details
 $stmt = $pdo->prepare("
     SELECT s.*, u.full_name as cashier_name, l.name as location_name, l.address, l.phone 
     FROM sales s 
@@ -27,12 +27,28 @@ $items = $pdo->prepare("
 $items->execute([$saleId]);
 $lineItems = $items->fetchAll();
 
-// 3. Determine Collection Status Logic
-$collectionStatus = "NOT COLLECTED";
-$statusColor = "red";
+// 3. Determine if this order needs collection (Has Food/Meal)
+$checkKitchen = $pdo->prepare("
+    SELECT COUNT(*) 
+    FROM sale_items si 
+    JOIN products p ON si.product_id = p.id 
+    JOIN categories c ON p.category_id = c.id 
+    WHERE si.sale_id = ? AND LOWER(c.type) IN ('food', 'meal')
+");
+$checkKitchen->execute([$saleId]);
+$isKitchenOrder = $checkKitchen->fetchColumn() > 0;
 
-if (!empty($sale['collected_by'])) {
-    $collectionStatus = "COLLECTED BY: " . strtoupper($sale['collected_by']);
-    $statusColor = "black";
+// 4. Set Collection Status Text
+$collectionStatus = "";
+$statusColor = "black";
+
+if ($isKitchenOrder) {
+    if (!empty($sale['collected_by'])) {
+        $collectionStatus = "COLLECTED BY: " . strtoupper($sale['collected_by']);
+        $statusColor = "green";
+    } else {
+        $collectionStatus = "NOT COLLECTED";
+        $statusColor = "red";
+    }
 }
 ?>

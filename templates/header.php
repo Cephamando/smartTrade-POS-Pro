@@ -21,8 +21,6 @@
 <body>
 
     <?php
-    // --- LOCATION CAPABILITY CHECK FOR HEADER ---
-    // We check if the current location can receive stock to decide whether to show the menu item
     $canReceive = false;
     if (isset($_SESSION['location_id']) && isset($pdo)) {
         $hStmt = $pdo->prepare("SELECT type, can_receive_from_vendor FROM locations WHERE id = ?");
@@ -49,17 +47,18 @@
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Inventory</a>
                         <ul class="dropdown-menu shadow">
                             <li><a class="dropdown-item" href="index.php?page=inventory">Stock Levels</a></li>
-                            
+                            <li><a class="dropdown-item" href="index.php?page=categories">Categories</a></li>
                             <?php if($canReceive): ?>
                                 <li><a class="dropdown-item" href="index.php?page=receive_stock">Receive Stock (GRV)</a></li>
                             <?php endif; ?>
-                            
                             <li><a class="dropdown-item" href="index.php?page=transfers">Transfers</a></li>
                         </ul>
                     </li>
 
                     <li class="nav-item"><a class="nav-link" href="index.php?page=members">Members</a></li>
                     
+                    <li class="nav-item"><a class="nav-link text-warning" href="index.php?page=print_shift">Shift Report</a></li>
+
                     <?php if(isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'manager', 'dev'])): ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Management</a>

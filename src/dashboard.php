@@ -25,8 +25,8 @@ if (isset($_POST['global_switch_location']) && in_array($_SESSION['role'], ['adm
     exit;
 }
 
-// Get current working location
-$locationId = $_SESSION['location_id'];
+// Get current working location (Handle case where it might be null)
+$locationId = $_SESSION['location_id'] ?? null;
 
 // Fetch all locations for the switcher dropdown (Admin/Dev only)
 $allLocations = [];
@@ -35,22 +35,34 @@ if (in_array($_SESSION['role'], ['admin', 'dev'])) {
 }
 
 // --- 2. STANDARD DASHBOARD DATA ---
-// Fetch User & Location Data
-$user = $pdo->prepare("SELECT u.*, l.name as location_name FROM users u JOIN locations l ON u.location_id = l.id WHERE u.id = ?");
+// Fetch User & Location Data (FIXED: Uses LEFT JOIN to prevent crash if location is NULL)
+$user = $pdo->prepare("SELECT u.*, COALESCE(l.name, 'Unassigned') as location_name FROM users u LEFT JOIN locations l ON u.location_id = l.id WHERE u.id = ?");
 $user->execute([$userId]);
 $userData = $user->fetch();
 
+// Safety Fallback if user lookup fails completely
+if (!$userData) {
+    $userData = [
+        'username' => $_SESSION['username'] ?? 'User',
+        'location_name' => 'Unknown Location',
+        'role' => $_SESSION['role'] ?? 'cashier'
+    ];
+}
+
 // Critical Stock Alerts
-$stockAlerts = $pdo->prepare("SELECT p.id as product_id, p.name, i.quantity FROM inventory i JOIN products p ON i.product_id = p.id WHERE i.location_id = ? AND i.quantity < 3");
-$stockAlerts->execute([$locationId]);
-$lowStockItems = $stockAlerts->fetchAll();
+$lowStockItems = [];
+if ($locationId) {
+    $stockAlerts = $pdo->prepare("SELECT p.id as product_id, p.name, i.quantity FROM inventory i JOIN products p ON i.product_id = p.id WHERE i.location_id = ? AND i.quantity < 3");
+    $stockAlerts->execute([$locationId]);
+    $lowStockItems = $stockAlerts->fetchAll();
+}
 
 // Auto-Transfer Logic (Warehouse to Bar)
 $warehouseStmt = $pdo->prepare("SELECT id FROM locations WHERE type = 'warehouse' LIMIT 1");
 $warehouseStmt->execute();
 $warehouseId = $warehouseStmt->fetchColumn();
 
-if ($warehouseId && $warehouseId != $locationId && !empty($lowStockItems)) {
+if ($warehouseId && $locationId && $warehouseId != $locationId && !empty($lowStockItems)) {
     foreach ($lowStockItems as $item) {
         $check = $pdo->prepare("SELECT id FROM inventory_transfers WHERE product_id = ? AND dest_location_id = ? AND status = 'pending'");
         $check->execute([$item['product_id'], $locationId]);
@@ -72,13 +84,18 @@ $myStats['top_item'] = $topItem->fetchColumn() ?: '-';
 $myStats['shift_status'] = 'Active'; 
 
 // Action Center
-$tabStmt = $pdo->prepare("SELECT COUNT(id) as count, COALESCE(SUM(final_total), 0.00) as total FROM sales WHERE location_id = ? AND payment_status = 'pending'");
-$tabStmt->execute([$locationId]);
-$pendingTabs = $tabStmt->fetch();
+$pendingTabs = ['count' => 0, 'total' => 0];
+$pendingReqs = 0;
 
-$reqStmt = $pdo->prepare("SELECT COUNT(id) FROM inventory_transfers WHERE (source_location_id = ? OR dest_location_id = ?) AND status IN ('pending', 'in_transit')");
-$reqStmt->execute([$locationId, $locationId]);
-$pendingReqs = $reqStmt->fetchColumn();
+if ($locationId) {
+    $tabStmt = $pdo->prepare("SELECT COUNT(id) as count, COALESCE(SUM(final_total), 0.00) as total FROM sales WHERE location_id = ? AND payment_status = 'pending'");
+    $tabStmt->execute([$locationId]);
+    $pendingTabs = $tabStmt->fetch();
+
+    $reqStmt = $pdo->prepare("SELECT COUNT(id) FROM inventory_transfers WHERE (source_location_id = ? OR dest_location_id = ?) AND status IN ('pending', 'in_transit')");
+    $reqStmt->execute([$locationId, $locationId]);
+    $pendingReqs = $reqStmt->fetchColumn();
+}
 
 // Active Staff Monitor (Admin/Manager/Dev)
 $activeStaff = [];
