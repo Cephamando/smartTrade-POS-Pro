@@ -30,6 +30,13 @@
     $balanceDue = $sale['final_total'] - $sale['amount_tendered'];
     $isPartial = ($balanceDue > 0.01 && $sale['amount_tendered'] > 0);
     
+    // Calculate Discount / Surcharge
+    // Use total_amount if available, otherwise fallback to final_total (legacy support)
+    $grossTotal = floatval($sale['total_amount'] ?? 0);
+    if ($grossTotal <= 0) $grossTotal = floatval($sale['final_total']);
+    
+    $adjustment = $grossTotal - $sale['final_total'];
+    
     foreach ($copies as $index => $label): 
     ?>
 
@@ -41,6 +48,9 @@
             <div>Receipt #: <?= $sale['id'] ?></div>
             <div>Cashier: <?= htmlspecialchars($sale['cashier_name'] ?? 'Staff') ?></div>
             <div>Customer: <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in') ?></div>
+            <?php if (!empty($sale['member_id'])): ?>
+                <div style="font-size:0.8em; font-style:italic;">(Member Sale)</div>
+            <?php endif; ?>
         </div>
         
         <div class="status-box <?= $isPaid ? 'status-paid' : 'status-unpaid' ?>">
@@ -68,6 +78,18 @@
 
         <div class="line"></div>
 
+        <?php if (abs($adjustment) > 0.01): ?>
+            <div class="item-row">
+                <span>Subtotal:</span>
+                <span><?= number_format($grossTotal, 2) ?></span>
+            </div>
+            <div class="item-row bold">
+                <span><?= $adjustment > 0 ? 'Discount:' : 'Surcharge:' ?></span>
+                <span><?= $adjustment > 0 ? '-' : '+' ?><?= number_format(abs($adjustment), 2) ?></span>
+            </div>
+            <div class="line"></div>
+        <?php endif; ?>
+
         <div class="total-row">
             <span>TOTAL</span>
             <span><?= number_format($sale['final_total'], 2) ?></span>
@@ -79,7 +101,7 @@
         </div>
         
         <?php if ($balanceDue > 0.01): ?>
-        <div class="item-row bold text-danger" style="border-top: 1px solid #ccc; padding-top: 5px;">
+        <div class="item-row bold" style="border-top: 1px solid #000; margin-top:5px; padding-top: 5px;">
             <span>BALANCE DUE:</span>
             <span><?= number_format($balanceDue, 2) ?></span>
         </div>
