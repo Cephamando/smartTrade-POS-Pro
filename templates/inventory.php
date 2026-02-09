@@ -67,11 +67,22 @@
                         </td>
                         <td><span class="badge bg-secondary text-light"><?= htmlspecialchars($item['category_name'] ?? 'Uncategorized') ?></span></td>
                         <td><?= htmlspecialchars($item['location_name']) ?></td>
-                        <td class="text-center fw-bold fs-5"><?= $item['quantity'] ?></td>
+                        <td class="text-center fw-bold fs-5"><?= number_format($item['quantity'], 0) ?></td>
                         <td class="text-end">ZMW <?= number_format($item['price'], 2) ?></td>
                         <td class="text-end fw-bold text-success">ZMW <?= number_format($item['stock_value'], 2) ?></td>
                         <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#editProductModal"
+                                    onclick="populateEdit(
+                                        '<?= $item['inventory_id'] ?>',
+                                        '<?= addslashes($item['product_name']) ?>',
+                                        '<?= $item['quantity'] ?>',
+                                        '<?= $item['price'] ?>',
+                                        '<?= htmlspecialchars($item['location_name']) ?>'
+                                    )">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -80,3 +91,52 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="editProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Edit Inventory</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=inventory">
+                <div class="modal-body">
+                    <input type="hidden" name="update_product" value="1">
+                    <input type="hidden" name="inventory_id" id="edit_inv_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted small fw-bold">PRODUCT</label>
+                        <input type="text" id="edit_name" class="form-control-plaintext fw-bold fs-5" readonly>
+                        <small class="text-muted" id="edit_location"></small>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">Stock Quantity</label>
+                            <input type="number" step="0.01" name="quantity" id="edit_qty" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">Selling Price (ZMW)</label>
+                            <input type="number" step="0.01" name="price" id="edit_price" class="form-control" required>
+                            <small class="text-danger" style="font-size: 0.7rem;">*Updates price for all locations</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-bold">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function populateEdit(id, name, qty, price, loc) {
+    document.getElementById('edit_inv_id').value = id;
+    document.getElementById('edit_name').value = name;
+    document.getElementById('edit_qty').value = qty;
+    document.getElementById('edit_price').value = price;
+    document.getElementById('edit_location').innerText = "Location: " + loc;
+}
+</script>

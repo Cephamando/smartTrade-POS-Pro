@@ -48,10 +48,9 @@
                     <p class="text-muted fw-bold mb-3">Please select your current station to initialize the system.</p>
                     <form method="POST">
                         <?php foreach($sellableLocations as $loc): ?>
-                        <button name="set_pos_location" value="1" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow">
+                        <button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow">
                             <?= htmlspecialchars($loc['name']) ?> 
                             <i class="bi bi-chevron-right text-muted"></i> 
-                            <input type="hidden" name="pos_location_id" value="<?= $loc['id'] ?>">
                         </button>
                         <?php endforeach; ?>
                         <div class="mt-4 text-center">
@@ -225,7 +224,7 @@
         </div>
     </div>
     
-    <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg"><div class="modal-header bg-dark text-white"><h5 class="modal-title">Switch Station</h5></div><div class="modal-body bg-light"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="1" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow"><?= htmlspecialchars($loc['name']) ?> <i class="bi bi-chevron-right text-muted"></i> <input type="hidden" name="pos_location_id" value="<?= $loc['id'] ?>"></button><?php endforeach; ?></form></div></div></div></div>
+    <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg"><div class="modal-header bg-dark text-white"><h5 class="modal-title">Switch Station</h5></div><div class="modal-body bg-light"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow"><?= htmlspecialchars($loc['name']) ?> <i class="bi bi-chevron-right text-muted"></i></button><?php endforeach; ?></form></div></div></div></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
