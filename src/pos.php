@@ -6,6 +6,7 @@ $userId = $_SESSION['user_id'];
 // --- 1. HANDLE MANUAL LOCATION SELECTION & DB UPDATE ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) {
     $newLocId = intval($_POST['set_pos_location']);
+    
     $_SESSION['pos_location_id'] = $newLocId;
     $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
     $stmt->execute([$newLocId]);
@@ -119,24 +120,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$splitData) { header("Location: index.php?page=pos"); exit; }
             
             $splitGroupId = uniqid('SPLIT-');
-            $splitType = $_POST['split_type']; // 'item' or 'even'
+            $splitType = $_POST['split_type']; 
             $pdo->beginTransaction();
             
             try {
                 foreach ($splitData as $guest) {
                     $total = $guest['total'];
-                    $final = $total; // Apply discount logic here if needed per guest
+                    $final = $total;
                     $method = $guest['method'];
                     $status = ($method === 'Pending') ? 'pending' : 'paid';
-                    $tendered = ($status === 'paid') ? $total : 0; // Simple logic: exact change or pending
+                    $tendered = ($status === 'paid') ? $total : 0;
                     $cust = $guest['name'];
                     
-                    // Create Sale
                     $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_group_id, split_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
                         ->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $tendered, 0, $splitGroupId, $splitType]);
                     $sid = $pdo->lastInsertId();
                     
-                    // Insert Items
                     foreach ($guest['items'] as $item) {
                         $pid = $item['id'];
                         $qty = $item['qty'];
@@ -146,8 +145,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?,?,?,?,'pending')")
                             ->execute([$sid, $pid, $qty, $price]);
                         
-                        // Deduct Inventory (Only if By Item mode)
-                        // In 'even' mode, we might just be splitting cost, but let's assume we handle stock correctly for 'item' mode.
                         if ($splitType === 'item' && $status !== 'pending_but_no_deduct' && $type !== 'service') {
                             $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$qty, $pid, $locationId]);
                             $nq = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
@@ -156,13 +153,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
-                // If Split Evenly, we need to handle inventory deduction separately because the above loop might be artificial or financial only.
-                // For simplicity in this implementation, we assume 'item' split distributes actual items.
-                // 'even' split is tricky with inventory.
-                
                 $pdo->commit();
                 unset($_SESSION['cart']);
                 $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Split Bill Processed Successfully!";
+                $_SESSION['last_split_group_id'] = $splitGroupId; // STORE FOR POPUP
             } catch (Exception $e) {
                 $pdo->rollBack();
                 $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Split Error: " . $e->getMessage();
@@ -170,9 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: index.php?page=pos"); exit;
         }
 
-        // Standard Checkout (Unchanged)
+        // Standard Checkout
         if (isset($_POST['checkout']) && !empty($_SESSION['cart'])) {
-            // ... (Keep existing checkout logic exactly as is, it's fine) ...
             $total = 0; foreach ($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty'];
             $disc = (isset($_POST['apply_discount']) && isset($_SESSION['pos_member'])) ? $total * 0.10 : 0;
             $final = $total - $disc;
@@ -218,5 +211,13 @@ $members = $pdo->query("SELECT * FROM members ORDER BY name ASC")->fetchAll();
 $products = ($locationId > 0) ? $pdo->query("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = $locationId WHERE p.is_active = 1 AND p.type = 'item' ORDER BY p.name ASC")->fetchAll() : [];
 $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1 ORDER BY name ASC")->fetchAll();
 $openTabs = ($locationId > 0) ? $pdo->query("SELECT s.id, s.customer_name, s.final_total, s.amount_tendered, s.created_at FROM sales s WHERE s.payment_status = 'pending' ORDER BY s.created_at DESC")->fetchAll() : [];
+
+// FETCH SPLIT INVOICES IF RECENTLY FINALIZED
+$lastSplitGroup = [];
+if (isset($_SESSION['last_split_group_id'])) {
+    $gid = $_SESSION['last_split_group_id'];
+    $lastSplitGroup = $pdo->query("SELECT id, customer_name, final_total, payment_status, payment_method FROM sales WHERE split_group_id = '$gid' ORDER BY id ASC")->fetchAll();
+}
+
 $total = 0; if(isset($_SESSION['cart'])) foreach($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty'];
 ?>
