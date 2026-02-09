@@ -3,24 +3,61 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 
 $userId = $_SESSION['user_id'];
 
-// --- 1. HANDLE MANUAL LOCATION SELECTION & DB UPDATE ---
+// --- 0. MASTER RECEIPT GENERATOR ---
+if (isset($_GET['action']) && $_GET['action'] === 'print_master_receipt' && isset($_GET['group_id'])) {
+    $gid = $_GET['group_id'];
+    $sales = $pdo->query("SELECT * FROM sales WHERE split_group_id = '$gid'")->fetchAll();
+    if (empty($sales)) die("Invalid Group ID");
+
+    $masterTotal = 0;
+    $masterPaid = 0;
+    $firstSale = $sales[0];
+    $date = date('d/m/Y H:i', strtotime($firstSale['created_at']));
+    $locName = $pdo->query("SELECT name FROM locations WHERE id = {$firstSale['location_id']}")->fetchColumn();
+
+    echo "<html><head><title>Master Receipt</title><style>
+        body { font-family: 'Courier New', monospace; width: 300px; margin: 0 auto; padding: 10px; text-align: center; }
+        .header { margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 5px; }
+        .item-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+        .total-row { display: flex; justify-content: space-between; font-weight: bold; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
+        .sub-bill { margin-top: 10px; border-bottom: 1px dotted #ccc; padding-bottom: 5px; text-align: left; }
+        .btn { display: block; width: 100%; padding: 10px; background: #000; color: #fff; text-decoration: none; margin-top: 20px; cursor: pointer; }
+        @media print { .btn { display: none; } }
+    </style></head><body>";
+    
+    echo "<div class='header'><h3>$locName</h3><p>MASTER INVOICE<br>Group: $gid<br>$date</p></div>";
+
+    foreach ($sales as $sale) {
+        $masterTotal += $sale['final_total'];
+        $masterPaid += $sale['amount_tendered'];
+        echo "<div class='sub-bill'><strong>{$sale['customer_name']}</strong> ({$sale['payment_method']})<br>";
+        $items = $pdo->query("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = {$sale['id']}")->fetchAll();
+        foreach ($items as $item) {
+            echo "<div class='item-row'><span>{$item['quantity']} x {$item['name']}</span><span>" . number_format($item['price_at_sale'] * $item['quantity'], 2) . "</span></div>";
+        }
+        echo "<div style='text-align:right; font-size:11px; margin-top:2px;'>Subtotal: " . number_format($sale['final_total'], 2) . "</div></div>";
+    }
+
+    echo "<div class='total-row'><span>GRAND TOTAL</span><span>" . number_format($masterTotal, 2) . "</span></div>";
+    echo "<div class='total-row'><span>TOTAL PAID</span><span>" . number_format($masterPaid, 2) . "</span></div>";
+    if (($masterTotal - $masterPaid) > 0.01) { echo "<div class='total-row' style='color:red'><span>OUTSTANDING</span><span>" . number_format($masterTotal - $masterPaid, 2) . "</span></div>"; }
+    echo "<br><small>*** MASTER SUMMARY ***</small><button class='btn' onclick='window.print()'>PRINT</button></body></html>";
+    exit;
+}
+
+// --- 1. HANDLE MANUAL LOCATION SELECTION ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) {
     $newLocId = intval($_POST['set_pos_location']);
-    
     $_SESSION['pos_location_id'] = $newLocId;
-    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
-    $stmt->execute([$newLocId]);
+    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?"); $stmt->execute([$newLocId]);
     $_SESSION['pos_location_name'] = $stmt->fetchColumn();
 
-    $shiftChk = $pdo->prepare("SELECT id, location_id FROM shifts WHERE user_id = ? AND status IN ('open', 'pending_approval') LIMIT 1");
-    $shiftChk->execute([$userId]);
+    $shiftChk = $pdo->prepare("SELECT id, location_id FROM shifts WHERE user_id = ? AND status IN ('open', 'pending_approval') LIMIT 1"); $shiftChk->execute([$userId]);
     $existingShift = $shiftChk->fetch();
 
     if ($existingShift && $existingShift['location_id'] != $newLocId) {
-        $updateStmt = $pdo->prepare("UPDATE shifts SET location_id = ? WHERE id = ?");
-        $updateStmt->execute([$newLocId, $existingShift['id']]);
-        $_SESSION['swal_type'] = 'success';
-        $_SESSION['swal_msg'] = "Station switched to " . $_SESSION['pos_location_name'];
+        $updateStmt = $pdo->prepare("UPDATE shifts SET location_id = ? WHERE id = ?"); $updateStmt->execute([$newLocId, $existingShift['id']]);
+        $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Station switched to " . $_SESSION['pos_location_name'];
     }
     header("Location: index.php?page=pos"); exit;
 }
@@ -41,8 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_service'])) {
 
 // --- 3. DETERMINE CONTEXT ---
 $activeShiftId = null; $pendingShift = null; $expectedShiftCash = 0.00; $locationName = 'Unknown Station'; $locationId = 0; 
-$shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1");
-$shiftStmt->execute([$userId]);
+$shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1"); $shiftStmt->execute([$userId]);
 $currentShift = $shiftStmt->fetch();
 
 if ($currentShift) {
@@ -86,7 +122,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['current_tab_id'] = $sale['id']; $_SESSION['current_customer'] = $sale['customer_name']; $_SESSION['tab_paid'] = floatval($sale['amount_tendered']); $_SESSION['cart'] = [];
             if ($sale['member_id']) { $m = $pdo->query("SELECT * FROM members WHERE id = {$sale['member_id']}")->fetch(); if($m) $_SESSION['pos_member'] = ['id'=>$m['id'], 'name'=>$m['name'], 'phone'=>$m['phone']]; }
             $items = $pdo->query("SELECT si.*, p.name, p.type FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = $saleId")->fetchAll();
-            foreach ($items as $item) { $_SESSION['cart'][$item['product_id']] = ['name' => $item['name'], 'price' => $item['price_at_sale'], 'qty' => $item['quantity'], 'type' => $item['type'] ?? 'item']; }
+            
+            // FIX: If bill has no items (Even Split), FIND OR CREATE a real "Split Balance" service
+            if (empty($items)) {
+                $balSvc = $pdo->query("SELECT id FROM products WHERE name = 'Split Balance'")->fetch();
+                if (!$balSvc) {
+                    // Create hidden service product on the fly
+                    $pdo->query("INSERT INTO products (name, price, type, is_open_price, is_active) VALUES ('Split Balance', 0, 'service', 1, 0)");
+                    $balId = $pdo->lastInsertId();
+                } else {
+                    $balId = $balSvc['id'];
+                }
+
+                $_SESSION['cart'][$balId] = [
+                    'name' => 'Split Bill Balance',
+                    'price' => $sale['final_total'],
+                    'qty' => 1,
+                    'type' => 'service'
+                ];
+            } else {
+                foreach ($items as $item) { $_SESSION['cart'][$item['product_id']] = ['name' => $item['name'], 'price' => $item['price_at_sale'], 'qty' => $item['quantity'], 'type' => $item['type'] ?? 'item']; }
+            }
         }
         header("Location: index.php?page=pos"); exit;
     }
@@ -114,7 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['cart']); header("Location: index.php?page=pos"); exit;
         }
 
-        // --- SPLIT BILL HANDLER ---
         if (isset($_POST['finalize_split'])) {
             $splitData = json_decode($_POST['split_data'], true);
             if (!$splitData) { header("Location: index.php?page=pos"); exit; }
@@ -126,24 +181,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 foreach ($splitData as $guest) {
                     $total = $guest['total'];
-                    $final = $total;
                     $method = $guest['method'];
                     $status = ($method === 'Pending') ? 'pending' : 'paid';
                     $tendered = ($status === 'paid') ? $total : 0;
-                    $cust = $guest['name'];
                     
                     $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_group_id, split_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-                        ->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $tendered, 0, $splitGroupId, $splitType]);
+                        ->execute([$userId, $locationId, $activeShiftId, $total, $total, $method, $status, $guest['name'], $tendered, 0, $splitGroupId, $splitType]);
                     $sid = $pdo->lastInsertId();
                     
                     foreach ($guest['items'] as $item) {
                         $pid = $item['id'];
                         $qty = $item['qty'];
-                        $price = $item['price'];
                         $type = $item['type'] ?? 'item';
-                        
-                        $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?,?,?,?,'pending')")
-                            ->execute([$sid, $pid, $qty, $price]);
+                        $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?,?,?,?,'pending')")->execute([$sid, $pid, $qty, $item['price']]);
                         
                         if ($splitType === 'item' && $status !== 'pending_but_no_deduct' && $type !== 'service') {
                             $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$qty, $pid, $locationId]);
@@ -156,15 +206,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->commit();
                 unset($_SESSION['cart']);
                 $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Split Bill Processed Successfully!";
-                $_SESSION['last_split_group_id'] = $splitGroupId; // STORE FOR POPUP
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Split Error: " . $e->getMessage();
-            }
+                $_SESSION['last_split_group_id'] = $splitGroupId; 
+                session_write_close();
+            } catch (Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Split Error: " . $e->getMessage(); }
             header("Location: index.php?page=pos"); exit;
         }
 
-        // Standard Checkout
         if (isset($_POST['checkout']) && !empty($_SESSION['cart'])) {
             $total = 0; foreach ($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty'];
             $disc = (isset($_POST['apply_discount']) && isset($_SESSION['pos_member'])) ? $total * 0.10 : 0;
@@ -212,11 +259,10 @@ $products = ($locationId > 0) ? $pdo->query("SELECT p.*, COALESCE(i.quantity, 0)
 $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1 ORDER BY name ASC")->fetchAll();
 $openTabs = ($locationId > 0) ? $pdo->query("SELECT s.id, s.customer_name, s.final_total, s.amount_tendered, s.created_at FROM sales s WHERE s.payment_status = 'pending' ORDER BY s.created_at DESC")->fetchAll() : [];
 
-// FETCH SPLIT INVOICES IF RECENTLY FINALIZED
 $lastSplitGroup = [];
 if (isset($_SESSION['last_split_group_id'])) {
     $gid = $_SESSION['last_split_group_id'];
-    $lastSplitGroup = $pdo->query("SELECT id, customer_name, final_total, payment_status, payment_method FROM sales WHERE split_group_id = '$gid' ORDER BY id ASC")->fetchAll();
+    $lastSplitGroup = $pdo->query("SELECT id, customer_name, final_total, payment_status, payment_method, split_group_id FROM sales WHERE split_group_id = '$gid' ORDER BY id ASC")->fetchAll();
 }
 
 $total = 0; if(isset($_SESSION['cart'])) foreach($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty'];
