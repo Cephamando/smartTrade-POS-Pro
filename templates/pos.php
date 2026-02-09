@@ -38,6 +38,18 @@
 </head>
 <body>
 
+    <?php if ($pendingShift): ?>
+    <div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8);">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-hourglass-split"></i> Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Manager Password" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!$activeShiftId && !$pendingShift): ?>
+    <div class="modal fade show" id="startShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8);">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-primary"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill"></i> Start New Shift</h5></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="request_start_shift" value="1"><label class="fw-bold small text-muted">OPENING FLOAT</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00"></div><button type="submit" class="btn btn-primary w-100 fw-bold py-3">REQUEST APPROVAL</button></div></form></div></div>
+    </div>
+    <?php endif; ?>
+
     <div class="header-custom p-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center ps-2">
             <span class="fs-5 fw-bold text-warning me-3"><i class="bi bi-grid-fill"></i> POS</span>
@@ -73,7 +85,7 @@
         </div>
     </div>
 
-    <div class="workspace">
+    <div class="workspace" style="<?= (!$activeShiftId) ? 'filter: blur(5px); pointer-events: none;' : '' ?>">
         <div class="product-section">
             <div class="bg-white p-2 border-bottom">
                 <input type="text" id="search" class="form-control form-control-lg" placeholder="Search items..." onkeyup="filter()">
@@ -149,14 +161,29 @@
                     <span class="text-muted small fw-bold text-uppercase">Total Due</span>
                     <span class="fs-2 fw-bold text-dark lh-1">ZMW <?= number_format($balance, 2) ?></span>
                 </div>
-                <?php if ($activeShiftId): ?>
+                
+                <div class="d-grid gap-2 mb-3">
                     <button class="btn w-100 py-3 btn-charge shadow" data-bs-toggle="modal" data-bs-target="#checkoutModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?> onclick="initCheckout()">CHARGE</button>
-                <?php else: ?>
-                    <button class="btn btn-secondary w-100 py-3 fw-bold" disabled>SHIFT CLOSED</button>
-                <?php endif; ?>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <form method="POST" onsubmit="return confirm('Clear cart?');"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold">CLEAR</button></form>
+                        </div>
+                        <div class="col-6">
+                            <button onclick="promptHold()" class="btn btn-outline-secondary w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>HOLD ORDER</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-outline-primary w-100 btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> OPEN TABS</button>
+                </div>
             </div>
         </div>
     </div>
+
+    <form id="holdForm" method="POST" style="display:none;">
+        <input type="hidden" name="hold_order" value="1">
+        <input type="hidden" name="hold_name" id="holdNameInput">
+    </form>
 
     <div class="modal fade" id="membersModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -273,15 +300,23 @@
         function filterMembers() { let v=document.getElementById('memberSearch').value.toLowerCase(); document.querySelectorAll('.member-item').forEach(e=>{ e.style.display = e.dataset.search.includes(v)?'flex':'none'; }); }
         function toggleCart() { document.getElementById('cartPanel').classList.toggle('expanded'); }
         
+        // HOLD ORDER FUNCTION
+        function promptHold() {
+            let name = prompt("Enter a name/reference for this order:");
+            if (name) {
+                document.getElementById('holdNameInput').value = name;
+                document.getElementById('holdForm').submit();
+            }
+        }
+        
         let baseTotal = <?= $balance ?? 0 ?>;
         let currentTotal = baseTotal;
         
         function initCheckout() {
-            // Reset state
             currentTotal = baseTotal;
             if(document.getElementById('discountToggle')) {
                 document.getElementById('discountToggle').checked = false;
-                toggleDiscount(); // Resets display
+                toggleDiscount();
             } else {
                 updateDisplays();
             }

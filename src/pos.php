@@ -162,6 +162,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
     
     if (isset($_POST['remove_item'])) unset($_SESSION['cart'][$_POST['product_id']]);
     if (isset($_POST['clear_cart'])) unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
+    
+    // --- HOLD ORDER HANDLER (NEW) ---
+    if (isset($_POST['hold_order'])) {
+        if (!empty($_SESSION['cart'])) {
+            $cartTotal = 0;
+            foreach ($_SESSION['cart'] as $item) $cartTotal += $item['price'] * $item['qty'];
+            
+            $customerName = !empty($_POST['hold_name']) ? $_POST['hold_name'] : 'Walk-in (Held)';
+            $memberId = $_SESSION['pos_member']['id'] ?? null;
+            
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, 'Hold', 'pending', ?, ?, 0.00, 0.00, NOW())");
+                $stmt->execute([$userId, $locationId, $activeShiftId, $cartTotal, $cartTotal, $customerName, $memberId]);
+                $saleId = $pdo->lastInsertId();
+                
+                foreach ($_SESSION['cart'] as $pid => $item) {
+                    // Record Items as pending. We DO deduct inventory for Holds in a bar environment to prevent overselling.
+                    $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, 'pending')")->execute([$saleId, $pid, $item['qty'], $item['price']]);
+                    
+                    $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$item['qty'], $pid, $locationId]);
+                    
+                    $newQty = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
+                    $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id) VALUES (?, ?, ?, ?, ?, 'sale_hold', ?)")->execute([$pid, $locationId, $userId, -$item['qty'], $newQty, $saleId]);
+                }
+                
+                $pdo->commit();
+                unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
+                $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Order Held Successfully!";
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Failed to hold order: " . $e->getMessage();
+            }
+        }
+        header("Location: index.php?page=pos"); exit;
+    }
 
     // --- 7. CHECKOUT ---
     if (isset($_POST['checkout'])) {
