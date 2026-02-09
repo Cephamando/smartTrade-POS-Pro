@@ -3,7 +3,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 
 $userId = $_SESSION['user_id'];
 
-// --- 1. LOCATION HANDLING ---
+// --- 1. LOCATION HANDLING (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) {
     $_SESSION['pos_location_id'] = $_POST['pos_location_id'];
     $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
@@ -12,23 +12,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) 
     header("Location: index.php?page=pos"); exit;
 }
 
-$locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
-$locationName = $_SESSION['pos_location_name'] ?? $_SESSION['location_name'] ?? 'Unknown Station';
-
-$sellableLocations = $pdo->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY name ASC")->fetchAll();
-
-// --- 2. CHECK SHIFT STATUS ---
+// --- 2. DETERMINE CONTEXT (Shift vs New Session) ---
 $activeShiftId = null;
 $pendingShift = null;
 $expectedShiftCash = 0.00;
 
-if ($locationId > 0) {
-    $shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1");
-    $shiftStmt->execute([$userId]);
-    $currentShift = $shiftStmt->fetch();
+// Check for ANY active shift for this user first
+$shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1");
+$shiftStmt->execute([$userId]);
+$currentShift = $shiftStmt->fetch();
 
-    $activeShiftId = ($currentShift && $currentShift['status'] === 'open') ? $currentShift['id'] : null;
-    $pendingShift  = ($currentShift && $currentShift['status'] === 'pending_approval') ? $currentShift : null;
+if ($currentShift) {
+    // SCENARIO A: User has an open shift. Force location to match the shift.
+    $locationId = $currentShift['location_id'];
+    
+    // Sync session to match DB
+    if (!isset($_SESSION['pos_location_id']) || $_SESSION['pos_location_id'] != $locationId) {
+        $_SESSION['pos_location_id'] = $locationId;
+        $lNameStmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
+        $lNameStmt->execute([$locationId]);
+        $_SESSION['pos_location_name'] = $lNameStmt->fetchColumn();
+    }
+    
+    $activeShiftId = ($currentShift['status'] === 'open') ? $currentShift['id'] : null;
+    $pendingShift  = ($currentShift['status'] === 'pending_approval') ? $currentShift : null;
 
     if ($activeShiftId) {
         $startCash = floatval($currentShift['starting_cash']);
@@ -40,7 +47,16 @@ if ($locationId > 0) {
         $expenses = floatval($exStmt->fetchColumn() ?: 0);
         $expectedShiftCash = ($startCash + $cashSales) - $expenses;
     }
+} else {
+    // SCENARIO B: No open shift. 
+    // strictly use the POS-specific session variable. 
+    // Do NOT fall back to $_SESSION['location_id'] (User's home location), 
+    // or the modal will never show.
+    $locationId = $_SESSION['pos_location_id'] ?? 0;
 }
+
+$locationName = $_SESSION['pos_location_name'] ?? $_SESSION['location_name'] ?? 'Unknown Station';
+$sellableLocations = $pdo->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY name ASC")->fetchAll();
 
 // --- 3. SHIFT ACTIONS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_start_shift'])) {
@@ -165,23 +181,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
             $pdo->beginTransaction();
             try {
                 foreach ($_SESSION['cart'] as $pid => $item) {
-                    $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")
-                        ->execute([$item['qty'], $pid, $locationId]);
-                    
+                    $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$item['qty'], $pid, $locationId]);
                     $newQty = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
-                    
-                    $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, created_at) VALUES (?, ?, ?, ?, ?, 'adjustment', NOW())")
-                        ->execute([$pid, $locationId, $userId, -$item['qty'], $newQty]);
+                    $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, created_at) VALUES (?, ?, ?, ?, ?, 'adjustment', NOW())")->execute([$pid, $locationId, $userId, -$item['qty'], $newQty]);
                 }
                 $pdo->commit();
                 unset($_SESSION['cart']);
-                $_SESSION['swal_type'] = 'warning';
+                $_SESSION['swal_type'] = 'warning'; 
                 $_SESSION['swal_msg'] = "Items recorded as Lost/Damaged stock.";
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                $_SESSION['swal_type'] = 'error';
-                $_SESSION['swal_msg'] = "Error logging stock loss: " . $e->getMessage();
-            }
+            } catch (Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error logging stock loss: " . $e->getMessage(); }
         }
         header("Location: index.php?page=pos"); exit;
     }
@@ -210,7 +218,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
             $method = $_POST['payment_method'];
         }
 
-        // Fix: If Tab is selected and not split, tendered is effectively 0 for balance calculation
         if ($method === 'Pending' && !$isSplit) {
             $currentTendered = 0.00;
         }

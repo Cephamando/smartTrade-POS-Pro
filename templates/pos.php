@@ -39,33 +39,33 @@
 <body>
 
     <?php if ($locationId == 0): ?>
-    <div class="modal fade show" id="forceLocationModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.9); z-index: 2000;">
+    <div class="modal fade show" id="compulsoryLocationModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.9); z-index: 1060;">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow-lg border-0">
-                <div class="modal-header bg-dark text-white text-center justify-content-center">
-                    <h4 class="modal-title fw-bold">Select Your Station</h4>
+            <div class="modal-content shadow-lg border-warning">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-geo-alt-fill text-warning"></i> Select Workstation</h5>
                 </div>
                 <div class="modal-body bg-light p-4">
-                    <p class="text-center text-muted mb-4">Please select the location you are operating from to continue.</p>
+                    <p class="text-muted fw-bold mb-3">Please select your current station to initialize the system.</p>
                     <form method="POST">
                         <?php foreach($sellableLocations as $loc): ?>
-                        <button name="set_pos_location" value="1" class="btn btn-white border w-100 mb-3 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow">
-                            <span class="fs-5"><?= htmlspecialchars($loc['name']) ?></span>
-                            <i class="bi bi-chevron-right text-muted"></i>
+                        <button name="set_pos_location" value="1" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow">
+                            <?= htmlspecialchars($loc['name']) ?> 
+                            <i class="bi bi-chevron-right text-muted"></i> 
                             <input type="hidden" name="pos_location_id" value="<?= $loc['id'] ?>">
                         </button>
                         <?php endforeach; ?>
+                        <div class="mt-4 text-center">
+                            <a href="index.php?page=dashboard" class="btn btn-link text-muted fw-bold text-decoration-none"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+                        </div>
                     </form>
-                </div>
-                <div class="modal-footer justify-content-center bg-white">
-                    <a href="index.php?page=logout" class="btn btn-outline-danger btn-sm">Logout</a>
                 </div>
             </div>
         </div>
     </div>
     <?php endif; ?>
 
-    <?php if ($pendingShift): ?>
+    <?php if ($locationId > 0 && $pendingShift): ?>
     <div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8);">
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-hourglass-split"></i> Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Manager Password" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div>
     </div>
@@ -215,6 +215,9 @@
                             <form method="POST" onsubmit="return confirm('Mark items as LOST/DAMAGED stock? Inventory will be deducted.');"><input type="hidden" name="log_waste" value="1"><button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></form>
                         </div>
                     </div>
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-outline-primary w-100 btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> OPEN TABS</button>
                 </div>
             </div>
         </div>
