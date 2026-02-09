@@ -74,7 +74,7 @@
                 <button onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-info text-white border-white btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
             <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#membersModal"><i class="bi bi-person-lines-fill"></i> Members</button>
-            <a href="index.php?page=pickup" target="_blank" class="btn btn-outline-warning btn-sm fw-bold"><i class="bi bi-bag-check"></i> Pickup</a>
+            <a href="index.php?page=pickup" class="btn btn-outline-warning btn-sm fw-bold"><i class="bi bi-bag-check"></i> Pickup</a>
             <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
             <?php if ($activeShiftId): ?>
                 <button class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>

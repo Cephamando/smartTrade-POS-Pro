@@ -11,7 +11,7 @@
             </div>
         </div>
         <div class="d-flex gap-2">
-            <a href="index.php?page=pickup" target="_blank" class="btn btn-outline-dark d-flex align-items-center position-relative">
+            <a href="index.php?page=pickup" class="btn btn-outline-dark d-flex align-items-center position-relative">
                 <i class="bi bi-bell-fill me-2 text-warning"></i> Pickup Screen
                 <span id="dashPickupBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow-sm" style="display:none;">0</span>
             </a>
@@ -120,7 +120,7 @@
 
         <div class="col-lg-4">
             <div class="d-grid gap-3 h-100">
-                <a href="index.php?page=kds" target="_blank" class="card shadow-sm border-0 text-decoration-none hover-card h-100 bg-dark text-white"><div class="card-body d-flex align-items-center"><div class="bg-warning bg-opacity-25 rounded p-3 me-3"><i class="bi bi-display text-warning h4 m-0"></i></div><div><h6 class="fw-bold mb-0">Kitchen Display</h6><small class="text-white-50">Manage incoming orders</small></div><i class="bi bi-chevron-right ms-auto text-white-50"></i></div></a>
+                <a href="index.php?page=kds" class="card shadow-sm border-0 text-decoration-none hover-card h-100 bg-dark text-white"><div class="card-body d-flex align-items-center"><div class="bg-warning bg-opacity-25 rounded p-3 me-3"><i class="bi bi-display text-warning h4 m-0"></i></div><div><h6 class="fw-bold mb-0">Kitchen Display</h6><small class="text-white-50">Manage incoming orders</small></div><i class="bi bi-chevron-right ms-auto text-white-50"></i></div></a>
                 <a href="index.php?page=inventory" class="card shadow-sm border-0 text-decoration-none hover-card h-100"><div class="card-body d-flex align-items-center"><div class="bg-success bg-opacity-10 rounded p-3 me-3"><i class="bi bi-boxes text-success h4 m-0"></i></div><div class="text-dark"><h6 class="fw-bold mb-0">Inventory</h6><small class="text-muted">Stock & Adjustments</small></div><i class="bi bi-chevron-right ms-auto text-muted"></i></div></a>
                 <?php if (in_array($_SESSION['role'], ['admin', 'manager', 'dev'])): ?>
                 <a href="index.php?page=reports" class="card shadow-sm border-0 text-decoration-none hover-card h-100"><div class="card-body d-flex align-items-center"><div class="bg-primary bg-opacity-10 rounded p-3 me-3"><i class="bi bi-graph-up text-primary h4 m-0"></i></div><div class="text-dark"><h6 class="fw-bold mb-0">Reports</h6><small class="text-muted">Sales & Audits</small></div><i class="bi bi-chevron-right ms-auto text-muted"></i></div></a>

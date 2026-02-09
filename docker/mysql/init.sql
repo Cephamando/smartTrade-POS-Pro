@@ -5,8 +5,6 @@ SET time_zone = '+00:00';
 SET foreign_key_checks = 0;
 SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
 
-USE `pos_db`;
-
 SET NAMES utf8mb4;
 
 DROP TABLE IF EXISTS `categories`;
@@ -18,6 +16,13 @@ CREATE TABLE `categories` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `categories` (`id`, `name`, `description`, `type`) VALUES
+(1, 'Beverages',  NULL, 'drink'),
+(2, 'Meals',  NULL, 'food'),
+(3, 'Ingredients',  NULL, 'ingredients'),
+(4, 'Snacks', NULL, 'food'),
+(5, 'Cleaning Material',  NULL, 'other');
 
 DROP TABLE IF EXISTS `expenses`;
 CREATE TABLE `expenses` (
@@ -35,7 +40,6 @@ CREATE TABLE `expenses` (
   CONSTRAINT `expenses_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `expenses`;
 
 DROP TABLE IF EXISTS `grv_items`;
 CREATE TABLE `grv_items` (
@@ -50,6 +54,12 @@ CREATE TABLE `grv_items` (
   CONSTRAINT `grv_items_ibfk_1` FOREIGN KEY (`grv_id`) REFERENCES `grvs` (`id`) ON DELETE CASCADE,
   CONSTRAINT `grv_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `grv_items` (`id`, `grv_id`, `product_id`, `quantity`, `unit_cost`) VALUES
+(1, 1,  6,  100.00, 1200.00),
+(2, 2,  8,  100.00, 0.00),
+(3, 3,  9,  10.00,  0.00),
+(4, 4,  3,  10.00,  1000.00);
 
 DROP TABLE IF EXISTS `grvs`;
 CREATE TABLE `grvs` (
@@ -69,6 +79,12 @@ CREATE TABLE `grvs` (
   CONSTRAINT `grvs_ibfk_3` FOREIGN KEY (`received_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+INSERT INTO `grvs` (`id`, `vendor_id`, `location_id`, `received_by`, `total_cost`, `reference_no`, `created_at`) VALUES
+(1, 2,  1,  1,  120000.00,  '', '2026-02-07 06:45:07'),
+(2, 3,  3,  1,  0.00, '', '2026-02-07 08:32:38'),
+(3, 3,  6,  1,  0.00, '', '2026-02-07 08:59:27'),
+(4, 2,  3,  1,  10000.00, '', '2026-02-07 12:16:58');
+
 DROP TABLE IF EXISTS `inventory`;
 CREATE TABLE `inventory` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -82,6 +98,30 @@ CREATE TABLE `inventory` (
   CONSTRAINT `inventory_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
   CONSTRAINT `inventory_ibfk_2` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+INSERT INTO `inventory` (`id`, `product_id`, `location_id`, `quantity`, `updated_at`) VALUES
+(1, 1,  3,  886,  '2026-02-09 06:30:43'),
+(2, 1,  2,  50, '2026-02-06 19:59:36'),
+(3, 2,  3,  495,  '2026-02-07 11:59:39'),
+(4, 2,  2,  100,  '2026-02-06 19:59:36'),
+(5, 3,  1,  23, '2026-02-09 07:25:24'),
+(6, 4,  3,  50, '2026-02-09 06:31:10'),
+(7, 4,  2,  12, '2026-02-06 21:15:45'),
+(8, 5,  3,  200,  '2026-02-06 19:59:36'),
+(9, 5,  2,  20, '2026-02-06 19:59:36'),
+(10,  6,  1,  100,  '2026-02-09 08:04:34'),
+(11,  7,  3,  50, '2026-02-06 19:59:36'),
+(12,  7,  1,  4,  '2026-02-07 05:36:29'),
+(13,  1,  1,  408,  '2026-02-09 08:04:34'),
+(16,  1,  5,  11, '2026-02-06 23:24:31'),
+(20,  3,  5,  20, '2026-02-07 07:07:36'),
+(21,  6,  3,  101,  '2026-02-09 06:29:58'),
+(22,  8,  3,  100,  '2026-02-07 08:32:39'),
+(24,  6,  2,  10, '2026-02-07 08:54:26'),
+(25,  9,  6,  5,  '2026-02-07 09:00:33'),
+(26,  9,  1,  5,  '2026-02-07 09:00:49'),
+(27,  3,  3,  75, '2026-02-09 07:25:12'),
+(31,  9,  3,  90, '2026-02-09 06:30:59');
 
 DROP TABLE IF EXISTS `inventory_logs`;
 CREATE TABLE `inventory_logs` (
@@ -99,6 +139,62 @@ CREATE TABLE `inventory_logs` (
   KEY `location_id` (`location_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+INSERT INTO `inventory_logs` (`id`, `product_id`, `location_id`, `user_id`, `change_qty`, `after_qty`, `action_type`, `reference_id`, `created_at`) VALUES
+(1, 3,  1,  1,  -2.00,  18.00,  'sale', 1,  '2026-02-06 20:30:07'),
+(2, 6,  1,  1,  -1.00,  14.00,  'sale', 2,  '2026-02-06 20:59:35'),
+(3, 6,  1,  1,  -1.00,  13.00,  'sale', 3,  '2026-02-06 21:05:00'),
+(4, 1,  1,  1,  200.00, 200.00, 'grv',  NULL, '2026-02-06 21:12:02'),
+(5, 1,  1,  1,  -10.00, 190.00, 'transfer_out', 2,  '2026-02-06 21:13:17'),
+(6, 1,  1,  1,  110.00, 300.00, 'grv',  NULL, '2026-02-06 21:14:10'),
+(7, 1,  1,  1,  110.00, 410.00, 'grv',  NULL, '2026-02-06 21:14:28'),
+(8, 1,  5,  1,  10.00,  10.00,  'transfer_in',  2,  '2026-02-06 21:14:54'),
+(9, 4,  3,  1,  -10.00, 0.00, 'transfer_out', 3,  '2026-02-06 21:15:42'),
+(10,  4,  2,  1,  10.00,  12.00,  'transfer_in',  3,  '2026-02-06 21:15:45'),
+(11,  1,  5,  1,  -2.00,  8.00, 'sale', 4,  '2026-02-06 21:18:11'),
+(12,  1,  5,  1,  -1.00,  7.00, 'sale', 4,  '2026-02-06 21:33:10'),
+(13,  1,  5,  1,  -1.00,  6.00, 'sale', 4,  '2026-02-06 21:42:35'),
+(14,  1,  5,  1,  -1.00,  5.00, 'sale', 4,  '2026-02-06 22:44:17'),
+(15,  1,  5,  1,  -3.00,  2.00, 'sale', 5,  '2026-02-06 23:13:04'),
+(16,  1,  5,  1,  -1.00,  1.00, 'sale', 6,  '2026-02-06 23:15:54'),
+(17,  1,  3,  1,  -10.00, 990.00, 'transfer_out', 4,  '2026-02-06 23:24:29'),
+(18,  1,  5,  1,  10.00,  11.00,  'transfer_in',  4,  '2026-02-06 23:24:31'),
+(19,  7,  1,  1,  -1.00,  4.00, 'sale', 7,  '2026-02-07 05:36:29'),
+(20,  1,  1,  1,  -1.00,  409.00, 'sale', 8,  '2026-02-07 05:36:55'),
+(21,  6,  1,  1,  -1.00,  12.00,  'sale', 9,  '2026-02-07 05:37:53'),
+(22,  6,  1,  1,  100.00, 112.00, 'grv',  1,  '2026-02-07 06:45:07'),
+(23,  6,  1,  1,  -1.00,  111.00, 'sale', 10, '2026-02-07 07:08:27'),
+(24,  6,  3,  1,  100.00, 100.00, 'grv',  NULL, '2026-02-07 08:16:48'),
+(25,  1,  3,  1,  -1.00,  989.00, 'sale', 11, '2026-02-07 08:18:05'),
+(26,  1,  3,  1,  -1.00,  988.00, 'sale', 11, '2026-02-07 08:18:39'),
+(27,  2,  3,  1,  -1.00,  499.00, 'sale', 12, '2026-02-07 08:19:45'),
+(28,  1,  3,  1,  -1.00,  987.00, 'sale', 12, '2026-02-07 08:19:45'),
+(29,  6,  3,  1,  -1.00,  99.00,  'sale', 13, '2026-02-07 08:20:07'),
+(30,  6,  3,  1,  -1.00,  98.00,  'sale', 13, '2026-02-07 08:21:05'),
+(31,  2,  3,  1,  -1.00,  498.00, 'sale', 14, '2026-02-07 08:22:06'),
+(32,  2,  3,  1,  -1.00,  497.00, 'sale', 15, '2026-02-07 08:22:44'),
+(33,  8,  3,  1,  100.00, 100.00, 'grv',  2,  '2026-02-07 08:32:39'),
+(34,  6,  1,  1,  -10.00, 101.00, 'transfer_out', 6,  '2026-02-07 08:54:14'),
+(35,  6,  2,  1,  10.00,  10.00,  'transfer_in',  6,  '2026-02-07 08:54:26'),
+(36,  9,  6,  1,  10.00,  10.00,  'grv',  3,  '2026-02-07 08:59:28'),
+(37,  9,  6,  1,  -5.00,  5.00, 'transfer_out', 7,  '2026-02-07 09:00:33'),
+(38,  9,  1,  1,  5.00, 5.00, 'transfer_in',  7,  '2026-02-07 09:00:49'),
+(39,  6,  3,  1,  -1.00,  97.00,  'sale', 16, '2026-02-07 11:53:20'),
+(40,  2,  3,  1,  -2.00,  495.00, 'sale', 14, '2026-02-07 11:59:39'),
+(41,  1,  3,  1,  -1.00,  986.00, 'sale', 16, '2026-02-07 12:01:49'),
+(42,  6,  3,  1,  -1.00,  96.00,  'sale', 17, '2026-02-07 12:04:46'),
+(43,  3,  3,  1,  10.00,  10.00,  'grv',  4,  '2026-02-07 12:16:58'),
+(44,  3,  3,  1,  -5.00,  5.00, 'transfer_out', 8,  '2026-02-07 12:18:52'),
+(45,  3,  1,  1,  5.00, 13.00,  'transfer_in',  8,  '2026-02-07 12:19:28'),
+(46,  6,  3,  1,  5.00, 101.00, 'grv',  NULL, '2026-02-09 06:29:58'),
+(47,  1,  3,  1,  -100.00,  886.00, 'adjustment', NULL, '2026-02-09 06:30:43'),
+(48,  9,  3,  1,  90.00,  90.00,  'grv',  NULL, '2026-02-09 06:30:59'),
+(49,  4,  3,  1,  50.00,  50.00,  'grv',  NULL, '2026-02-09 06:31:10'),
+(50,  3,  3,  1,  80.00,  85.00,  'grv',  NULL, '2026-02-09 06:31:17'),
+(51,  3,  3,  1,  -10.00, 75.00,  'transfer_out', 9,  '2026-02-09 07:25:12'),
+(52,  3,  1,  1,  10.00,  23.00,  'transfer_in',  9,  '2026-02-09 07:25:24'),
+(53,  1,  1,  1,  -1.00,  408.00, 'sale', 21, '2026-02-09 08:04:34'),
+(54,  6,  1,  1,  -1.00,  100.00, 'sale', 21, '2026-02-09 08:04:34');
+
 DROP TABLE IF EXISTS `inventory_transfers`;
 CREATE TABLE `inventory_transfers` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -114,6 +210,17 @@ CREATE TABLE `inventory_transfers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+INSERT INTO `inventory_transfers` (`id`, `source_location_id`, `dest_location_id`, `product_id`, `quantity`, `user_id`, `status`, `created_at`, `dispatched_at`, `received_at`) VALUES
+(1, 1,  5,  3,  20.00,  1,  'completed',  '2026-02-06 23:10:32',  '2026-02-07 09:07:36',  NULL),
+(2, 1,  5,  1,  10.00,  1,  'completed',  '2026-02-06 23:10:51',  '2026-02-06 23:13:17',  '2026-02-06 23:14:54'),
+(3, 3,  2,  4,  10.00,  1,  'completed',  '2026-02-06 23:15:34',  '2026-02-06 23:15:42',  '2026-02-06 23:15:45'),
+(4, 3,  5,  1,  10.00,  1,  'completed',  '2026-02-07 01:20:30',  '2026-02-07 01:24:29',  '2026-02-07 01:24:31'),
+(5, 3,  1,  3,  10.00,  1,  'completed',  '2026-02-07 09:08:40',  '2026-02-07 10:33:05',  NULL),
+(6, 1,  2,  6,  10.00,  1,  'completed',  '2026-02-07 10:53:56',  '2026-02-07 10:54:14',  '2026-02-07 10:54:26'),
+(7, 6,  1,  9,  5.00, 1,  'completed',  '2026-02-07 11:00:08',  '2026-02-07 11:00:33',  '2026-02-07 11:00:49'),
+(8, 3,  1,  3,  5.00, 1,  'completed',  '2026-02-07 14:14:23',  '2026-02-07 14:18:52',  '2026-02-07 14:19:28'),
+(9, 3,  1,  3,  10.00,  1,  'completed',  '2026-02-09 09:24:52',  '2026-02-09 09:25:12',  '2026-02-09 09:25:24');
+
 DROP TABLE IF EXISTS `location_stock`;
 CREATE TABLE `location_stock` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -127,7 +234,29 @@ CREATE TABLE `location_stock` (
   CONSTRAINT `location_stock_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `location_stock`;
+INSERT INTO `location_stock` (`id`, `location_id`, `product_id`, `quantity`) VALUES
+(1, 3,  1,  886.00),
+(2, 2,  1,  50.00),
+(3, 3,  2,  495.00),
+(4, 2,  2,  100.00),
+(5, 1,  3,  13.00),
+(6, 3,  4,  50.00),
+(7, 2,  4,  12.00),
+(8, 3,  5,  200.00),
+(9, 2,  5,  20.00),
+(10,  1,  6,  101.00),
+(11,  3,  7,  50.00),
+(12,  1,  7,  4.00),
+(13,  1,  1,  409.00),
+(14,  5,  1,  11.00),
+(15,  5,  3,  20.00),
+(16,  3,  6,  101.00),
+(17,  3,  8,  100.00),
+(18,  2,  6,  10.00),
+(19,  6,  9,  5.00),
+(20,  1,  9,  5.00),
+(21,  3,  3,  85.00),
+(22,  3,  9,  90.00);
 
 DROP TABLE IF EXISTS `locations`;
 CREATE TABLE `locations` (
@@ -141,12 +270,13 @@ CREATE TABLE `locations` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `locations`;
 INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_vendor`, `address`, `phone`) VALUES
-(5, 'Main Bar', 'store',  1,  0,  '', '555-0000'),
-(6, 'main storeroom', 'warehouse',  1,  0,  '', '555-0000'),
-(7, 'Kitchen',  'warehouse',  1,  0,  '', '555-0000'),
-(8, 'HQ', 'warehouse',  1,  0,  '', '555-0000');
+(1, 'Main Kitchen', 'kitchen',  1,  0,  NULL, '555-0000'),
+(2, 'Main Bar', 'bar',  1,  0,  NULL, '555-0000'),
+(3, 'Main Warehouse', 'warehouse',  0,  1,  NULL, '555-0000'),
+(4, 'Restaurant Bar', 'bar',  1,  0,  NULL, '555-0000'),
+(5, 'Coffee Shop',  'store',  1,  0,  NULL, '555-0000'),
+(6, 'MIni Storeroom', 'warehouse',  1,  0,  '', '555-0000');
 
 DROP TABLE IF EXISTS `members`;
 CREATE TABLE `members` (
@@ -160,7 +290,9 @@ CREATE TABLE `members` (
   UNIQUE KEY `phone` (`phone`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `members`;
+INSERT INTO `members` (`id`, `name`, `phone`, `email`, `points_balance`, `created_at`) VALUES
+(1, 'John Doe', '0977000000', NULL, 50.00,  '2026-02-06 19:59:36'),
+(2, 'Jane Smith', '0966000000', NULL, 120.00, '2026-02-06 19:59:36');
 
 DROP TABLE IF EXISTS `pickup_notifications`;
 CREATE TABLE `pickup_notifications` (
@@ -173,7 +305,18 @@ CREATE TABLE `pickup_notifications` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `pickup_notifications`;
+INSERT INTO `pickup_notifications` (`id`, `sale_id`, `item_name`, `status`, `collected_by`, `created_at`) VALUES
+(1, 1,  'T-Bone Steak', 'collected',  6,  '2026-02-06 20:31:07'),
+(2, 2,  'Beef Burger',  'collected',  6,  '2026-02-06 21:00:17'),
+(3, 3,  'Beef Burger',  'collected',  6,  '2026-02-06 21:05:57'),
+(4, 4,  'T-Bone Steak', 'collected',  6,  '2026-02-06 21:06:26'),
+(5, 9,  'Beef Burger',  'collected',  4,  '2026-02-07 06:00:16'),
+(6, 10, 'Beef Burger',  'collected',  6,  '2026-02-07 07:08:46'),
+(7, 13, 'Beef Burger',  'collected',  6,  '2026-02-07 08:20:24'),
+(8, 13, 'Beef Burger',  'collected',  6,  '2026-02-07 09:01:37'),
+(9, 16, 'Beef Burger',  'collected',  6,  '2026-02-07 11:54:39'),
+(10,  17, 'Beef Burger',  'collected',  6,  '2026-02-07 12:08:42'),
+(11,  21, 'Beef Burger',  'collected',  6,  '2026-02-09 08:41:38');
 
 DROP TABLE IF EXISTS `products`;
 CREATE TABLE `products` (
@@ -191,10 +334,16 @@ CREATE TABLE `products` (
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `products`;
 INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `category_id`, `is_active`) VALUES
-(5, 'Beef Sausage', NULL, 140.00, 100.00, 'KG', 3,  1),
-(6, 'Beef Burger',  NULL, 80.00,  50.00,  'Kg', 2,  1);
+(1, 'Coca Cola 300ml',  NULL, 15.00,  8.00, 'btl',  1,  1),
+(2, 'Mosi Lager', NULL, 25.00,  12.00,  'btl',  1,  1),
+(3, 'T-Bone Steak', NULL, 120.00, 60.00,  'plate',  2,  1),
+(4, 'Jameson Shot', NULL, 40.00,  15.00,  'tot',  1,  1),
+(5, 'Water 500ml',  NULL, 5.00, 2.00, 'btl',  1,  1),
+(6, 'Beef Burger',  NULL, 65.00,  30.00,  'plate',  2,  1),
+(7, 'Cooking Oil',  NULL, 0.00, 45.00,  'ltr',  3,  1),
+(8, 'Dish washer',  NULL, 0.00, 0.00, 'unit', 5,  1),
+(9, 'Dish Wash',  NULL, 0.00, 0.00, 'unit', 5,  1);
 
 DROP TABLE IF EXISTS `refund_requests`;
 CREATE TABLE `refund_requests` (
@@ -212,7 +361,22 @@ CREATE TABLE `refund_requests` (
   CONSTRAINT `refund_requests_ibfk_2` FOREIGN KEY (`requested_by_user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `refund_requests`;
+
+DROP TABLE IF EXISTS `refunds`;
+CREATE TABLE `refunds` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `sale_id` int NOT NULL,
+  `manager_id` int NOT NULL,
+  `amount_refunded` decimal(10,2) NOT NULL,
+  `reason` text,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `sale_id` (`sale_id`),
+  KEY `manager_id` (`manager_id`),
+  CONSTRAINT `refunds_ibfk_1` FOREIGN KEY (`sale_id`) REFERENCES `sales` (`id`),
+  CONSTRAINT `refunds_ibfk_2` FOREIGN KEY (`manager_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 DROP TABLE IF EXISTS `sale_items`;
 CREATE TABLE `sale_items` (
@@ -231,7 +395,28 @@ CREATE TABLE `sale_items` (
   CONSTRAINT `sale_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `sale_items`;
+INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `quantity`, `price_at_sale`, `cost_at_sale`, `status`, `updated_at`) VALUES
+(1, 1,  3,  2,  120.00, 0.00, 'ready',  NULL),
+(2, 2,  6,  1,  65.00,  0.00, 'ready',  NULL),
+(3, 3,  6,  1,  65.00,  0.00, 'ready',  NULL),
+(8, 4,  1,  1,  15.00,  0.00, 'pending',  NULL),
+(9, 5,  1,  3,  15.00,  0.00, 'pending',  NULL),
+(10,  6,  1,  1,  15.00,  0.00, 'pending',  NULL),
+(11,  7,  7,  1,  0.00, 0.00, 'pending',  NULL),
+(12,  8,  1,  1,  15.00,  0.00, 'pending',  NULL),
+(13,  9,  6,  1,  65.00,  0.00, 'ready',  NULL),
+(14,  10, 6,  1,  65.00,  0.00, 'ready',  NULL),
+(16,  11, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(17,  12, 2,  1,  25.00,  0.00, 'pending',  NULL),
+(18,  12, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(20,  13, 6,  1,  65.00,  0.00, 'ready',  NULL),
+(22,  15, 2,  1,  25.00,  0.00, 'pending',  NULL),
+(24,  14, 2,  2,  25.00,  0.00, 'pending',  NULL),
+(25,  16, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(26,  17, 6,  1,  65.00,  0.00, 'ready',  NULL),
+(27,  18, 2,  1,  25.00,  0.00, 'pending',  NULL),
+(30,  21, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(31,  21, 6,  1,  65.00,  0.00, 'ready',  NULL);
 
 DROP TABLE IF EXISTS `sales`;
 CREATE TABLE `sales` (
@@ -262,7 +447,26 @@ CREATE TABLE `sales` (
   CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `sales`;
+INSERT INTO `sales` (`id`, `location_id`, `user_id`, `shift_id`, `total_amount`, `discount`, `total_tax`, `tip`, `final_total`, `payment_method`, `status`, `created_at`, `collected_by`, `payment_status`, `customer_name`, `amount_tendered`, `change_due`, `member_id`, `points_earned`, `points_redeemed`) VALUES
+(1, 1,  1,  1,  240.00, 0.00, 0.00, 0.00, 240.00, 'Cash & Cash',  'completed',  '2026-02-06 20:30:07',  '6',  'paid', 'Walk-in',  240.00, 0.00, NULL, 0.00, 0.00),
+(2, 1,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-06 20:59:35',  '6',  'paid', 'Walk-in',  65.00,  0.00, NULL, 0.00, 0.00),
+(3, 1,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-06 21:05:00',  '6',  'paid', 'Walk-in',  65.00,  0.00, NULL, 0.00, 0.00),
+(4, 1,  1,  1,  120.00, 0.00, 0.00, 0.00, 15.00,  'Cash & Card',  'completed',  '2026-02-06 21:05:40',  '6',  'paid', 'Walk-in',  17.00,  2.00, NULL, 0.00, 0.00),
+(5, 5,  1,  1,  45.00,  0.00, 0.00, 0.00, 40.50,  'Cash', 'completed',  '2026-02-06 23:13:04',  NULL, 'paid', 'Jane Smith', 40.50,  0.00, 2,  0.00, 0.00),
+(6, 5,  1,  1,  15.00,  0.00, 0.00, 0.00, 13.50,  'Cash', 'completed',  '2026-02-06 23:15:54',  NULL, 'paid', 'Jane Smith', 13.50,  0.00, 2,  0.00, 0.00),
+(7, 1,  1,  1,  0.00, 0.00, 0.00, 0.00, 0.00, 'Cash', 'completed',  '2026-02-07 05:36:29',  NULL, 'paid', 'Jane Smith', 0.00, 0.00, 2,  0.00, 0.00),
+(8, 1,  1,  1,  15.00,  0.00, 0.00, 0.00, 13.50,  'Cash', 'completed',  '2026-02-07 05:36:55',  NULL, 'paid', 'Jane Smith', 13.50,  0.00, 2,  0.00, 0.00),
+(9, 1,  1,  1,  65.00,  0.00, 0.00, 0.00, 58.50,  'Cash', 'completed',  '2026-02-07 05:37:53',  '4',  'paid', 'John Doe', 58.50,  0.00, 1,  0.00, 0.00),
+(10,  1,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash & MTN Money', 'completed',  '2026-02-07 07:08:27',  '6',  'paid', 'Walk-in',  70.00,  5.00, NULL, 0.00, 0.00),
+(11,  3,  1,  1,  15.00,  0.00, 0.00, 0.00, 15.00,  'Cash', 'completed',  '2026-02-07 08:18:05',  NULL, 'paid', 'Walk-in',  25.00,  10.00,  NULL, 0.00, 0.00),
+(12,  3,  1,  1,  40.00,  0.00, 0.00, 0.00, 36.00,  'Cash', 'completed',  '2026-02-07 08:19:45',  NULL, 'paid', 'John Doe', 36.00,  0.00, 1,  0.00, 0.00),
+(13,  3,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-07 08:20:07',  '6',  'paid', 'Walk-in',  130.00, 65.00,  NULL, 0.00, 0.00),
+(14,  3,  1,  1,  50.00,  0.00, 0.00, 0.00, 50.00,  'Cash', 'completed',  '2026-02-07 08:22:06',  NULL, 'paid', 'Walk-in',  50.00,  0.00, NULL, 0.00, 0.00),
+(15,  3,  1,  1,  25.00,  0.00, 0.00, 0.00, 25.00,  'Cash', 'completed',  '2026-02-07 08:22:44',  NULL, 'paid', 'daliso', 25.00,  0.00, NULL, 0.00, 0.00),
+(16,  3,  1,  3,  15.00,  0.00, 0.00, 0.00, 13.50,  'Cash', 'completed',  '2026-02-07 11:53:19',  '6',  'paid', 'Jane Smith', 20.00,  6.50, 2,  0.00, 0.00),
+(17,  3,  1,  3,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-07 12:04:46',  '6',  'paid', 'Walk-in',  65.00,  0.00, NULL, 0.00, 0.00),
+(18,  2,  7,  4,  25.00,  0.00, 4.00, 0.00, 29.00,  'card', 'completed',  '2026-02-09 06:52:07',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
+(21,  1,  1,  5,  80.00,  0.00, 0.00, 0.00, 80.00,  'Pending',  'completed',  '2026-02-09 08:04:34',  '6',  'pending',  'Walk-in',  80.00,  0.00, NULL, 0.00, 0.00);
 
 DROP TABLE IF EXISTS `shifts`;
 CREATE TABLE `shifts` (
@@ -293,6 +497,14 @@ CREATE TABLE `shifts` (
   CONSTRAINT `shifts_ibfk_4` FOREIGN KEY (`end_verified_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+INSERT INTO `shifts` (`id`, `user_id`, `location_id`, `start_time`, `end_time`, `starting_cash`, `closing_cash`, `expected_cash`, `manager_closing_cash`, `status`, `variance_reason`, `handover_notes`, `start_verified_by`, `start_verified_at`, `end_verified_by`, `end_verified_at`) VALUES
+(1, 1,  5,  '2026-02-06 20:03:34',  '2026-02-09 06:21:02',  700.00, 1467.00,  1467.00,  0.00, 'closed', '', NULL, 1,  '2026-02-06 20:03:38',  1,  '2026-02-09 06:21:02'),
+(2, 1,  1,  '2026-02-07 08:43:17',  '2026-02-09 06:20:48',  300.00, 300.00, 300.00, 0.00, 'closed', '', NULL, 1,  '2026-02-07 08:43:22',  1,  '2026-02-09 06:20:48'),
+(3, 1,  2,  '2026-02-07 08:46:59',  '2026-02-07 12:42:49',  0.00, 50.00,  78.50,  0.00, 'closed', 'lost', NULL, 1,  '2026-02-07 08:47:03',  1,  '2026-02-07 12:42:49'),
+(4, 7,  2,  '2026-02-09 06:51:18',  NULL, 300.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 1,  '2026-02-09 06:51:18',  NULL, NULL),
+(5, 1,  1,  '2026-02-09 07:39:19',  '2026-02-09 09:02:37',  300.00, 300.00, 300.00, 0.00, 'closed', '', NULL, 1,  '2026-02-09 07:39:19',  1,  '2026-02-09 09:02:37'),
+(6, 1,  1,  '2026-02-09 09:02:48',  '2026-02-09 09:02:59',  300.00, 300.00, 300.00, 0.00, 'closed', '', NULL, 1,  '2026-02-09 09:02:53',  1,  '2026-02-09 09:02:59');
+
 DROP TABLE IF EXISTS `stock_transfer_items`;
 CREATE TABLE `stock_transfer_items` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -308,7 +520,6 @@ CREATE TABLE `stock_transfer_items` (
   CONSTRAINT `stock_transfer_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `stock_transfer_items`;
 
 DROP TABLE IF EXISTS `stock_transfers`;
 CREATE TABLE `stock_transfers` (
@@ -327,7 +538,6 @@ CREATE TABLE `stock_transfers` (
   CONSTRAINT `stock_transfers_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `stock_transfers`;
 
 DROP TABLE IF EXISTS `taxes`;
 CREATE TABLE `taxes` (
@@ -338,7 +548,28 @@ CREATE TABLE `taxes` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `taxes`;
+INSERT INTO `taxes` (`id`, `name`, `rate`, `is_active`) VALUES
+(1, 'VAT',  16.00,  1),
+(2, 'Service Charge', 10.00,  0);
+
+DROP TABLE IF EXISTS `transfers`;
+CREATE TABLE `transfers` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `from_location_id` int NOT NULL,
+  `to_location_id` int NOT NULL,
+  `quantity` int NOT NULL,
+  `status` enum('pending','completed') DEFAULT 'completed',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `product_id` (`product_id`),
+  KEY `from_location_id` (`from_location_id`),
+  KEY `to_location_id` (`to_location_id`),
+  CONSTRAINT `transfers_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
+  CONSTRAINT `transfers_ibfk_2` FOREIGN KEY (`from_location_id`) REFERENCES `locations` (`id`),
+  CONSTRAINT `transfers_ibfk_3` FOREIGN KEY (`to_location_id`) REFERENCES `locations` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
@@ -356,15 +587,14 @@ CREATE TABLE `users` (
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
-(1, 'admin',  'System Admin', '$2y$10$dfhyz90y9fas1hTcUTlT0Oo5uQQf5IjqWTkXfcX1hLLDklfQw2cZa', 'admin',  8,  '2026-02-01 19:37:36',  0),
-(2, 'Bar_manager',  'Bar Manager',  '$2y$10$udKFL4BfJfgvhHGz.CKUCeiqOZ07NuOxmxG0IFl68NA3R2cSxV4Te', 'manager',  5,  '2026-02-01 19:37:36',  0),
-(3, 'Bartender',  'Bartender',  '$2y$10$q9q8XsdSitIP48lRVi8HTuE2rlltNx0JnwoAbJ/l0RMCYtC1hP0ni', 'bartender',  5,  '2026-02-01 19:37:36',  0),
-(4, 'head_chef',  'Head Chef',  '$2y$10$u/Al4A7tC9hIhlt4Ddbjze2vwqH5hL7rbIzccVnMirYRe9m0POMgG', 'manager',  7,  '2026-02-01 19:37:36',  0),
-(5, 'Daliso', 'Daliso Nindi', '$2y$10$oGlUSLx6gsXJnYNkWaBl2uYtp7YH7GkA6eSi6WAO/l5WHtMOFjvri', 'admin',  8,  '2026-02-01 19:49:13',  0),
-(6, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  NULL, '2026-01-29 10:55:36',  0),
-(7, 'chef', 'chef', '$2y$10$V7g.GgVgrpeCiBAVrRqpSOai6du5HBtuk9bw3aPNndZW.r1Wxxx/G', 'chef', 7,  '2026-02-06 14:35:58',  0);
+(1, 'admin',  'System Admin', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'admin',  3,  '2026-02-06 19:59:35',  0),
+(2, 'dev',  'Developer Account',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'dev',  3,  '2026-02-06 19:59:35',  0),
+(3, 'manager',  'Bar Manager',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'manager',  2,  '2026-02-06 19:59:35',  0),
+(4, 'cashier',  'Bar Cashier',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'cashier',  2,  '2026-02-06 19:59:35',  0),
+(5, 'chef', 'Head Chef',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'chef', 1,  '2026-02-06 19:59:35',  0),
+(6, 'waiter', 'Restaurant Waiter',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'cashier',  4,  '2026-02-06 19:59:35',  0),
+(7, 'bartender',  'Main Bartender', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'bartender',  2,  '2026-02-06 19:59:35',  0);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -375,9 +605,9 @@ CREATE TABLE `vendors` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `vendors`;
 INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
 (1, 'Coca Cola Zambia', 'Mr. Phiri',  NULL),
-(2, 'Zambeef',  'Sales Rep',  NULL);
+(2, 'Zambeef',  'Sales Rep',  NULL),
+(3, 'Tiger Animal Feeds', 'Mrs. Banda', NULL);
 
--- 2026-02-06 15:04:19 UTC
+-- 2026-02-09 09:30:07 UTC

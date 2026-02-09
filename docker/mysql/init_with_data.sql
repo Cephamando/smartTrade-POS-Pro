@@ -5,8 +5,6 @@ SET time_zone = '+00:00';
 SET foreign_key_checks = 0;
 SET sql_mode = 'NO_AUTO_VALUE_ON_ZERO';
 
-USE `pos_db`;
-
 SET NAMES utf8mb4;
 
 DROP TABLE IF EXISTS `categories`;
@@ -19,12 +17,12 @@ CREATE TABLE `categories` (
   UNIQUE KEY `name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `categories`;
 INSERT INTO `categories` (`id`, `name`, `description`, `type`) VALUES
-(1, 'Food', NULL, 'food'),
-(2, 'Meal', NULL, 'meal'),
-(3, 'Beverages',  NULL, 'drink'),
-(4, 'Ingredient', NULL, 'ingredients');
+(1, 'Beverages',  NULL, 'drink'),
+(2, 'Meals',  NULL, 'food'),
+(3, 'Ingredients',  NULL, 'ingredients'),
+(4, 'Snacks', NULL, 'food'),
+(5, 'Cleaning Material',  NULL, 'other');
 
 DROP TABLE IF EXISTS `expenses`;
 CREATE TABLE `expenses` (
@@ -42,7 +40,6 @@ CREATE TABLE `expenses` (
   CONSTRAINT `expenses_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `expenses`;
 
 DROP TABLE IF EXISTS `grv_items`;
 CREATE TABLE `grv_items` (
@@ -58,16 +55,11 @@ CREATE TABLE `grv_items` (
   CONSTRAINT `grv_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `grv_items`;
 INSERT INTO `grv_items` (`id`, `grv_id`, `product_id`, `quantity`, `unit_cost`) VALUES
-(1, 1,  1,  100.00, 130.00),
-(2, 2,  2,  500.00, 750.00),
-(3, 3,  1,  50.00,  130.00),
-(4, 4,  3,  100.00, 130.00),
-(5, 5,  5,  100.00, 50.00),
-(6, 6,  4,  60.00,  35.00),
-(7, 7,  6,  50.00,  90.00),
-(8, 8,  6,  100.00, 90.00);
+(1, 1,  6,  100.00, 1200.00),
+(2, 2,  8,  100.00, 0.00),
+(3, 3,  9,  10.00,  0.00),
+(4, 4,  3,  10.00,  1000.00);
 
 DROP TABLE IF EXISTS `grvs`;
 CREATE TABLE `grvs` (
@@ -87,16 +79,11 @@ CREATE TABLE `grvs` (
   CONSTRAINT `grvs_ibfk_3` FOREIGN KEY (`received_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `grvs`;
 INSERT INTO `grvs` (`id`, `vendor_id`, `location_id`, `received_by`, `total_cost`, `reference_no`, `created_at`) VALUES
-(1, 1,  1,  1,  13000.00, 'INV-001-300126', '2026-01-30 05:35:11'),
-(2, 3,  3,  5,  375000.00,  '', '2026-01-30 07:16:02'),
-(3, 1,  3,  5,  6500.00,  '', '2026-01-30 08:02:25'),
-(4, 1,  3,  5,  13000.00, '', '2026-01-31 12:38:16'),
-(5, 2,  3,  5,  5000.00,  '', '2026-01-31 13:38:05'),
-(6, 3,  3,  5,  2100.00,  '', '2026-01-31 13:38:25'),
-(7, 3,  9,  1,  4500.00,  '', '2026-01-31 16:36:39'),
-(8, 3,  3,  5,  9000.00,  '', '2026-01-31 16:40:11');
+(1, 2,  1,  1,  120000.00,  '', '2026-02-07 06:45:07'),
+(2, 3,  3,  1,  0.00, '', '2026-02-07 08:32:38'),
+(3, 3,  6,  1,  0.00, '', '2026-02-07 08:59:27'),
+(4, 2,  3,  1,  10000.00, '', '2026-02-07 12:16:58');
 
 DROP TABLE IF EXISTS `inventory`;
 CREATE TABLE `inventory` (
@@ -112,28 +99,29 @@ CREATE TABLE `inventory` (
   CONSTRAINT `inventory_ibfk_2` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `inventory`;
 INSERT INTO `inventory` (`id`, `product_id`, `location_id`, `quantity`, `updated_at`) VALUES
-(1, 1,  1,  88, '2026-02-01 07:50:29'),
-(2, 2,  3,  455,  '2026-02-01 05:31:42'),
-(3, 2,  1,  54, '2026-02-01 05:31:42'),
-(4, 1,  3,  45, '2026-02-01 14:53:17'),
-(5, 1,  2,  0,  '2026-02-01 05:31:42'),
-(6, 3,  3,  90, '2026-02-01 05:38:15'),
-(7, 3,  1,  5,  '2026-02-01 05:31:42'),
-(8, 5,  3,  120,  '2026-02-01 05:31:42'),
-(9, 4,  3,  85, '2026-02-01 05:31:42'),
-(10,  5,  1,  7,  '2026-02-01 06:02:17'),
-(11,  4,  1,  8,  '2026-02-01 07:24:19'),
-(12,  6,  9,  110,  '2026-02-01 17:31:59'),
-(13,  6,  3,  90, '2026-02-01 15:00:17'),
-(14,  6,  1,  16, '2026-02-01 06:07:13'),
-(15,  1,  4,  15, '2026-02-01 14:53:24'),
-(16,  4,  4,  9,  '2026-02-01 13:09:08'),
-(17,  6,  7,  30, '2026-02-01 15:00:47'),
-(18,  6,  4,  13, '2026-02-01 18:10:40'),
-(19,  5,  4,  8,  '2026-02-01 12:58:46'),
-(32,  3,  4,  14, '2026-02-01 12:43:20');
+(1, 1,  3,  886,  '2026-02-09 06:30:43'),
+(2, 1,  2,  50, '2026-02-06 19:59:36'),
+(3, 2,  3,  495,  '2026-02-07 11:59:39'),
+(4, 2,  2,  100,  '2026-02-06 19:59:36'),
+(5, 3,  1,  23, '2026-02-09 07:25:24'),
+(6, 4,  3,  50, '2026-02-09 06:31:10'),
+(7, 4,  2,  12, '2026-02-06 21:15:45'),
+(8, 5,  3,  200,  '2026-02-06 19:59:36'),
+(9, 5,  2,  20, '2026-02-06 19:59:36'),
+(10,  6,  1,  100,  '2026-02-09 08:04:34'),
+(11,  7,  3,  50, '2026-02-06 19:59:36'),
+(12,  7,  1,  4,  '2026-02-07 05:36:29'),
+(13,  1,  1,  408,  '2026-02-09 08:04:34'),
+(16,  1,  5,  11, '2026-02-06 23:24:31'),
+(20,  3,  5,  20, '2026-02-07 07:07:36'),
+(21,  6,  3,  101,  '2026-02-09 06:29:58'),
+(22,  8,  3,  100,  '2026-02-07 08:32:39'),
+(24,  6,  2,  10, '2026-02-07 08:54:26'),
+(25,  9,  6,  5,  '2026-02-07 09:00:33'),
+(26,  9,  1,  5,  '2026-02-07 09:00:49'),
+(27,  3,  3,  75, '2026-02-09 07:25:12'),
+(31,  9,  3,  90, '2026-02-09 06:30:59');
 
 DROP TABLE IF EXISTS `inventory_logs`;
 CREATE TABLE `inventory_logs` (
@@ -151,35 +139,61 @@ CREATE TABLE `inventory_logs` (
   KEY `location_id` (`location_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `inventory_logs`;
 INSERT INTO `inventory_logs` (`id`, `product_id`, `location_id`, `user_id`, `change_qty`, `after_qty`, `action_type`, `reference_id`, `created_at`) VALUES
-(1, 1,  4,  12, -2.00,  1.00, 'sale', 50, '2026-02-01 12:21:59'),
-(2, 1,  4,  12, -1.00,  0.00, 'sale', 51, '2026-02-01 12:43:20'),
-(3, 5,  4,  12, -1.00,  9.00, 'sale', 51, '2026-02-01 12:43:20'),
-(4, 4,  4,  12, -1.00,  10.00,  'sale', 51, '2026-02-01 12:43:20'),
-(5, 3,  4,  12, -2.00,  14.00,  'sale', 51, '2026-02-01 12:43:20'),
-(6, 1,  3,  5,  -10.00, 55.00,  'transfer_out', 17, '2026-02-01 12:53:48'),
-(7, 1,  4,  15, 10.00,  10.00,  'transfer_in',  17, '2026-02-01 12:54:59'),
-(8, 1,  4,  15, -1.00,  9.00, 'sale', 52, '2026-02-01 12:58:46'),
-(9, 5,  4,  15, -1.00,  8.00, 'sale', 52, '2026-02-01 12:58:46'),
-(10,  1,  4,  15, -1.00,  8.00, 'sale', 53, '2026-02-01 13:00:05'),
-(11,  6,  4,  15, -1.00,  17.00,  'sale', 49, '2026-02-01 13:02:33'),
-(12,  6,  4,  15, -1.00,  16.00,  'sale', 55, '2026-02-01 13:04:06'),
-(13,  1,  4,  15, -1.00,  7.00, 'sale', 54, '2026-02-01 13:04:25'),
-(14,  4,  4,  15, -1.00,  9.00, 'sale', 56, '2026-02-01 13:09:08'),
-(15,  1,  4,  15, -2.00,  5.00, 'sale', 57, '2026-02-01 14:28:10'),
-(16,  1,  3,  1,  -10.00, 45.00,  'transfer_out', 18, '2026-02-01 14:53:17'),
-(17,  1,  4,  1,  10.00,  15.00,  'transfer_in',  18, '2026-02-01 14:53:24'),
-(18,  6,  9,  1,  -50.00, 0.00, 'transfer_out', 19, '2026-02-01 14:55:17'),
-(19,  6,  7,  14, 50.00,  80.00,  'transfer_in',  19, '2026-02-01 14:55:37'),
-(20,  6,  3,  1,  -10.00, 140.00, 'transfer_out', 20, '2026-02-01 14:56:19'),
-(21,  6,  9,  1,  10.00,  10.00,  'transfer_in',  20, '2026-02-01 14:56:30'),
-(22,  6,  3,  1,  -50.00, 90.00,  'transfer_out', 22, '2026-02-01 15:00:17'),
-(23,  6,  9,  1,  50.00,  60.00,  'transfer_in',  22, '2026-02-01 15:00:28'),
-(24,  6,  7,  1,  -50.00, 30.00,  'transfer_out', 23, '2026-02-01 15:00:47'),
-(25,  6,  4,  12, -1.00,  15.00,  'sale', 58, '2026-02-01 16:09:35'),
-(26,  6,  9,  1,  50.00,  110.00, 'transfer_in',  23, '2026-02-01 17:31:59'),
-(27,  6,  4,  1,  -2.00,  13.00,  'sale', 59, '2026-02-01 18:10:40');
+(1, 3,  1,  1,  -2.00,  18.00,  'sale', 1,  '2026-02-06 20:30:07'),
+(2, 6,  1,  1,  -1.00,  14.00,  'sale', 2,  '2026-02-06 20:59:35'),
+(3, 6,  1,  1,  -1.00,  13.00,  'sale', 3,  '2026-02-06 21:05:00'),
+(4, 1,  1,  1,  200.00, 200.00, 'grv',  NULL, '2026-02-06 21:12:02'),
+(5, 1,  1,  1,  -10.00, 190.00, 'transfer_out', 2,  '2026-02-06 21:13:17'),
+(6, 1,  1,  1,  110.00, 300.00, 'grv',  NULL, '2026-02-06 21:14:10'),
+(7, 1,  1,  1,  110.00, 410.00, 'grv',  NULL, '2026-02-06 21:14:28'),
+(8, 1,  5,  1,  10.00,  10.00,  'transfer_in',  2,  '2026-02-06 21:14:54'),
+(9, 4,  3,  1,  -10.00, 0.00, 'transfer_out', 3,  '2026-02-06 21:15:42'),
+(10,  4,  2,  1,  10.00,  12.00,  'transfer_in',  3,  '2026-02-06 21:15:45'),
+(11,  1,  5,  1,  -2.00,  8.00, 'sale', 4,  '2026-02-06 21:18:11'),
+(12,  1,  5,  1,  -1.00,  7.00, 'sale', 4,  '2026-02-06 21:33:10'),
+(13,  1,  5,  1,  -1.00,  6.00, 'sale', 4,  '2026-02-06 21:42:35'),
+(14,  1,  5,  1,  -1.00,  5.00, 'sale', 4,  '2026-02-06 22:44:17'),
+(15,  1,  5,  1,  -3.00,  2.00, 'sale', 5,  '2026-02-06 23:13:04'),
+(16,  1,  5,  1,  -1.00,  1.00, 'sale', 6,  '2026-02-06 23:15:54'),
+(17,  1,  3,  1,  -10.00, 990.00, 'transfer_out', 4,  '2026-02-06 23:24:29'),
+(18,  1,  5,  1,  10.00,  11.00,  'transfer_in',  4,  '2026-02-06 23:24:31'),
+(19,  7,  1,  1,  -1.00,  4.00, 'sale', 7,  '2026-02-07 05:36:29'),
+(20,  1,  1,  1,  -1.00,  409.00, 'sale', 8,  '2026-02-07 05:36:55'),
+(21,  6,  1,  1,  -1.00,  12.00,  'sale', 9,  '2026-02-07 05:37:53'),
+(22,  6,  1,  1,  100.00, 112.00, 'grv',  1,  '2026-02-07 06:45:07'),
+(23,  6,  1,  1,  -1.00,  111.00, 'sale', 10, '2026-02-07 07:08:27'),
+(24,  6,  3,  1,  100.00, 100.00, 'grv',  NULL, '2026-02-07 08:16:48'),
+(25,  1,  3,  1,  -1.00,  989.00, 'sale', 11, '2026-02-07 08:18:05'),
+(26,  1,  3,  1,  -1.00,  988.00, 'sale', 11, '2026-02-07 08:18:39'),
+(27,  2,  3,  1,  -1.00,  499.00, 'sale', 12, '2026-02-07 08:19:45'),
+(28,  1,  3,  1,  -1.00,  987.00, 'sale', 12, '2026-02-07 08:19:45'),
+(29,  6,  3,  1,  -1.00,  99.00,  'sale', 13, '2026-02-07 08:20:07'),
+(30,  6,  3,  1,  -1.00,  98.00,  'sale', 13, '2026-02-07 08:21:05'),
+(31,  2,  3,  1,  -1.00,  498.00, 'sale', 14, '2026-02-07 08:22:06'),
+(32,  2,  3,  1,  -1.00,  497.00, 'sale', 15, '2026-02-07 08:22:44'),
+(33,  8,  3,  1,  100.00, 100.00, 'grv',  2,  '2026-02-07 08:32:39'),
+(34,  6,  1,  1,  -10.00, 101.00, 'transfer_out', 6,  '2026-02-07 08:54:14'),
+(35,  6,  2,  1,  10.00,  10.00,  'transfer_in',  6,  '2026-02-07 08:54:26'),
+(36,  9,  6,  1,  10.00,  10.00,  'grv',  3,  '2026-02-07 08:59:28'),
+(37,  9,  6,  1,  -5.00,  5.00, 'transfer_out', 7,  '2026-02-07 09:00:33'),
+(38,  9,  1,  1,  5.00, 5.00, 'transfer_in',  7,  '2026-02-07 09:00:49'),
+(39,  6,  3,  1,  -1.00,  97.00,  'sale', 16, '2026-02-07 11:53:20'),
+(40,  2,  3,  1,  -2.00,  495.00, 'sale', 14, '2026-02-07 11:59:39'),
+(41,  1,  3,  1,  -1.00,  986.00, 'sale', 16, '2026-02-07 12:01:49'),
+(42,  6,  3,  1,  -1.00,  96.00,  'sale', 17, '2026-02-07 12:04:46'),
+(43,  3,  3,  1,  10.00,  10.00,  'grv',  4,  '2026-02-07 12:16:58'),
+(44,  3,  3,  1,  -5.00,  5.00, 'transfer_out', 8,  '2026-02-07 12:18:52'),
+(45,  3,  1,  1,  5.00, 13.00,  'transfer_in',  8,  '2026-02-07 12:19:28'),
+(46,  6,  3,  1,  5.00, 101.00, 'grv',  NULL, '2026-02-09 06:29:58'),
+(47,  1,  3,  1,  -100.00,  886.00, 'adjustment', NULL, '2026-02-09 06:30:43'),
+(48,  9,  3,  1,  90.00,  90.00,  'grv',  NULL, '2026-02-09 06:30:59'),
+(49,  4,  3,  1,  50.00,  50.00,  'grv',  NULL, '2026-02-09 06:31:10'),
+(50,  3,  3,  1,  80.00,  85.00,  'grv',  NULL, '2026-02-09 06:31:17'),
+(51,  3,  3,  1,  -10.00, 75.00,  'transfer_out', 9,  '2026-02-09 07:25:12'),
+(52,  3,  1,  1,  10.00,  23.00,  'transfer_in',  9,  '2026-02-09 07:25:24'),
+(53,  1,  1,  1,  -1.00,  408.00, 'sale', 21, '2026-02-09 08:04:34'),
+(54,  6,  1,  1,  -1.00,  100.00, 'sale', 21, '2026-02-09 08:04:34');
 
 DROP TABLE IF EXISTS `inventory_transfers`;
 CREATE TABLE `inventory_transfers` (
@@ -196,32 +210,16 @@ CREATE TABLE `inventory_transfers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `inventory_transfers`;
 INSERT INTO `inventory_transfers` (`id`, `source_location_id`, `dest_location_id`, `product_id`, `quantity`, `user_id`, `status`, `created_at`, `dispatched_at`, `received_at`) VALUES
-(1, 7,  3,  2,  10.00,  5,  'cancelled',  '2026-01-30 09:54:39',  NULL, NULL),
-(2, 3,  2,  1,  5.00, 8,  'completed',  '2026-01-30 10:01:12',  '2026-01-30 10:03:04',  '2026-01-30 10:04:33'),
-(3, 3,  1,  2,  5.00, 4,  'completed',  '2026-01-30 10:05:13',  '2026-01-30 10:05:29',  '2026-01-30 10:07:22'),
-(4, 3,  1,  3,  10.00,  4,  'completed',  '2026-01-31 14:36:15',  '2026-01-31 14:38:39',  '2026-01-31 14:39:13'),
-(5, 3,  1,  5,  10.00,  4,  'completed',  '2026-01-31 15:41:05',  '2026-01-31 15:42:06',  '2026-01-31 15:42:46'),
-(6, 3,  1,  4,  10.00,  4,  'completed',  '2026-01-31 15:41:18',  '2026-01-31 15:42:13',  '2026-01-31 15:42:49'),
-(7, 3,  1,  6,  20.00,  3,  'completed',  '2026-01-31 18:32:40',  '2026-01-31 18:40:28',  '2026-01-31 18:40:47'),
-(8, 1,  4,  1,  3.00, 12, 'completed',  '2026-01-31 18:59:12',  '2026-01-31 18:59:51',  '2026-01-31 19:02:22'),
-(9, 3,  4,  4,  5.00, 12, 'completed',  '2026-01-31 18:59:37',  '2026-01-31 19:00:10',  '2026-01-31 19:02:24'),
-(10,  7,  4,  6,  10.00,  4,  'completed',  '2026-02-01 06:10:34',  '2026-02-01 06:16:06',  '2026-02-01 06:16:23'),
-(11,  3,  7,  6,  20.00,  14, 'completed',  '2026-02-01 06:15:07',  '2026-02-01 06:15:42',  '2026-02-01 06:16:01'),
-(12,  3,  4,  5,  10.00,  15, 'completed',  '2026-02-01 06:30:14',  '2026-02-01 06:31:05',  '2026-02-01 06:31:37'),
-(13,  3,  4,  4,  10.00,  15, 'completed',  '2026-02-01 06:30:33',  '2026-02-01 06:31:10',  '2026-02-01 06:31:39'),
-(14,  3,  4,  1,  10.00,  15, 'completed',  '2026-02-01 06:30:44',  '2026-02-01 06:31:13',  '2026-02-01 06:31:41'),
-(15,  3,  4,  6,  10.00,  15, 'completed',  '2026-02-01 07:26:25',  '2026-02-01 07:26:55',  '2026-02-01 07:27:37'),
-(16,  3,  4,  3,  20.00,  15, 'completed',  '2026-02-01 07:37:54',  '2026-02-01 07:38:15',  '2026-02-01 07:38:31'),
-(17,  3,  4,  1,  10.00,  12, 'completed',  '2026-02-01 14:22:03',  '2026-02-01 14:53:48',  '2026-02-01 14:54:59'),
-(18,  3,  4,  1,  10.00,  15, 'completed',  '2026-02-01 14:54:16',  '2026-02-01 16:53:17',  '2026-02-01 16:53:24'),
-(19,  9,  7,  6,  50.00,  14, 'completed',  '2026-02-01 16:55:00',  '2026-02-01 16:55:17',  '2026-02-01 16:55:37'),
-(20,  3,  9,  6,  10.00,  1,  'completed',  '2026-02-01 16:55:55',  '2026-02-01 16:56:19',  '2026-02-01 16:56:30'),
-(21,  9,  7,  6,  50.00,  14, 'cancelled',  '2026-02-01 16:57:17',  NULL, NULL),
-(22,  3,  9,  6,  50.00,  1,  'completed',  '2026-02-01 17:00:03',  '2026-02-01 17:00:17',  '2026-02-01 17:00:28'),
-(23,  7,  9,  6,  50.00,  1,  'completed',  '2026-02-01 17:00:43',  '2026-02-01 17:00:47',  '2026-02-01 19:31:59'),
-(24,  3,  2,  1,  10.00,  8,  'pending',  '2026-02-01 19:33:08',  NULL, NULL);
+(1, 1,  5,  3,  20.00,  1,  'completed',  '2026-02-06 23:10:32',  '2026-02-07 09:07:36',  NULL),
+(2, 1,  5,  1,  10.00,  1,  'completed',  '2026-02-06 23:10:51',  '2026-02-06 23:13:17',  '2026-02-06 23:14:54'),
+(3, 3,  2,  4,  10.00,  1,  'completed',  '2026-02-06 23:15:34',  '2026-02-06 23:15:42',  '2026-02-06 23:15:45'),
+(4, 3,  5,  1,  10.00,  1,  'completed',  '2026-02-07 01:20:30',  '2026-02-07 01:24:29',  '2026-02-07 01:24:31'),
+(5, 3,  1,  3,  10.00,  1,  'completed',  '2026-02-07 09:08:40',  '2026-02-07 10:33:05',  NULL),
+(6, 1,  2,  6,  10.00,  1,  'completed',  '2026-02-07 10:53:56',  '2026-02-07 10:54:14',  '2026-02-07 10:54:26'),
+(7, 6,  1,  9,  5.00, 1,  'completed',  '2026-02-07 11:00:08',  '2026-02-07 11:00:33',  '2026-02-07 11:00:49'),
+(8, 3,  1,  3,  5.00, 1,  'completed',  '2026-02-07 14:14:23',  '2026-02-07 14:18:52',  '2026-02-07 14:19:28'),
+(9, 3,  1,  3,  10.00,  1,  'completed',  '2026-02-09 09:24:52',  '2026-02-09 09:25:12',  '2026-02-09 09:25:24');
 
 DROP TABLE IF EXISTS `location_stock`;
 CREATE TABLE `location_stock` (
@@ -236,27 +234,29 @@ CREATE TABLE `location_stock` (
   CONSTRAINT `location_stock_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `location_stock`;
 INSERT INTO `location_stock` (`id`, `location_id`, `product_id`, `quantity`) VALUES
-(1, 1,  1,  92.00),
-(2, 3,  2,  455.00),
-(3, 1,  2,  54.00),
-(4, 3,  1,  65.00),
-(6, 2,  1,  0.00),
-(9, 3,  3,  110.00),
-(11,  1,  3,  5.00),
-(12,  3,  5,  120.00),
-(13,  3,  4,  85.00),
-(16,  1,  5,  8.00),
-(17,  1,  4,  10.00),
-(18,  9,  6,  50.00),
-(19,  3,  6,  150.00),
-(21,  1,  6,  17.00),
-(24,  4,  1,  12.00),
-(25,  4,  4,  14.00),
-(27,  7,  6,  30.00),
-(29,  4,  6,  20.00),
-(33,  4,  5,  10.00);
+(1, 3,  1,  886.00),
+(2, 2,  1,  50.00),
+(3, 3,  2,  495.00),
+(4, 2,  2,  100.00),
+(5, 1,  3,  13.00),
+(6, 3,  4,  50.00),
+(7, 2,  4,  12.00),
+(8, 3,  5,  200.00),
+(9, 2,  5,  20.00),
+(10,  1,  6,  101.00),
+(11,  3,  7,  50.00),
+(12,  1,  7,  4.00),
+(13,  1,  1,  409.00),
+(14,  5,  1,  11.00),
+(15,  5,  3,  20.00),
+(16,  3,  6,  101.00),
+(17,  3,  8,  100.00),
+(18,  2,  6,  10.00),
+(19,  6,  9,  5.00),
+(20,  1,  9,  5.00),
+(21,  3,  3,  85.00),
+(22,  3,  9,  90.00);
 
 DROP TABLE IF EXISTS `locations`;
 CREATE TABLE `locations` (
@@ -270,17 +270,13 @@ CREATE TABLE `locations` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `locations`;
 INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_vendor`, `address`, `phone`) VALUES
-(1, 'Kitchen',  'store',  1,  0,  '', '555-0000'),
-(2, 'Main Bar', 'store',  1,  0,  '', '555-0000'),
-(3, 'Main Storeroom', 'warehouse',  1,  0,  '', '555-0000'),
-(4, 'Restaurant Bar', 'store',  1,  0,  '', '555-0000'),
-(5, 'Outside Bar',  'store',  1,  0,  '', '555-0000'),
-(7, 'Mini storeroom', 'store',  1,  0,  '', '555-0000'),
-(8, 'Warehouse',  'warehouse',  1,  0,  '', '555-0000'),
-(9, 'Main Branch',  'warehouse',  1,  0,  '', '555-0000'),
-(12,  'shop', 'store',  1,  0,  '', '555-0000');
+(1, 'Main Kitchen', 'kitchen',  1,  0,  NULL, '555-0000'),
+(2, 'Main Bar', 'bar',  1,  0,  NULL, '555-0000'),
+(3, 'Main Warehouse', 'warehouse',  0,  1,  NULL, '555-0000'),
+(4, 'Restaurant Bar', 'bar',  1,  0,  NULL, '555-0000'),
+(5, 'Coffee Shop',  'store',  1,  0,  NULL, '555-0000'),
+(6, 'MIni Storeroom', 'warehouse',  1,  0,  '', '555-0000');
 
 DROP TABLE IF EXISTS `members`;
 CREATE TABLE `members` (
@@ -294,9 +290,9 @@ CREATE TABLE `members` (
   UNIQUE KEY `phone` (`phone`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `members`;
 INSERT INTO `members` (`id`, `name`, `phone`, `email`, `points_balance`, `created_at`) VALUES
-(1, 'Daliso Nindi', '0208247',  'daliso@mymail.com',  15.00,  '2026-02-01 17:44:43');
+(1, 'John Doe', '0977000000', NULL, 50.00,  '2026-02-06 19:59:36'),
+(2, 'Jane Smith', '0966000000', NULL, 120.00, '2026-02-06 19:59:36');
 
 DROP TABLE IF EXISTS `pickup_notifications`;
 CREATE TABLE `pickup_notifications` (
@@ -309,9 +305,18 @@ CREATE TABLE `pickup_notifications` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `pickup_notifications`;
 INSERT INTO `pickup_notifications` (`id`, `sale_id`, `item_name`, `status`, `collected_by`, `created_at`) VALUES
-(1, 1,  'Beef Sausage', 'collected',  3,  '2026-01-30 07:00:08');
+(1, 1,  'T-Bone Steak', 'collected',  6,  '2026-02-06 20:31:07'),
+(2, 2,  'Beef Burger',  'collected',  6,  '2026-02-06 21:00:17'),
+(3, 3,  'Beef Burger',  'collected',  6,  '2026-02-06 21:05:57'),
+(4, 4,  'T-Bone Steak', 'collected',  6,  '2026-02-06 21:06:26'),
+(5, 9,  'Beef Burger',  'collected',  4,  '2026-02-07 06:00:16'),
+(6, 10, 'Beef Burger',  'collected',  6,  '2026-02-07 07:08:46'),
+(7, 13, 'Beef Burger',  'collected',  6,  '2026-02-07 08:20:24'),
+(8, 13, 'Beef Burger',  'collected',  6,  '2026-02-07 09:01:37'),
+(9, 16, 'Beef Burger',  'collected',  6,  '2026-02-07 11:54:39'),
+(10,  17, 'Beef Burger',  'collected',  6,  '2026-02-07 12:08:42'),
+(11,  21, 'Beef Burger',  'collected',  6,  '2026-02-09 08:41:38');
 
 DROP TABLE IF EXISTS `products`;
 CREATE TABLE `products` (
@@ -329,14 +334,16 @@ CREATE TABLE `products` (
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `products`;
 INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `category_id`, `is_active`) VALUES
-(1, 'Beef Sausage', NULL, 130.00, 100.00, 'Kg', 2,  1),
-(2, 'Flour',  NULL, 750.00, 500.00, 'Kg', 4,  1),
-(3, 'T-Bone Steak', NULL, 120.00, 0.00, 'unit', 2,  1),
-(4, 'Mosi Larger',  NULL, 35.00,  20.00,  'ml', 3,  1),
-(5, 'Amarulla', NULL, 134.00, 100.00, 'ml', 3,  1),
-(6, 'chicken wrap', NULL, 150.00, 0.00, 'unit', 2,  1);
+(1, 'Coca Cola 300ml',  NULL, 15.00,  8.00, 'btl',  1,  1),
+(2, 'Mosi Lager', NULL, 25.00,  12.00,  'btl',  1,  1),
+(3, 'T-Bone Steak', NULL, 120.00, 60.00,  'plate',  2,  1),
+(4, 'Jameson Shot', NULL, 40.00,  15.00,  'tot',  1,  1),
+(5, 'Water 500ml',  NULL, 5.00, 2.00, 'btl',  1,  1),
+(6, 'Beef Burger',  NULL, 65.00,  30.00,  'plate',  2,  1),
+(7, 'Cooking Oil',  NULL, 0.00, 45.00,  'ltr',  3,  1),
+(8, 'Dish washer',  NULL, 0.00, 0.00, 'unit', 5,  1),
+(9, 'Dish Wash',  NULL, 0.00, 0.00, 'unit', 5,  1);
 
 DROP TABLE IF EXISTS `refund_requests`;
 CREATE TABLE `refund_requests` (
@@ -354,7 +361,22 @@ CREATE TABLE `refund_requests` (
   CONSTRAINT `refund_requests_ibfk_2` FOREIGN KEY (`requested_by_user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `refund_requests`;
+
+DROP TABLE IF EXISTS `refunds`;
+CREATE TABLE `refunds` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `sale_id` int NOT NULL,
+  `manager_id` int NOT NULL,
+  `amount_refunded` decimal(10,2) NOT NULL,
+  `reason` text,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `sale_id` (`sale_id`),
+  KEY `manager_id` (`manager_id`),
+  CONSTRAINT `refunds_ibfk_1` FOREIGN KEY (`sale_id`) REFERENCES `sales` (`id`),
+  CONSTRAINT `refunds_ibfk_2` FOREIGN KEY (`manager_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 DROP TABLE IF EXISTS `sale_items`;
 CREATE TABLE `sale_items` (
@@ -373,86 +395,28 @@ CREATE TABLE `sale_items` (
   CONSTRAINT `sale_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `sale_items`;
 INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `quantity`, `price_at_sale`, `cost_at_sale`, `status`, `updated_at`) VALUES
-(1, 1,  1,  1,  130.00, 0.00, 'served', NULL),
-(2, 2,  3,  1,  120.00, 0.00, 'served', NULL),
-(3, 3,  1,  1,  130.00, 0.00, 'served', NULL),
-(4, 3,  3,  1,  120.00, 0.00, 'served', NULL),
-(5, 4,  3,  1,  120.00, 0.00, 'served', NULL),
-(6, 5,  3,  1,  120.00, 0.00, 'served', NULL),
-(7, 6,  1,  1,  130.00, 0.00, 'served', NULL),
-(8, 7,  3,  3,  120.00, 0.00, 'served', NULL),
-(9, 8,  4,  1,  35.00,  0.00, 'served', NULL),
-(10,  8,  5,  2,  134.00, 0.00, 'served', NULL),
-(11,  8,  3,  1,  120.00, 0.00, 'served', NULL),
-(12,  8,  1,  1,  130.00, 0.00, 'served', NULL),
-(13,  9,  5,  1,  134.00, 0.00, 'served', NULL),
-(14,  10, 3,  1,  120.00, 0.00, 'served', NULL),
-(15,  11, 1,  5,  130.00, 0.00, 'served', NULL),
-(16,  12, 1,  5,  130.00, 0.00, 'served', NULL),
-(17,  12, 3,  5,  120.00, 0.00, 'served', NULL),
-(18,  13, 1,  1,  130.00, 0.00, 'served', NULL),
-(19,  14, 1,  1,  130.00, 0.00, 'served', NULL),
-(20,  15, 3,  1,  120.00, 0.00, 'served', NULL),
-(21,  16, 1,  1,  130.00, 0.00, 'served', NULL),
-(22,  17, 3,  1,  120.00, 0.00, 'served', NULL),
-(23,  18, 1,  1,  130.00, 0.00, 'served', NULL),
-(24,  19, 1,  1,  130.00, 0.00, 'served', NULL),
-(25,  20, 3,  1,  120.00, 0.00, 'served', NULL),
-(26,  21, 1,  1,  130.00, 0.00, 'served', NULL),
-(27,  22, 3,  1,  120.00, 0.00, 'served', NULL),
-(28,  23, 3,  1,  120.00, 0.00, 'served', NULL),
-(29,  23, 1,  1,  130.00, 0.00, 'served', NULL),
-(30,  24, 5,  1,  134.00, 0.00, 'served', NULL),
-(31,  24, 3,  1,  120.00, 0.00, 'served', NULL),
-(32,  25, 3,  1,  120.00, 0.00, 'served', NULL),
-(33,  25, 5,  1,  134.00, 0.00, 'served', NULL),
-(34,  26, 1,  1,  130.00, 0.00, 'served', NULL),
-(35,  27, 6,  1,  150.00, 0.00, 'served', NULL),
-(36,  28, 6,  1,  150.00, 0.00, 'served', NULL),
-(37,  29, 6,  1,  150.00, 0.00, 'served', NULL),
-(38,  30, 2,  1,  750.00, 0.00, 'served', NULL),
-(39,  31, 4,  1,  35.00,  0.00, 'served', NULL),
-(40,  31, 1,  1,  130.00, 0.00, 'served', NULL),
-(44,  32, 6,  1,  150.00, 0.00, 'served', NULL),
-(45,  33, 1,  1,  130.00, 0.00, 'served', NULL),
-(48,  35, 5,  1,  134.00, 0.00, 'served', NULL),
-(49,  35, 1,  1,  130.00, 0.00, 'served', '2026-02-01 06:06:53'),
-(50,  36, 6,  1,  150.00, 0.00, 'served', '2026-02-01 06:08:37'),
-(51,  36, 4,  1,  35.00,  0.00, 'served', NULL),
-(54,  38, 3,  1,  120.00, 0.00, 'served', NULL),
-(55,  34, 1,  1,  130.00, 0.00, 'served', NULL),
-(56,  34, 4,  1,  35.00,  0.00, 'served', NULL),
-(57,  37, 1,  1,  130.00, 0.00, 'served', NULL),
-(61,  40, 4,  1,  35.00,  0.00, 'pending',  NULL),
-(62,  41, 1,  1,  130.00, 0.00, 'served', NULL),
-(63,  42, 1,  1,  130.00, 0.00, 'served', NULL),
-(65,  44, 1,  1,  130.00, 0.00, 'served', NULL),
-(67,  45, 3,  1,  120.00, 0.00, 'served', NULL),
-(69,  47, 3,  1,  120.00, 0.00, 'served', NULL),
-(70,  48, 3,  1,  120.00, 0.00, 'served', NULL),
-(71,  48, 1,  1,  130.00, 0.00, 'served', NULL),
-(72,  46, 1,  1,  130.00, 0.00, 'served', NULL),
-(73,  39, 6,  1,  150.00, 0.00, 'served', NULL),
-(74,  39, 1,  1,  130.00, 0.00, 'served', NULL),
-(75,  39, 4,  1,  35.00,  0.00, 'pending',  NULL),
-(76,  43, 1,  1,  130.00, 0.00, 'served', NULL),
-(78,  50, 1,  2,  130.00, 0.00, 'served', NULL),
-(83,  51, 1,  1,  130.00, 0.00, 'pending',  NULL),
-(84,  51, 5,  1,  134.00, 0.00, 'pending',  NULL),
-(85,  51, 4,  1,  35.00,  0.00, 'pending',  NULL),
-(86,  51, 3,  2,  120.00, 0.00, 'pending',  NULL),
-(89,  52, 1,  1,  130.00, 0.00, 'pending',  NULL),
-(90,  52, 5,  1,  134.00, 0.00, 'pending',  NULL),
-(91,  53, 1,  1,  130.00, 0.00, 'pending',  NULL),
-(93,  49, 6,  1,  150.00, 0.00, 'pending',  NULL),
-(94,  55, 6,  1,  150.00, 0.00, 'pending',  NULL),
-(95,  54, 1,  1,  130.00, 0.00, 'pending',  NULL),
-(97,  56, 4,  1,  35.00,  0.00, 'pending',  NULL),
-(99,  57, 1,  2,  130.00, 0.00, 'pending',  NULL),
-(101, 58, 6,  1,  150.00, 0.00, 'pending',  NULL),
-(102, 59, 6,  2,  150.00, 0.00, 'pending',  NULL);
+(1, 1,  3,  2,  120.00, 0.00, 'ready',  NULL),
+(2, 2,  6,  1,  65.00,  0.00, 'ready',  NULL),
+(3, 3,  6,  1,  65.00,  0.00, 'ready',  NULL),
+(8, 4,  1,  1,  15.00,  0.00, 'pending',  NULL),
+(9, 5,  1,  3,  15.00,  0.00, 'pending',  NULL),
+(10,  6,  1,  1,  15.00,  0.00, 'pending',  NULL),
+(11,  7,  7,  1,  0.00, 0.00, 'pending',  NULL),
+(12,  8,  1,  1,  15.00,  0.00, 'pending',  NULL),
+(13,  9,  6,  1,  65.00,  0.00, 'ready',  NULL),
+(14,  10, 6,  1,  65.00,  0.00, 'ready',  NULL),
+(16,  11, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(17,  12, 2,  1,  25.00,  0.00, 'pending',  NULL),
+(18,  12, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(20,  13, 6,  1,  65.00,  0.00, 'ready',  NULL),
+(22,  15, 2,  1,  25.00,  0.00, 'pending',  NULL),
+(24,  14, 2,  2,  25.00,  0.00, 'pending',  NULL),
+(25,  16, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(26,  17, 6,  1,  65.00,  0.00, 'ready',  NULL),
+(27,  18, 2,  1,  25.00,  0.00, 'pending',  NULL),
+(30,  21, 1,  1,  15.00,  0.00, 'pending',  NULL),
+(31,  21, 6,  1,  65.00,  0.00, 'ready',  NULL);
 
 DROP TABLE IF EXISTS `sales`;
 CREATE TABLE `sales` (
@@ -483,67 +447,26 @@ CREATE TABLE `sales` (
   CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `sales`;
 INSERT INTO `sales` (`id`, `location_id`, `user_id`, `shift_id`, `total_amount`, `discount`, `total_tax`, `tip`, `final_total`, `payment_method`, `status`, `created_at`, `collected_by`, `payment_status`, `customer_name`, `amount_tendered`, `change_due`, `member_id`, `points_earned`, `points_redeemed`) VALUES
-(1, 1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-30 06:09:19',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(2, 1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-30 11:45:13',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(3, 1,  4,  2,  250.00, 0.00, 0.00, 0.00, 250.00, 'cash', 'completed',  '2026-01-30 11:46:25',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(4, 1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-30 11:48:08',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(5, 1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-30 11:55:21',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(6, 1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-30 11:59:26',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(7, 1,  3,  1,  360.00, 0.00, 0.00, 0.00, 360.00, 'cash', 'completed',  '2026-01-30 18:07:09',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(8, 2,  7,  5,  553.00, 0.00, 0.00, 0.00, 553.00, 'cash', 'completed',  '2026-01-31 03:56:30',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(9, 2,  7,  5,  134.00, 0.00, 0.00, 0.00, 134.00, 'cash', 'completed',  '2026-01-31 04:03:30',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(10,  2,  7,  5,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-31 04:03:39',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(11,  2,  7,  5,  650.00, 0.00, 0.00, 0.00, 650.00, 'cash', 'completed',  '2026-01-31 04:05:40',  'Mumba Bar-Manager',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(12,  2,  7,  5,  1250.00,  0.00, 0.00, 0.00, 1250.00,  'cash', 'completed',  '2026-01-31 04:06:53',  'Mumba Bar-Manager',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(13,  1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 04:07:41',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(14,  1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 04:07:45',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(15,  1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-31 04:07:49',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(16,  1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 04:07:53',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(17,  1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-31 04:07:56',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(18,  1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 04:08:01',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(19,  1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 04:08:05',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(20,  1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-31 12:40:41',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(21,  1,  3,  1,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 12:49:55',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(22,  1,  3,  1,  120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-01-31 12:53:08',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(23,  1,  3,  1,  250.00, 0.00, 0.00, 0.00, 250.00, 'cash', 'completed',  '2026-01-31 12:54:43',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(24,  1,  3,  1,  254.00, 0.00, 0.00, 0.00, 254.00, 'mobile_money', 'completed',  '2026-01-31 13:43:39',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(25,  1,  3,  1,  254.00, 0.00, 0.00, 0.00, 254.00, 'cash', 'completed',  '2026-01-31 13:46:37',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(26,  1,  3,  7,  130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-01-31 16:18:15',  'Restaurant Manager', 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(27,  1,  3,  7,  150.00, 0.00, 0.00, 0.00, 150.00, 'cash', 'completed',  '2026-01-31 16:41:19',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(28,  1,  3,  7,  150.00, 0.00, 0.00, 0.00, 150.00, 'mobile_money', 'completed',  '2026-01-31 16:43:11',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(29,  1,  3,  9,  150.00, 0.00, 0.00, 0.00, 150.00, 'cash', 'completed',  '2026-01-31 16:52:49',  'Mwale Kitchen Cashier',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(30,  1,  3,  9,  750.00, 0.00, 0.00, 0.00, 750.00, 'cash', 'completed',  '2026-01-31 16:52:59',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(31,  4,  12, 10, 165.00, 0.00, 0.00, 0.00, 165.00, 'cash', 'completed',  '2026-01-31 17:06:19',  'Mary sales lady',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(32,  1,  3,  NULL, 150.00, 0.00, 0.00, 0.00, 150.00, 'cash', 'completed',  '2026-02-01 03:26:50',  'Mwale Kitchen Cashier',  'paid', 'table 5',  500.00, 350.00, NULL, 0.00, 0.00),
-(33,  1,  3,  NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-02-01 04:01:18',  'Restaurant Manager', 'paid', 'Walk-in',  150.00, 20.00,  NULL, 0.00, 0.00),
-(34,  4,  15, NULL, 165.00, 0.00, 0.00, 0.00, 165.00, 'card', 'completed',  '2026-02-01 05:38:54',  'Mary sales lady',  'paid', 'Walk-in',  0.00, -165.00,  NULL, 0.00, 0.00),
-(35,  1,  4,  NULL, 264.00, 0.00, 0.00, 0.00, 264.00, 'pending',  'completed',  '2026-02-01 06:02:17',  'Mwale Kitchen Cashier',  'pending',  'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(36,  1,  4,  NULL, 185.00, 0.00, 0.00, 0.00, 185.00, 'pending',  'completed',  '2026-02-01 06:07:13',  'Mwale Kitchen Cashier',  'pending',  'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(37,  4,  12, NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-02-01 06:08:22',  'Mwape Restaurant Manager', 'paid', 'Walk-in',  0.00, -130.00,  NULL, 0.00, 0.00),
-(38,  4,  15, NULL, 120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-02-01 06:11:24',  'Mary sales lady',  'paid', 'Walk-in',  0.00, -120.00,  NULL, 0.00, 0.00),
-(39,  4,  15, NULL, 315.00, 0.00, 0.00, 0.00, 315.00, 'cash', 'completed',  '2026-02-01 06:32:34',  'Mary sales lady',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(40,  1,  3,  NULL, 35.00,  0.00, 0.00, 0.00, 35.00,  'pending',  'completed',  '2026-02-01 07:24:19',  NULL, 'pending',  'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(41,  1,  4,  NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'pending',  'completed',  '2026-02-01 07:25:48',  'Mwale Kitchen Cashier',  'pending',  'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(42,  1,  4,  NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'pending',  'completed',  '2026-02-01 07:26:08',  'Mwale Kitchen Cashier',  'pending',  'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(43,  4,  12, NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'card', 'completed',  '2026-02-01 07:26:44',  'Mwape Restaurant Manager', 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(44,  1,  4,  NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'pending',  'completed',  '2026-02-01 07:50:29',  'Mwale Kitchen Cashier',  'pending',  'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(45,  4,  15, NULL, 120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-02-01 07:51:18',  'Mary sales lady',  'paid', 'Walk-in',  0.00, -120.00,  NULL, 0.00, 0.00),
-(46,  4,  15, NULL, 130.00, 0.00, 0.00, 0.00, 130.00, 'mobile_money', 'completed',  '2026-02-01 09:57:13',  'Mary sales lady',  'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
-(47,  4,  12, NULL, 120.00, 0.00, 0.00, 0.00, 120.00, 'cash', 'completed',  '2026-02-01 09:58:19',  'Mwape Restaurant Manager', 'paid', 'Walk-in',  0.00, -120.00,  NULL, 0.00, 0.00),
-(48,  4,  12, NULL, 250.00, 0.00, 0.00, 0.00, 250.00, 'cash', 'completed',  '2026-02-01 09:59:18',  'Mwape Restaurant Manager', 'paid', 'Walk-in',  0.00, -250.00,  NULL, 0.00, 0.00),
-(49,  4,  12, 12, 150.00, 0.00, 0.00, 0.00, 150.00, 'cash', 'completed',  '2026-02-01 10:45:15',  'Mary sales lady',  'paid', 'Walk-in',  160.00, 10.00,  NULL, 0.00, 0.00),
-(50,  4,  12, 12, 260.00, 0.00, 0.00, 0.00, 260.00, 'cash', 'completed',  '2026-02-01 12:21:58',  'Mary sales lady',  'paid', 'Walk-in',  500.00, 240.00, NULL, 0.00, 0.00),
-(51,  4,  12, 13, 539.00, 0.00, 0.00, 0.00, 539.00, 'mobile_money (MTN)', 'completed',  '2026-02-01 12:28:34',  'Mary sales lady',  'paid', 'Walk-in',  700.00, 161.00, NULL, 0.00, 0.00),
-(52,  4,  15, 14, 264.00, 0.00, 0.00, 0.00, 264.00, 'cash', 'completed',  '2026-02-01 12:58:27',  NULL, 'paid', 'Walk-in',  400.00, 136.00, NULL, 0.00, 0.00),
-(53,  4,  15, 14, 130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-02-01 13:00:05',  NULL, 'paid', 'Walk-in',  200.00, 70.00,  NULL, 0.00, 0.00),
-(54,  4,  15, 14, 130.00, 0.00, 0.00, 0.00, 130.00, 'cash', 'completed',  '2026-02-01 13:02:09',  NULL, 'paid', 'Walk-in',  150.00, 20.00,  NULL, 0.00, 0.00),
-(55,  4,  15, 14, 150.00, 0.00, 0.00, 0.00, 150.00, 'cash', 'completed',  '2026-02-01 13:04:06',  NULL, 'paid', 'Walk-in',  0.00, -150.00,  NULL, 0.00, 0.00),
-(56,  4,  15, 14, 35.00,  0.00, 0.00, 0.00, 35.00,  'cash', 'completed',  '2026-02-01 13:08:33',  'Mwape_Res_Bar_manager',  'paid', 'Walk-in',  50.00,  15.00,  NULL, 0.00, 0.00),
-(57,  4,  15, 14, 260.00, 0.00, 0.00, 0.00, 260.00, 'cash', 'completed',  '2026-02-01 14:27:36',  'Mwape_Res_Bar_manager',  'paid', 'Walk-in',  400.00, 140.00, NULL, 0.00, 0.00),
-(58,  4,  15, 14, 150.00, 0.00, 0.00, 0.00, 150.00, 'mobile_money (MTN)', 'completed',  '2026-02-01 14:28:55',  'mary_sales_Res_Bar', 'paid', 'Walk-in',  150.00, 0.00, NULL, 0.00, 0.00),
-(59,  4,  1,  6,  300.00, 0.00, 0.00, 0.00, 300.00, 'cash', 'completed',  '2026-02-01 18:10:40',  'odelia_admin', 'paid', 'Daliso Nindi', 300.00, 0.00, 1,  15.00,  0.00);
+(1, 1,  1,  1,  240.00, 0.00, 0.00, 0.00, 240.00, 'Cash & Cash',  'completed',  '2026-02-06 20:30:07',  '6',  'paid', 'Walk-in',  240.00, 0.00, NULL, 0.00, 0.00),
+(2, 1,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-06 20:59:35',  '6',  'paid', 'Walk-in',  65.00,  0.00, NULL, 0.00, 0.00),
+(3, 1,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-06 21:05:00',  '6',  'paid', 'Walk-in',  65.00,  0.00, NULL, 0.00, 0.00),
+(4, 1,  1,  1,  120.00, 0.00, 0.00, 0.00, 15.00,  'Cash & Card',  'completed',  '2026-02-06 21:05:40',  '6',  'paid', 'Walk-in',  17.00,  2.00, NULL, 0.00, 0.00),
+(5, 5,  1,  1,  45.00,  0.00, 0.00, 0.00, 40.50,  'Cash', 'completed',  '2026-02-06 23:13:04',  NULL, 'paid', 'Jane Smith', 40.50,  0.00, 2,  0.00, 0.00),
+(6, 5,  1,  1,  15.00,  0.00, 0.00, 0.00, 13.50,  'Cash', 'completed',  '2026-02-06 23:15:54',  NULL, 'paid', 'Jane Smith', 13.50,  0.00, 2,  0.00, 0.00),
+(7, 1,  1,  1,  0.00, 0.00, 0.00, 0.00, 0.00, 'Cash', 'completed',  '2026-02-07 05:36:29',  NULL, 'paid', 'Jane Smith', 0.00, 0.00, 2,  0.00, 0.00),
+(8, 1,  1,  1,  15.00,  0.00, 0.00, 0.00, 13.50,  'Cash', 'completed',  '2026-02-07 05:36:55',  NULL, 'paid', 'Jane Smith', 13.50,  0.00, 2,  0.00, 0.00),
+(9, 1,  1,  1,  65.00,  0.00, 0.00, 0.00, 58.50,  'Cash', 'completed',  '2026-02-07 05:37:53',  '4',  'paid', 'John Doe', 58.50,  0.00, 1,  0.00, 0.00),
+(10,  1,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash & MTN Money', 'completed',  '2026-02-07 07:08:27',  '6',  'paid', 'Walk-in',  70.00,  5.00, NULL, 0.00, 0.00),
+(11,  3,  1,  1,  15.00,  0.00, 0.00, 0.00, 15.00,  'Cash', 'completed',  '2026-02-07 08:18:05',  NULL, 'paid', 'Walk-in',  25.00,  10.00,  NULL, 0.00, 0.00),
+(12,  3,  1,  1,  40.00,  0.00, 0.00, 0.00, 36.00,  'Cash', 'completed',  '2026-02-07 08:19:45',  NULL, 'paid', 'John Doe', 36.00,  0.00, 1,  0.00, 0.00),
+(13,  3,  1,  1,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-07 08:20:07',  '6',  'paid', 'Walk-in',  130.00, 65.00,  NULL, 0.00, 0.00),
+(14,  3,  1,  1,  50.00,  0.00, 0.00, 0.00, 50.00,  'Cash', 'completed',  '2026-02-07 08:22:06',  NULL, 'paid', 'Walk-in',  50.00,  0.00, NULL, 0.00, 0.00),
+(15,  3,  1,  1,  25.00,  0.00, 0.00, 0.00, 25.00,  'Cash', 'completed',  '2026-02-07 08:22:44',  NULL, 'paid', 'daliso', 25.00,  0.00, NULL, 0.00, 0.00),
+(16,  3,  1,  3,  15.00,  0.00, 0.00, 0.00, 13.50,  'Cash', 'completed',  '2026-02-07 11:53:19',  '6',  'paid', 'Jane Smith', 20.00,  6.50, 2,  0.00, 0.00),
+(17,  3,  1,  3,  65.00,  0.00, 0.00, 0.00, 65.00,  'Cash', 'completed',  '2026-02-07 12:04:46',  '6',  'paid', 'Walk-in',  65.00,  0.00, NULL, 0.00, 0.00),
+(18,  2,  7,  4,  25.00,  0.00, 4.00, 0.00, 29.00,  'card', 'completed',  '2026-02-09 06:52:07',  NULL, 'paid', 'Walk-in',  0.00, 0.00, NULL, 0.00, 0.00),
+(21,  1,  1,  5,  80.00,  0.00, 0.00, 0.00, 80.00,  'Pending',  'completed',  '2026-02-09 08:04:34',  '6',  'pending',  'Walk-in',  80.00,  0.00, NULL, 0.00, 0.00);
 
 DROP TABLE IF EXISTS `shifts`;
 CREATE TABLE `shifts` (
@@ -556,7 +479,7 @@ CREATE TABLE `shifts` (
   `closing_cash` decimal(10,2) DEFAULT '0.00',
   `expected_cash` decimal(10,2) DEFAULT '0.00',
   `manager_closing_cash` decimal(10,2) DEFAULT '0.00',
-  `status` enum('open','closed') DEFAULT 'open',
+  `status` enum('pending_approval','open','closed') DEFAULT 'pending_approval',
   `variance_reason` text,
   `handover_notes` text,
   `start_verified_by` int DEFAULT NULL,
@@ -574,22 +497,13 @@ CREATE TABLE `shifts` (
   CONSTRAINT `shifts_ibfk_4` FOREIGN KEY (`end_verified_by`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `shifts`;
 INSERT INTO `shifts` (`id`, `user_id`, `location_id`, `start_time`, `end_time`, `starting_cash`, `closing_cash`, `expected_cash`, `manager_closing_cash`, `status`, `variance_reason`, `handover_notes`, `start_verified_by`, `start_verified_at`, `end_verified_by`, `end_verified_at`) VALUES
-(1, 3,  1,  '2026-01-30 06:09:06',  '2026-01-31 16:04:44',  100.00, 2844.00,  0.00, 2844.00,  'closed', '', NULL, 1,  '2026-01-30 06:09:06',  1,  '2026-01-31 16:04:44'),
-(2, 4,  1,  '2026-01-30 06:58:36',  NULL, 0.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 1,  '2026-01-30 06:58:36',  NULL, NULL),
-(3, 6,  1,  '2026-01-30 11:56:10',  '2026-02-01 02:41:44',  0.00, 0.00, 0.00, 0.00, 'closed', NULL, 'No issues',  1,  '2026-01-30 11:56:10',  4,  '2026-02-01 02:41:44'),
-(4, 8,  2,  '2026-01-30 18:12:30',  NULL, 500.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 1,  '2026-01-30 18:12:30',  NULL, NULL),
-(5, 7,  2,  '2026-01-30 18:23:48',  NULL, 100.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 8,  '2026-01-30 18:23:48',  NULL, NULL),
-(6, 1,  3,  '2026-01-31 05:08:33',  NULL, 100.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 5,  '2026-01-31 05:08:33',  NULL, NULL),
-(7, 3,  1,  '2026-01-31 16:17:56',  '2026-01-31 16:45:13',  100.00, 380.00, 0.00, 380.00, 'closed', '', NULL, 13, '2026-01-31 16:17:56',  4,  '2026-01-31 16:45:13'),
-(8, 3,  1,  '2026-01-31 16:50:47',  '2026-01-31 16:51:09',  900.00, 900.00, 0.00, 900.00, 'closed', '', NULL, 4,  '2026-01-31 16:50:47',  4,  '2026-01-31 16:51:09'),
-(9, 3,  1,  '2026-01-31 16:52:24',  '2026-02-01 03:02:16',  100.00, 1000.00,  0.00, 1000.00,  'closed', '', NULL, 4,  '2026-01-31 16:52:24',  4,  '2026-02-01 03:02:16'),
-(10,  12, 12, '2026-01-31 16:56:26',  '2026-02-01 04:02:55',  0.00, 165.00, 0.00, 165.00, 'closed', '', NULL, 4,  '2026-01-31 16:56:26',  4,  '2026-02-01 04:02:55'),
-(11,  3,  1,  '2026-02-01 03:19:48',  '2026-02-01 03:35:36',  300.00, 300.00, 0.00, 300.00, 'closed', '', NULL, 4,  '2026-02-01 03:19:48',  4,  '2026-02-01 03:35:36'),
-(12,  12, 4,  '2026-02-01 10:39:12',  '2026-02-01 12:22:32',  100.00, 360.00, 0.00, 360.00, 'closed', '', NULL, 4,  '2026-02-01 10:39:12',  4,  '2026-02-01 12:22:32'),
-(13,  12, 4,  '2026-02-01 12:22:50',  NULL, 500.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 4,  '2026-02-01 12:22:50',  NULL, NULL),
-(14,  15, 4,  '2026-02-01 12:55:47',  NULL, 100.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 4,  '2026-02-01 12:55:47',  NULL, NULL);
+(1, 1,  5,  '2026-02-06 20:03:34',  '2026-02-09 06:21:02',  700.00, 1467.00,  1467.00,  0.00, 'closed', '', NULL, 1,  '2026-02-06 20:03:38',  1,  '2026-02-09 06:21:02'),
+(2, 1,  1,  '2026-02-07 08:43:17',  '2026-02-09 06:20:48',  300.00, 300.00, 300.00, 0.00, 'closed', '', NULL, 1,  '2026-02-07 08:43:22',  1,  '2026-02-09 06:20:48'),
+(3, 1,  2,  '2026-02-07 08:46:59',  '2026-02-07 12:42:49',  0.00, 50.00,  78.50,  0.00, 'closed', 'lost', NULL, 1,  '2026-02-07 08:47:03',  1,  '2026-02-07 12:42:49'),
+(4, 7,  2,  '2026-02-09 06:51:18',  NULL, 300.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, 1,  '2026-02-09 06:51:18',  NULL, NULL),
+(5, 1,  1,  '2026-02-09 07:39:19',  '2026-02-09 09:02:37',  300.00, 300.00, 300.00, 0.00, 'closed', '', NULL, 1,  '2026-02-09 07:39:19',  1,  '2026-02-09 09:02:37'),
+(6, 1,  1,  '2026-02-09 09:02:48',  '2026-02-09 09:02:59',  300.00, 300.00, 300.00, 0.00, 'closed', '', NULL, 1,  '2026-02-09 09:02:53',  1,  '2026-02-09 09:02:59');
 
 DROP TABLE IF EXISTS `stock_transfer_items`;
 CREATE TABLE `stock_transfer_items` (
@@ -606,9 +520,6 @@ CREATE TABLE `stock_transfer_items` (
   CONSTRAINT `stock_transfer_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `stock_transfer_items`;
-INSERT INTO `stock_transfer_items` (`id`, `transfer_id`, `product_id`, `quantity_requested`, `quantity_sent`, `quantity_received`) VALUES
-(1, 1,  2,  50.00,  50.00,  50.00);
 
 DROP TABLE IF EXISTS `stock_transfers`;
 CREATE TABLE `stock_transfers` (
@@ -627,9 +538,6 @@ CREATE TABLE `stock_transfers` (
   CONSTRAINT `stock_transfers_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `stock_transfers`;
-INSERT INTO `stock_transfers` (`id`, `source_location_id`, `destination_location_id`, `user_id`, `status`, `created_at`) VALUES
-(1, 3,  1,  5,  'completed',  '2026-01-30 07:16:26');
 
 DROP TABLE IF EXISTS `taxes`;
 CREATE TABLE `taxes` (
@@ -640,7 +548,28 @@ CREATE TABLE `taxes` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `taxes`;
+INSERT INTO `taxes` (`id`, `name`, `rate`, `is_active`) VALUES
+(1, 'VAT',  16.00,  1),
+(2, 'Service Charge', 10.00,  0);
+
+DROP TABLE IF EXISTS `transfers`;
+CREATE TABLE `transfers` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `from_location_id` int NOT NULL,
+  `to_location_id` int NOT NULL,
+  `quantity` int NOT NULL,
+  `status` enum('pending','completed') DEFAULT 'completed',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `product_id` (`product_id`),
+  KEY `from_location_id` (`from_location_id`),
+  KEY `to_location_id` (`to_location_id`),
+  CONSTRAINT `transfers_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
+  CONSTRAINT `transfers_ibfk_2` FOREIGN KEY (`from_location_id`) REFERENCES `locations` (`id`),
+  CONSTRAINT `transfers_ibfk_3` FOREIGN KEY (`to_location_id`) REFERENCES `locations` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
@@ -658,21 +587,14 @@ CREATE TABLE `users` (
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`location_id`) REFERENCES `locations` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
-(1, 'odelia_admin', 'Mando Odelia', '$2y$10$Hf3oqWOf/u3p8mVDynHZp.Fr.9bgbxm6ptvrZCiqHEmSBs5MByTz2', 'dev',  9,  '2026-01-29 12:55:36',  0),
-(3, 'Restaurant_cashier', 'Mwale Kitchen Cashier',  '$2y$10$L4IYlKv4CnIjvDEXQZMtfO8yB86t.2v2fd8lmobqJkI8XadeZzS.i', 'cashier',  1,  '2026-01-29 12:55:36',  0),
-(4, 'head_chef',  'Head Chef',  '$2y$10$Zx4dvmsK6tetfu/o32qwaOHgzW5aCPYyXebrPHCuJxNDP5cg133Fu', 'admin',  1,  '2026-01-30 05:37:27',  0),
-(5, 'stores_manager', 'Choolwe Stores Manager', '$2y$10$FaqE3WQxADD.8GWugJw0ieRpGhIGsX9oerUqaY4bc2NNFfg9L4Ai2', 'manager',  3,  '2026-01-30 06:39:29',  0),
-(6, 'chef', 'Sililo Chef',  '$2y$10$JFws5wVFa6tAdwflrThJr.xFJJpRGYOtl0PW2wxm9xOprPlgbt2oS', 'chef', 1,  '2026-01-30 06:40:05',  0),
-(7, 'Main_bartender', 'Main Bar Bartender', '$2y$10$1LpLTw/HiJsIEbNjwZ44zuNm.K.DiDtFretzcA65M7RV6tliGCN86', 'bartender',  2,  '2026-01-30 06:40:57',  1),
-(8, 'Bar_Manager',  'Mumba Bar-Manager',  '$2y$10$7B0j9oNHDch0mRyfbUsopuhzwbFbVJAgrdN2spsxfNDYRDzyVKn4i', 'manager',  2,  '2026-01-30 07:59:03',  0),
-(10,  'Daliso', 'Daliso Nindi', '$2y$10$VlTfRDkhaOa3Mi.l7Eubd.fr/yfJ5m5fixiDVgs45nZroOUPhtYty', 'admin',  9,  '2026-01-30 18:19:15',  1),
-(11,  'Admin',  'Admininistaror Account', '$2y$10$VEERI3aWoz.dgcNFAL/zseiH4q47bs3UwACwrma64ET0pECHGkFpC', 'admin',  9,  '2026-01-31 07:09:34',  0),
-(12,  'mary_sales_Res_Bar', 'Mary sales lady',  '$2y$10$6X2lDe5vcBb/s1u.Vd7zruqS7p9HoP0UIbVM9ty.TU2C1RKjY163i', 'cashier',  4,  '2026-01-31 14:06:24',  0),
-(13,  'Restaurant_Manager', 'Restaurant Manager', '$2y$10$JlEq5qWHd9hF47RQL7MVzO2C.lHIcrtgAeoM9U204XoGfkqOjrgXC', 'manager',  1,  '2026-01-31 16:15:59',  0),
-(14,  'Mini_stores_manager',  'mini store manager', '$2y$10$4rpiSKKpnExkGbd0JUboQeOrzRpX6XkopWyt4AFsk6Jw1lXN/jfhq', 'manager',  7,  '2026-02-01 04:12:43',  0),
-(15,  'Mwape_Res_Bar_manager',  'Mwape Restaurant Manager', '$2y$10$yLFmCN96bPn7JDftB7/9QOlLLHizCIPAB8/OHzK4zd9hc.2c1xiEm', 'manager',  4,  '2026-02-01 04:22:19',  0);
+(1, 'admin',  'System Admin', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'admin',  3,  '2026-02-06 19:59:35',  0),
+(2, 'dev',  'Developer Account',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'dev',  3,  '2026-02-06 19:59:35',  0),
+(3, 'manager',  'Bar Manager',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'manager',  2,  '2026-02-06 19:59:35',  0),
+(4, 'cashier',  'Bar Cashier',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'cashier',  2,  '2026-02-06 19:59:35',  0),
+(5, 'chef', 'Head Chef',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'chef', 1,  '2026-02-06 19:59:35',  0),
+(6, 'waiter', 'Restaurant Waiter',  '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'cashier',  4,  '2026-02-06 19:59:35',  0),
+(7, 'bartender',  'Main Bartender', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'bartender',  2,  '2026-02-06 19:59:35',  0);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -683,10 +605,9 @@ CREATE TABLE `vendors` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `vendors`;
 INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
-(1, 'Zambeef Zambia', 'Mr. Phir', ''),
-(2, 'Coca Cola Zambia', 'Mr. Daliso', ''),
-(3, 'Shoprite Zambia',  'Mr. Choogo', '');
+(1, 'Coca Cola Zambia', 'Mr. Phiri',  NULL),
+(2, 'Zambeef',  'Sales Rep',  NULL),
+(3, 'Tiger Animal Feeds', 'Mrs. Banda', NULL);
 
--- 2026-02-01 18:41:28 UTC
+-- 2026-02-09 09:30:07 UTC
