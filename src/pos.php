@@ -2,20 +2,16 @@
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
 $userId = $_SESSION['user_id'];
+$userRole = $_SESSION['role'] ?? 'cashier'; // 'admin', 'manager', 'cashier'
 
 // --- 1. HANDLE MANUAL LOCATION SELECTION & DB UPDATE ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) {
-    // FIX: Read ID directly from the button value
     $newLocId = intval($_POST['set_pos_location']);
-    
-    // 1. Update Session
     $_SESSION['pos_location_id'] = $newLocId;
     $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
     $stmt->execute([$newLocId]);
     $_SESSION['pos_location_name'] = $stmt->fetchColumn();
 
-    // 2. UPDATE ACTIVE SHIFT IN DATABASE
-    // If user has an open/pending shift, move it to the new location.
     $shiftChk = $pdo->prepare("SELECT id, location_id FROM shifts WHERE user_id = ? AND status IN ('open', 'pending_approval') LIMIT 1");
     $shiftChk->execute([$userId]);
     $existingShift = $shiftChk->fetch();
@@ -26,32 +22,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['set_pos_location'])) 
         $_SESSION['swal_type'] = 'success';
         $_SESSION['swal_msg'] = "Station switched to " . $_SESSION['pos_location_name'];
     }
-
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 2. DETERMINE CONTEXT ---
+// --- 2. MANAGER: SERVICE MANAGEMENT ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_service'])) {
+    if (!in_array($userRole, ['admin', 'manager', 'dev'])) { header("Location: index.php?page=pos"); exit; }
+    
+    $name = trim($_POST['name']);
+    $price = floatval($_POST['price']);
+    $isOpen = isset($_POST['is_open_price']) ? 1 : 0;
+    $id = $_POST['service_id'] ?? null;
+
+    if ($id) {
+        $pdo->prepare("UPDATE products SET name=?, price=?, is_open_price=? WHERE id=?")->execute([$name, $price, $isOpen, $id]);
+    } else {
+        // Services have category_id NULL or a specific 'Services' category if you prefer. Using NULL for now.
+        $pdo->prepare("INSERT INTO products (name, price, type, is_open_price, is_active) VALUES (?, ?, 'service', ?, 1)")->execute([$name, $price, $isOpen]);
+    }
+    header("Location: index.php?page=pos"); exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_service'])) {
+    if (!in_array($userRole, ['admin', 'manager', 'dev'])) { header("Location: index.php?page=pos"); exit; }
+    $pdo->prepare("UPDATE products SET is_active = 0 WHERE id = ?")->execute([$_POST['service_id']]);
+    header("Location: index.php?page=pos"); exit;
+}
+
+// --- 3. DETERMINE CONTEXT ---
 $activeShiftId = null;
 $pendingShift = null;
 $expectedShiftCash = 0.00;
 $locationName = 'Unknown Station';
 $locationId = 0; 
 
-// Check for ANY active or pending shift
 $shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1");
 $shiftStmt->execute([$userId]);
 $currentShift = $shiftStmt->fetch();
 
 if ($currentShift) {
-    // SCENARIO A: Active Shift Found
     $locationId = $currentShift['location_id'];
-    
-    // Fetch Name
     $lNameStmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
     $lNameStmt->execute([$locationId]);
     $locationName = $lNameStmt->fetchColumn();
 
-    // Sync Session
     if (!isset($_SESSION['pos_location_id']) || $_SESSION['pos_location_id'] != $locationId) {
         $_SESSION['pos_location_id'] = $locationId;
         $_SESSION['pos_location_name'] = $locationName;
@@ -71,29 +85,22 @@ if ($currentShift) {
         $expectedShiftCash = ($startCash + $cashSales) - $expenses;
     }
 } else {
-    // SCENARIO B: No Active Shift
     $locationId = $_SESSION['pos_location_id'] ?? 0;
     $locationName = $_SESSION['pos_location_name'] ?? 'Select Station';
-    
-    // Safety check
     if ($locationId > 0) {
         $checkLoc = $pdo->prepare("SELECT id FROM locations WHERE id = ?");
         $checkLoc->execute([$locationId]);
-        if (!$checkLoc->fetch()) {
-            $locationId = 0;
-            unset($_SESSION['pos_location_id']);
-        }
+        if (!$checkLoc->fetch()) { $locationId = 0; unset($_SESSION['pos_location_id']); }
     }
 }
 
 $sellableLocations = $pdo->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY name ASC")->fetchAll();
 
-// --- 3. SHIFT ACTIONS ---
+// --- 4. SHIFT ACTIONS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_start_shift'])) {
     if ($locationId > 0) {
         try {
-            $pdo->prepare("INSERT INTO shifts (user_id, location_id, start_time, starting_cash, status) VALUES (?, ?, NOW(), ?, 'pending_approval')")
-                ->execute([$userId, $locationId, floatval($_POST['starting_cash'])]);
+            $pdo->prepare("INSERT INTO shifts (user_id, location_id, start_time, starting_cash, status) VALUES (?, ?, NOW(), ?, 'pending_approval')")->execute([$userId, $locationId, floatval($_POST['starting_cash'])]);
             header("Location: index.php?page=pos"); exit;
         } catch (PDOException $e) { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = $e->getMessage(); }
     } else { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Select a station first."; }
@@ -111,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_shift_start']
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 4. POS LOGIC ---
+// --- 5. POS LOGIC ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['select_member'])) {
         $_SESSION['pos_member'] = ['id' => $_POST['member_id'], 'name' => $_POST['member_name'], 'phone' => $_POST['member_phone']];
@@ -135,8 +142,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  $m = $pdo->query("SELECT * FROM members WHERE id = {$sale['member_id']}")->fetch();
                  if($m) $_SESSION['pos_member'] = ['id'=>$m['id'], 'name'=>$m['name'], 'phone'=>$m['phone']];
             }
-            $items = $pdo->query("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = $saleId")->fetchAll();
-            foreach ($items as $item) $_SESSION['cart'][$item['product_id']] = ['name' => $item['name'], 'price' => $item['price_at_sale'], 'qty' => $item['quantity']];
+            $items = $pdo->query("SELECT si.*, p.name, p.type FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = $saleId")->fetchAll();
+            foreach ($items as $item) {
+                // Determine item type for cart
+                $type = $item['type'] ?? 'item'; 
+                $_SESSION['cart'][$item['product_id']] = [
+                    'name' => $item['name'], 
+                    'price' => $item['price_at_sale'], 
+                    'qty' => $item['quantity'],
+                    'type' => $type
+                ];
+            }
         }
         header("Location: index.php?page=pos"); exit;
     }
@@ -144,27 +160,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($activeShiftId) {
         if (isset($_POST['add_item'])) {
             $pid = $_POST['product_id'];
-            $qty = $_SESSION['cart'][$pid]['qty'] ?? 0;
-            $stock = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn() ?: 0;
-            if (($qty + 1) <= $stock) {
-                $p = $pdo->query("SELECT * FROM products WHERE id = $pid")->fetch();
-                if(isset($_SESSION['cart'][$pid])) $_SESSION['cart'][$pid]['qty']++; 
-                else $_SESSION['cart'][$pid] = ['name' => $p['name'], 'price' => $p['price'], 'qty' => 1];
-            } else { $_SESSION['swal_type'] = 'warning'; $_SESSION['swal_msg'] = "Max stock reached."; }
+            $p = $pdo->query("SELECT * FROM products WHERE id = $pid")->fetch();
+            
+            // --- LOGIC: Custom Price vs Standard ---
+            $price = $p['price'];
+            if ($p['is_open_price'] && isset($_POST['custom_price'])) {
+                $price = floatval($_POST['custom_price']);
+            }
+
+            // --- LOGIC: Stock Check (Skip for Services) ---
+            $allowAdd = false;
+            if ($p['type'] === 'service') {
+                $allowAdd = true;
+            } else {
+                $qty = $_SESSION['cart'][$pid]['qty'] ?? 0;
+                $stock = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn() ?: 0;
+                if (($qty + 1) <= $stock) $allowAdd = true;
+            }
+
+            if ($allowAdd) {
+                if(isset($_SESSION['cart'][$pid])) {
+                    $_SESSION['cart'][$pid]['qty']++;
+                    // If it was open price, we stick to the first price entered or update? 
+                    // Simple logic: updating qty keeps original price. To change price, remove and re-add.
+                } else {
+                    $_SESSION['cart'][$pid] = [
+                        'name' => $p['name'], 
+                        'price' => $price, 
+                        'qty' => 1,
+                        'type' => $p['type']
+                    ];
+                }
+            } else {
+                $_SESSION['swal_type'] = 'warning'; $_SESSION['swal_msg'] = "Max stock reached.";
+            }
             header("Location: index.php?page=pos"); exit;
         }
+
         if (isset($_POST['update_qty'])) {
             $pid = $_POST['product_id'];
-            $stock = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn() ?: 0;
-            if ($_POST['action'] === 'inc' && $_SESSION['cart'][$pid]['qty'] < $stock) $_SESSION['cart'][$pid]['qty']++;
-            elseif ($_POST['action'] === 'dec') { $_SESSION['cart'][$pid]['qty']--; if($_SESSION['cart'][$pid]['qty']<=0) unset($_SESSION['cart'][$pid]); }
+            $item = $_SESSION['cart'][$pid];
+            
+            $allowUpdate = false;
+            if ($item['type'] === 'service') {
+                $allowUpdate = true;
+            } else {
+                $stock = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn() ?: 0;
+                if ($_POST['action'] === 'inc' && $item['qty'] < $stock) $allowUpdate = true;
+            }
+
+            if ($_POST['action'] === 'inc' && $allowUpdate) $_SESSION['cart'][$pid]['qty']++;
+            elseif ($_POST['action'] === 'dec') { 
+                $_SESSION['cart'][$pid]['qty']--; 
+                if($_SESSION['cart'][$pid]['qty']<=0) unset($_SESSION['cart'][$pid]); 
+            }
             header("Location: index.php?page=pos"); exit;
         }
+
         if (isset($_POST['remove_item'])) unset($_SESSION['cart'][$_POST['product_id']]);
         if (isset($_POST['clear_cart'])) unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
         
         if (isset($_POST['log_waste']) && !empty($_SESSION['cart'])) {
             foreach ($_SESSION['cart'] as $pid => $item) {
+                // Skip Services for Waste Logging
+                if (($item['type'] ?? 'item') === 'service') continue;
+
                 $pdo->query("UPDATE inventory SET quantity = quantity - {$item['qty']} WHERE product_id = $pid AND location_id = $locationId");
                 $newQty = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
                 $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, created_at) VALUES (?, ?, ?, ?, ?, 'adjustment', NOW())")->execute([$pid, $locationId, $userId, -$item['qty'], $newQty]);
@@ -200,7 +260,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 foreach ($_SESSION['cart'] as $pid => $item) {
                     $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?,?,?,?,'pending')")->execute([$sid, $pid, $item['qty'], $item['price']]);
-                    if ($status !== 'pending_but_no_deduct') { 
+                    
+                    // --- ONLY DEDUCT INVENTORY FOR ITEMS, NOT SERVICES ---
+                    if ($status !== 'pending_but_no_deduct' && ($item['type'] ?? 'item') !== 'service') { 
                         $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$item['qty'], $pid, $locationId]);
                         $nq = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
                         $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id) VALUES (?,?,?,?,?,'sale',?)")->execute([$pid, $locationId, $userId, -$item['qty'], $nq, $sid]);
@@ -215,9 +277,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Data Fetch
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll();
 $members = $pdo->query("SELECT * FROM members ORDER BY name ASC")->fetchAll();
-$products = ($locationId > 0) ? $pdo->query("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = $locationId WHERE p.is_active = 1 ORDER BY p.name ASC")->fetchAll() : [];
+$products = ($locationId > 0) ? $pdo->query("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = $locationId WHERE p.is_active = 1 AND p.type = 'item' ORDER BY p.name ASC")->fetchAll() : [];
+$services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1 ORDER BY name ASC")->fetchAll();
 $openTabs = ($locationId > 0) ? $pdo->query("SELECT s.id, s.customer_name, s.final_total, s.amount_tendered, s.created_at FROM sales s WHERE s.payment_status = 'pending' ORDER BY s.created_at DESC")->fetchAll() : [];
 
 $total = 0; if(isset($_SESSION['cart'])) foreach($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty'];
