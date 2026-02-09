@@ -9,7 +9,7 @@
     <li class="nav-item">
         <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#incoming">
             <i class="bi bi-box-seam"></i> Incoming (To Receive)
-            <?php if(count($incomingStock) > 0): ?>
+            <?php if(isset($incomingStock) && count($incomingStock) > 0): ?>
                 <span class="badge bg-danger ms-2"><?= count($incomingStock) ?></span>
             <?php endif; ?>
         </button>
@@ -17,7 +17,7 @@
     <li class="nav-item">
         <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#outgoing">
             <i class="bi bi-truck"></i> Outgoing (To Dispatch)
-            <?php if(count($pendingDispatch) > 0): ?>
+            <?php if(isset($pendingDispatch) && count($pendingDispatch) > 0): ?>
                 <span class="badge bg-warning text-dark ms-2"><?= count($pendingDispatch) ?></span>
             <?php endif; ?>
         </button>
@@ -30,7 +30,6 @@
 </ul>
 
 <div class="tab-content">
-    
     <div class="tab-pane fade show active" id="incoming">
         <div class="card shadow-sm border-success">
             <div class="card-header bg-success text-white">
@@ -44,14 +43,14 @@
                             <th>Product</th>
                             <th>Qty</th>
                             <th>Sent At</th>
-                            <th class="text-end">Action</th>
+                            <th class="text-end">Action Required</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($incomingStock as $t): ?>
+                        <?php if (isset($incomingStock)): foreach ($incomingStock as $t): ?>
                         <tr>
-                            <td><?= htmlspecialchars($t['source_name']) ?></td>
-                            <td class="fw-bold"><?= htmlspecialchars($t['product_name']) ?></td>
+                            <td><?= htmlspecialchars($t['source_name'] ?? '') ?></td>
+                            <td class="fw-bold"><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['dispatched_at'])) ?></td>
                             <td class="text-end">
@@ -64,7 +63,7 @@
                                 </form>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endforeach; endif; ?>
                         <?php if (empty($incomingStock)): ?>
                             <tr><td colspan="5" class="text-center py-5 text-muted">No incoming stock transfers.</td></tr>
                         <?php endif; ?>
@@ -87,14 +86,14 @@
                             <th>Product</th>
                             <th>Qty Required</th>
                             <th>Requested At</th>
-                            <th class="text-end">Action</th>
+                            <th class="text-end">Action Required</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($pendingDispatch as $t): ?>
+                        <?php if (isset($pendingDispatch)): foreach ($pendingDispatch as $t): ?>
                         <tr>
-                            <td><?= htmlspecialchars($t['dest_name']) ?></td>
-                            <td class="fw-bold"><?= htmlspecialchars($t['product_name']) ?></td>
+                            <td><?= htmlspecialchars($t['dest_name'] ?? '') ?></td>
+                            <td class="fw-bold"><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['created_at'])) ?></td>
                             <td class="text-end">
@@ -107,7 +106,7 @@
                                 </form>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endforeach; endif; ?>
                         <?php if (empty($pendingDispatch)): ?>
                             <tr><td colspan="5" class="text-center py-5 text-muted">No pending requests to dispatch.</td></tr>
                         <?php endif; ?>
@@ -130,14 +129,14 @@
                             <th>Product</th>
                             <th>Qty</th>
                             <th>Status</th>
-                            <th>Action</th>
+                            <th>Action Required</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($myRequests as $t): ?>
+                        <?php if (isset($myRequests)): foreach ($myRequests as $t): ?>
                         <tr>
-                            <td><?= htmlspecialchars($t['source_name']) ?></td>
-                            <td><?= htmlspecialchars($t['product_name']) ?></td>
+                            <td><?= htmlspecialchars($t['source_name'] ?? '') ?></td>
+                            <td><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td><?= $t['quantity'] ?></td>
                             <td><span class="badge bg-secondary">Pending Approval</span></td>
                             <td>
@@ -148,7 +147,7 @@
                                 </form>
                             </td>
                         </tr>
-                        <?php endforeach; ?>
+                        <?php endforeach; endif; ?>
                         <?php if (empty($myRequests)): ?>
                             <tr><td colspan="5" class="text-center py-4 text-muted">You have no pending requests.</td></tr>
                         <?php endif; ?>
@@ -157,11 +156,10 @@
             </div>
         </div>
     </div>
-
 </div>
 
 <div class="modal fade" id="requestModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">New Stock Requisition</h5>
@@ -170,35 +168,47 @@
             <form method="POST" action="index.php?page=transfers">
                 <div class="modal-body">
                     <input type="hidden" name="create_request" value="1">
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Request From (Source)</label>
-                        <select name="source_location_id" class="form-select" required>
-                            <?php foreach($locations as $l): ?>
-                                <?php if($l['id'] != $_SESSION['location_id']): ?>
-                                    <option value="<?= $l['id'] ?>" <?= stripos($l['name'], 'Main') !== false ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($l['name']) ?>
-                                    </option>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="form-text">Usually the Main Store or Warehouse.</div>
-                    </div>
-
-                    <input type="hidden" name="dest_location_id" value="<?= $_SESSION['location_id'] ?>">
+                    <input type="hidden" name="dest_location_id" id="dest_loc_id" value="<?= $_SESSION['location_id'] ?? 0 ?>">
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Product</label>
-                        <select name="product_id" class="form-select" required>
-                            <?php foreach($products as $p): ?>
-                                <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name']) ?></option>
-                            <?php endforeach; ?>
+                        <select name="product_id" id="req_product_id" class="form-select" required onchange="updateDualStock()">
+                            <option value="">-- Select Product --</option>
+                            <?php if(isset($products)): foreach($products as $p): ?>
+                                <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name'] ?? '') ?></option>
+                            <?php endforeach; endif; ?>
                         </select>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded border">
+                                <label class="form-label fw-bold text-danger">Source (Request From)</label>
+                                <select name="source_location_id" id="source_loc_id" class="form-select mb-2" required onchange="updateDualStock()">
+                                    <?php if(isset($locations)): foreach($locations as $l): ?>
+                                        <?php if($l['id'] != ($_SESSION['location_id'] ?? 0)): ?>
+                                            <option value="<?= $l['id'] ?>" <?= stripos($l['name'] ?? '', 'Main') !== false ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($l['name'] ?? '') ?>
+                                            </option>
+                                        <?php endif; ?>
+                                    <?php endforeach; endif; ?>
+                                </select>
+                                <div class="small text-muted">Stock at Source: <span id="source_stock_display" class="fw-bold text-dark">0</span></div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded border">
+                                <label class="form-label fw-bold text-success">Destination (Your Stock)</label>
+                                <div class="form-control-plaintext fw-bold ps-1"><?= htmlspecialchars($_SESSION['location_name'] ?? 'Current Location') ?></div>
+                                <div class="small text-muted">Currently in your location: <span id="dest_stock_display" class="fw-bold text-dark">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
                         <label class="form-label fw-bold">Quantity Needed</label>
-                        <input type="number" name="quantity" class="form-control" step="0.01" min="0.01" required placeholder="0.00">
+                        <input type="number" name="quantity" class="form-control form-control-lg text-center" step="0.01" min="0.01" required placeholder="0.00">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -209,3 +219,23 @@
         </div>
     </div>
 </div>
+
+<script>
+function updateDualStock() {
+    const pId = document.getElementById('req_product_id').value;
+    const sId = document.getElementById('source_loc_id').value;
+    const dId = document.getElementById('dest_loc_id').value;
+
+    if (!pId) return;
+
+    fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${sId}`)
+        .then(r => r.json()).then(d => {
+            document.getElementById('source_stock_display').innerText = d.stock || 0;
+        });
+
+    fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${dId}`)
+        .then(r => r.json()).then(d => {
+            document.getElementById('dest_stock_display').innerText = d.stock || 0;
+        });
+}
+</script>
