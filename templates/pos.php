@@ -38,15 +38,58 @@
 </head>
 <body>
 
+    <?php if ($locationId == 0): ?>
+    <div class="modal fade show" id="forceLocationModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.9); z-index: 2000;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-dark text-white text-center justify-content-center">
+                    <h4 class="modal-title fw-bold">Select Your Station</h4>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    <p class="text-center text-muted mb-4">Please select the location you are operating from to continue.</p>
+                    <form method="POST">
+                        <?php foreach($sellableLocations as $loc): ?>
+                        <button name="set_pos_location" value="1" class="btn btn-white border w-100 mb-3 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow">
+                            <span class="fs-5"><?= htmlspecialchars($loc['name']) ?></span>
+                            <i class="bi bi-chevron-right text-muted"></i>
+                            <input type="hidden" name="pos_location_id" value="<?= $loc['id'] ?>">
+                        </button>
+                        <?php endforeach; ?>
+                    </form>
+                </div>
+                <div class="modal-footer justify-content-center bg-white">
+                    <a href="index.php?page=logout" class="btn btn-outline-danger btn-sm">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php if ($pendingShift): ?>
     <div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8);">
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-hourglass-split"></i> Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Manager Password" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div>
     </div>
     <?php endif; ?>
 
-    <?php if (!$activeShiftId && !$pendingShift): ?>
+    <?php if ($locationId > 0 && !$activeShiftId && !$pendingShift): ?>
     <div class="modal fade show" id="startShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8);">
-        <div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-primary"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill"></i> Start New Shift</h5></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="request_start_shift" value="1"><label class="fw-bold small text-muted">OPENING FLOAT</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00"></div><button type="submit" class="btn btn-primary w-100 fw-bold py-3">REQUEST APPROVAL</button></div></form></div></div>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-primary">
+                <div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold"><i class="bi bi-shield-lock-fill"></i> Start New Shift</h5></div>
+                <form method="POST">
+                    <div class="modal-body p-4">
+                        <input type="hidden" name="request_start_shift" value="1">
+                        <label class="fw-bold small text-muted">OPENING FLOAT</label>
+                        <div class="input-group input-group-lg mb-3">
+                            <span class="input-group-text fw-bold">ZMW</span>
+                            <input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold py-3 mb-2">REQUEST APPROVAL</button>
+                        <a href="index.php?page=dashboard" class="btn btn-outline-secondary w-100 fw-bold">GO TO DASHBOARD</a>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
     <?php endif; ?>
 
@@ -74,7 +117,7 @@
                 <button onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-info text-white border-white btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
             <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#membersModal"><i class="bi bi-person-lines-fill"></i> Members</button>
-            <a href="index.php?page=pickup" class="btn btn-outline-warning btn-sm fw-bold"><i class="bi bi-bag-check"></i> Pickup</a>
+            <a href="index.php?page=pickup" target="_blank" class="btn btn-outline-warning btn-sm fw-bold"><i class="bi bi-bag-check"></i> Pickup</a>
             <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
             <?php if ($activeShiftId): ?>
                 <button class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
@@ -169,21 +212,13 @@
                             <form method="POST" onsubmit="return confirm('Clear cart?');"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold">CLEAR</button></form>
                         </div>
                         <div class="col-6">
-                            <button onclick="promptHold()" class="btn btn-outline-secondary w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>HOLD ORDER</button>
+                            <form method="POST" onsubmit="return confirm('Mark items as LOST/DAMAGED stock? Inventory will be deducted.');"><input type="hidden" name="log_waste" value="1"><button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></form>
                         </div>
                     </div>
-                </div>
-                <div class="text-center">
-                    <button class="btn btn-outline-primary w-100 btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> OPEN TABS</button>
                 </div>
             </div>
         </div>
     </div>
-
-    <form id="holdForm" method="POST" style="display:none;">
-        <input type="hidden" name="hold_order" value="1">
-        <input type="hidden" name="hold_name" id="holdNameInput">
-    </form>
 
     <div class="modal fade" id="membersModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -300,15 +335,6 @@
         function filterMembers() { let v=document.getElementById('memberSearch').value.toLowerCase(); document.querySelectorAll('.member-item').forEach(e=>{ e.style.display = e.dataset.search.includes(v)?'flex':'none'; }); }
         function toggleCart() { document.getElementById('cartPanel').classList.toggle('expanded'); }
         
-        // HOLD ORDER FUNCTION
-        function promptHold() {
-            let name = prompt("Enter a name/reference for this order:");
-            if (name) {
-                document.getElementById('holdNameInput').value = name;
-                document.getElementById('holdForm').submit();
-            }
-        }
-        
         let baseTotal = <?= $balance ?? 0 ?>;
         let currentTotal = baseTotal;
         
@@ -316,7 +342,7 @@
             currentTotal = baseTotal;
             if(document.getElementById('discountToggle')) {
                 document.getElementById('discountToggle').checked = false;
-                toggleDiscount();
+                toggleDiscount(); // Resets display
             } else {
                 updateDisplays();
             }

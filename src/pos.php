@@ -67,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_shift_start']
 
 // --- 4. MEMBER HANDLING ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Select Member
     if (isset($_POST['select_member'])) {
         $_SESSION['pos_member'] = [
             'id' => $_POST['member_id'],
@@ -79,8 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['swal_msg'] = "Member Linked: " . $_POST['member_name'];
         header("Location: index.php?page=pos"); exit;
     }
-    
-    // Remove Member
     if (isset($_POST['remove_member'])) {
         unset($_SESSION['pos_member']);
         $_SESSION['current_customer'] = 'Walk-in'; 
@@ -103,7 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['recall_tab'])) {
         $_SESSION['tab_paid'] = floatval($sale['amount_tendered']);
         $_SESSION['cart'] = [];
         
-        // Link member if existing
         if (!empty($sale['member_id'])) {
              $mStmt = $pdo->prepare("SELECT * FROM members WHERE id = ?");
              $mStmt->execute([$sale['member_id']]);
@@ -163,37 +159,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
     if (isset($_POST['remove_item'])) unset($_SESSION['cart'][$_POST['product_id']]);
     if (isset($_POST['clear_cart'])) unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
     
-    // --- HOLD ORDER HANDLER (NEW) ---
-    if (isset($_POST['hold_order'])) {
+    // --- LOST/DAMAGED STOCK HANDLER ---
+    if (isset($_POST['log_waste'])) {
         if (!empty($_SESSION['cart'])) {
-            $cartTotal = 0;
-            foreach ($_SESSION['cart'] as $item) $cartTotal += $item['price'] * $item['qty'];
-            
-            $customerName = !empty($_POST['hold_name']) ? $_POST['hold_name'] : 'Walk-in (Held)';
-            $memberId = $_SESSION['pos_member']['id'] ?? null;
-            
             $pdo->beginTransaction();
             try {
-                $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, 'Hold', 'pending', ?, ?, 0.00, 0.00, NOW())");
-                $stmt->execute([$userId, $locationId, $activeShiftId, $cartTotal, $cartTotal, $customerName, $memberId]);
-                $saleId = $pdo->lastInsertId();
-                
                 foreach ($_SESSION['cart'] as $pid => $item) {
-                    // Record Items as pending. We DO deduct inventory for Holds in a bar environment to prevent overselling.
-                    $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, 'pending')")->execute([$saleId, $pid, $item['qty'], $item['price']]);
-                    
-                    $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$item['qty'], $pid, $locationId]);
+                    $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")
+                        ->execute([$item['qty'], $pid, $locationId]);
                     
                     $newQty = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
-                    $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id) VALUES (?, ?, ?, ?, ?, 'sale_hold', ?)")->execute([$pid, $locationId, $userId, -$item['qty'], $newQty, $saleId]);
+                    
+                    $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, created_at) VALUES (?, ?, ?, ?, ?, 'adjustment', NOW())")
+                        ->execute([$pid, $locationId, $userId, -$item['qty'], $newQty]);
                 }
-                
                 $pdo->commit();
-                unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
-                $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Order Held Successfully!";
+                unset($_SESSION['cart']);
+                $_SESSION['swal_type'] = 'warning';
+                $_SESSION['swal_msg'] = "Items recorded as Lost/Damaged stock.";
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Failed to hold order: " . $e->getMessage();
+                $_SESSION['swal_type'] = 'error';
+                $_SESSION['swal_msg'] = "Error logging stock loss: " . $e->getMessage();
             }
         }
         header("Location: index.php?page=pos"); exit;
@@ -203,18 +190,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
     if (isset($_POST['checkout'])) {
         if (empty($_SESSION['cart'])) { header("Location: index.php?page=pos"); exit; }
         
-        // 1. Calculate Base Total
         $cartTotal = 0; 
         foreach ($_SESSION['cart'] as $item) $cartTotal += $item['price'] * $item['qty'];
         
-        // 2. Apply Member Discount (Backend Verification)
         $discountAmount = 0;
         if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1' && isset($_SESSION['pos_member'])) {
-            $discountAmount = $cartTotal * 0.10; // 10% Discount
+            $discountAmount = $cartTotal * 0.10;
         }
         $finalTotal = $cartTotal - $discountAmount;
         
-        // 3. Payment Method & Amounts
         $isSplit = isset($_POST['is_split']) && $_POST['is_split'] == 1;
         $currentTendered = floatval($_POST['amount_tendered'] ?? 0);
         
@@ -226,14 +210,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
             $method = $_POST['payment_method'];
         }
 
+        // Fix: If Tab is selected and not split, tendered is effectively 0 for balance calculation
+        if ($method === 'Pending' && !$isSplit) {
+            $currentTendered = 0.00;
+        }
+
         $customerName = !empty($_POST['customer_name']) ? $_POST['customer_name'] : 'Walk-in';
         $memberId = $_SESSION['pos_member']['id'] ?? null;
 
-        // 4. Status Logic
         $previousPaid = $_SESSION['tab_paid'] ?? 0;
         $totalRecordedTendered = $previousPaid + $currentTendered;
         
-        // If "Put on Tab" selected OR Tendered < Total, status is pending
         if ($method === 'Pending' || $totalRecordedTendered < ($finalTotal - 0.01)) {
             $status = 'pending';
         } else {
@@ -245,21 +232,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
         $pdo->beginTransaction();
         try {
             if (isset($_SESSION['current_tab_id'])) {
-                // Update Tab
                 $saleId = $_SESSION['current_tab_id'];
                 $stmt = $pdo->prepare("UPDATE sales SET total_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, customer_name = ?, member_id = ?, amount_tendered = ?, change_due = ? WHERE id = ?");
                 $stmt->execute([$cartTotal, $finalTotal, $method, $status, $customerName, $memberId, $totalRecordedTendered, $changeDue, $saleId]);
                 $pdo->prepare("DELETE FROM sale_items WHERE sale_id = ?")->execute([$saleId]);
             } else {
-                // New Sale
                 $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$userId, $locationId, $activeShiftId, $cartTotal, $finalTotal, $method, $status, $customerName, $memberId, $totalRecordedTendered, $changeDue]);
                 $saleId = $pdo->lastInsertId();
             }
             
-            // Insert Items
             foreach ($_SESSION['cart'] as $pid => $item) {
-                // Note: We save the original price in sale_items. Discount is global on the sale record.
                 $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status) VALUES (?, ?, ?, ?, 'pending')")
                     ->execute([$saleId, $pid, $item['qty'], $item['price']]);
                 
@@ -280,7 +263,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// Data Fetching
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll();
 $members = $pdo->query("SELECT * FROM members ORDER BY name ASC")->fetchAll(); 
 
