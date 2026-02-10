@@ -1,111 +1,61 @@
 <?php
-if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['user_id'])) { return; }
 
 $userId = $_SESSION['user_id'];
+$dashLocId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
+$params = [];
+$locSql = "";
 
-// --- 1. SUPER USER LOCATION SWITCHER ---
-// Allow Admins/Devs to switch their session location
-if (isset($_POST['global_switch_location']) && in_array($_SESSION['role'], ['admin', 'dev'])) {
-    $newLocId = $_POST['target_location_id'];
+if ($dashLocId > 0) {
+    $locSql = " AND location_id = ?";
+    $params[] = $dashLocId;
+}
+
+// 1. KPI COUNTERS
+$todaySales = $pdo->prepare("SELECT SUM(final_total) FROM sales WHERE DATE(created_at) = CURDATE() AND payment_status = 'paid'" . $locSql);
+$todaySales->execute($params);
+$todaySales = $todaySales->fetchColumn() ?: 0.00;
+
+$todayTransactions = $pdo->prepare("SELECT COUNT(*) FROM sales WHERE DATE(created_at) = CURDATE() AND payment_status = 'paid'" . $locSql);
+$todayTransactions->execute($params);
+$todayTransactions = $todayTransactions->fetchColumn() ?: 0;
+
+$unpaidTabs = $pdo->prepare("SELECT COUNT(*) FROM sales WHERE payment_status = 'pending'" . $locSql);
+$unpaidTabs->execute($params);
+$unpaidTabs = $unpaidTabs->fetchColumn() ?: 0;
+
+$lowStockSql = ($dashLocId > 0) ? "SELECT COUNT(*) FROM inventory WHERE location_id = ? AND quantity <= 5" : "SELECT COUNT(*) FROM inventory WHERE quantity <= 5";
+$lowStockStmt = $pdo->prepare($lowStockSql);
+if ($dashLocId > 0) $lowStockStmt->execute([$dashLocId]); else $lowStockStmt->execute();
+$lowStockCount = $lowStockStmt->fetchColumn();
+
+// 2. CHART DATA: LAST 7 DAYS SALES
+// We need a loop for the last 7 days to ensure zero-values are filled
+$dates = [];
+$salesData = [];
+for ($i = 6; $i >= 0; $i--) {
+    $date = date('Y-m-d', strtotime("-$i days"));
+    $dates[] = date('D d', strtotime($date));
     
-    // Verify location exists
-    $stmt = $pdo->prepare("SELECT id, name FROM locations WHERE id = ?");
-    $stmt->execute([$newLocId]);
-    $newLoc = $stmt->fetch();
-
-    if ($newLoc) {
-        $_SESSION['location_id'] = $newLoc['id'];
-        $_SESSION['location_name'] = $newLoc['name'];
-        $_SESSION['swal_type'] = 'success';
-        $_SESSION['swal_msg'] = "Switched to " . $newLoc['name'];
-    }
-    
-    // Refresh to apply changes
-    header("Location: index.php?page=dashboard"); 
-    exit;
+    $dSql = "SELECT SUM(final_total) FROM sales WHERE DATE(created_at) = ? AND payment_status = 'paid'" . $locSql;
+    $dParams = array_merge([$date], $params);
+    $stmt = $pdo->prepare($dSql);
+    $stmt->execute($dParams);
+    $salesData[] = $stmt->fetchColumn() ?: 0;
 }
 
-// Get current working location (Handle case where it might be null)
-$locationId = $_SESSION['location_id'] ?? null;
+// 3. CHART DATA: PAYMENT METHODS (Today)
+$pmSql = "SELECT payment_method, COUNT(*) as count FROM sales WHERE DATE(created_at) = CURDATE() AND payment_status = 'paid'" . $locSql . " GROUP BY payment_method";
+$stmt = $pdo->prepare($pmSql);
+$stmt->execute($params);
+$pmData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// Fetch all locations for the switcher dropdown (Admin/Dev only)
-$allLocations = [];
-if (in_array($_SESSION['role'], ['admin', 'dev'])) {
-    $allLocations = $pdo->query("SELECT * FROM locations ORDER BY name ASC")->fetchAll();
-}
-
-// --- 2. STANDARD DASHBOARD DATA ---
-// Fetch User & Location Data (FIXED: Uses LEFT JOIN to prevent crash if location is NULL)
-$user = $pdo->prepare("SELECT u.*, COALESCE(l.name, 'Unassigned') as location_name FROM users u LEFT JOIN locations l ON u.location_id = l.id WHERE u.id = ?");
-$user->execute([$userId]);
-$userData = $user->fetch();
-
-// Safety Fallback if user lookup fails completely
-if (!$userData) {
-    $userData = [
-        'username' => $_SESSION['username'] ?? 'User',
-        'location_name' => 'Unknown Location',
-        'role' => $_SESSION['role'] ?? 'cashier'
-    ];
-}
-
-// Critical Stock Alerts
-$lowStockItems = [];
-if ($locationId) {
-    $stockAlerts = $pdo->prepare("SELECT p.id as product_id, p.name, i.quantity FROM inventory i JOIN products p ON i.product_id = p.id WHERE i.location_id = ? AND i.quantity < 3");
-    $stockAlerts->execute([$locationId]);
-    $lowStockItems = $stockAlerts->fetchAll();
-}
-
-// Auto-Transfer Logic (Warehouse to Bar)
-$warehouseStmt = $pdo->prepare("SELECT id FROM locations WHERE type = 'warehouse' LIMIT 1");
-$warehouseStmt->execute();
-$warehouseId = $warehouseStmt->fetchColumn();
-
-if ($warehouseId && $locationId && $warehouseId != $locationId && !empty($lowStockItems)) {
-    foreach ($lowStockItems as $item) {
-        $check = $pdo->prepare("SELECT id FROM inventory_transfers WHERE product_id = ? AND dest_location_id = ? AND status = 'pending'");
-        $check->execute([$item['product_id'], $locationId]);
-        if (!$check->fetch()) {
-            $pdo->prepare("INSERT INTO inventory_transfers (source_location_id, dest_location_id, product_id, quantity, user_id, status, created_at) VALUES (?, ?, ?, 10, ?, 'pending', NOW())")
-                ->execute([$warehouseId, $locationId, $item['product_id'], $userId]);
-        }
-    }
-}
-
-// Shift Stats
-$stmt = $pdo->prepare("SELECT COUNT(*) as txn_count, COALESCE(SUM(final_total), 0) as shift_total FROM sales WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'");
-$stmt->execute([$userId]);
-$myStats = $stmt->fetch();
-
-$topItem = $pdo->prepare("SELECT p.name FROM sale_items si JOIN products p ON si.product_id = p.id JOIN sales s ON si.sale_id = s.id WHERE s.user_id = ? AND DATE(s.created_at) = CURDATE() GROUP BY p.id ORDER BY SUM(si.quantity) DESC LIMIT 1");
-$topItem->execute([$userId]);
-$myStats['top_item'] = $topItem->fetchColumn() ?: '-';
-$myStats['shift_status'] = 'Active'; 
-
-// Action Center
-$pendingTabs = ['count' => 0, 'total' => 0];
-$pendingReqs = 0;
-
-if ($locationId) {
-    $tabStmt = $pdo->prepare("SELECT COUNT(id) as count, COALESCE(SUM(final_total), 0.00) as total FROM sales WHERE location_id = ? AND payment_status = 'pending'");
-    $tabStmt->execute([$locationId]);
-    $pendingTabs = $tabStmt->fetch();
-
-    $reqStmt = $pdo->prepare("SELECT COUNT(id) FROM inventory_transfers WHERE (source_location_id = ? OR dest_location_id = ?) AND status IN ('pending', 'in_transit')");
-    $reqStmt->execute([$locationId, $locationId]);
-    $pendingReqs = $reqStmt->fetchColumn();
-}
-
-// Active Staff Monitor (Admin/Manager/Dev)
-$activeStaff = [];
-if (in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
-    $staffSql = "SELECT u.id, u.username, u.role, l.name as location_name, s.start_time, s.id as shift_id 
-                 FROM shifts s 
-                 JOIN users u ON s.user_id = u.id 
-                 JOIN locations l ON s.location_id = l.id 
-                 WHERE s.status = 'open' 
-                 ORDER BY s.start_time DESC";
-    $activeStaff = $pdo->query($staffSql)->fetchAll();
+// Location Name
+$dashLocName = "All Locations";
+if ($dashLocId > 0) {
+    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
+    $stmt->execute([$dashLocId]);
+    $dashLocName = $stmt->fetchColumn() ?: "Unknown";
 }
 ?>

@@ -47,7 +47,7 @@ try {
     $typeStmt = $pdo->query("SHOW COLUMNS FROM inventory_logs LIKE 'action_type'");
     if ($typeRow = $typeStmt->fetch()) {
         preg_match("/^enum\(\'(.*)\'\)$/", $typeRow['Type'], $matches);
-        $actionTypes = explode("','", $matches[1]);
+        $actionTypes = explode("','", $matches[1] ?? '');
     } else {
         $actionTypes = ['sale', 'grv', 'transfer_in', 'transfer_out', 'adjustment'];
     }
