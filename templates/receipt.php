@@ -38,8 +38,8 @@ $change = $tendered - $grandTotal;
 </head>
 <body>
     <div class="header text-center">
-        <h3 style="margin:0;"><?= htmlspecialchars($sale['location_name']) ?></h3>
-        <p style="margin:5px 0;"><?= htmlspecialchars($sale['address']) ?><br>Tel: <?= htmlspecialchars($sale['phone']) ?></p>
+        <h3 style="margin:0;"><?= htmlspecialchars($sale['location_name'] ?? '') ?></h3>
+        <p style="margin:5px 0;"><?= htmlspecialchars($sale['address'] ?? '') ?><br>Tel: <?= htmlspecialchars($sale['phone'] ??'') ?></p>
         <p style="margin:0;">Rcpt: #<?= $sale['id'] ?> &bull; <?= date('d/m/y H:i', strtotime($sale['created_at'])) ?></p>
         <p style="margin:0;">Staff: <?= htmlspecialchars($sale['cashier']) ?></p>
     </div>

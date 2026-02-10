@@ -152,14 +152,6 @@ CREATE TABLE `locations` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-TRUNCATE `locations`;
-INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_vendor`, `address`, `phone`) VALUES
-(1,	'Main Kitchen',	'kitchen',	1,	0,	NULL,	'555-0000'),
-(2,	'Main Bar',	'bar',	1,	0,	NULL,	'555-0000'),
-(3,	'Main Warehouse',	'warehouse',	0,	1,	NULL,	'555-0000'),
-(4,	'Restaurant Bar',	'bar',	1,	0,	NULL,	'555-0000'),
-(5,	'Coffee Shop',	'store',	1,	0,	NULL,	'555-0000'),
-(6,	'MIni Storeroom',	'warehouse',	1,	0,	'',	'555-0000');
 
 DROP TABLE IF EXISTS `members`;
 CREATE TABLE `members` (
@@ -408,6 +400,7 @@ CREATE TABLE `users` (
   `location_id` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `force_password_change` tinyint(1) DEFAULT '0',
+  `is_active` tinyint(1) DEFAULT '1',
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
   KEY `location_id` (`location_id`),
@@ -415,14 +408,17 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 TRUNCATE `users`;
-INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`) VALUES
-(1,	'admin',	'System Admin',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'admin',	3,	'2026-02-06 19:59:35',	0),
-(2,	'dev',	'Developer Account',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'dev',	3,	'2026-02-06 19:59:35',	0),
-(3,	'manager',	'Bar Manager',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'manager',	2,	'2026-02-06 19:59:35',	0),
-(4,	'cashier',	'Bar Cashier',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'cashier',	2,	'2026-02-06 19:59:35',	0),
-(5,	'chef',	'Head Chef',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'chef',	1,	'2026-02-06 19:59:35',	0),
-(6,	'waiter',	'Restaurant Waiter',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'cashier',	4,	'2026-02-06 19:59:35',	0),
-(7,	'bartender',	'Main Bartender',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'bartender',	2,	'2026-02-06 19:59:35',	0);
+INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`, `is_active`) VALUES
+(1,	'admin',	'System Admin',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'admin',	3,	'2026-02-06 19:59:35',	0,	1),
+(2,	'mando',	'mando chishimba',	'$2y$10$f7zbSGxQ7gvsH5N1dEOLauAgZS3dO1cV/8Gj.UNOmK6Z2a0JxWBbu',	'dev',	3,	'2026-02-06 19:59:35',	0,	1),
+(3,	'manager',	'Manager',	'$2y$10$3owGZE25FfMAUBAFy9oL7OwSu6atNLFJZW7uwH7DG8k.RC71DWnLq',	'manager',	2,	'2026-02-06 19:59:35',	0,	1),
+(4,	'main_bar',	'Main Bar',	'$2y$10$rt3.rImohXcDiq/J4HikCOQJp..byFlP4zaFxvLCRgZBVoW9R6TOi',	'cashier',	2,	'2026-02-06 19:59:35',	0,	1),
+(5,	'head_chef',	'Head Chef',	'$2y$10$oC8.PLHRf618Hx3vHSBMHusOiRFb9m82/mnRg3zYyOJ9eKLZh/CRi',	'manager',	1,	'2026-02-06 19:59:35',	0,	1),
+(6,	'waiter',	'Restaurant Waiter',	'$2y$10$44N80Jh9tzg6KlcvyXoj..2pjF705XsJjsU/TinTWdEW3BPKBq9ni',	'cashier',	4,	'2026-02-06 19:59:35',	0,	1),
+(7,	'bartender',	'Main Bartender',	'$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu',	'bartender',	2,	'2026-02-06 19:59:35',	0,	0),
+(8,	'chef',	'chef',	'$2y$10$M9vANzbl70OlafoGFIn/b.0Kyhl6JuQi21i5d6tjcBWnV8RxtjOZ2',	'cashier',	NULL,	'2026-02-10 08:21:50',	0,	1),
+(9,	'Res_Bar',	'Restaurant Bar',	'$2y$10$kgBG5wcxk3KB1/37QJU3ZuTxGkwD8PAzVha11irdvuY.N.IdrZaD2',	'cashier',	NULL,	'2026-02-10 09:53:29',	0,	1),
+(10,	'daliso',	'Daliso Nindi',	'$2y$10$0Cmqbbba.ipH/7x1fh9QOuQ8z4FayAfR1TuvXhzShncyprrq27Z4.',	'admin',	NULL,	'2026-02-10 10:20:55',	0,	1);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -439,4 +435,4 @@ INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
 (2,	'Zambeef',	'Sales Rep',	NULL),
 (3,	'Tiger Animal Feeds',	'Mrs. Banda',	NULL);
 
--- 2026-02-10 00:38:40 UTC
+-- 2026-02-10 11:32:48 UTC
