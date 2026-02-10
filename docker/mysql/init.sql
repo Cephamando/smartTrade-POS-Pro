@@ -101,7 +101,7 @@ CREATE TABLE `inventory_logs` (
   `user_id` int NOT NULL,
   `change_qty` decimal(10,2) NOT NULL,
   `after_qty` decimal(10,2) NOT NULL,
-  `action_type` enum('sale','grv','transfer_in','transfer_out','adjustment') NOT NULL,
+  `action_type` varchar(50) NOT NULL,
   `reference_id` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -204,6 +204,22 @@ CREATE TABLE `products` (
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+TRUNCATE `products`;
+INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `category_id`, `is_active`, `type`, `is_open_price`) VALUES
+(1,	'Coca Cola 300ml',	NULL,	15.00,	8.00,	'btl',	1,	1,	'item',	0),
+(2,	'Mosi Lager',	NULL,	25.00,	12.00,	'btl',	1,	1,	'item',	0),
+(3,	'T-Bone Steak',	NULL,	120.00,	60.00,	'plate',	2,	1,	'item',	0),
+(4,	'Jameson Shot',	NULL,	40.00,	15.00,	'tot',	1,	1,	'item',	0),
+(5,	'Water 500ml',	NULL,	5.00,	2.00,	'btl',	1,	1,	'item',	0),
+(6,	'Beef Burger',	NULL,	65.00,	30.00,	'plate',	2,	1,	'item',	0),
+(7,	'Cooking Oil',	NULL,	0.00,	45.00,	'ltr',	3,	1,	'item',	0),
+(8,	'Dish washer',	NULL,	0.00,	0.00,	'unit',	5,	1,	'item',	0),
+(9,	'Dish Wash',	NULL,	0.00,	0.00,	'unit',	5,	1,	'item',	0),
+(10,	'Free Delivery',	NULL,	0.00,	0.00,	'unit',	NULL,	0,	'service',	1),
+(11,	'Free Drink',	NULL,	0.00,	0.00,	'unit',	NULL,	0,	'service',	1),
+(12,	'Beef Burger',	NULL,	40.00,	0.00,	'unit',	NULL,	1,	'service',	1),
+(13,	'Split Balance',	NULL,	0.00,	0.00,	'unit',	NULL,	0,	'service',	1),
+(14,	'Delivery',	NULL,	30.00,	0.00,	'unit',	NULL,	1,	'service',	0);
 
 DROP TABLE IF EXISTS `refund_requests`;
 CREATE TABLE `refund_requests` (
@@ -271,13 +287,16 @@ CREATE TABLE `sales` (
   `status` enum('completed','refund_requested','refunded','partially_refunded') DEFAULT 'completed',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `collected_by` varchar(100) DEFAULT NULL,
-  `payment_status` enum('paid','pending') DEFAULT 'paid',
+  `payment_status` enum('paid','pending','refunded') NOT NULL DEFAULT 'pending',
   `customer_name` varchar(100) DEFAULT 'Walk-in',
   `amount_tendered` decimal(10,2) DEFAULT '0.00',
   `change_due` decimal(10,2) DEFAULT '0.00',
   `member_id` int DEFAULT NULL,
   `points_earned` decimal(10,2) DEFAULT '0.00',
   `points_redeemed` decimal(10,2) DEFAULT '0.00',
+  `split_group_id` varchar(50) DEFAULT NULL,
+  `split_type` enum('none','item','even','custom') DEFAULT 'none',
+  `tip_amount` decimal(10,2) DEFAULT '0.00',
   PRIMARY KEY (`id`),
   KEY `location_id` (`location_id`),
   KEY `user_id` (`user_id`),
@@ -420,4 +439,4 @@ INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
 (2,	'Zambeef',	'Sales Rep',	NULL),
 (3,	'Tiger Animal Feeds',	'Mrs. Banda',	NULL);
 
--- 2026-02-09 19:46:26 UTC
+-- 2026-02-10 00:38:40 UTC
