@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS - <?= htmlspecialchars($locationName) ?></title>
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         .header-custom { background-color: #2c2c2c; border-bottom: 4px solid #ffc107; color: white; flex: 0 0 auto; z-index: 1050; }
@@ -106,7 +109,23 @@
                 <?php $tabPaid = $_SESSION['tab_paid'] ?? 0; $total = $total ?? 0; $balance = $total - $tabPaid; ?>
                 <?php if($tabPaid > 0): ?><div class="d-flex justify-content-between mb-1 small text-muted"><span>Subtotal:</span><span><?= number_format($total, 2) ?></span></div><div class="d-flex justify-content-between mb-2 small text-success fw-bold"><span>Already Paid:</span><span>-<?= number_format($tabPaid, 2) ?></span></div><?php endif; ?>
                 <div class="d-flex justify-content-between align-items-end mb-3"><span class="text-muted small fw-bold text-uppercase">Total Due</span><span class="fs-2 fw-bold text-dark lh-1">ZMW <?= number_format($balance, 2) ?></span></div>
-                <div class="d-grid gap-2 mb-3"><button class="btn w-100 py-3 btn-charge shadow" data-bs-toggle="modal" data-bs-target="#checkoutModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?> onclick="initCheckout()">CHARGE</button><div class="row g-2"><div class="col-6"><form method="POST" onsubmit="return confirm('Clear cart?');"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold">CLEAR</button></form></div><div class="col-6"><form method="POST" onsubmit="return confirm('Mark items as LOST/DAMAGED?');"><input type="hidden" name="log_waste" value="1"><button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></form></div></div></div>
+                <div class="d-grid gap-2 mb-3">
+                    <button class="btn w-100 py-3 btn-charge shadow" data-bs-toggle="modal" data-bs-target="#checkoutModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?> onclick="initCheckout()">CHARGE</button>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'This will empty the current order.')">
+                                <input type="hidden" name="clear_cart" value="1">
+                                <button class="btn btn-outline-danger w-100 btn-sm fw-bold">CLEAR</button>
+                            </form>
+                        </div>
+                        <div class="col-6">
+                            <form method="POST" onsubmit="confirmAction(event, 'Mark as Lost?', 'This will deduct items from inventory without revenue.', 'Yes, log waste')">
+                                <input type="hidden" name="log_waste" value="1">
+                                <button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
                 <div class="text-center">
                     <div class="d-flex gap-2">
                         <button class="btn btn-outline-primary flex-fill btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> OPEN TABS</button>
@@ -260,10 +279,55 @@
             let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="recall_tab" value="1"><input type="hidden" name="sale_id" value="${id}">`;
             document.body.appendChild(f); f.submit();
         }
+        
         function submitMerge() {
-            if(confirm("Merge selected tabs into one bill?")) document.getElementById('mergeForm').submit();
+            // Updated to use SweetAlert instead of native confirm
+            const form = document.getElementById('mergeForm');
+            const checkboxes = form.querySelectorAll('input[name="merge_ids[]"]:checked');
+            
+            if (checkboxes.length < 2) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Select Tabs',
+                    text: 'Please select at least 2 bills to merge.'
+                });
+                return;
+            }
+
+            Swal.fire({
+                title: 'Merge Bills?',
+                text: "This will combine " + checkboxes.length + " tabs into a single bill.",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#ffc107',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, Merge'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
         }
         
+        function confirmAction(event, title, text, confirmText = 'Yes, Proceed') {
+            event.preventDefault();
+            const form = event.target;
+            
+            Swal.fire({
+                title: title,
+                text: text,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: confirmText
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    form.submit();
+                }
+            });
+        }
+
         function showPickupModal() {
             document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1";
             new bootstrap.Modal(document.getElementById('pickupModal')).show();
@@ -293,15 +357,25 @@
             let tip = parseFloat(document.getElementById('tipInput').value) || 0;
             let diff = tendered - (currentTotal + tip);
             
+            // Logic to auto-update tendered if it matches previous total
+            if (tendered === currentTotal || (tendered < (currentTotal + tip) && tendered > 0)) {
+                 // Optional: Auto-update tendered to cover tip? 
+                 // Let's not force it, just let calc show negative balance
+            }
+
             let label = document.getElementById('resultLabel'); 
             let value = document.getElementById('resultValue'); 
             
             if(diff >= -0.01) { 
-                label.innerText = "CHANGE DUE"; label.className = "small fw-bold text-uppercase text-muted"; 
-                value.innerText = "ZMW " + diff.toFixed(2); value.className = "fs-4 fw-bold text-dark"; 
+                label.innerText = "CHANGE DUE"; 
+                label.className = "small fw-bold text-uppercase text-muted"; 
+                value.innerText = "ZMW " + diff.toFixed(2); 
+                value.className = "fs-4 fw-bold text-dark"; 
             } else { 
-                label.innerText = "BALANCE REMAINING"; label.className = "small fw-bold text-uppercase text-danger"; 
-                value.innerText = "ZMW " + Math.abs(diff).toFixed(2); value.className = "fs-4 fw-bold text-danger"; 
+                label.innerText = "BALANCE REMAINING"; 
+                label.className = "small fw-bold text-uppercase text-danger"; 
+                value.innerText = "ZMW " + Math.abs(diff).toFixed(2); 
+                value.className = "fs-4 fw-bold text-danger"; 
             } 
         }
         
@@ -402,7 +476,10 @@
         }
 
         function submitSplit() {
-            if (splitMode === 'item' && unassigned.length > 0) { alert("Please assign all items before finalizing."); return; }
+            if (splitMode === 'item' && unassigned.length > 0) { 
+                Swal.fire({ icon: 'warning', title: 'Unassigned Items', text: 'Please assign all items before finalizing.' });
+                return; 
+            }
             let payload = guests.map(g => {
                 let items = [];
                 let total = 0;
@@ -451,6 +528,17 @@
             <?php endif; ?>
         });
         function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; reportModal.show(); }
+        
+        // PHP SESSION FLASH HANDLER
+        <?php if(isset($_SESSION['swal_msg'])): ?>
+        Swal.fire({
+            icon: <?= json_encode($_SESSION['swal_type']) ?>,
+            title: <?= json_encode($_SESSION['swal_msg']) ?>,
+            showConfirmButton: false,
+            timer: 2000
+        });
+        <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
+        <?php endif; ?>
     </script>
 </body>
 </html>

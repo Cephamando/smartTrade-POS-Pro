@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>Reports & Analytics</title>
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
     <style>
         body { background-color: #f8f9fa; }
         .metric-card { border: none; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
@@ -36,11 +40,11 @@
         <input type="hidden" name="type" value="<?= htmlspecialchars($reportType) ?>">
         <div class="col-md-3">
             <label class="form-label small fw-bold">Start Date</label>
-            <input type="date" name="start" class="form-control" value="<?= $startDate ?>">
+            <input type="text" name="start" class="form-control datepicker" value="<?= $startDate ?>">
         </div>
         <div class="col-md-3">
             <label class="form-label small fw-bold">End Date</label>
-            <input type="date" name="end" class="form-control" value="<?= $endDate ?>">
+            <input type="text" name="end" class="form-control datepicker" value="<?= $endDate ?>">
         </div>
         <div class="col-md-3">
             <label class="form-label small fw-bold">Location</label>
@@ -140,7 +144,7 @@
                     <button onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= $row['id'] ?>')" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer"></i></button>
                     
                     <?php if(strtolower($row['payment_status']) == 'paid' && in_array($_SESSION['role'], ['admin', 'manager', 'dev'])): ?>
-                    <form method="POST" class="d-inline" onsubmit="return confirm('Refund Sale #<?= $row['id'] ?>? This will restore stock.');">
+                    <form method="POST" class="d-inline" onsubmit="confirmRefund(event)">
                         <input type="hidden" name="refund_sale" value="1">
                         <input type="hidden" name="sale_id" value="<?= $row['id'] ?>">
                         <button class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></button>
@@ -196,18 +200,41 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-function showReceiptModal(url) { document.getElementById('reportFrame').src = url; new bootstrap.Modal(document.getElementById('reportModal')).show(); }
+    // 1. Init Flatpickr
+    flatpickr(".datepicker", { dateFormat: "Y-m-d", allowInput: true });
 
-// SAFE PHP-TO-JS INJECTION (Fixes the syntax error)
-<?php if(isset($_SESSION['swal_msg'])): ?>
-Swal.fire({
-    icon: <?= json_encode($_SESSION['swal_type']) ?>,
-    title: <?= json_encode($_SESSION['swal_msg']) ?>,
-    showConfirmButton: false,
-    timer: 2000
-});
-<?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-<?php endif; ?>
+    // 2. Receipt Modal
+    function showReceiptModal(url) { document.getElementById('reportFrame').src = url; new bootstrap.Modal(document.getElementById('reportModal')).show(); }
+
+    // 3. SweetAlert Confirmation for Refunds
+    function confirmRefund(event) {
+        event.preventDefault();
+        const form = event.target;
+        Swal.fire({
+            title: 'Confirm Refund?',
+            text: "This will mark the sale as refunded and restore items to inventory.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, Refund it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    }
+
+    // 4. Session Flash Messages
+    <?php if(isset($_SESSION['swal_msg'])): ?>
+    Swal.fire({
+        icon: <?= json_encode($_SESSION['swal_type']) ?>,
+        title: <?= json_encode($_SESSION['swal_msg']) ?>,
+        showConfirmButton: false,
+        timer: 2000
+    });
+    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
+    <?php endif; ?>
 </script>
 </body>
 </html>
