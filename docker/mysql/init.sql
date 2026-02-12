@@ -256,6 +256,7 @@ CREATE TABLE `sale_items` (
   `cost_at_sale` decimal(10,2) DEFAULT '0.00',
   `status` enum('pending','cooking','ready','served') DEFAULT 'pending',
   `updated_at` timestamp NULL DEFAULT NULL,
+  `fulfillment_status` enum('collected','uncollected') DEFAULT 'collected',
   PRIMARY KEY (`id`),
   KEY `sale_id` (`sale_id`),
   KEY `product_id` (`product_id`),
@@ -315,6 +316,7 @@ CREATE TABLE `shifts` (
   `start_verified_at` timestamp NULL DEFAULT NULL,
   `end_verified_by` int DEFAULT NULL,
   `end_verified_at` timestamp NULL DEFAULT NULL,
+  `variance` decimal(10,2) DEFAULT '0.00',
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `location_id` (`location_id`),
@@ -426,13 +428,15 @@ CREATE TABLE `vendors` (
   `name` varchar(100) NOT NULL,
   `contact_person` varchar(100) DEFAULT NULL,
   `phone` varchar(50) DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT '1',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 TRUNCATE `vendors`;
-INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`) VALUES
-(1,	'Coca Cola Zambia',	'Mr. Phiri',	NULL),
-(2,	'Zambeef',	'Sales Rep',	NULL),
-(3,	'Tiger Animal Feeds',	'Mrs. Banda',	NULL);
+INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`, `is_active`) VALUES
+(1,	'Coca Cola Zambia',	'Mr. Phiri',	NULL,	1),
+(2,	'Zambeef',	'Sales Rep',	NULL,	1),
+(3,	'Tiger Animal Feeds',	'Mrs. Banda',	NULL,	1),
+(4,	'Shoprite',	'Maybin',	'12345678',	1);
 
--- 2026-02-10 11:32:48 UTC
+-- 2026-02-12 07:04:54 UTC
