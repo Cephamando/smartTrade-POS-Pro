@@ -442,14 +442,16 @@
             if (content) { container.innerHTML = content.innerHTML; container.className = "text-start"; }
         }
 
-        // --- NEW LOGIC: Move Rows & Close Tabs ---
+        // --- Move Rows & Close Tabs ---
         function markCollected(itemId, saleId) {
             fetch(window.location.href, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'mark_collected=1&item_id=' + itemId
-            }).then(r => r.json()).then(data => {
-                if(data.status === 'success') {
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
                     if (data.tab_completed) {
                         const tabLink = document.getElementById('tab-link-' + saleId);
                         if(tabLink) tabLink.remove();
@@ -458,14 +460,34 @@
                     } else {
                         const row = document.getElementById('item-row-' + itemId);
                         if (row) {
-                            row.remove(); 
+                            row.remove();
                             const pendTable = document.getElementById('pending-table-' + saleId);
                             if (pendTable.getElementsByTagName('tr').length === 0) { document.getElementById('pending-empty-' + saleId).style.display = 'block'; }
                             const histTable = document.getElementById('history-table-' + saleId).getElementsByTagName('tbody')[0];
                             const newRow = histTable.insertRow();
-                            newRow.innerHTML = `<td>${data.item.qty}x ${data.item.name}</td><td class="text-end"><i class="bi bi-check-all text-success"></i> Done</td><td class="text-end">${data.item.total}</td>`;
+                            newRow.innerHTML = `<td>${data.item?.name || 'Item'}</td><td class="text-end"><i class="bi bi-check-all text-success"></i> Done</td><td class="text-end"></td>`;
                         }
                     }
+                } 
+                else if (data.status === 'redirect_pickup') {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Collect at Pickup',
+                        text: data.msg,
+                        showCancelButton: true,
+                        confirmButtonText: 'Go to Pickup Screen'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = 'index.php?page=pickup';
+                        }
+                    });
+                }
+                else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Cannot Collect',
+                        text: data.msg
+                    });
                 }
             });
         }
