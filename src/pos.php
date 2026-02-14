@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_service'])) {
 }
 
 // --- 2. HANDLE ITEM COLLECTION (WORKFLOW ENFORCEMENT) ---
+// --- HANDLE ITEM COLLECTION (WORKFLOW ENFORCEMENT) ---
 if (isset($_POST['mark_collected'])) {
     $itemId = $_POST['item_id'];
     
@@ -42,26 +43,20 @@ if (isset($_POST['mark_collected'])) {
     $stmt->execute([$itemId]);
     $item = $stmt->fetch();
 
-    if (!$item) {
-        echo json_encode(['status'=>'error', 'msg'=>'Item not found']); exit;
-    }
-
-    // WORKFLOW LOGIC:
-    if ($item['type'] === 'item') {
-        // 1. If not ready in KDS, block collection
-        if ($item['kds_status'] !== 'ready' && $item['kds_status'] !== 'served') {
-            echo json_encode(['status'=>'error', 'msg'=>'🚫 Item is not ready in Kitchen yet.']); 
+    if ($item && $item['type'] === 'item') {
+        // 1. Block if still cooking
+        if ($item['kds_status'] === 'cooking' || $item['kds_status'] === 'pending') {
+            echo json_encode(['status'=>'error', 'msg'=>'🚫 Item is preparing in Kitchen.']); 
             exit;
         }
-        
-        // 2. If ready, force use of Pickup Screen
+        // 2. Redirect if Ready (Force Pickup Screen)
         if ($item['kds_status'] === 'ready') {
-            echo json_encode(['status'=>'redirect_pickup', 'msg'=>'⚠️ Item is READY. Please use the Pickup Screen to collect.']); 
+            echo json_encode(['status'=>'redirect_pickup', 'msg'=>'⚠️ Item is READY. Please collect at Pickup Screen.']); 
             exit;
         }
     }
 
-    // If Service OR already processed, mark collected
+    // Allow collection if it's a Service or bypassing workflow
     $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE id = ?")->execute([$itemId]);
     
     // Check Tab Completion
