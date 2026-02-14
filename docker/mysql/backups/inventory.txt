@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventory Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { background-color: #fff8e1; }
+        .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .value-badge { background: white; border: 1px solid #ddd; padding: 10px 20px; border-radius: 8px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .filter-card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .table-dark-custom { background-color: #212529; color: white; }
+    </style>
+</head>
+<body class="p-4">
+
+<div class="header-section">
+    <div>
+        <h3><i class="bi bi-boxes me-2"></i> Inventory Management</h3>
+        <div class="text-muted small">Manage products, stock levels, and suppliers.</div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-primary fw-bold shadow-sm" onclick="openProductModal()">
+            <i class="bi bi-plus-lg"></i> New Product
+        </button>
+        <a href="index.php?page=receive_stock" class="btn btn-success fw-bold shadow-sm">
+            <i class="bi bi-box-arrow-in-down"></i> Receive Stock
+        </a>
+        <a href="index.php?page=dashboard" class="btn btn-warning fw-bold shadow-sm">Dashboard</a>
+    </div>
+</div>
+
+<div class="d-flex mb-4">
+    <div class="value-badge text-uppercase text-muted small me-3">
+        Total Stock Value: <span class="text-success fs-5 ms-2">ZMW <?= number_format($totalStockValue, 2) ?></span>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-4 fw-bold" id="invTabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active text-dark" id="stock-tab" data-bs-toggle="tab" data-bs-target="#stock-view" type="button">Stock List</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link text-dark" id="vendor-tab" data-bs-toggle="tab" data-bs-target="#vendor-view" type="button">Vendors</button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    
+    <div class="tab-pane fade show active" id="stock-view" role="tabpanel">
+        
+        <div class="filter-card">
+            <form method="GET" action="index.php">
+                <input type="hidden" name="page" value="inventory">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Location</label>
+                        <select name="loc" class="form-select">
+                            <option value="">All Locations</option>
+                            <?php foreach($locations as $l): ?>
+                                <option value="<?= $l['id'] ?>" <?= ($locFilter == $l['id']) ? 'selected' : '' ?>><?= htmlspecialchars($l['name'] ?? '') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small">Category</label>
+                        <select name="cat" class="form-select">
+                            <option value="">All Categories</option>
+                            <?php foreach($categories as $c): ?>
+                                <option value="<?= $c['id'] ?>" <?= ($catFilter == $c['id']) ? 'selected' : '' ?>><?= htmlspecialchars($c['name'] ?? '') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small">Search</label>
+                        <input type="text" name="q" class="form-control" placeholder="Product name or SKU..." value="<?= htmlspecialchars($search) ?>">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-dark w-100 fw-bold"><i class="bi bi-filter"></i> Filter</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-dark-custom">
+                        <tr>
+                            <th class="ps-3 py-3">Product</th>
+                            <th>Category</th>
+                            <th>Location</th>
+                            <th>Stock Qty</th>
+                            <th>Selling Price</th>
+                            <th>Stock Value (Cost)</th>
+                            <th class="text-end pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if(empty($products)): ?>
+                            <tr><td colspan="7" class="text-center p-5 text-muted">No products found matching filters.</td></tr>
+                        <?php else: ?>
+                            <?php foreach($products as $p): 
+                                $stockVal = $p['stock_qty'] * $p['cost_price'];
+                            ?>
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="fw-bold"><?= htmlspecialchars($p['name'] ?? '') ?></div>
+                                    <small class="text-muted"><?= htmlspecialchars($p['sku'] ?? 'NO SKU') ?></small>
+                                </td>
+                                <td><span class="badge bg-secondary"><?= htmlspecialchars($p['category_name'] ?? 'None') ?></span></td>
+                                <td>
+                                    <?php if($locFilter): ?>
+                                        <?php foreach($locations as $l) { if($l['id'] == $locFilter) echo htmlspecialchars($l['name'] ?? ''); } ?>
+                                    <?php else: ?>
+                                        <span class="text-muted fst-italic">All Locations</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <span class="badge <?= $p['stock_qty'] > 10 ? 'bg-success' : ($p['stock_qty'] > 0 ? 'bg-warning' : 'bg-danger') ?> fs-6">
+                                        <?= number_format($p['stock_qty']) ?>
+                                    </span>
+                                </td>
+                                <td class="fw-bold text-primary">ZMW <?= number_format($p['price'], 2) ?></td>
+                                <td class="fw-bold">ZMW <?= number_format($stockVal, 2) ?></td>
+                                <td class="text-end pe-3">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick='editProduct(<?= json_encode($p) ?>)' title="Edit Product">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-dark" onclick="showHistory(<?= $p['id'] ?>)" title="View History">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="vendor-view" role="tabpanel">
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white fw-bold" id="vendorFormTitle">Add New Vendor</div>
+                    <div class="card-body">
+                        <form method="POST">
+                            <input type="hidden" name="save_vendor" value="1">
+                            <input type="hidden" name="vendor_id" id="v_id">
+                            <div class="mb-2"><label>Company Name</label><input type="text" name="name" id="v_name" class="form-control" required></div>
+                            <div class="mb-2"><label>Contact Person</label><input type="text" name="contact_person" id="v_contact" class="form-control"></div>
+                            <div class="mb-2"><label>Phone</label><input type="text" name="phone" id="v_phone" class="form-control"></div>
+                            <div class="mb-3"><label>Email</label><input type="email" name="email" id="v_email" class="form-control"></div>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary fw-bold" id="v_btn">Save Vendor</button>
+                                <button type="button" class="btn btn-light border d-none" id="v_cancel" onclick="resetVendorForm()">Cancel Edit</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light"><tr><th>Company</th><th>Contact</th><th>Phone</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                <?php foreach($vendors as $v): ?>
+                                <tr>
+                                    <td class="fw-bold"><?= htmlspecialchars($v['name'] ?? '') ?></td>
+                                    <td><?= htmlspecialchars($v['contact_person'] ?? '-') ?></td>
+                                    <td><?= htmlspecialchars($v['phone'] ?? '-') ?></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" onclick='editVendor(<?= json_encode($v) ?>)'><i class="bi bi-pencil"></i></button>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Delete this vendor?')">
+                                            <input type="hidden" name="delete_vendor" value="1">
+                                            <input type="hidden" name="vendor_id" value="<?= $v['id'] ?>">
+                                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal fade" id="prodModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white"><h5 class="modal-title" id="prodModalLabel">Product</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <form method="POST">
+                    <input type="hidden" name="save_product" value="1">
+                    <input type="hidden" name="product_id" id="p_id">
+                    <div class="mb-2"><label>Name</label><input type="text" name="name" id="p_name" class="form-control" required></div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6"><label>SKU</label><input type="text" name="sku" id="p_sku" class="form-control"></div>
+                        <div class="col-6"><label>Category</label><select name="category_id" id="p_cat" class="form-select"><?php foreach($categories as $c): ?><option value="<?= $c['id'] ?>"><?= $c['name'] ?></option><?php endforeach; ?></select></div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label>Selling Price</label><input type="number" step="0.01" name="price" id="p_price" class="form-control" required></div>
+                        <div class="col-6"><label>Cost Price</label><input type="number" step="0.01" name="cost" id="p_cost" class="form-control"></div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_open_price" id="p_open">
+                        <label class="form-check-label" for="p_open">Open Price (Service)?</label>
+                    </div>
+                    <button class="btn btn-primary w-100 fw-bold">Save Product</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tab') === 'vendors') {
+        new bootstrap.Tab(document.querySelector('#vendor-tab')).show();
+    }
+
+    // --- PRODUCT LOGIC ---
+    const pModal = new bootstrap.Modal(document.getElementById('prodModal'));
+    
+    function openProductModal() {
+        document.getElementById('p_id').value = ''; 
+        document.getElementById('p_name').value = '';
+        document.getElementById('p_sku').value = '';
+        document.getElementById('p_price').value = '';
+        document.getElementById('p_cost').value = '';
+        document.getElementById('p_open').checked = false;
+        document.getElementById('prodModalLabel').innerText = "Add New Product";
+        pModal.show();
+    }
+
+    function editProduct(p) {
+        document.getElementById('p_id').value = p.id; 
+        document.getElementById('p_name').value = p.name;
+        document.getElementById('p_sku').value = p.sku;
+        document.getElementById('p_price').value = p.price;
+        document.getElementById('p_cost').value = p.cost_price;
+        document.getElementById('p_cat').value = p.category_id;
+        document.getElementById('p_open').checked = p.is_open_price == 1;
+        document.getElementById('prodModalLabel').innerText = "Edit Product";
+        pModal.show();
+    }
+
+    function showHistory(pid) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Stock History',
+            text: 'Detailed stock movement history feature coming soon!'
+        });
+    }
+
+    // --- VENDOR LOGIC ---
+    function editVendor(v) {
+        document.getElementById('v_id').value = v.id;
+        document.getElementById('v_name').value = v.name;
+        document.getElementById('v_contact').value = v.contact_person;
+        document.getElementById('v_phone').value = v.phone;
+        document.getElementById('v_email').value = v.email;
+        document.getElementById('vendorFormTitle').innerText = "Edit Vendor";
+        document.getElementById('v_btn').innerText = "Update Vendor";
+        document.getElementById('v_btn').classList.replace('btn-primary', 'btn-warning');
+        document.getElementById('v_cancel').classList.remove('d-none');
+    }
+    
+    function resetVendorForm() {
+        document.getElementById('v_id').value = '';
+        document.getElementById('v_name').value = '';
+        document.getElementById('v_contact').value = '';
+        document.getElementById('v_phone').value = '';
+        document.getElementById('v_email').value = '';
+        document.getElementById('vendorFormTitle').innerText = "Add New Vendor";
+        document.getElementById('v_btn').innerText = "Save Vendor";
+        document.getElementById('v_btn').classList.replace('btn-warning', 'btn-primary');
+        document.getElementById('v_cancel').classList.add('d-none');
+    }
+
+    <?php if(isset($_SESSION['swal_msg'])): ?>
+    Swal.fire({
+        icon: <?= json_encode($_SESSION['swal_type']) ?>,
+        title: <?= json_encode($_SESSION['swal_msg']) ?>,
+        showConfirmButton: false, timer: 1500
+    });
+    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
+    <?php endif; ?>
+</script>
+</body>
+</html>

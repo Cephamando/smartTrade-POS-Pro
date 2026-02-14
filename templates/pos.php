@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS - <?= htmlspecialchars($locationName) ?></title>
-    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
     <style>
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         .header-custom { background-color: #2c2c2c; border-bottom: 4px solid #ffc107; color: white; flex: 0 0 auto; z-index: 1050; }
@@ -30,13 +29,16 @@
         .cart-header { padding: 15px; background: #3e2723; color: white; flex: 0 0 auto; }
         .cart-items { flex: 1; overflow-y: auto; padding: 15px; background: #f8f9fa; }
         .cart-footer { padding: 20px; background: #fff; border-top: 2px solid #eee; flex: 0 0 auto; }
-        .cart-item { background: white; border-radius: 6px; padding: 10px; margin-bottom: 10px; border: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .cart-item { background: white; border-radius: 6px; padding: 10px; margin-bottom: 10px; border: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; }
+        .btn-fulfillment { font-size: 0.7rem; font-weight: bold; text-transform: uppercase; padding: 2px 6px; }
+        .badge-uncollected { background: #fd7e14; color: white; cursor: pointer; }
+        .badge-collected { background: #198754; color: white; cursor: default; }
+        
         .btn-charge { background-color: #fd7e14 !important; border-color: #fd7e14 !important; color: #fff !important; font-size: 1.25rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(253, 126, 20, 0.3); }
         .btn-charge:hover { background-color: #e66b0d !important; }
         .btn-charge:disabled { background-color: #ccc !important; border-color: #ccc !important; box-shadow: none; cursor: not-allowed; }
-        @media (max-width: 991px) { .cart-panel { width: 340px; } }
-        @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: auto; max-height: 70px; transition: max-height 0.3s; border-top: 4px solid #3e2723; } .cart-panel.expanded { max-height: 80vh; } }
         
+        /* Drag & Drop Split Styling */
         .split-container { display: flex; height: 500px; gap: 15px; }
         .split-pool { flex: 1; background: #f8f9fa; border: 2px dashed #ccc; border-radius: 8px; padding: 10px; overflow-y: auto; }
         .split-guest-zone { flex: 2; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
@@ -46,6 +48,9 @@
         .guest-footer { padding: 10px; border-top: 1px solid #eee; background: #f1f1f1; border-radius: 0 0 8px 8px; }
         .draggable-item { background: white; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px; cursor: grab; font-size: 0.9rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .draggable-item:active { cursor: grabbing; opacity: 0.6; }
+
+        @media (max-width: 991px) { .cart-panel { width: 340px; } }
+        @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: auto; max-height: 70px; transition: max-height 0.3s; border-top: 4px solid #3e2723; } .cart-panel.expanded { max-height: 80vh; } }
     </style>
 </head>
 <body>
@@ -78,8 +83,12 @@
             <?php endif; ?>
             <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#membersModal"><i class="bi bi-person-lines-fill"></i></button>
             <button class="btn btn-outline-warning btn-sm fw-bold" onclick="showPickupModal()"><i class="bi bi-bag-check"></i> Pickup</button>
-            <button class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
-            <?php if ($activeShiftId): ?><button class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button><?php else: ?><span class="badge bg-secondary">LOCKED</span><?php endif; ?>
+            <button class="btn btn-outline-light btn-sm" onclick="new bootstrap.Modal(document.getElementById('tabsModal')).show()"><i class="bi bi-receipt"></i> Tabs</button>
+            <?php if ($activeShiftId): ?>
+                <button class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
+            <?php else: ?>
+                <span class="badge bg-secondary">LOCKED</span>
+            <?php endif; ?>
             <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm"><i class="bi bi-house"></i></a>
         </div>
     </div>
@@ -104,84 +113,214 @@
 
         <div class="cart-panel" id="cartPanel">
             <div class="cart-header d-flex justify-content-between align-items-center"><h5 class="m-0 fw-bold"><i class="bi bi-basket3-fill"></i> Order</h5><button class="btn btn-sm btn-outline-light d-md-none" onclick="toggleCart()">Hide</button></div>
-            <div class="cart-items"><?php if (empty($_SESSION['cart'])): ?><div class="text-center mt-5 text-muted"><i class="bi bi-cart-x display-1 opacity-25"></i><p class="mt-3 fw-bold">Cart is empty</p></div><?php else: foreach ($_SESSION['cart'] as $pid => $item): ?><div class="cart-item"><div class="me-2 overflow-hidden"><div class="fw-bold text-truncate"><?= htmlspecialchars($item['name']) ?> <span class="badge bg-secondary text-white" style="font-size:0.6em;"><?= isset($item['type']) && $item['type'] == 'service' ? 'SVC' : '' ?></span></div><div class="text-muted small">@ ZMW <?= number_format($item['price'], 2) ?></div></div><div class="d-flex align-items-center bg-light rounded border"><form method="POST" class="d-flex m-0"><input type="hidden" name="product_id" value="<?= $pid ?>"><input type="hidden" name="update_qty" value="1"><button name="action" value="dec" class="btn btn-sm text-danger px-2 fw-bold border-end hover-bg">-</button><span class="px-2 fw-bold" style="min-width:30px; text-align:center; line-height:30px;"><?= $item['qty'] ?></span><button name="action" value="inc" class="btn btn-sm text-success px-2 fw-bold border-start hover-bg">+</button></form></div></div><?php endforeach; endif; ?></div>
+            <div class="cart-items">
+                <?php if (empty($_SESSION['cart'])): ?><div class="text-center mt-5 text-muted"><i class="bi bi-cart-x display-1 opacity-25"></i><p class="mt-3 fw-bold">Cart is empty</p></div><?php else: foreach ($_SESSION['cart'] as $pid => $item): ?>
+                <div class="cart-item">
+                    <div class="flex-grow-1 me-2 overflow-hidden">
+                        <div class="fw-bold text-truncate"><?= htmlspecialchars($item['name']) ?> <span class="badge bg-secondary text-white" style="font-size:0.6em;"><?= isset($item['type']) && $item['type'] == 'service' ? 'SVC' : '' ?></span></div>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <small class="text-muted">@ ZMW <?= number_format($item['price'], 2) ?></small>
+                            <form method="POST" class="d-inline">
+                                <input type="hidden" name="toggle_fulfillment" value="1"><input type="hidden" name="product_id" value="<?= $pid ?>">
+                                <button class="btn btn-sm btn-fulfillment <?= ($item['fulfillment']??'collected')=='collected'?'btn-outline-success':'btn-warning' ?>" title="Toggle: Collected / Later">
+                                    <?= ($item['fulfillment']??'collected')=='collected' ? '<i class="bi bi-check-circle"></i> Got It' : '<i class="bi bi-clock"></i> Later' ?>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center bg-light rounded border"><form method="POST" class="d-flex m-0"><input type="hidden" name="product_id" value="<?= $pid ?>"><input type="hidden" name="update_qty" value="1"><button name="action" value="dec" class="btn btn-sm text-danger px-2 fw-bold border-end hover-bg">-</button><span class="px-2 fw-bold" style="min-width:30px; text-align:center; line-height:30px;"><?= $item['qty'] ?></span><button name="action" value="inc" class="btn btn-sm text-success px-2 fw-bold border-start hover-bg">+</button></form></div>
+                </div>
+                <?php endforeach; endif; ?>
+            </div>
             <div class="cart-footer">
                 <?php $tabPaid = $_SESSION['tab_paid'] ?? 0; $total = $total ?? 0; $balance = $total - $tabPaid; ?>
                 <?php if($tabPaid > 0): ?><div class="d-flex justify-content-between mb-1 small text-muted"><span>Subtotal:</span><span><?= number_format($total, 2) ?></span></div><div class="d-flex justify-content-between mb-2 small text-success fw-bold"><span>Already Paid:</span><span>-<?= number_format($tabPaid, 2) ?></span></div><?php endif; ?>
                 <div class="d-flex justify-content-between align-items-end mb-3"><span class="text-muted small fw-bold text-uppercase">Total Due</span><span class="fs-2 fw-bold text-dark lh-1">ZMW <?= number_format($balance, 2) ?></span></div>
                 <div class="d-grid gap-2 mb-3">
                     <button class="btn w-100 py-3 btn-charge shadow" data-bs-toggle="modal" data-bs-target="#checkoutModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?> onclick="initCheckout()">CHARGE</button>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'This will empty the current order.')">
-                                <input type="hidden" name="clear_cart" value="1">
-                                <button class="btn btn-outline-danger w-100 btn-sm fw-bold">CLEAR</button>
-                            </form>
-                        </div>
-                        <div class="col-6">
-                            <form method="POST" onsubmit="confirmAction(event, 'Mark as Lost?', 'This will deduct items from inventory without revenue.', 'Yes, log waste')">
-                                <input type="hidden" name="log_waste" value="1">
-                                <button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button>
-                            </form>
-                        </div>
+                    <div class="btn-group w-100">
+                        <button class="btn btn-warning fw-bold py-2" onclick="openAddToTabModal()" <?= empty($_SESSION['cart'])?'disabled':'' ?>><i class="bi bi-plus-circle"></i> ADD TO TAB</button>
+                        <button class="btn btn-outline-dark fw-bold py-2" onclick="openSplitModal()" <?= empty($_SESSION['cart'])?'disabled':'' ?>><i class="bi bi-layout-split"></i> SPLIT</button>
                     </div>
-                </div>
-                <div class="text-center">
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary flex-fill btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> OPEN TABS</button>
-                        <button class="btn btn-outline-dark flex-fill btn-sm fw-bold" onclick="openSplitModal()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>><i class="bi bi-layout-split"></i> SPLIT BILL</button>
+                    <div class="row g-2">
+                        <div class="col-6"><form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'This will empty the order.')"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold">CLEAR</button></form></div>
+                        <div class="col-6"><form method="POST" onsubmit="confirmAction(event, 'Log Waste?', 'Items will be deducted from stock as lost.', 'Yes, Log Waste')"><input type="hidden" name="log_waste" value="1"><button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></form></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="modal fade" id="tabsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content border-0">
-                <div class="modal-header bg-dark text-white d-flex justify-content-between">
-                    <div><h5 class="modal-title"><i class="bi bi-receipt me-2"></i> Open Tabs</h5></div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-0">
-                    <form method="POST" id="mergeForm">
-                    <input type="hidden" name="merge_bills" value="1">
-                    <div class="table-responsive">
-                        <table class="table table-striped mb-0 align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th class="ps-3" style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllTabs" onclick="toggleAllTabs(this)"></th>
-                                    <th>Time</th>
-                                    <th>Customer</th>
-                                    <th>Total</th>
-                                    <th>Paid</th>
-                                    <th class="text-end pe-4">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if(empty($openTabs)): ?>
-                                    <tr><td colspan="6" class="text-center p-5 text-muted">No open tabs found.</td></tr>
-                                <?php endif; ?>
-                                <?php foreach($openTabs as $t): ?>
-                                    <tr>
-                                        <td class="ps-3"><input type="checkbox" name="merge_ids[]" value="<?= $t['id'] ?>" class="form-check-input tab-check"></td>
-                                        <td class="text-muted small"><?= date('H:i', strtotime($t['created_at'])) ?></td>
-                                        <td class="fw-bold text-dark"><?= htmlspecialchars($t['customer_name']) ?></td>
-                                        <td class="fw-bold text-danger">ZMW <?= number_format($t['final_total'], 2) ?></td>
-                                        <td class="text-success">ZMW <?= number_format($t['amount_tendered'], 2) ?></td>
-                                        <td class="text-end pe-4">
-                                            <button type="button" class="btn btn-primary btn-sm fw-bold px-3 shadow-sm" onclick="recallSingle(<?= $t['id'] ?>)">PAY / EDIT</button>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
+    <div class="modal fade" id="addToTabModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Add to Tab</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">Select an active tab to append items, or create a new one.</p>
+                    <form method="POST" id="addToTabForm">
+                        <input type="hidden" name="add_to_tab_action" value="1">
+                        <div class="list-group mb-3" style="max-height: 200px; overflow-y: auto;">
+                            <label class="list-group-item list-group-item-action active" onclick="toggleTabInput(true)">
+                                <input class="form-check-input me-1" type="radio" name="target_tab_id" value="new" checked>
+                                <i class="bi bi-star-fill me-2"></i> Create New Tab
+                            </label>
+                            
+                            <?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?>
+                            <label class="list-group-item list-group-item-action" onclick="toggleTabInput(false)">
+                                <input class="form-check-input me-1" type="radio" name="target_tab_id" value="<?= $t['id'] ?>">
+                                <strong><?= htmlspecialchars($t['customer_name']) ?></strong> 
+                                <span class="float-end text-muted small">ZMW <?= number_format($t['final_total'],2) ?></span>
+                            </label>
+                            <?php endif; endforeach; ?>
+                        </div>
+                        
+                        <div id="newTabInputDiv">
+                            <label class="form-label fw-bold">Customer Name / Table</label>
+                            <input type="text" name="tab_customer_name" class="form-control" placeholder="e.g., Table 5 or John Doe">
+                        </div>
+                        <button class="btn btn-warning w-100 fw-bold mt-3">CONFIRM & ADD</button>
                     </form>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-warning fw-bold" onclick="submitMerge()">Merge Selected</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="endShiftModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold">End Shift</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="index.php?page=end_shift_action" method="POST">
+                    <div class="modal-body p-4">
+                        <div class="alert alert-light border text-center mb-4">
+                            <small class="text-uppercase fw-bold text-muted">Expected Cash</small>
+                            <div class="h2 fw-bold text-dark m-0">ZMW <?= number_format($expectedShiftCash ?? 0, 2) ?></div>
+                        </div>
+                        <label class="fw-bold small text-muted">ACTUAL CLOSING CASH</label>
+                        <div class="input-group input-group-lg mb-3">
+                            <span class="input-group-text fw-bold">ZMW</span>
+                            <input type="number" step="0.01" name="closing_cash" class="form-control fw-bold text-primary" required value="<?= $expectedShiftCash ?>">
+                        </div>
+                        <label class="fw-bold small text-muted">VARIANCE REASON</label>
+                        <textarea name="variance_reason" class="form-control mb-3" placeholder="Explain any difference..."></textarea>
+                        
+                        <label class="fw-bold small text-danger mt-2">MANAGER PASSWORD</label>
+                        <input type="password" name="manager_password" class="form-control" required placeholder="Required for verification">
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow">CLOSE SHIFT</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="tabsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content h-100">
+                <div class="modal-header bg-dark text-white"><h5 class="modal-title">Active Tabs & Collections</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body bg-light p-0">
+                    <div class="row g-0 h-100">
+                        <div class="col-4 border-end bg-white overflow-auto" style="max-height: 70vh;">
+                            <div class="list-group list-group-flush" id="tabsListGroup">
+                                <form method="POST" id="mergeForm">
+                                <input type="hidden" name="merge_bills" value="1">
+                                <?php foreach($openTabs as $t): 
+                                    $isPaid = ($t['payment_status'] === 'paid');
+                                    $bgClass = $isPaid ? 'border-start border-5 border-success bg-light' : 'border-start border-5 border-warning';
+                                ?>
+                                <div id="tab-link-<?= $t['id'] ?>" class="list-group-item list-group-item-action <?= $bgClass ?> p-3" onclick="showTabDetails(<?= $t['id'] ?>)">
+                                    <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                                        <div class="d-flex align-items-center">
+                                            <?php if(!$isPaid): ?>
+                                                <input type="checkbox" name="merge_ids[]" value="<?= $t['id'] ?>" class="form-check-input me-2" onclick="event.stopPropagation()">
+                                            <?php endif; ?>
+                                            <h6 class="mb-0 fw-bold"><?= htmlspecialchars($t['customer_name']) ?></h6>
+                                        </div>
+                                        <?php if($isPaid): ?>
+                                            <span class="badge bg-success">PAID</span>
+                                        <?php else: ?>
+                                            <small class="text-danger fw-bold">ZMW <?= number_format($t['final_total'], 2) ?></small>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted"><?= date('H:i', strtotime($t['created_at'])) ?> &bull; #<?= $t['id'] ?></small>
+                                        <?php if($t['uncollected_count'] > 0): ?>
+                                            <span class="badge bg-warning text-dark" style="font-size:0.7rem"><i class="bi bi-basket"></i> <?= $t['uncollected_count'] ?> Pending</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                                </form>
+                            </div>
+                            <div class="p-2 border-top text-center">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="submitMerge()">Merge Selected (Unpaid Only)</button>
+                            </div>
+                        </div>
+                        <div class="col-8 p-3 overflow-auto" style="max-height: 70vh;">
+                            <div id="tabDetailContainer" class="text-center text-muted mt-5">
+                                <i class="bi bi-arrow-left-circle fs-1"></i><p>Select a tab to view details.</p>
+                            </div>
+                            <?php foreach($tabItems as $tid => $items): 
+                                $thisTab = array_filter($openTabs, fn($x) => $x['id'] == $tid);
+                                $thisTab = reset($thisTab);
+                                $isPaid = ($thisTab['payment_status'] === 'paid');
+                                
+                                $pendingItems = array_filter($items, fn($i) => $i['fulfillment_status'] == 'uncollected' || !$isPaid);
+                                $completedItems = array_filter($items, fn($i) => $i['fulfillment_status'] == 'collected' && $isPaid);
+                            ?>
+                            <div id="tab-data-<?= $tid ?>" class="d-none">
+                                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                                    <h5 class="fw-bold m-0"><?= htmlspecialchars($thisTab['customer_name']) ?></h5>
+                                    <?php if($isPaid): ?><span class="badge bg-success">PAID</span><?php else: ?><span class="badge bg-warning text-dark">UNPAID</span><?php endif; ?>
+                                </div>
+
+                                <h6 class="text-muted text-uppercase small fw-bold mt-3">Pending Actions</h6>
+                                <table class="table table-sm align-middle mb-0" id="pending-table-<?= $tid ?>">
+                                    <tbody>
+                                    <?php foreach($pendingItems as $i): ?>
+                                    <tr id="item-row-<?= $i['id'] ?>">
+                                        <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></td>
+                                        <td class="text-end">
+                                            <span class="badge badge-uncollected" onclick="markCollected(<?= $i['id'] ?>, <?= $tid ?>)">
+                                                <?= $i['fulfillment_status'] == 'uncollected' ? 'UNCOLLECTED' : 'COLLECTED (Unpaid)' ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-end fw-bold"><?= number_format($i['price_at_sale']*$i['quantity'], 2) ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                                
+                                <?php if(empty($pendingItems)): ?><div class="text-center p-2 text-muted small border rounded bg-white" id="pending-empty-<?= $tid ?>">Nothing pending.</div><?php endif; ?>
+
+                                <?php if(!$isPaid): ?>
+                                    <div class="mt-3 text-end">
+                                        <form method="POST" class="d-inline">
+                                            <input type="hidden" name="recall_tab" value="1"><input type="hidden" name="sale_id" value="<?= $tid ?>">
+                                            <button class="btn btn-primary fw-bold w-100 py-2">PAY / ADD ITEMS</button>
+                                        </form>
+                                    </div>
+                                <?php endif; ?>
+
+                                <h6 class="text-muted text-uppercase small fw-bold mt-4 border-top pt-3">Completed History</h6>
+                                <table class="table table-sm align-middle text-muted" style="font-size:0.9em;" id="history-table-<?= $tid ?>">
+                                    <tbody>
+                                    <?php foreach($completedItems as $i): ?>
+                                    <tr>
+                                        <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></td>
+                                        <td class="text-end"><i class="bi bi-check-all text-success"></i> Done</td>
+                                        <td class="text-end"><?= number_format($i['price_at_sale']*$i['quantity'], 2) ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -190,23 +329,12 @@
     <div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content h-100">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-bag-check-fill"></i> Orders Ready for Pickup</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-0" style="height: 80vh;">
-                    <iframe id="pickupFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
+                <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-bag-check-fill"></i> Orders Ready for Pickup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-0" style="height: 80vh;"><iframe id="pickupFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
             </div>
         </div>
     </div>
-
-    <div class="modal fade" id="splitInvoiceModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-success text-white"><h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i> Split Transaction Complete</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-0"><div class="p-4 text-center border-bottom bg-white"><h6 class="text-muted text-uppercase small fw-bold">Master Transaction Group</h6><div class="fs-4 fw-bold text-dark"><?php $grpTotal = 0; $grpId = ''; if(!empty($lastSplitGroup)) $grpId = $lastSplitGroup[0]['split_group_id']; foreach($lastSplitGroup as $s) $grpTotal += $s['final_total']; echo "Total: ZMW " . number_format($grpTotal, 2); ?></div><div class="mt-3"><button class="btn btn-dark fw-bold" onclick="showMasterReceipt('<?= $grpId ?>')"><i class="bi bi-printer-fill me-2"></i> Print Master Summary</button></div></div><div class="list-group list-group-flush"><?php foreach($lastSplitGroup as $idx => $s): ?><div class="list-group-item d-flex justify-content-between align-items-center p-3"><div class="d-flex align-items-center"><span class="badge bg-secondary me-3 rounded-circle" style="width:30px;height:30px;line-height:22px;"><?= $idx+1 ?></span><div><div class="fw-bold"><?= htmlspecialchars($s['customer_name']) ?></div><small class="text-muted"><?= htmlspecialchars($s['payment_method']) ?> • <?= ucfirst($s['payment_status']) ?></small></div></div><div class="text-end"><div class="fw-bold mb-1">ZMW <?= number_format($s['final_total'], 2) ?></div><div class="btn-group"><button class="btn btn-sm btn-outline-primary fw-bold" onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= $s['id'] ?>')"><i class="bi bi-printer"></i> Receipt</button><?php if($s['payment_status'] == 'pending'): ?><button type="button" class="btn btn-sm btn-warning fw-bold text-dark" onclick="recallSingle(<?= $s['id'] ?>)"><i class="bi bi-credit-card"></i> Pay</button><?php endif; ?></div></div></div><?php endforeach; ?></div></div><div class="modal-footer bg-light"><button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Close & New Order</button></div></div></div></div>
-    
-    <div class="modal fade" id="splitBillModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header bg-dark text-white d-flex justify-content-between"><div><h5 class="modal-title"><i class="bi bi-layout-split me-2"></i> Split Bill</h5><small class="text-muted" id="splitTotalDisplay">Total: ZMW 0.00</small></div><div><div class="btn-group me-3"><button class="btn btn-sm btn-outline-light active" id="btnSplitItem" onclick="setSplitMode('item')">By Item</button><button class="btn btn-sm btn-outline-light" id="btnSplitEven" onclick="setSplitMode('even')">Split Evenly</button></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div></div><div class="modal-body bg-light"><div class="split-container"><div class="split-pool" id="unassignedPool" ondrop="drop(event)" ondragover="allowDrop(event)"><h6 class="text-muted fw-bold text-center mb-3">Unassigned Items</h6></div><div class="split-guest-zone" id="guestZone"></div><button class="btn btn-outline-primary" style="height: 50px; align-self: center;" onclick="addGuest()"><i class="bi bi-plus-lg"></i></button></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><form method="POST" id="splitForm"><input type="hidden" name="finalize_split" value="1"><input type="hidden" name="split_type" id="splitTypeInput" value="item"><input type="hidden" name="split_data" id="splitDataInput"><button type="button" class="btn btn-success fw-bold px-4" onclick="submitSplit()">FINALIZE & PAY</button></form></div></div></div></div>
 
     <div class="modal fade" id="checkoutModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
@@ -215,7 +343,13 @@
                 <form method="POST">
                     <div class="modal-body">
                         <input type="hidden" name="checkout" value="1">
-                        <?php if(isset($_SESSION['pos_member'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
+                        
+                        <?php if(isset($_SESSION['pos_member'])): ?>
+                        <div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm">
+                            <div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div>
+                        </div>
+                        <?php endif; ?>
                         
                         <div class="text-center mb-4">
                             <small class="text-muted text-uppercase fw-bold">Amount To Pay</small>
@@ -232,9 +366,37 @@
                         </div>
 
                         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
-                        <div class="btn-group w-100 mb-3" role="group"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-                        <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><option value="Pending">Put on Tab</option></select></div></div>
-                        <div id="splitSection" style="display:none;"><div class="row g-2 mb-2"><div class="col-5"><select name="method_1" class="form-select fw-bold"><option value="Cash">Cash</option><option value="Card">Card</option><option value="MTN Money">MTN</option><option value="Airtel Money">Airtel</option></select></div><div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div></div><div class="row g-2 mb-3"><div class="col-5"><select name="method_2" class="form-select fw-bold"><option value="Card" selected>Card</option><option value="Cash">Cash</option><option value="MTN Money">MTN</option><option value="Airtel Money">Airtel</option></select></div><div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div></div></div>
+                        
+                        <div class="btn-group w-100 mb-3" role="group">
+                            <input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()">
+                            <label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label>
+                            <input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()">
+                            <label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label>
+                        </div>
+                        
+                        <div id="singleSection">
+                            <div class="mb-3">
+                                <select name="payment_method" class="form-select form-select-lg fw-bold">
+                                    <option value="Cash" selected>Cash</option>
+                                    <option value="Card">Card</option>
+                                    <option value="MTN Money">MTN Money</option>
+                                    <option value="Airtel Money">Airtel Money</option>
+                                    <option value="Zamtel Money">Zamtel Money</option>
+                                    <option value="Pending">Put on Tab</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="splitSection" style="display:none;">
+                            <div class="row g-2 mb-2">
+                                <div class="col-5"><select name="method_1" class="form-select fw-bold"><option value="Cash">Cash</option><option value="Card">Card</option><option value="MTN Money">MTN</option></select></div>
+                                <div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-5"><select name="method_2" class="form-select fw-bold"><option value="Card" selected>Card</option><option value="Cash">Cash</option><option value="Airtel Money">Airtel</option></select></div>
+                                <div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div>
+                            </div>
+                        </div>
                         
                         <div class="card bg-light border-0 p-3 mt-3">
                             <label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label>
@@ -254,131 +416,89 @@
         </div>
     </div>
 
+    <div class="modal fade" id="splitBillModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header bg-dark text-white d-flex justify-content-between"><div><h5 class="modal-title"><i class="bi bi-layout-split me-2"></i> Split Bill</h5><small class="text-muted" id="splitTotalDisplay">Total: ZMW 0.00</small></div><div><div class="btn-group me-3"><button class="btn btn-sm btn-outline-light active" id="btnSplitItem" onclick="setSplitMode('item')">By Item</button><button class="btn btn-sm btn-outline-light" id="btnSplitEven" onclick="setSplitMode('even')">Split Evenly</button></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div></div><div class="modal-body bg-light"><div class="split-container"><div class="split-pool" id="unassignedPool" ondrop="drop(event)" ondragover="allowDrop(event)"><h6 class="text-muted fw-bold text-center mb-3">Unassigned Items</h6></div><div class="split-guest-zone" id="guestZone"></div><button class="btn btn-outline-primary" style="height: 50px; align-self: center;" onclick="addGuest()"><i class="bi bi-plus-lg"></i></button></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><form method="POST" id="splitForm"><input type="hidden" name="finalize_split" value="1"><input type="hidden" name="split_type" id="splitTypeInput" value="item"><input type="hidden" name="split_data" id="splitDataInput"><button type="button" class="btn btn-success fw-bold px-4" onclick="submitSplit()">FINALIZE & PAY</button></form></div></div></div></div>
+
     <div class="modal fade" id="serviceManagerModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title"><i class="bi bi-stars text-warning"></i> Manage Services</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><form method="POST" class="row g-2 mb-4 bg-light p-3 rounded border"><input type="hidden" name="save_service" value="1"><div class="col-md-5"><input type="text" name="name" class="form-control" placeholder="Service Name" required></div><div class="col-md-3"><input type="number" step="0.01" name="price" class="form-control" placeholder="Default Price" required></div><div class="col-md-2 d-flex align-items-center"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_open_price" value="1" id="isOpen"><label class="form-check-label small" for="isOpen">Adjustable?</label></div></div><div class="col-md-2"><button class="btn btn-success w-100 fw-bold">Add New</button></div></form><div class="table-responsive"><table class="table table-hover align-middle"><thead class="table-secondary"><tr><th>Name</th><th>Price</th><th>Type</th><th>Action</th></tr></thead><tbody><?php foreach($services as $s): ?><tr><td class="fw-bold"><?= htmlspecialchars($s['name']) ?></td><td><?= $s['is_open_price'] ? 'Adj.' : number_format($s['price'], 2) ?></td><td>Svc</td><td><form method="POST" onsubmit="return confirm('Delete?');"><input type="hidden" name="delete_service" value="1"><input type="hidden" name="service_id" value="<?= $s['id'] ?>"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td></tr><?php endforeach; ?></tbody></table></div></div></div></div></div>
     <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Enter Amount</h5></div><div class="modal-body"><form method="POST" id="openPriceForm"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><div class="mb-3"><label id="op_name" class="form-label fw-bold"></label><input type="number" step="0.01" name="custom_price" class="form-control form-control-lg fw-bold text-center" autofocus required></div><button class="btn btn-primary w-100 fw-bold">Add to Cart</button></form></div></div></div></div>
     <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg"><div class="modal-header bg-dark text-white"><h5 class="modal-title">Switch Station</h5></div><div class="modal-body bg-light"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm d-flex justify-content-between align-items-center hover-shadow"><?= htmlspecialchars($loc['name']) ?> <i class="bi bi-chevron-right text-muted"></i></button><?php endforeach; ?></form></div></div></div></div>
     <div class="modal fade" id="membersModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title"><i class="bi bi-people-fill"></i> Select Member</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" id="memberSearch" class="form-control mb-3" placeholder="Search members..." onkeyup="filterMembers()"><div style="max-height: 400px; overflow-y: auto;"><ul class="list-group" id="membersList"><?php foreach($members as $m): ?><li class="list-group-item d-flex justify-content-between align-items-center member-item" data-search="<?= strtolower($m['name'] . ' ' . $m['phone']) ?>"><div><div class="fw-bold"><?= htmlspecialchars($m['name']) ?></div><small class="text-muted"><?= htmlspecialchars($m['phone']) ?></small></div><form method="POST"><input type="hidden" name="select_member" value="1"><input type="hidden" name="member_id" value="<?= $m['id'] ?>"><input type="hidden" name="member_name" value="<?= htmlspecialchars($m['name']) ?>"><input type="hidden" name="member_phone" value="<?= htmlspecialchars($m['phone']) ?>"><button class="btn btn-sm btn-primary">Select</button></form></li><?php endforeach; ?></ul></div></div></div></div></div>
-    <div class="modal fade" id="endShiftModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">End Shift</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="index.php?page=end_shift_action" method="POST"><div class="modal-body p-4"><div class="alert alert-light border text-center mb-4"><small class="text-uppercase fw-bold text-muted">Expected Cash</small><div class="h2 fw-bold text-dark m-0">ZMW <?= number_format($expectedShiftCash ?? 0, 2) ?></div></div><label class="fw-bold small text-muted">ACTUAL CLOSING CASH</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="closing_cash" class="form-control fw-bold text-primary" required value="<?= $expectedShiftCash ?>"></div><label class="fw-bold small text-muted">VARIANCE REASON</label><textarea name="variance_reason" class="form-control mb-3" placeholder="Explain any difference..."></textarea><label class="fw-bold small text-danger mt-2">MANAGER PASSWORD</label><input type="password" name="manager_password" class="form-control" required placeholder="Required for verification"></div><div class="modal-footer border-0"><button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow">CLOSE SHIFT</button></div></form></div></div></div>
     <div class="modal fade" id="reportModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 1080;"><div class="modal-dialog modal-xl"><div class="modal-content h-100 border-0 shadow-lg"><div class="modal-header bg-info text-white"><h5 class="modal-title fw-bold" id="reportTitle"><i class="bi bi-file-text me-2"></i> Shift Report</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-0" style="height: 80vh; background: #525659;"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer bg-light"><button type="button" class="btn btn-secondary px-4 fw-bold" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary px-4 fw-bold shadow-sm" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer me-2"></i> Print</button></div></div></div></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function filterCat(id, btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); if(id==='services'){switchTab('services', btn);}else{switchTab('items', btn); document.querySelectorAll('.item').forEach(e=>{ e.style.display = (id=='all'||e.dataset.cat==id)?'block':'none'; });} }
+        function filterCat(id, btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); switchTab('items', btn); document.querySelectorAll('.item').forEach(e=>{ e.style.display = (id=='all'||e.dataset.cat==id)?'block':'none'; }); }
         function filter() { let v=document.getElementById('search').value.toLowerCase(); document.querySelectorAll('.item').forEach(e=>{ e.style.display = e.dataset.name.includes(v)?'block':'none'; }); }
         function filterMembers() { let v=document.getElementById('memberSearch').value.toLowerCase(); document.querySelectorAll('.member-item').forEach(e=>{ e.style.display = e.dataset.search.includes(v)?'flex':'none'; }); }
         function toggleCart() { document.getElementById('cartPanel').classList.toggle('expanded'); }
         function switchTab(tab, btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); if (tab === 'services') { document.getElementById('items-grid').style.display = 'none'; document.getElementById('services-grid').style.display = 'flex'; } else { document.getElementById('items-grid').style.display = 'flex'; document.getElementById('services-grid').style.display = 'none'; } }
         function addService(id, name, price, isOpen) { if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; new bootstrap.Modal(document.getElementById('openPriceModal')).show(); } else { let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${id}">`; document.body.appendChild(f); f.submit(); } }
         
-        // --- JS FUNCTIONS FOR MODALS & TABS ---
-        function toggleAllTabs(source) {
-            checkboxes = document.getElementsByClassName('tab-check');
-            for(var i=0, n=checkboxes.length;i<n;i++) { checkboxes[i].checked = source.checked; }
-        }
-        function recallSingle(id) {
-            let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="recall_tab" value="1"><input type="hidden" name="sale_id" value="${id}">`;
-            document.body.appendChild(f); f.submit();
-        }
-        
-        function submitMerge() {
-            // Updated to use SweetAlert instead of native confirm
-            const form = document.getElementById('mergeForm');
-            const checkboxes = form.querySelectorAll('input[name="merge_ids[]"]:checked');
-            
-            if (checkboxes.length < 2) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Select Tabs',
-                    text: 'Please select at least 2 bills to merge.'
-                });
-                return;
-            }
+        function openAddToTabModal() { new bootstrap.Modal(document.getElementById('addToTabModal')).show(); }
+        function toggleTabInput(isNew) { document.getElementById('newTabInputDiv').style.display = isNew ? 'block' : 'none'; }
 
-            Swal.fire({
-                title: 'Merge Bills?',
-                text: "This will combine " + checkboxes.length + " tabs into a single bill.",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#ffc107',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, Merge'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    form.submit();
+        function showTabDetails(id) {
+            const container = document.getElementById('tabDetailContainer');
+            const content = document.getElementById('tab-data-' + id);
+            if (content) { container.innerHTML = content.innerHTML; container.className = "text-start"; }
+        }
+
+        // --- NEW LOGIC: Move Rows & Close Tabs ---
+        function markCollected(itemId, saleId) {
+            fetch(window.location.href, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'mark_collected=1&item_id=' + itemId
+            }).then(r => r.json()).then(data => {
+                if(data.status === 'success') {
+                    if (data.tab_completed) {
+                        const tabLink = document.getElementById('tab-link-' + saleId);
+                        if(tabLink) tabLink.remove();
+                        document.getElementById('tabDetailContainer').innerHTML = `<div class="text-center mt-5 text-success"><i class="bi bi-check-circle-fill display-1"></i><h3 class="mt-3">Tab Completed</h3></div>`;
+                        Swal.fire({ icon: 'success', title: 'Tab Completed', text: 'All items collected and paid.', timer: 2000, showConfirmButton: false });
+                    } else {
+                        const row = document.getElementById('item-row-' + itemId);
+                        if (row) {
+                            row.remove(); 
+                            const pendTable = document.getElementById('pending-table-' + saleId);
+                            if (pendTable.getElementsByTagName('tr').length === 0) { document.getElementById('pending-empty-' + saleId).style.display = 'block'; }
+                            const histTable = document.getElementById('history-table-' + saleId).getElementsByTagName('tbody')[0];
+                            const newRow = histTable.insertRow();
+                            newRow.innerHTML = `<td>${data.item.qty}x ${data.item.name}</td><td class="text-end"><i class="bi bi-check-all text-success"></i> Done</td><td class="text-end">${data.item.total}</td>`;
+                        }
+                    }
                 }
             });
         }
         
-        function confirmAction(event, title, text, confirmText = 'Yes, Proceed') {
-            event.preventDefault();
-            const form = event.target;
-            
-            Swal.fire({
-                title: title,
-                text: text,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: confirmText
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    form.submit();
-                }
-            });
-        }
-
-        function showPickupModal() {
-            document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1";
-            new bootstrap.Modal(document.getElementById('pickupModal')).show();
-        }
+        function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; new bootstrap.Modal(document.getElementById('reportModal')).show(); }
+        function showPickupModal() { document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; new bootstrap.Modal(document.getElementById('pickupModal')).show(); }
         
-        function showReceiptModal(url) {
-            document.getElementById('reportTitle').innerText = "Transaction Receipt";
-            document.getElementById('reportFrame').src = url;
-            new bootstrap.Modal(document.getElementById('reportModal')).show();
-        }
-
+        // --- CHECKOUT LOGIC ---
         let baseTotal = <?= $balance ?? 0 ?>; let currentTotal = baseTotal;
-        function initCheckout() { currentTotal = baseTotal; if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } document.getElementById('modeSingle').checked = true; toggleMode(); }
+        function initCheckout() { 
+            currentTotal = baseTotal; 
+            if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } 
+            else { updateDisplays(); } 
+            document.getElementById('modeSingle').checked = true; toggleMode(); 
+            new bootstrap.Modal(document.getElementById('checkoutModal')).show(); 
+        }
         function toggleDiscount() { let chk = document.getElementById('discountToggle'); if(chk && chk.checked) { currentTotal = baseTotal * 0.90; document.getElementById('discountLabel').style.display = 'block'; } else { currentTotal = baseTotal; document.getElementById('discountLabel').style.display = 'none'; } updateDisplays(); }
         function updateDisplays() { document.getElementById('displayTotalDue').innerText = currentTotal.toFixed(2); document.getElementById('tenderedInput').value = currentTotal.toFixed(2); calcResult(); }
         function toggleMode() { let isSplit = document.getElementById('modeSplit').checked; document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { document.getElementById('splitInput1').value = ""; document.getElementById('splitInput2').value = ""; document.getElementById('tenderedInput').value = "0.00"; } else { document.getElementById('tenderedInput').value = currentTotal.toFixed(2); } calcResult(); }
         function sumSplit() { let val1 = parseFloat(document.getElementById('splitInput1').value) || 0; let val2 = parseFloat(document.getElementById('splitInput2').value) || 0; document.getElementById('tenderedInput').value = (val1 + val2).toFixed(2); calcResult(); }
-        
-        function addTipPercent(percent) {
-            let tip = currentTotal * percent;
-            document.getElementById('tipInput').value = tip.toFixed(2);
-            calcResult();
-        }
-
+        function addTipPercent(percent) { let tip = currentTotal * percent; document.getElementById('tipInput').value = tip.toFixed(2); calcResult(); }
         function calcResult() { 
             let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0;
             let tip = parseFloat(document.getElementById('tipInput').value) || 0;
             let diff = tendered - (currentTotal + tip);
-            
-            // Logic to auto-update tendered if it matches previous total
-            if (tendered === currentTotal || (tendered < (currentTotal + tip) && tendered > 0)) {
-                 // Optional: Auto-update tendered to cover tip? 
-                 // Let's not force it, just let calc show negative balance
-            }
-
-            let label = document.getElementById('resultLabel'); 
-            let value = document.getElementById('resultValue'); 
-            
-            if(diff >= -0.01) { 
-                label.innerText = "CHANGE DUE"; 
-                label.className = "small fw-bold text-uppercase text-muted"; 
-                value.innerText = "ZMW " + diff.toFixed(2); 
-                value.className = "fs-4 fw-bold text-dark"; 
-            } else { 
-                label.innerText = "BALANCE REMAINING"; 
-                label.className = "small fw-bold text-uppercase text-danger"; 
-                value.innerText = "ZMW " + Math.abs(diff).toFixed(2); 
-                value.className = "fs-4 fw-bold text-danger"; 
-            } 
+            let label = document.getElementById('resultLabel'); let value = document.getElementById('resultValue'); 
+            if(diff >= -0.01) { label.innerText = "CHANGE DUE"; label.className = "small fw-bold text-uppercase text-muted"; value.innerText = "ZMW " + diff.toFixed(2); value.className = "fs-4 fw-bold text-dark"; } 
+            else { label.innerText = "BALANCE REMAINING"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(diff).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } 
         }
+
+        function confirmAction(event, title, text, confirmBtn='Yes') { event.preventDefault(); Swal.fire({ title: title, text: text, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: confirmBtn }).then((result) => { if (result.isConfirmed) { event.target.submit(); } }); }
         
+        // --- SPLIT BILL JS ---
         let cartItems = <?= json_encode($_SESSION['cart'] ?? []) ?>;
         let guests = [];
         let unassigned = [];
@@ -404,10 +524,7 @@
             renderSplitUI();
         }
 
-        function addGuest() {
-            guests.push({ id: guests.length + 1, name: "Guest " + (guests.length + 1), items: [] });
-            renderSplitUI();
-        }
+        function addGuest() { guests.push({ id: guests.length + 1, name: "Guest " + (guests.length + 1), items: [] }); renderSplitUI(); }
 
         function renderSplitUI() {
             const pool = document.getElementById('unassignedPool');
@@ -432,8 +549,7 @@
                 if (splitMode === 'item') {
                     g.items.forEach(item => gTotal += parseFloat(item.price));
                 } else {
-                    let cartTotal = 0;
-                    Object.values(cartItems).forEach(i => cartTotal += (i.price * i.qty));
+                    let cartTotal = 0; Object.values(cartItems).forEach(i => cartTotal += (i.price * i.qty));
                     gTotal = cartTotal / guests.length;
                     grandTotal = cartTotal;
                 }
@@ -476,10 +592,7 @@
         }
 
         function submitSplit() {
-            if (splitMode === 'item' && unassigned.length > 0) { 
-                Swal.fire({ icon: 'warning', title: 'Unassigned Items', text: 'Please assign all items before finalizing.' });
-                return; 
-            }
+            if (splitMode === 'item' && unassigned.length > 0) { Swal.fire({ icon: 'warning', title: 'Unassigned Items', text: 'Please assign all items.' }); return; }
             let payload = guests.map(g => {
                 let items = [];
                 let total = 0;
@@ -496,47 +609,16 @@
             document.getElementById('splitDataInput').value = JSON.stringify(payload);
             document.getElementById('splitForm').submit();
         }
-
-        function showMasterReceipt(gid) {
-            document.getElementById('reportTitle').innerText = "Master Invoice";
-            document.getElementById('reportFrame').src = "index.php?page=pos&action=print_master_receipt&group_id=" + gid;
-            reportModal.show();
+        
+        function submitMerge() {
+            const form = document.getElementById('mergeForm');
+            const checkboxes = form.querySelectorAll('input[name="merge_ids[]"]:checked');
+            if (checkboxes.length < 2) { Swal.fire({ icon: 'warning', title: 'Select Tabs', text: 'Please select at least 2 bills to merge.' }); return; }
+            Swal.fire({ title: 'Merge Bills?', text: "Combine " + checkboxes.length + " tabs?", icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, Merge' }).then((result) => { if (result.isConfirmed) { form.submit(); } });
         }
 
-        let reportModal;
-        document.addEventListener('DOMContentLoaded', function() {
-            reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
-            
-            // SMART INVOICING TRIGGER
-            <?php if (!empty($lastSplitGroup)): ?>
-                new bootstrap.Modal(document.getElementById('splitInvoiceModal')).show();
-                <?php unset($_SESSION['last_split_group_id']); ?>
-            <?php endif; ?>
-
-            <?php if (isset($_GET['closed_shift_id'])): ?>
-                document.getElementById('reportTitle').innerText = "Z-Report (Closed Shift)";
-                document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=<?= $_GET['closed_shift_id'] ?>";
-                reportModal.show();
-                document.getElementById('reportModal').addEventListener('hidden.bs.modal', function () { window.location.href = 'index.php?page=pos'; });
-            <?php endif; ?>
-            
-            <?php if (isset($_SESSION['last_sale_id'])): ?>
-                document.getElementById('reportTitle').innerText = "Transaction Receipt";
-                document.getElementById('reportFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>&mode=double";
-                reportModal.show();
-            <?php unset($_SESSION['last_sale_id']); ?>
-            <?php endif; ?>
-        });
-        function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; reportModal.show(); }
-        
-        // PHP SESSION FLASH HANDLER
         <?php if(isset($_SESSION['swal_msg'])): ?>
-        Swal.fire({
-            icon: <?= json_encode($_SESSION['swal_type']) ?>,
-            title: <?= json_encode($_SESSION['swal_msg']) ?>,
-            showConfirmButton: false,
-            timer: 2000
-        });
+        Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 1500, showConfirmButton: false });
         <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
         <?php endif; ?>
     </script>

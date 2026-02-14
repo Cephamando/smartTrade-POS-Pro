@@ -18,6 +18,7 @@
                     <tr>
                         <th>Name</th>
                         <th>Category</th>
+                        <th>SKU</th>
                         <th>Unit</th>
                         <th class="text-end">Cost (ZMW)</th>
                         <th class="text-end">Price (ZMW)</th>
@@ -25,34 +26,50 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($products as $p): ?>
-                    <tr>
-                        <td class="fw-bold"><?= htmlspecialchars($p['name']) ?></td>
-                        <td>
-                            <?php if($p['category_name']): ?>
-                                <span class="badge bg-secondary"><?= htmlspecialchars($p['category_name']) ?></span>
-                            <?php else: ?>
-                                <span class="text-muted">-</span>
-                            <?php endif; ?>
-                        </td>
-                        <td><small class="text-muted"><?= htmlspecialchars($p['unit']) ?></small></td>
-                        <td class="text-end text-muted"><?= number_format($p['cost_price'], 2) ?></td>
-                        <td class="text-end fw-bold text-success"><?= number_format($p['price'], 2) ?></td>
-                        <td>
-                            <?php if($p['is_active']): ?>
-                                <span class="badge bg-success">Active</span>
-                            <?php else: ?>
-                                <span class="badge bg-danger">Disabled</span>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
+                    <?php if (!empty($products)): ?>
+                        <?php foreach ($products as $p): ?>
+                            <tr>
+                                <td class="fw-bold"><?= htmlspecialchars($p['name']) ?></td>
+                                <td>
+                                    <?php if (!empty($p['category_name'])): ?>
+                                        <span class="badge bg-secondary"><?= htmlspecialchars($p['category_name']) ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($p['sku'])): ?>
+                                        <small class="text-muted"><?= htmlspecialchars($p['sku']) ?></small>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><small class="text-muted"><?= htmlspecialchars($p['unit']) ?></small></td>
+                                <td class="text-end text-muted"><?= number_format((float)$p['cost_price'], 2) ?></td>
+                                <td class="text-end fw-bold text-success"><?= number_format((float)$p['price'], 2) ?></td>
+                                <td>
+                                    <?php if (!empty($p['is_active'])): ?>
+                                        <span class="badge bg-success">Active</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-danger">Disabled</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-3">
+                                No products found. Add your first product.
+                            </td>
+                        </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
+<!-- Category Modal -->
 <div class="modal fade" id="catModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -63,8 +80,10 @@
             <form method="POST" action="index.php?page=products">
                 <div class="modal-body">
                     <input type="hidden" name="add_category" value="1">
-                    <label>Category Name</label>
-                    <input type="text" name="category_name" class="form-control" required>
+                    <div class="mb-3">
+                        <label class="form-label">Category Name</label>
+                        <input type="text" name="category_name" class="form-control" required>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-primary">Save Category</button>
@@ -74,6 +93,7 @@
     </div>
 </div>
 
+<!-- Product Modal -->
 <div class="modal fade" id="prodModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -86,35 +106,40 @@
                     <input type="hidden" name="save_product" value="1">
                     
                     <div class="mb-3">
-                        <label>Product Name</label>
+                        <label class="form-label">Product Name</label>
                         <input type="text" name="name" class="form-control" required>
                     </div>
 
                     <div class="row mb-3">
                         <div class="col-6">
-                            <label>Category</label>
+                            <label class="form-label">Category</label>
                             <select name="category_id" class="form-select">
                                 <option value="">-- None --</option>
-                                <?php foreach($categories as $c): ?>
-                                    <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
+                                <?php foreach ($categories as $c): ?>
+                                    <option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-6">
-                            <label>Unit (e.g., kg, bottle)</label>
+                            <label class="form-label">Unit (e.g., kg, bottle)</label>
                             <input type="text" name="unit" class="form-control" value="unit">
                         </div>
                     </div>
 
                     <div class="row mb-3">
                         <div class="col-6">
-                            <label>Cost Price (Buying)</label>
+                            <label class="form-label">Cost Price (Buying)</label>
                             <input type="number" step="0.01" name="cost_price" class="form-control" placeholder="0.00">
                         </div>
                         <div class="col-6">
-                            <label>Selling Price</label>
+                            <label class="form-label">Selling Price</label>
                             <input type="number" step="0.01" name="price" class="form-control" placeholder="0.00">
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">SKU (optional, must be unique)</label>
+                        <input type="text" name="sku" class="form-control" placeholder="e.g. DRINK-001">
                     </div>
                 </div>
                 <div class="modal-footer">

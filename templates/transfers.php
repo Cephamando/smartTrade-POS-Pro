@@ -168,11 +168,10 @@
             <form method="POST" action="index.php?page=transfers">
                 <div class="modal-body">
                     <input type="hidden" name="create_request" value="1">
-                    <input type="hidden" name="dest_location_id" id="dest_loc_id" value="<?= $_SESSION['location_id'] ?? 0 ?>">
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Product</label>
-                        <select name="product_id" id="req_product_id" class="form-select" required onchange="updateDualStock()">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">1. Select Product</label>
+                        <select name="product_id" id="req_product_id" class="form-select form-select-lg" required onchange="updateDualStock()">
                             <option value="">-- Select Product --</option>
                             <?php if(isset($products)): foreach($products as $p): ?>
                                 <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name'] ?? '') ?></option>
@@ -182,38 +181,49 @@
 
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <div class="p-3 bg-light rounded border">
-                                <label class="form-label fw-bold text-danger">Source (Request From)</label>
-                                <select name="source_location_id" id="source_loc_id" class="form-select mb-2" required onchange="updateDualStock()">
+                            <div class="p-3 bg-light rounded border border-danger">
+                                <label class="form-label fw-bold text-danger"><i class="bi bi-box-arrow-right"></i> Source (From)</label>
+                                <select name="source_location_id" id="source_loc_id" class="form-select mb-2" required onchange="handleLocationChange('source')">
+                                    <option value="">-- Select Source --</option>
                                     <?php if(isset($locations)): foreach($locations as $l): ?>
-                                        <?php if($l['id'] != ($_SESSION['location_id'] ?? 0)): ?>
-                                            <option value="<?= $l['id'] ?>" <?= stripos($l['name'] ?? '', 'Main') !== false ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($l['name'] ?? '') ?>
-                                            </option>
-                                        <?php endif; ?>
+                                        <option value="<?= $l['id'] ?>" data-name="<?= htmlspecialchars($l['name']) ?>">
+                                            <?= htmlspecialchars($l['name'] ?? '') ?>
+                                        </option>
                                     <?php endforeach; endif; ?>
                                 </select>
-                                <div class="small text-muted">Stock at Source: <span id="source_stock_display" class="fw-bold text-dark">0</span></div>
+                                <div class="small text-muted">Available Stock: <span id="source_stock_display" class="fw-bold text-dark">0</span></div>
                             </div>
                         </div>
 
                         <div class="col-md-6">
-                            <div class="p-3 bg-light rounded border">
-                                <label class="form-label fw-bold text-success">Destination (Your Stock)</label>
-                                <div class="form-control-plaintext fw-bold ps-1"><?= htmlspecialchars($_SESSION['location_name'] ?? 'Current Location') ?></div>
-                                <div class="small text-muted">Currently in your location: <span id="dest_stock_display" class="fw-bold text-dark">0</span></div>
+                            <div class="p-3 bg-light rounded border border-success">
+                                <label class="form-label fw-bold text-success"><i class="bi bi-box-arrow-in-left"></i> Destination (To)</label>
+                                <select name="dest_location_id" id="dest_loc_id" class="form-select mb-2" required onchange="handleLocationChange('dest')">
+                                    <option value="">-- Select Destination --</option>
+                                    <?php if(isset($locations)): foreach($locations as $l): ?>
+                                        <option value="<?= $l['id'] ?>" <?= ($l['id'] == ($_SESSION['location_id'] ?? 0)) ? 'selected' : '' ?> data-name="<?= htmlspecialchars($l['name']) ?>">
+                                            <?= htmlspecialchars($l['name'] ?? '') ?>
+                                        </option>
+                                    <?php endforeach; endif; ?>
+                                </select>
+                                <div class="small text-muted">Current Stock: <span id="dest_stock_display" class="fw-bold text-dark">0</span></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-3">
+                    <div class="mt-4">
                         <label class="form-label fw-bold">Quantity Needed</label>
-                        <input type="number" name="quantity" class="form-control form-control-lg text-center" step="0.01" min="0.01" required placeholder="0.00">
+                        <div class="input-group input-group-lg">
+                            <input type="number" name="quantity" class="form-control text-center" step="0.01" min="0.01" required placeholder="0.00">
+                            <span class="input-group-text">Units</span>
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Send Requisition</button>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-send"></i> Send Requisition
+                    </button>
                 </div>
             </form>
         </div>
@@ -221,6 +231,31 @@
 </div>
 
 <script>
+function handleLocationChange(type) {
+    filterLocations();
+    updateDualStock();
+}
+
+function filterLocations() {
+    const sourceSelect = document.getElementById('source_loc_id');
+    const destSelect = document.getElementById('dest_loc_id');
+    
+    const sourceVal = sourceSelect.value;
+    const destVal = destSelect.value;
+
+    // Reset source options: disable the one selected in dest
+    Array.from(sourceSelect.options).forEach(opt => {
+        if (opt.value === "") return;
+        opt.disabled = (opt.value === destVal);
+    });
+
+    // Reset dest options: disable the one selected in source
+    Array.from(destSelect.options).forEach(opt => {
+        if (opt.value === "") return;
+        opt.disabled = (opt.value === sourceVal);
+    });
+}
+
 function updateDualStock() {
     const pId = document.getElementById('req_product_id').value;
     const sId = document.getElementById('source_loc_id').value;
@@ -228,14 +263,25 @@ function updateDualStock() {
 
     if (!pId) return;
 
-    fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${sId}`)
-        .then(r => r.json()).then(d => {
-            document.getElementById('source_stock_display').innerText = d.stock || 0;
-        });
+    if (sId) {
+        fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${sId}`)
+            .then(r => r.json()).then(d => {
+                document.getElementById('source_stock_display').innerText = d.stock || 0;
+            });
+    } else {
+        document.getElementById('source_stock_display').innerText = '0';
+    }
 
-    fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${dId}`)
-        .then(r => r.json()).then(d => {
-            document.getElementById('dest_stock_display').innerText = d.stock || 0;
-        });
+    if (dId) {
+        fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${dId}`)
+            .then(r => r.json()).then(d => {
+                document.getElementById('dest_stock_display').innerText = d.stock || 0;
+            });
+    } else {
+        document.getElementById('dest_stock_display').innerText = '0';
+    }
 }
+
+// Initial filter on load
+document.addEventListener('DOMContentLoaded', filterLocations);
 </script>
