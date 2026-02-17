@@ -28,13 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_service'])) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 2. HANDLE ITEM COLLECTION (FIXED LOGIC) ---
+// --- 2. HANDLE ITEM COLLECTION (FIXED: Category Check & Status Sync) ---
 if (isset($_POST['mark_collected'])) {
     $itemId = $_POST['item_id'];
     
     // FIX: Fetch Category Type to distinguish Food vs Drinks
     $stmt = $pdo->prepare("
-        SELECT si.sale_id, si.status as kds_status, p.type as prod_type, c.type as cat_type 
+        SELECT si.sale_id, si.status as kds_status, p.type as prod_type, c.type as cat_type, si.product_id 
         FROM sale_items si 
         JOIN products p ON si.product_id = p.id 
         LEFT JOIN categories c ON p.category_id = c.id
@@ -47,7 +47,7 @@ if (isset($_POST['mark_collected'])) {
         // Define what needs cooking (Food/Meal)
         $needsCooking = in_array($item['cat_type'], ['food', 'meal']);
 
-        // Only block if it's FOOD and currently COOKING
+        // Only block if it's FOOD and currently COOKING/PENDING
         // Drinks (or other types) should NOT block, even if status is pending
         if ($needsCooking) {
             if ($item['kds_status'] === 'cooking') {
@@ -55,8 +55,11 @@ if (isset($_POST['mark_collected'])) {
                 exit;
             }
             if ($item['kds_status'] === 'ready') {
-                echo json_encode(['status'=>'redirect_pickup', 'msg'=>'⚠️ Food is Ready. Please collect at Pickup Screen.']); 
-                exit;
+                // Warning but allow redirect if needed, or just block here. 
+                // Usually for POS collection, we might allow it if it's ready. 
+                // But if strict KDS workflow:
+                // echo json_encode(['status'=>'redirect_pickup', 'msg'=>'⚠️ Food is Ready. Please collect at Pickup Screen.']); 
+                // exit;
             }
         }
     }
@@ -71,11 +74,18 @@ if (isset($_POST['mark_collected'])) {
     $pendingCount = $pdo->query("SELECT COUNT(*) FROM sale_items WHERE sale_id = $saleId AND fulfillment_status = 'uncollected'")->fetchColumn();
     $isTabComplete = ($saleState['payment_status'] === 'paid' && $pendingCount == 0);
 
-    echo json_encode(['status' => 'success', 'tab_completed' => $isTabComplete]); 
+    // Return Sale ID for receipt printing
+    echo json_encode([
+        'status' => 'success', 
+        'tab_completed' => $isTabComplete,
+        'print_receipt' => true,
+        'sale_id' => $saleId,
+        'item_id' => $itemId
+    ]); 
     exit;
 }
 
-// --- 3. ADD TO TAB (Wipe & Replace + PRINT TRIGGER) ---
+// --- 3. ADD TO TAB (Wipe & Replace + Smart Status) ---
 if (isset($_POST['add_to_tab_action']) && !empty($_SESSION['cart'])) {
     $targetTabId = $_POST['target_tab_id'] ?? 'new'; 
     $customerName = $_POST['tab_customer_name'] ?? 'Walk-in';
@@ -96,21 +106,21 @@ if (isset($_POST['add_to_tab_action']) && !empty($_SESSION['cart'])) {
             }
         }
 
-        foreach ($_SESSION['cart'] as $pid => $item) {
+        foreach ($_SESSION['cart'] as $item) {
             $fulfill = $item['fulfillment'] ?? 'uncollected';
+            $pid = $item['product_id'];
+            $qty = intval($item['qty']);
+            
             // FIX: Determine initial status based on Category Type
-            // Food/Meal = 'pending', Drink/Snack/Other = 'ready'
+            // Food/Meal = 'pending' (Kitchen), Drink/Snack/Other = 'ready' (Bar)
             $catType = $item['cat_type'] ?? 'other';
             $initialStatus = in_array($catType, ['food', 'meal']) ? 'pending' : 'ready';
 
-            $qty = intval($item['qty']);
-            for ($k = 0; $k < $qty; $k++) {
-                $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?, ?, 1, ?, ?, ?)")
-                    ->execute([$saleId, $pid, $item['price'], $initialStatus, $fulfill]);
+            $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, ?, ?)")
+                ->execute([$saleId, $pid, $qty, $item['price'], $initialStatus, $fulfill]);
 
-                if (($item['type'] ?? 'item') !== 'service') {
-                    $pdo->prepare("UPDATE inventory SET quantity = quantity - 1 WHERE product_id = ? AND location_id = ?")->execute([$pid, $locId]);
-                }
+            if (($item['type'] ?? 'item') !== 'service') {
+                $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$qty, $pid, $locId]);
             }
         }
         
@@ -118,11 +128,9 @@ if (isset($_POST['add_to_tab_action']) && !empty($_SESSION['cart'])) {
         $pdo->prepare("UPDATE sales SET total_amount = ?, final_total = ? WHERE id = ?")->execute([$newTotal, $newTotal, $saleId]);
         
         $pdo->commit();
-        
-        $_SESSION['last_sale_id'] = $saleId;
-
+        $_SESSION['last_sale_id'] = $saleId; // For Receipt
         unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']); 
-        $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab Updated. Printing Receipt...";
+        $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab Updated.";
     } catch (Exception $e) {
         $pdo->rollBack();
         $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
@@ -130,7 +138,7 @@ if (isset($_POST['add_to_tab_action']) && !empty($_SESSION['cart'])) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 4. FINALIZE SPLIT ---
+// --- 4. FINALIZE SPLIT (FIXED: Captures Names & Status) ---
 if (isset($_POST['finalize_split'])) {
     $splitData = json_decode($_POST['split_data'], true);
     $locId = $_SESSION['pos_location_id'] ?? 0;
@@ -143,7 +151,7 @@ if (isset($_POST['finalize_split'])) {
                 $total = $guest['total'];
                 $method = $guest['method']; 
                 $status = ($method === 'Pending') ? 'pending' : 'paid';
-                $customer = $guest['name']; 
+                $customer = !empty($guest['name']) ? $guest['name'] : 'Guest';
                 $tendered = ($status === 'paid') ? $total : 0;
 
                 $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())");
@@ -151,14 +159,12 @@ if (isset($_POST['finalize_split'])) {
                 $saleId = $pdo->lastInsertId();
 
                 foreach ($guest['items'] as $item) {
-                    // FIX: Determine status for split items too
-                    // We assume 'pending' for splits to be safe, or we could pass the type. 
-                    // For now, defaulting to 'pending' is safer, but 'ready' is better for UX if not food.
-                    // Given the split UI complexity, we'll default to 'ready' to avoid blocking payments on splits.
+                    // Set status based on type if possible, or default to ready to avoid kitchen blocking for splits
                     $initialStatus = 'ready'; 
+                    $fulfill = 'uncollected';
 
-                    $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, ?, 'uncollected')")
-                        ->execute([$saleId, $item['id'], $item['qty'], $item['price'], $initialStatus]);
+                    $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, ?, ?)")
+                        ->execute([$saleId, $item['id'], $item['qty'], $item['price'], $initialStatus, $fulfill]);
                     
                     if (($item['type'] ?? 'item') !== 'service') {
                         $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$item['qty'], $item['id'], $locId]);
@@ -167,7 +173,7 @@ if (isset($_POST['finalize_split'])) {
             }
             $pdo->commit();
             unset($_SESSION['cart']); 
-            $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Split Processed.";
+            $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Split Processed. Tabs created.";
         } catch (Exception $e) {
             $pdo->rollBack();
             $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
@@ -176,12 +182,12 @@ if (isset($_POST['finalize_split'])) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- INITIALIZE VARIABLES ---
+// --- INIT VARS ---
 $activeShiftId = null; $pendingShift = null; $expectedShiftCash = 0.00; 
 $locationName = 'Unknown'; $locationId = $_SESSION['pos_location_id'] ?? 0;
 $sellableLocations = []; $products = []; $services = []; $openTabs = []; $tabItems = []; $categories = []; $members = [];
 
-// --- LOAD DATA ---
+// --- LOAD SHIFT/LOC ---
 $shiftStmt = $pdo->prepare("SELECT s.*, u.full_name as cashier_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.user_id = ? AND s.status IN ('open', 'pending_approval') ORDER BY s.id DESC LIMIT 1"); 
 $shiftStmt->execute([$userId]);
 $currentShift = $shiftStmt->fetch();
@@ -198,33 +204,34 @@ if ($currentShift) {
         $expectedShiftCash = ($startCash + $cashSales) - $expenses;
     }
 }
-
 if ($locationId > 0) $locationName = $pdo->query("SELECT name FROM locations WHERE id = $locationId")->fetchColumn();
 
-// --- FETCH LISTS ---
+// --- LOAD LISTS ---
 $sellableLocations = $pdo->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY name ASC")->fetchAll();
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll();
 $members = $pdo->query("SELECT * FROM members ORDER BY name ASC")->fetchAll();
 
 if ($locationId > 0) {
-    $products = $pdo->query("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = $locationId WHERE p.is_active = 1 AND p.type = 'item' ORDER BY p.name ASC")->fetchAll();
+    // FIX: Fetch Category Type in Main Product Query
+    $products = $pdo->query("SELECT p.*, c.type as cat_type, COALESCE(i.quantity, 0) as stock_qty FROM products p LEFT JOIN categories c ON p.category_id = c.id LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = $locationId WHERE p.is_active = 1 AND p.type = 'item' ORDER BY p.name ASC")->fetchAll();
     $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1 ORDER BY name ASC")->fetchAll();
     
+    // Fetch Tabs
     $openTabs = $pdo->query("SELECT s.id, s.customer_name, s.final_total, s.amount_tendered, s.created_at, s.payment_status, (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id AND si.fulfillment_status = 'uncollected') as uncollected_count FROM sales s WHERE (s.payment_status = 'pending' OR (s.payment_status = 'paid' AND EXISTS (SELECT 1 FROM sale_items si WHERE si.sale_id = s.id AND si.fulfillment_status = 'uncollected'))) AND s.location_id = $locationId ORDER BY s.created_at DESC")->fetchAll();
     
     if (!empty($openTabs)) {
         $ids = implode(',', array_column($openTabs, 'id'));
-        $rawItems = $pdo->query("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id IN ($ids)")->fetchAll();
+        $rawItems = $pdo->query("SELECT si.*, p.name, p.type, c.type as cat_type FROM sale_items si JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id IN ($ids)")->fetchAll();
         foreach($rawItems as $r) { $tabItems[$r['sale_id']][] = $r; }
     }
 }
 
-// --- CALCULATE TOTALS ---
+// --- TOTALS ---
 $total = 0; 
 if(isset($_SESSION['cart'])) { foreach($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty']; }
 $balance = $total - ($_SESSION['tab_paid'] ?? 0);
 
-// --- HANDLERS (SHIFT / ITEM / CHECKOUT) ---
+// --- FORM HANDLERS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['request_start_shift']) && $locationId > 0) { 
         $pdo->prepare("INSERT INTO shifts (user_id, location_id, start_time, starting_cash, status) VALUES (?, ?, NOW(), ?, 'pending_approval')")->execute([$userId, $locationId, floatval($_POST['starting_cash'])]); 
@@ -239,58 +246,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if ($activeShiftId) {
+        // ADD ITEM (CART SEPARATION FIX)
         if (isset($_POST['add_item'])) {
             $pid = intval($_POST['product_id']); 
-            // FIX: Fetch Category Type when adding to cart
             $p = $pdo->query("SELECT p.*, c.type as cat_type FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = $pid")->fetch();
             if ($p) {
                 $price = ($p['is_open_price'] && !empty($_POST['custom_price'])) ? floatval($_POST['custom_price']) : $p['price'];
                 $fulfill = 'uncollected'; 
-                if(isset($_SESSION['cart'][$pid])) { $_SESSION['cart'][$pid]['qty']++; } 
-                else { 
-                    $_SESSION['cart'][$pid] = [
-                        'name'=>$p['name'], 
-                        'price'=>$price, 
-                        'qty'=>1, 
-                        'type'=>$p['type'], 
-                        'cat_type'=>$p['cat_type'] ?? 'other', // Store category type
-                        'fulfillment'=>$fulfill
-                    ]; 
-                } 
-            } header("Location: index.php?page=pos"); exit;
-        }
-        if (isset($_POST['toggle_fulfillment'])) { 
-            $pid = $_POST['product_id']; 
-            if(isset($_SESSION['cart'][$pid])) { 
-                $c = $_SESSION['cart'][$pid]['fulfillment']; 
-                $_SESSION['cart'][$pid]['fulfillment'] = ($c === 'collected') ? 'uncollected' : 'collected'; 
-            } header("Location: index.php?page=pos"); exit; 
-        }
-        if (isset($_POST['update_qty'])) { $pid = $_POST['product_id']; if ($_POST['action'] === 'inc') $_SESSION['cart'][$pid]['qty']++; elseif ($_POST['action'] === 'dec') { $_SESSION['cart'][$pid]['qty']--; if($_SESSION['cart'][$pid]['qty']<=0) unset($_SESSION['cart'][$pid]); } header("Location: index.php?page=pos"); exit; }
-        if (isset($_POST['remove_item'])) unset($_SESSION['cart'][$_POST['product_id']]);
-        if (isset($_POST['clear_cart'])) unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
-        
-        if (isset($_POST['recall_tab'])) {
-            $saleId = $_POST['sale_id']; $sale = $pdo->query("SELECT * FROM sales WHERE id = $saleId")->fetch();
-            $_SESSION['current_tab_id'] = $saleId; $_SESSION['current_customer'] = $sale['customer_name']; $_SESSION['tab_paid'] = $sale['amount_tendered']; $_SESSION['cart'] = [];
-            // FIX: Fetch category type when recalling items
-            $items = $pdo->query("SELECT si.*, p.name, p.type, c.type as cat_type FROM sale_items si JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = $saleId")->fetchAll();
-            foreach($items as $i) { 
-                $pid = $i['product_id'];
-                if(isset($_SESSION['cart'][$pid])) { $_SESSION['cart'][$pid]['qty'] += $i['quantity']; } 
-                else { 
-                    $_SESSION['cart'][$pid] = [
-                        'name'=>$i['name'], 
-                        'price'=>$i['price_at_sale'], 
-                        'qty'=>$i['quantity'], 
-                        'type'=>$i['type'], 
-                        'cat_type'=>$i['cat_type'] ?? 'other',
-                        'fulfillment'=>$i['fulfillment_status'] 
-                    ]; 
-                }
+                
+                // USE UNIQID AS KEY FOR SEPARATION
+                $cartKey = uniqid(); 
+                $_SESSION['cart'][$cartKey] = [
+                    'product_id' => $pid,
+                    'name' => $p['name'], 
+                    'price' => $price, 
+                    'qty' => 1, 
+                    'type' => $p['type'], 
+                    'cat_type' => $p['cat_type'] ?? 'other',
+                    'fulfillment' => $fulfill
+                ]; 
             } header("Location: index.php?page=pos"); exit;
         }
 
+        // TOGGLE FULFILLMENT
+        if (isset($_POST['toggle_fulfillment'])) { 
+            $key = $_POST['cart_key']; 
+            if(isset($_SESSION['cart'][$key])) { 
+                $c = $_SESSION['cart'][$key]['fulfillment']; 
+                $_SESSION['cart'][$key]['fulfillment'] = ($c === 'collected') ? 'uncollected' : 'collected'; 
+            } header("Location: index.php?page=pos"); exit; 
+        }
+
+        // UPDATE QTY
+        if (isset($_POST['update_qty'])) { 
+            $key = $_POST['cart_key']; 
+            if ($_POST['action'] === 'inc') $_SESSION['cart'][$key]['qty']++; 
+            elseif ($_POST['action'] === 'dec') { 
+                $_SESSION['cart'][$key]['qty']--; 
+                if($_SESSION['cart'][$key]['qty']<=0) unset($_SESSION['cart'][$key]); 
+            } header("Location: index.php?page=pos"); exit; 
+        }
+
+        // REMOVE ITEM
+        if (isset($_POST['remove_item'])) { unset($_SESSION['cart'][$_POST['cart_key']]); header("Location: index.php?page=pos"); exit; }
+        
+        // CLEAR CART
+        if (isset($_POST['clear_cart'])) unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
+        
+        // RECALL TAB
+        if (isset($_POST['recall_tab'])) {
+            $saleId = $_POST['sale_id']; $sale = $pdo->query("SELECT * FROM sales WHERE id = $saleId")->fetch();
+            $_SESSION['current_tab_id'] = $saleId; $_SESSION['current_customer'] = $sale['customer_name']; $_SESSION['tab_paid'] = $sale['amount_tendered']; $_SESSION['cart'] = [];
+            
+            $items = $pdo->query("SELECT si.*, p.name, p.type, c.type as cat_type FROM sale_items si JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = $saleId")->fetchAll();
+            foreach($items as $i) { 
+                $key = uniqid();
+                $_SESSION['cart'][$key] = [
+                    'product_id' => $i['product_id'],
+                    'name' => $i['name'], 
+                    'price' => $i['price_at_sale'], 
+                    'qty' => $i['quantity'], 
+                    'type' => $i['type'] ?? 'item',
+                    'cat_type' => $i['cat_type'] ?? 'other',
+                    'fulfillment' => $i['fulfillment_status'] 
+                ]; 
+            } header("Location: index.php?page=pos"); exit;
+        }
+
+        // CHECKOUT
         if (isset($_POST['checkout']) && !empty($_SESSION['cart'])) {
             $total = 0; foreach ($_SESSION['cart'] as $i) $total += $i['price'] * $i['qty'];
             $disc = (isset($_POST['apply_discount']) && isset($_SESSION['pos_member'])) ? $total * 0.10 : 0;
@@ -303,8 +326,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $change = $tendered - ($final + $tip);
             $cust = $_POST['customer_name'] ?? 'Walk-in';
             $memId = $_SESSION['pos_member']['id'] ?? null;
-            
-            $saleIdToPrint = 0;
 
             $pdo->beginTransaction();
             try {
@@ -313,43 +334,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")
                         ->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $tendered, $change, $tip]);
                     $newSaleId = $pdo->lastInsertId();
-                    $saleIdToPrint = $newSaleId;
 
-                    foreach ($_SESSION['cart'] as $pid => $item) {
-                        $qtyToPay = $item['qty'];
+                    foreach ($_SESSION['cart'] as $item) {
                         $fulfill = $item['fulfillment'] ?? 'uncollected';
-                        $stmt = $pdo->prepare("SELECT id FROM sale_items WHERE sale_id = ? AND product_id = ? LIMIT $qtyToPay");
-                        $stmt->execute([$oldTabId, $pid]);
-                        foreach($stmt->fetchAll(PDO::FETCH_COLUMN) as $rowId) {
-                            $pdo->prepare("UPDATE sale_items SET sale_id = ?, fulfillment_status = ? WHERE id = ?")->execute([$newSaleId, $fulfill, $rowId]);
-                        }
+                        $pid = $item['product_id'];
+                        $qty = $item['qty'];
+                        // FIX: Determine initial status
+                        $catType = $item['cat_type'] ?? 'other';
+                        $initialStatus = in_array($catType, ['food', 'meal']) ? 'pending' : 'ready';
+
+                        $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?,?,?,?,?,?)")
+                            ->execute([$newSaleId, $pid, $qty, $item['price'], $initialStatus, $fulfill]);
                     }
-                    $remTotal = $pdo->query("SELECT IFNULL(SUM(quantity * price_at_sale),0) FROM sale_items WHERE sale_id = $oldTabId")->fetchColumn();
-                    if ($remTotal <= 0) { $pdo->prepare("DELETE FROM sales WHERE id = ?")->execute([$oldTabId]); } 
-                    else { $pdo->prepare("UPDATE sales SET total_amount = ?, final_total = ? WHERE id = ?")->execute([$remTotal, $remTotal, $oldTabId]); }
+                    // Wipe old tab
+                    $pdo->prepare("DELETE FROM sale_items WHERE sale_id = ?")->execute([$oldTabId]);
+                    $pdo->prepare("DELETE FROM sales WHERE id = ?")->execute([$oldTabId]);
+                    $_SESSION['last_sale_id'] = $newSaleId;
+
                 } else {
                     $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")
                         ->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $tendered, $change, $tip]);
                     $sid = $pdo->lastInsertId();
-                    $saleIdToPrint = $sid;
-                    foreach ($_SESSION['cart'] as $pid => $item) {
+                    $_SESSION['last_sale_id'] = $sid;
+                    
+                    foreach ($_SESSION['cart'] as $item) {
+                        $pid = $item['product_id'];
+                        $qty = $item['qty'];
                         $fulfill = $item['fulfillment'] ?? 'uncollected';
                         // FIX: Determine initial status
                         $catType = $item['cat_type'] ?? 'other';
                         $initialStatus = in_array($catType, ['food', 'meal']) ? 'pending' : 'ready';
 
-                        $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?,?,?,?,?,?)")->execute([$sid, $pid, $item['qty'], $item['price'], $initialStatus, $fulfill]);
+                        $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?,?,?,?,?,?)")->execute([$sid, $pid, $qty, $item['price'], $initialStatus, $fulfill]);
+                        
                         if (($item['type'] ?? 'item') !== 'service') { 
-                            $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$item['qty'], $pid, $locationId]);
+                            $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?")->execute([$qty, $pid, $locationId]);
                             $nq = $pdo->query("SELECT quantity FROM inventory WHERE product_id = $pid AND location_id = $locationId")->fetchColumn();
-                            $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id) VALUES (?,?,?,?,?,'sale',?)")->execute([$pid, $locationId, $userId, -$item['qty'], $nq, $sid]);
+                            $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id) VALUES (?,?,?,?,?,'sale',?)")->execute([$pid, $locationId, $userId, -$qty, $nq, $sid]);
                         }
                     }
                 }
                 $pdo->commit();
-                
-                $_SESSION['last_sale_id'] = $saleIdToPrint;
-                
                 unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']);
             } catch(Exception $e) { $pdo->rollBack(); }
             header("Location: index.php?page=pos"); exit;

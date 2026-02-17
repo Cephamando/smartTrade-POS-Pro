@@ -17,37 +17,44 @@
 
 <div class="row g-2 mb-3">
     <div class="col-md-3 col-6">
-        <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
-            <div class="card-body p-3">
-                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Today's Sales</div>
-                <div class="h4 fw-bold text-success mb-0">ZMW <?= number_format($todaySales ?? 0, 2) ?></div>
+        <a href="index.php?page=reports" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body p-3">
+                    <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Today's Sales</div>
+                    <div class="h4 fw-bold text-success mb-0">ZMW <?= number_format($todaySales ?? 0, 2) ?></div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3 col-6">
-        <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
-            <div class="card-body p-3">
-                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Transactions</div>
-                <div class="h4 fw-bold text-primary mb-0"><?= number_format($todayTransactions ?? 0) ?></div>
+        <a href="index.php?page=reports" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body p-3">
+                    <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Transactions</div>
+                    <div class="h4 fw-bold text-primary mb-0"><?= number_format($todayTransactions ?? 0) ?></div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3 col-6">
-        <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
-            <div class="card-body p-3 position-relative">
-                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Unpaid Tabs</div>
-                <div class="h4 fw-bold text-warning mb-0"><?= number_format($unpaidTabs ?? 0) ?></div>
-                <a href="index.php?page=pos" class="stretched-link"></a>
+        <a href="index.php?page=pos" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
+                <div class="card-body p-3 position-relative">
+                    <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Unpaid Tabs</div>
+                    <div class="h4 fw-bold text-warning mb-0"><?= number_format($unpaidTabs ?? 0) ?></div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3 col-6">
-        <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
-            <div class="card-body p-3">
-                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Low Stock</div>
-                <div class="h4 fw-bold text-danger mb-0"><?= number_format($lowStockCount ?? 0) ?></div>
+        <a href="index.php?page=inventory" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                <div class="card-body p-3">
+                    <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Low Stock</div>
+                    <div class="h4 fw-bold text-danger mb-0"><?= number_format($lowStockCount ?? 0) ?></div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
@@ -120,7 +127,6 @@ function showPickupModal() {
     new bootstrap.Modal(document.getElementById('pickupModal')).show();
 }
 
-// Badge Poller
 setInterval(function() {
     fetch('api/check_ready_orders.php').then(r => r.json()).then(data => {
         const badge = document.getElementById('readyBadge');
@@ -130,49 +136,23 @@ setInterval(function() {
 }, 5000);
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Horizontal Sales Chart
     new Chart(document.getElementById('salesChart').getContext('2d'), {
         type: 'bar',
         data: {
             labels: <?= json_encode($dates) ?>,
-            datasets: [{
-                label: 'Revenue (ZMW)',
-                data: <?= json_encode($salesData) ?>,
-                backgroundColor: '#198754',
-                barThickness: 15,
-                borderRadius: 4
-            }]
+            datasets: [{ label: 'Revenue (ZMW)', data: <?= json_encode($salesData) ?>, backgroundColor: '#198754', barThickness: 15, borderRadius: 4 }]
         },
-        options: {
-            indexAxis: 'y', // Makes it horizontal
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
-        }
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
     });
 
-    // 2. Horizontal Payment Chart
     const payData = <?= json_encode($pmData) ?>;
     new Chart(document.getElementById('paymentChart').getContext('2d'), {
         type: 'bar',
         data: {
             labels: Object.keys(payData),
-            datasets: [{
-                label: 'Transactions',
-                data: Object.values(payData),
-                backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d'],
-                barThickness: 15,
-                borderRadius: 4
-            }]
+            datasets: [{ label: 'Transactions', data: Object.values(payData), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d'], barThickness: 15, borderRadius: 4 }]
         },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { x: { ticks: { precision:0 }, grid: { display: false } }, y: { grid: { display: false } } }
-        }
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { precision:0 }, grid: { display: false } }, y: { grid: { display: false } } } }
     });
 });
 </script>

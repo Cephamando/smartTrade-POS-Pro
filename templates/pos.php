@@ -114,21 +114,21 @@
         <div class="cart-panel" id="cartPanel">
             <div class="cart-header d-flex justify-content-between align-items-center"><h5 class="m-0 fw-bold"><i class="bi bi-basket3-fill"></i> Order</h5><button class="btn btn-sm btn-outline-light d-md-none" onclick="toggleCart()">Hide</button></div>
             <div class="cart-items">
-                <?php if (empty($_SESSION['cart'])): ?><div class="text-center mt-5 text-muted"><i class="bi bi-cart-x display-1 opacity-25"></i><p class="mt-3 fw-bold">Cart is empty</p></div><?php else: foreach ($_SESSION['cart'] as $pid => $item): ?>
+                <?php if (empty($_SESSION['cart'])): ?><div class="text-center mt-5 text-muted"><i class="bi bi-cart-x display-1 opacity-25"></i><p class="mt-3 fw-bold">Cart is empty</p></div><?php else: foreach ($_SESSION['cart'] as $key => $item): ?>
                 <div class="cart-item">
                     <div class="flex-grow-1 me-2 overflow-hidden">
                         <div class="fw-bold text-truncate"><?= htmlspecialchars($item['name']) ?> <span class="badge bg-secondary text-white" style="font-size:0.6em;"><?= isset($item['type']) && $item['type'] == 'service' ? 'SVC' : '' ?></span></div>
                         <div class="d-flex align-items-center gap-2 mt-1">
                             <small class="text-muted">@ ZMW <?= number_format($item['price'], 2) ?></small>
                             <form method="POST" class="d-inline">
-                                <input type="hidden" name="toggle_fulfillment" value="1"><input type="hidden" name="product_id" value="<?= $pid ?>">
+                                <input type="hidden" name="toggle_fulfillment" value="1"><input type="hidden" name="cart_key" value="<?= $key ?>">
                                 <button class="btn btn-sm btn-fulfillment <?= ($item['fulfillment']??'collected')=='collected'?'btn-outline-success':'btn-warning' ?>" title="Toggle: Collected / Later">
                                     <?= ($item['fulfillment']??'collected')=='collected' ? '<i class="bi bi-check-circle"></i> Got It' : '<i class="bi bi-clock"></i> Later' ?>
                                 </button>
                             </form>
                         </div>
                     </div>
-                    <div class="d-flex align-items-center bg-light rounded border"><form method="POST" class="d-flex m-0"><input type="hidden" name="product_id" value="<?= $pid ?>"><input type="hidden" name="update_qty" value="1"><button name="action" value="dec" class="btn btn-sm text-danger px-2 fw-bold border-end hover-bg">-</button><span class="px-2 fw-bold" style="min-width:30px; text-align:center; line-height:30px;"><?= $item['qty'] ?></span><button name="action" value="inc" class="btn btn-sm text-success px-2 fw-bold border-start hover-bg">+</button></form></div>
+                    <div class="d-flex align-items-center bg-light rounded border"><form method="POST" class="d-flex m-0"><input type="hidden" name="cart_key" value="<?= $key ?>"><input type="hidden" name="update_qty" value="1"><button name="action" value="dec" class="btn btn-sm text-danger px-2 fw-bold border-end hover-bg">-</button><span class="px-2 fw-bold" style="min-width:30px; text-align:center; line-height:30px;"><?= $item['qty'] ?></span><button name="action" value="inc" class="btn btn-sm text-success px-2 fw-bold border-start hover-bg">+</button></form><form method="POST" class="d-inline ms-1"><input type="hidden" name="remove_item" value="1"><input type="hidden" name="cart_key" value="<?= $key ?>"><button class="btn btn-sm text-secondary"><i class="bi bi-trash"></i></button></form></div>
                 </div>
                 <?php endforeach; endif; ?>
             </div>
@@ -151,271 +151,14 @@
         </div>
     </div>
 
-    <div class="modal fade" id="addToTabModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Add to Tab</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <p class="text-muted small mb-3">Select an active tab to append items, or create a new one.</p>
-                    <form method="POST" id="addToTabForm">
-                        <input type="hidden" name="add_to_tab_action" value="1">
-                        <div class="list-group mb-3" style="max-height: 200px; overflow-y: auto;">
-                            <label class="list-group-item list-group-item-action active" onclick="toggleTabInput(true)">
-                                <input class="form-check-input me-1" type="radio" name="target_tab_id" value="new" checked>
-                                <i class="bi bi-star-fill me-2"></i> Create New Tab
-                            </label>
-                            
-                            <?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?>
-                            <label class="list-group-item list-group-item-action" onclick="toggleTabInput(false)">
-                                <input class="form-check-input me-1" type="radio" name="target_tab_id" value="<?= $t['id'] ?>">
-                                <strong><?= htmlspecialchars($t['customer_name']) ?></strong> 
-                                <span class="float-end text-muted small">ZMW <?= number_format($t['final_total'],2) ?></span>
-                            </label>
-                            <?php endif; endforeach; ?>
-                        </div>
-                        
-                        <div id="newTabInputDiv">
-                            <label class="form-label fw-bold">Customer Name / Table</label>
-                            <input type="text" name="tab_customer_name" class="form-control" placeholder="e.g., Table 5 or John Doe">
-                        </div>
-                        <button class="btn btn-warning w-100 fw-bold mt-3">CONFIRM & ADD</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="endShiftModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title fw-bold">End Shift</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <form action="index.php?page=end_shift_action" method="POST">
-                    <div class="modal-body p-4">
-                        <div class="alert alert-light border text-center mb-4">
-                            <small class="text-uppercase fw-bold text-muted">Expected Cash</small>
-                            <div class="h2 fw-bold text-dark m-0">ZMW <?= number_format($expectedShiftCash ?? 0, 2) ?></div>
-                        </div>
-                        <label class="fw-bold small text-muted">ACTUAL CLOSING CASH</label>
-                        <div class="input-group input-group-lg mb-3">
-                            <span class="input-group-text fw-bold">ZMW</span>
-                            <input type="number" step="0.01" name="closing_cash" class="form-control fw-bold text-primary" required value="<?= $expectedShiftCash ?>">
-                        </div>
-                        <label class="fw-bold small text-muted">VARIANCE REASON</label>
-                        <textarea name="variance_reason" class="form-control mb-3" placeholder="Explain any difference..."></textarea>
-                        
-                        <label class="fw-bold small text-danger mt-2">MANAGER PASSWORD</label>
-                        <input type="password" name="manager_password" class="form-control" required placeholder="Required for verification">
-                    </div>
-                    <div class="modal-footer border-0">
-                        <button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow">CLOSE SHIFT</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="tabsModal" tabindex="-1">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content h-100">
-                <div class="modal-header bg-dark text-white"><h5 class="modal-title">Active Tabs & Collections</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body bg-light p-0">
-                    <div class="row g-0 h-100">
-                        <div class="col-4 border-end bg-white overflow-auto" style="max-height: 70vh;">
-                            <div class="list-group list-group-flush" id="tabsListGroup">
-                                <form method="POST" id="mergeForm">
-                                <input type="hidden" name="merge_bills" value="1">
-                                <?php foreach($openTabs as $t): 
-                                    $isPaid = ($t['payment_status'] === 'paid');
-                                    $bgClass = $isPaid ? 'border-start border-5 border-success bg-light' : 'border-start border-5 border-warning';
-                                ?>
-                                <div id="tab-link-<?= $t['id'] ?>" class="list-group-item list-group-item-action <?= $bgClass ?> p-3" onclick="showTabDetails(<?= $t['id'] ?>)">
-                                    <div class="d-flex w-100 justify-content-between align-items-center mb-1">
-                                        <div class="d-flex align-items-center">
-                                            <?php if(!$isPaid): ?>
-                                                <input type="checkbox" name="merge_ids[]" value="<?= $t['id'] ?>" class="form-check-input me-2" onclick="event.stopPropagation()">
-                                            <?php endif; ?>
-                                            <h6 class="mb-0 fw-bold"><?= htmlspecialchars($t['customer_name']) ?></h6>
-                                        </div>
-                                        <?php if($isPaid): ?>
-                                            <span class="badge bg-success">PAID</span>
-                                        <?php else: ?>
-                                            <small class="text-danger fw-bold">ZMW <?= number_format($t['final_total'], 2) ?></small>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted"><?= date('H:i', strtotime($t['created_at'])) ?> &bull; #<?= $t['id'] ?></small>
-                                        <?php if($t['uncollected_count'] > 0): ?>
-                                            <span class="badge bg-warning text-dark" style="font-size:0.7rem"><i class="bi bi-basket"></i> <?= $t['uncollected_count'] ?> Pending</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <?php endforeach; ?>
-                                </form>
-                            </div>
-                            <div class="p-2 border-top text-center">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="submitMerge()">Merge Selected (Unpaid Only)</button>
-                            </div>
-                        </div>
-                        <div class="col-8 p-3 overflow-auto" style="max-height: 70vh;">
-                            <div id="tabDetailContainer" class="text-center text-muted mt-5">
-                                <i class="bi bi-arrow-left-circle fs-1"></i><p>Select a tab to view details.</p>
-                            </div>
-                            <?php foreach($tabItems as $tid => $items): 
-                                $thisTab = array_filter($openTabs, fn($x) => $x['id'] == $tid);
-                                $thisTab = reset($thisTab);
-                                $isPaid = ($thisTab['payment_status'] === 'paid');
-                                
-                                $pendingItems = array_filter($items, fn($i) => $i['fulfillment_status'] == 'uncollected' || !$isPaid);
-                                $completedItems = array_filter($items, fn($i) => $i['fulfillment_status'] == 'collected' && $isPaid);
-                            ?>
-                            <div id="tab-data-<?= $tid ?>" class="d-none">
-                                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
-                                    <h5 class="fw-bold m-0"><?= htmlspecialchars($thisTab['customer_name']) ?></h5>
-                                    <?php if($isPaid): ?><span class="badge bg-success">PAID</span><?php else: ?><span class="badge bg-warning text-dark">UNPAID</span><?php endif; ?>
-                                </div>
-
-                                <h6 class="text-muted text-uppercase small fw-bold mt-3">Pending Actions</h6>
-                                <table class="table table-sm align-middle mb-0" id="pending-table-<?= $tid ?>">
-                                    <tbody>
-                                    <?php foreach($pendingItems as $i): ?>
-                                    <tr id="item-row-<?= $i['id'] ?>">
-                                        <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></td>
-                                        <td class="text-end">
-                                            <span class="badge badge-uncollected" onclick="markCollected(<?= $i['id'] ?>, <?= $tid ?>)">
-                                                <?= $i['fulfillment_status'] == 'uncollected' ? 'UNCOLLECTED' : 'COLLECTED (Unpaid)' ?>
-                                            </span>
-                                        </td>
-                                        <td class="text-end fw-bold"><?= number_format($i['price_at_sale']*$i['quantity'], 2) ?></td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                                
-                                <?php if(empty($pendingItems)): ?><div class="text-center p-2 text-muted small border rounded bg-white" id="pending-empty-<?= $tid ?>">Nothing pending.</div><?php endif; ?>
-
-                                <?php if(!$isPaid): ?>
-                                    <div class="mt-3 text-end">
-                                        <form method="POST" class="d-inline">
-                                            <input type="hidden" name="recall_tab" value="1"><input type="hidden" name="sale_id" value="<?= $tid ?>">
-                                            <button class="btn btn-primary fw-bold w-100 py-2">PAY / ADD ITEMS</button>
-                                        </form>
-                                    </div>
-                                <?php endif; ?>
-
-                                <h6 class="text-muted text-uppercase small fw-bold mt-4 border-top pt-3">Completed History</h6>
-                                <table class="table table-sm align-middle text-muted" style="font-size:0.9em;" id="history-table-<?= $tid ?>">
-                                    <tbody>
-                                    <?php foreach($completedItems as $i): ?>
-                                    <tr>
-                                        <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></td>
-                                        <td class="text-end"><i class="bi bi-check-all text-success"></i> Done</td>
-                                        <td class="text-end"><?= number_format($i['price_at_sale']*$i['quantity'], 2) ?></td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content h-100">
-                <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-bag-check-fill"></i> Orders Ready for Pickup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body p-0" style="height: 80vh;"><iframe id="pickupFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="checkoutModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0">
-                <div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <form method="POST">
-                    <div class="modal-body">
-                        <input type="hidden" name="checkout" value="1">
-                        
-                        <?php if(isset($_SESSION['pos_member'])): ?>
-                        <div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm">
-                            <div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div>
-                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <div class="text-center mb-4">
-                            <small class="text-muted text-uppercase fw-bold">Amount To Pay</small>
-                            <div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue"><?= number_format($balance, 2) ?></span></div>
-                            <small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small>
-                        </div>
-
-                        <div class="input-group mb-3">
-                            <span class="input-group-text bg-light fw-bold">Tip</span>
-                            <input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()">
-                            <button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button>
-                            <button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button>
-                            <button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button>
-                        </div>
-
-                        <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
-                        
-                        <div class="btn-group w-100 mb-3" role="group">
-                            <input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()">
-                            <label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label>
-                            <input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()">
-                            <label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label>
-                        </div>
-                        
-                        <div id="singleSection">
-                            <div class="mb-3">
-                                <select name="payment_method" class="form-select form-select-lg fw-bold">
-                                    <option value="Cash" selected>Cash</option>
-                                    <option value="Card">Card</option>
-                                    <option value="MTN Money">MTN Money</option>
-                                    <option value="Airtel Money">Airtel Money</option>
-                                    <option value="Zamtel Money">Zamtel Money</option>
-                                    <option value="Pending">Put on Tab</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div id="splitSection" style="display:none;">
-                            <div class="row g-2 mb-2">
-                                <div class="col-5"><select name="method_1" class="form-select fw-bold"><option value="Cash">Cash</option><option value="Card">Card</option><option value="MTN Money">MTN</option></select></div>
-                                <div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-5"><select name="method_2" class="form-select fw-bold"><option value="Card" selected>Card</option><option value="Cash">Cash</option><option value="Airtel Money">Airtel</option></select></div>
-                                <div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div>
-                            </div>
-                        </div>
-                        
-                        <div class="card bg-light border-0 p-3 mt-3">
-                            <label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label>
-                            <div class="input-group input-group-lg">
-                                <span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span>
-                                <input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" value="<?= $balance ?>" oninput="calcResult()" onkeyup="calcResult()">
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
-                                <div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div>
-                                <div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm">COMPLETE TRANSACTION</button></div>
-                </form>
-            </div>
-        </div>
-    </div>
-
+    <div class="modal fade" id="addToTabModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Add to Tab</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p class="text-muted small mb-3">Select an active tab to append items, or create a new one.</p><form method="POST" id="addToTabForm"><input type="hidden" name="add_to_tab_action" value="1"><div class="list-group mb-3" style="max-height: 200px; overflow-y: auto;"><label class="list-group-item list-group-item-action active" onclick="toggleTabInput(true)"><input class="form-check-input me-1" type="radio" name="target_tab_id" value="new" checked><i class="bi bi-star-fill me-2"></i> Create New Tab</label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item list-group-item-action" onclick="toggleTabInput(false)"><input class="form-check-input me-1" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"><strong><?= htmlspecialchars($t['customer_name']) ?></strong> <span class="float-end text-muted small">ZMW <?= number_format($t['final_total'],2) ?></span></label><?php endif; endforeach; ?></div><div id="newTabInputDiv"><label class="form-label fw-bold">Customer Name / Table</label><input type="text" name="tab_customer_name" class="form-control" placeholder="e.g., Table 5 or John Doe"></div><button class="btn btn-warning w-100 fw-bold mt-3">CONFIRM & ADD</button></form></div></div></div></div>
+    <div class="modal fade" id="endShiftModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">End Shift</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form action="index.php?page=end_shift_action" method="POST"><div class="modal-body p-4"><div class="alert alert-light border text-center mb-4"><small class="text-uppercase fw-bold text-muted">Expected Cash</small><div class="h2 fw-bold text-dark m-0">ZMW <?= number_format($expectedShiftCash ?? 0, 2) ?></div></div><label class="fw-bold small text-muted">ACTUAL CLOSING CASH</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="closing_cash" class="form-control fw-bold text-primary" required value="<?= $expectedShiftCash ?>"></div><label class="fw-bold small text-muted">VARIANCE REASON</label><textarea name="variance_reason" class="form-control mb-3" placeholder="Explain any difference..."></textarea><label class="fw-bold small text-danger mt-2">MANAGER PASSWORD</label><input type="password" name="manager_password" class="form-control" required placeholder="Required for verification"></div><div class="modal-footer border-0"><button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow">CLOSE SHIFT</button></div></form></div></div></div>
+    
+    <div class="modal fade" id="tabsModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-header bg-dark text-white"><h5 class="modal-title">Active Tabs & Collections</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-0"><div class="row g-0 h-100"><div class="col-4 border-end bg-white overflow-auto" style="max-height: 70vh;"><div class="list-group list-group-flush" id="tabsListGroup"><form method="POST" id="mergeForm"><input type="hidden" name="merge_bills" value="1"><?php foreach($openTabs as $t): $isPaid = ($t['payment_status'] === 'paid'); $bgClass = $isPaid ? 'border-start border-5 border-success bg-light' : 'border-start border-5 border-warning'; ?><div id="tab-link-<?= $t['id'] ?>" class="list-group-item list-group-item-action <?= $bgClass ?> p-3" onclick="showTabDetails(<?= $t['id'] ?>)"><div class="d-flex w-100 justify-content-between align-items-center mb-1"><div class="d-flex align-items-center"><?php if(!$isPaid): ?><input type="checkbox" name="merge_ids[]" value="<?= $t['id'] ?>" class="form-check-input me-2" onclick="event.stopPropagation()"><?php endif; ?><h6 class="mb-0 fw-bold"><?= htmlspecialchars($t['customer_name']) ?></h6></div><?php if($isPaid): ?><span class="badge bg-success">PAID</span><?php else: ?><small class="text-danger fw-bold">ZMW <?= number_format($t['final_total'], 2) ?></small><?php endif; ?></div><div class="d-flex justify-content-between align-items-center"><small class="text-muted"><?= date('H:i', strtotime($t['created_at'])) ?> &bull; #<?= $t['id'] ?></small><?php if($t['uncollected_count'] > 0): ?><span class="badge bg-warning text-dark" style="font-size:0.7rem"><i class="bi bi-basket"></i> <?= $t['uncollected_count'] ?> Pending</span><?php endif; ?></div></div><?php endforeach; ?></form></div><div class="p-2 border-top text-center"><button type="button" class="btn btn-outline-secondary btn-sm" onclick="submitMerge()">Merge Selected (Unpaid Only)</button></div></div><div class="col-8 p-3 overflow-auto" style="max-height: 70vh;"><div id="tabDetailContainer" class="text-center text-muted mt-5"><i class="bi bi-arrow-left-circle fs-1"></i><p>Select a tab to view details.</p></div><?php foreach($tabItems as $tid => $items): $thisTab = array_filter($openTabs, fn($x) => $x['id'] == $tid); $thisTab = reset($thisTab); $isPaid = ($thisTab['payment_status'] === 'paid'); $pendingItems = array_filter($items, fn($i) => $i['fulfillment_status'] == 'uncollected' || !$isPaid); $completedItems = array_filter($items, fn($i) => $i['fulfillment_status'] == 'collected' && $isPaid); ?><div id="tab-data-<?= $tid ?>" class="d-none"><div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3"><h5 class="fw-bold m-0"><?= htmlspecialchars($thisTab['customer_name']) ?></h5><?php if($isPaid): ?><span class="badge bg-success">PAID</span><?php else: ?><span class="badge bg-warning text-dark">UNPAID</span><?php endif; ?></div><h6 class="text-muted text-uppercase small fw-bold mt-3">Pending Actions</h6><table class="table table-sm align-middle mb-0" id="pending-table-<?= $tid ?>"><tbody><?php foreach($pendingItems as $i): ?><tr id="item-row-<?= $i['id'] ?>"><td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></td><td class="text-end"><span class="badge badge-uncollected" onclick="markCollected(<?= $i['id'] ?>, <?= $tid ?>)"><?= $i['fulfillment_status'] == 'uncollected' ? 'UNCOLLECTED' : 'COLLECTED (Unpaid)' ?></span></td><td class="text-end fw-bold"><?= number_format($i['price_at_sale']*$i['quantity'], 2) ?></td></tr><?php endforeach; ?></tbody></table><?php if(empty($pendingItems)): ?><div class="text-center p-2 text-muted small border rounded bg-white" id="pending-empty-<?= $tid ?>">Nothing pending.</div><?php endif; ?><?php if(!$isPaid): ?><div class="mt-3 text-end"><form method="POST" class="d-inline"><input type="hidden" name="recall_tab" value="1"><input type="hidden" name="sale_id" value="<?= $tid ?>"><button class="btn btn-primary fw-bold w-100 py-2">PAY / ADD ITEMS</button></form></div><?php endif; ?><h6 class="text-muted text-uppercase small fw-bold mt-4 border-top pt-3">Completed History</h6><table class="table table-sm align-middle text-muted" style="font-size:0.9em;" id="history-table-<?= $tid ?>"><tbody><?php foreach($completedItems as $i): ?><tr><td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></td><td class="text-end"><i class="bi bi-check-all text-success"></i> Done</td><td class="text-end"><?= number_format($i['price_at_sale']*$i['quantity'], 2) ?></td></tr><?php endforeach; ?></tbody></table></div><?php endforeach; ?></div></div></div></div></div></div>
+    
+    <div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content h-100"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold"><i class="bi bi-bag-check-fill"></i> Orders Ready for Pickup</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-0" style="height: 80vh;"><iframe id="pickupFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+    <div class="modal fade" id="checkoutModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1"><?php if(isset($_SESSION['pos_member'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?><div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue"><?= number_format($balance, 2) ?></span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div><div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div><div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div><div class="btn-group w-100 mb-3" role="group"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div><div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><option value="Pending">Put on Tab</option></select></div></div><div id="splitSection" style="display:none;"><div class="row g-2 mb-2"><div class="col-5"><select name="method_1" class="form-select fw-bold"><option value="Cash">Cash</option><option value="Card">Card</option><option value="MTN Money">MTN</option></select></div><div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div></div><div class="row g-2 mb-3"><div class="col-5"><select name="method_2" class="form-select fw-bold"><option value="Card" selected>Card</option><option value="Cash">Cash</option><option value="Airtel Money">Airtel</option></select></div><div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div></div></div><div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" value="<?= $balance ?>" oninput="calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm">COMPLETE TRANSACTION</button></div></form></div></div></div>
+    
     <div class="modal fade" id="splitBillModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header bg-dark text-white d-flex justify-content-between"><div><h5 class="modal-title"><i class="bi bi-layout-split me-2"></i> Split Bill</h5><small class="text-muted" id="splitTotalDisplay">Total: ZMW 0.00</small></div><div><div class="btn-group me-3"><button class="btn btn-sm btn-outline-light active" id="btnSplitItem" onclick="setSplitMode('item')">By Item</button><button class="btn btn-sm btn-outline-light" id="btnSplitEven" onclick="setSplitMode('even')">Split Evenly</button></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div></div><div class="modal-body bg-light"><div class="split-container"><div class="split-pool" id="unassignedPool" ondrop="drop(event)" ondragover="allowDrop(event)"><h6 class="text-muted fw-bold text-center mb-3">Unassigned Items</h6></div><div class="split-guest-zone" id="guestZone"></div><button class="btn btn-outline-primary" style="height: 50px; align-self: center;" onclick="addGuest()"><i class="bi bi-plus-lg"></i></button></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><form method="POST" id="splitForm"><input type="hidden" name="finalize_split" value="1"><input type="hidden" name="split_type" id="splitTypeInput" value="item"><input type="hidden" name="split_data" id="splitDataInput"><button type="button" class="btn btn-success fw-bold px-4" onclick="submitSplit()">FINALIZE & PAY</button></form></div></div></div></div>
 
     <div class="modal fade" id="serviceManagerModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title"><i class="bi bi-stars text-warning"></i> Manage Services</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><form method="POST" class="row g-2 mb-4 bg-light p-3 rounded border"><input type="hidden" name="save_service" value="1"><div class="col-md-5"><input type="text" name="name" class="form-control" placeholder="Service Name" required></div><div class="col-md-3"><input type="number" step="0.01" name="price" class="form-control" placeholder="Default Price" required></div><div class="col-md-2 d-flex align-items-center"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_open_price" value="1" id="isOpen"><label class="form-check-label small" for="isOpen">Adjustable?</label></div></div><div class="col-md-2"><button class="btn btn-success w-100 fw-bold">Add New</button></div></form><div class="table-responsive"><table class="table table-hover align-middle"><thead class="table-secondary"><tr><th>Name</th><th>Price</th><th>Type</th><th>Action</th></tr></thead><tbody><?php foreach($services as $s): ?><tr><td class="fw-bold"><?= htmlspecialchars($s['name']) ?></td><td><?= $s['is_open_price'] ? 'Adj.' : number_format($s['price'], 2) ?></td><td>Svc</td><td><form method="POST" onsubmit="return confirm('Delete?');"><input type="hidden" name="delete_service" value="1"><input type="hidden" name="service_id" value="<?= $s['id'] ?>"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button></form></td></tr><?php endforeach; ?></tbody></table></div></div></div></div></div>
@@ -428,7 +171,7 @@
         <div class="modal-dialog modal-sm">
             <div class="modal-content">
                 <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-receipt"></i> Sale Complete</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-receipt"></i> Receipt</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-0" style="height: 400px;">
@@ -470,6 +213,12 @@
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'success') {
+                    // Trigger Print Receipt if server requests it
+                    if (data.print_receipt) {
+                        document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id;
+                        new bootstrap.Modal(document.getElementById('receiptModal')).show();
+                    }
+
                     if (data.tab_completed) {
                         const tabLink = document.getElementById('tab-link-' + saleId);
                         if(tabLink) tabLink.remove();
@@ -501,11 +250,7 @@
                     });
                 }
                 else {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Cannot Collect',
-                        text: data.msg
-                    });
+                    Swal.fire({ icon: 'warning', title: 'Cannot Collect', text: data.msg });
                 }
             });
         }
@@ -545,13 +290,18 @@
         let splitMode = 'item'; 
 
         function openSplitModal() {
+            // Re-map cart items (using keys now)
             unassigned = [];
             guests = [{ id: 1, name: "Guest 1", items: [] }, { id: 2, name: "Guest 2", items: [] }];
-            for (const [pid, item] of Object.entries(cartItems)) {
-                for (let i = 0; i < item.qty; i++) {
-                    unassigned.push({ id: pid, name: item.name, price: item.price, type: item.type, uid: pid + '-' + i });
+            
+            // Loop through object keys to handle separated items
+            Object.keys(cartItems).forEach(key => {
+                let item = cartItems[key];
+                // Since our cart logic now has unique lines, qty is usually 1, but safe to loop
+                for(let i=0; i<item.qty; i++) {
+                     unassigned.push({ id: item.product_id, name: item.name, price: item.price, type: item.type, uid: key + '-' + i });
                 }
-            }
+            });
             renderSplitUI();
             new bootstrap.Modal(document.getElementById('splitBillModal')).show();
         }
@@ -596,7 +346,21 @@
 
                 let col = document.createElement('div');
                 col.className = 'guest-col';
-                col.innerHTML = `<div class="guest-header"><div class="fw-bold">${g.name}</div><div class="small">ZMW ${gTotal.toFixed(2)}</div></div><div class="guest-items" ondrop="drop(event, ${index})" ondragover="allowDrop(event)">${splitMode === 'item' ? '' : '<small class="text-muted d-block text-center mt-4">1/' + guests.length + ' Share</small>'}</div><div class="guest-footer"><div class="input-group input-group-sm mb-2"><span class="input-group-text">Tip</span><input type="number" step="0.01" class="form-control" placeholder="0.00" oninput="guests[${index}].tip = this.value"></div><select class="form-select form-select-sm mb-2" onchange="guests[${index}].method = this.value"><option value="Cash">Cash</option><option value="Card">Card</option><option value="Pending">Pending</option></select></div>`;
+                // Edit Name Input Added Here
+                col.innerHTML = `
+                <div class="guest-header p-2">
+                    <input type="text" class="form-control form-control-sm fw-bold text-center" value="${g.name}" onchange="guests[${index}].name = this.value" placeholder="Guest Name">
+                    <div class="small mt-1">ZMW ${gTotal.toFixed(2)}</div>
+                </div>
+                <div class="guest-items" ondrop="drop(event, ${index})" ondragover="allowDrop(event)">
+                    ${splitMode === 'item' ? '' : '<small class="text-muted d-block text-center mt-4">1/' + guests.length + ' Share</small>'}
+                </div>
+                <div class="guest-footer">
+                    <div class="input-group input-group-sm mb-2"><span class="input-group-text">Tip</span><input type="number" step="0.01" class="form-control" placeholder="0.00" oninput="guests[${index}].tip = this.value"></div>
+                    <select class="form-select form-select-sm mb-2" onchange="guests[${index}].method = this.value">
+                        <option value="Cash">Cash</option><option value="Card">Card</option><option value="Pending">On Tab</option>
+                    </select>
+                </div>`;
                 
                 if (splitMode === 'item') {
                     g.items.forEach(item => { col.querySelector('.guest-items').appendChild(createDragEl(item, 'guest', index)); });

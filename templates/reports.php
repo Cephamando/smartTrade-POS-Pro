@@ -144,11 +144,7 @@
                     <button onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= $row['id'] ?>')" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer"></i></button>
                     
                     <?php if(strtolower($row['payment_status']) == 'paid' && in_array($_SESSION['role'], ['admin', 'manager', 'dev'])): ?>
-                    <form method="POST" class="d-inline" onsubmit="confirmRefund(event)">
-                        <input type="hidden" name="refund_sale" value="1">
-                        <input type="hidden" name="sale_id" value="<?= $row['id'] ?>">
-                        <button class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></button>
-                    </form>
+                    <a href="index.php?page=refund_items&sale_id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></a>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -200,32 +196,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // 1. Init Flatpickr
     flatpickr(".datepicker", { dateFormat: "Y-m-d", allowInput: true });
-
-    // 2. Receipt Modal
     function showReceiptModal(url) { document.getElementById('reportFrame').src = url; new bootstrap.Modal(document.getElementById('reportModal')).show(); }
-
-    // 3. SweetAlert Confirmation for Refunds
-    function confirmRefund(event) {
-        event.preventDefault();
-        const form = event.target;
-        Swal.fire({
-            title: 'Confirm Refund?',
-            text: "This will mark the sale as refunded and restore items to inventory.",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, Refund it!'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                form.submit();
-            }
-        });
-    }
-
-    // 4. Session Flash Messages
+    
     <?php if(isset($_SESSION['swal_msg'])): ?>
     Swal.fire({
         icon: <?= json_encode($_SESSION['swal_type']) ?>,
