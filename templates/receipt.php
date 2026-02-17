@@ -12,12 +12,12 @@ if (!$sale) die("Sale not found.");
 
 $items = $pdo->query("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = $saleId")->fetchAll();
 
-// MATH FIX: Ensure Change is calculated correctly
-$subTotal = $sale['final_total']; // Items total (after discount)
+$subTotal = $sale['final_total']; 
 $tip = $sale['tip_amount'];
 $grandTotal = $subTotal + $tip;
 $tendered = $sale['amount_tendered'];
 $change = $tendered - $grandTotal;
+$isUnpaid = ($sale['payment_status'] == 'pending');
 ?>
 <!DOCTYPE html>
 <html>
@@ -33,6 +33,7 @@ $change = $tendered - $grandTotal;
         .totals { border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px; }
         .totals-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
         .footer { margin-top: 20px; text-align: center; font-size: 10px; }
+        .unpaid-banner { border: 2px solid #000; padding: 5px; margin: 10px 0; font-weight: bold; font-size: 1.2em; text-transform: uppercase; }
         @media print { .no-print { display: none; } }
     </style>
 </head>
@@ -43,6 +44,13 @@ $change = $tendered - $grandTotal;
         <p style="margin:0;">Rcpt: #<?= $sale['id'] ?> &bull; <?= date('d/m/y H:i', strtotime($sale['created_at'])) ?></p>
         <p style="margin:0;">Staff: <?= htmlspecialchars($sale['cashier']) ?></p>
     </div>
+
+    <?php if ($isUnpaid): ?>
+        <div class="text-center unpaid-banner">
+            *** UNPAID TAB ***<br>
+            NOT A RECEIPT
+        </div>
+    <?php endif; ?>
 
     <div class="items">
         <?php foreach($items as $i): ?>
@@ -64,15 +72,25 @@ $change = $tendered - $grandTotal;
             <span>TOTAL:</span><span><?= number_format($grandTotal, 2) ?></span>
         </div>
         
-        <div class="totals-row"><span>Paid (<?= $sale['payment_method'] ?>):</span><span><?= number_format($tendered, 2) ?></span></div>
-        
-        <?php if($change > 0): ?>
-        <div class="totals-row"><span>Change Due:</span><span><?= number_format($change, 2) ?></span></div>
+        <?php if (!$isUnpaid): ?>
+            <div class="totals-row"><span>Paid (<?= $sale['payment_method'] ?>):</span><span><?= number_format($tendered, 2) ?></span></div>
+            <?php if($change > 0): ?>
+                <div class="totals-row"><span>Change Due:</span><span><?= number_format($change, 2) ?></span></div>
+            <?php endif; ?>
+        <?php else: ?>
+             <div class="totals-row fw-bold" style="margin-top:5px; border-top: 1px solid #000; padding-top:5px;">
+                <span>BALANCE DUE:</span><span><?= number_format($grandTotal, 2) ?></span>
+            </div>
         <?php endif; ?>
     </div>
 
     <div class="footer">
-        <p>Thank you for your support!</p>
+        <?php if ($isUnpaid): ?>
+            <p>Please pay at the cashier.</p>
+        <?php else: ?>
+            <p>Thank you for your support!</p>
+        <?php endif; ?>
+        
         <?php if($sale['customer_name'] !== 'Walk-in'): ?>
         <p>Guest: <?= htmlspecialchars($sale['customer_name']) ?></p>
         <?php endif; ?>

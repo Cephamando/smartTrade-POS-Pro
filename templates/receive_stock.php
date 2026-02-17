@@ -112,7 +112,7 @@
                 </select>
             </td>
             <td>
-                <input type="number" name="items[${rowCount}][qty]" class="form-control border-0" placeholder="0" required>
+                <input type="number" step="0.01" name="items[${rowCount}][qty]" class="form-control border-0" placeholder="0" required>
             </td>
             <td>
                 <input type="number" step="0.01" name="items[${rowCount}][cost]" id="cost-${rowCount}" class="form-control border-0" placeholder="0.00">
@@ -134,16 +134,25 @@
         document.getElementById(`cost-${id}`).value = cost;
     }
 
-    // Initialize with one row
     document.addEventListener('DOMContentLoaded', addRow);
 
-    // Alerts
+    // --- ALERT HANDLING FIX ---
     <?php if(isset($_SESSION['swal_msg'])): ?>
-    Swal.fire({
-        icon: <?= json_encode($_SESSION['swal_type']) ?>,
-        title: <?= json_encode($_SESSION['swal_msg']) ?>,
-        showConfirmButton: false, timer: 1500
-    });
+        const type = <?= json_encode($_SESSION['swal_type']) ?>;
+        const msg = <?= json_encode($_SESSION['swal_msg']) ?>;
+        
+        Swal.fire({
+            icon: type,
+            title: type === 'success' ? 'Success' : 'Error',
+            text: msg,
+            // If Success: Show for 2s then redirect. If Error: Stay open until clicked.
+            timer: type === 'success' ? 2000 : undefined,
+            showConfirmButton: type !== 'success'
+        }).then(() => {
+            if (type === 'success') {
+                window.location.href = 'index.php?page=inventory';
+            }
+        });
     <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
     <?php endif; ?>
 </script>

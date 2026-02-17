@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>POS System - Comprehensive Test Scenarios</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.5; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3 { color: #2c3e50; }
+        h1 { border-bottom: 2px solid #2c3e50; padding-bottom: 10px; text-align: center; }
+        h2 { background-color: #f8f9fa; padding: 10px; border-left: 5px solid #0d6efd; margin-top: 30px; page-break-after: avoid; }
+        .scenario-meta { background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; font-size: 0.9em; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.95em; }
+        th, td { border: 1px solid #dee2e6; padding: 10px; text-align: left; }
+        th { background-color: #212529; color: #fff; width: 40px; text-align: center; }
+        .step-col { width: 5%; text-align: center; font-weight: bold; }
+        .action-col { width: 45%; }
+        .expect-col { width: 40%; }
+        .status-col { width: 10%; border: 1px solid #333; } /* Empty for manual check */
+        .page-break { page-break-before: always; }
+        .note { font-style: italic; color: #666; font-size: 0.9em; }
+        
+        @media print {
+            body { padding: 0; font-size: 12pt; }
+            h2 { margin-top: 0; }
+            .page-break { page-break-before: always; }
+            a { text-decoration: none; color: #000; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>POS System Acceptance Test Plan</h1>
+    
+    <div class="scenario-meta">
+        <strong>Application Version:</strong> 1.0.0 (Beta)<br>
+        <strong>Date:</strong> 2026-02-17<br>
+        <strong>Tester Name:</strong> ___________________________<br>
+        <strong>Environment:</strong> Staging / Localhost<br>
+        <strong>Pre-requisites:</strong> 
+        <ul style="margin: 5px 0 0 20px;">
+            <li>Database seeded (Users: Admin, Manager, Cashier, Chef).</li>
+            <li>Locations configured (Store, Bar, Kitchen).</li>
+            <li>Products created (Items and Services).</li>
+        </ul>
+    </div>
+
+    <h2>Scenario 1: Inventory Management (Receive & Transfer)</h2>
+    <p><strong>Objective:</strong> Verify stock entry into the Main Store and subsequent transfer to a sales point (Bar).</p>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Action</th>
+                <th>Expected Result</th>
+                <th>Pass/Fail</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="step-col">1</td>
+                <td>Login as <strong>Admin</strong> or <strong>Manager</strong>.</td>
+                <td>Dashboard loads successfully.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">2</td>
+                <td>Navigate to <strong>Receive Stock</strong>.</td>
+                <td>Receive Stock form appears with "Location" dropdown.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">3</td>
+                <td>Select <strong>Location:</strong> "Main Warehouse".<br>Select <strong>Product:</strong> "Coca Cola".<br>Enter <strong>Qty:</strong> 100.<br>Click <strong>Confirm</strong>.</td>
+                <td>Success message appears: "Successfully received 100 units".</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">4</td>
+                <td>Navigate to <strong>Inventory</strong> to verify.</td>
+                <td>"Coca Cola" in "Main Warehouse" shows 100 units.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">5</td>
+                <td>Navigate to <strong>Transfers</strong> -> <strong>New Transfer</strong>.</td>
+                <td>Transfer form loads.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">6</td>
+                <td><strong>From:</strong> "Main Warehouse"<br><strong>To:</strong> "Main Bar"<br><strong>Item:</strong> "Coca Cola"<br><strong>Qty:</strong> 50.<br>Click <strong>Transfer</strong>.</td>
+                <td>System confirms transfer. Stock deducts from Warehouse immediately.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">7</td>
+                <td>Navigate to <strong>Inventory</strong> (Filter by "Main Bar").</td>
+                <td>"Main Bar" stock for "Coca Cola" increased by 50.</td>
+                <td class="status-col"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <h2>Scenario 2: Standard Sale & Kitchen Workflow (KDS)</h2>
+    <p><strong>Objective:</strong> Process a food order, track it through the kitchen, and complete collection.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Action</th>
+                <th>Expected Result</th>
+                <th>Pass/Fail</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="step-col">1</td>
+                <td>Login as <strong>Cashier/Waiter</strong>. Select Location "Main Bar".</td>
+                <td>POS Interface loads. Product grid visible.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">2</td>
+                <td>Add <strong>"Beef Burger"</strong> (Food) and <strong>"Coca Cola"</strong> (Drink) to cart.</td>
+                <td>Cart updates. Total calculation is correct.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">3</td>
+                <td>Click <strong>Charge</strong> -> <strong>Single Pay</strong> -> <strong>Cash</strong>.</td>
+                <td>Sale completes. Receipt modal/print triggers. Cart clears.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">4</td>
+                <td><strong>Simulate Kitchen:</strong> Open a new browser/tab.<br>Login as <strong>Chef</strong> -> Go to <strong>KDS</strong>.</td>
+                <td>"Beef Burger" appears on KDS screen (Status: Pending). "Coca Cola" does NOT appear (Drinks auto-complete).</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">5</td>
+                <td>Chef clicks <strong>Start Cooking</strong>, then <strong>Mark Ready</strong>.</td>
+                <td>Item turns Green/Disappears from Active view.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">6</td>
+                <td><strong>Back to POS:</strong> Click <strong>Pickup</strong> button (Top Menu).</td>
+                <td>Pickup Monitor shows Order #XX as "READY".</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">7</td>
+                <td>Click <strong>Mark Collected</strong> on the monitor.</td>
+                <td>Order is removed from Pickup list. Fulfillment status updated.</td>
+                <td class="status-col"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <h2>Scenario 3: Advanced Billing (Splitting & Tabs)</h2>
+    <p><strong>Objective:</strong> Handle complex payments involving split bills and running tabs.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Action</th>
+                <th>Expected Result</th>
+                <th>Pass/Fail</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="step-col">1</td>
+                <td>On POS, add <strong>2x Burgers</strong> and <strong>2x Cokes</strong>.</td>
+                <td>Cart Total reflects 4 items.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">2</td>
+                <td>Click <strong>Split</strong> button.</td>
+                <td>Split Modal opens with "Unassigned Items" pool.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">3</td>
+                <td>Click <strong>+</strong> to add "Guest 2".<br>Drag 1 Burger & 1 Coke to "Guest 2".</td>
+                <td>Items move from pool to Guest 2 column. Totals recalculate.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">4</td>
+                <td>Set Guest 1 to <strong>Cash</strong>. Set Guest 2 to <strong>Pending (Tab)</strong>.<br>Click <strong>Finalize & Pay</strong>.</td>
+                <td>System processes 2 transactions. Guest 1 receipt prints. Guest 2 is saved to Tab.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">5</td>
+                <td>Click <strong>Tabs</strong> button.</td>
+                <td>Tabs list shows a new tab (Guest 2) with unpaid balance.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">6</td>
+                <td>Select the tab -> Click <strong>Pay / Add Items</strong>.</td>
+                <td>Cart restores with Guest 2's items.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">7</td>
+                <td>Add a "Water". Click <strong>Add to Tab</strong> -> Select existing tab.</td>
+                <td>Item added to existing tab without payment. Cart clears.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">8</td>
+                <td>Recall Tab again. Click <strong>Charge</strong> -> Pay Full Balance.</td>
+                <td>Transaction completes. Tab is marked "PAID" and closed.</td>
+                <td class="status-col"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <h2>Scenario 4: Refunds & Shift End</h2>
+    <p><strong>Objective:</strong> Process a return and close the daily register.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Action</th>
+                <th>Expected Result</th>
+                <th>Pass/Fail</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="step-col">1</td>
+                <td>Go to <strong>Reports / Receipt History</strong>.</td>
+                <td>List of recent sales appears.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">2</td>
+                <td>Find a recent sale. Click <strong>Refund</strong>.</td>
+                <td>Refund modal appears.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">3</td>
+                <td>Enter Reason: "Customer Complaint".<br>Enter <strong>Manager Password</strong>.</td>
+                <td>Refund is approved. Stock is returned to inventory (if applicable). Cash deducted.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">4</td>
+                <td>Return to POS. Click <strong>X-Read</strong>.</td>
+                <td>Shift report shows Total Sales minus Refunds.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">5</td>
+                <td>Click <strong>End Shift</strong>.</td>
+                <td>End Shift modal appears asking for Closing Cash.</td>
+                <td class="status-col"></td>
+            </tr>
+            <tr>
+                <td class="step-col">6</td>
+                <td>Enter correct cash amount. Click <strong>Close Register</strong>.</td>
+                <td>Shift closes. System logs out or returns to Dashboard.</td>
+                <td class="status-col"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 10px;">
+        <p><strong>Sign-off:</strong></p>
+        <p>Tester Signature: __________________________ &nbsp;&nbsp; Date: _______________</p>
+        <p>Manager Signature: _________________________ &nbsp;&nbsp; Date: _______________</p>
+    </div>
+
+</body>
+</html>

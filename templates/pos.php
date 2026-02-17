@@ -424,6 +424,24 @@
     <div class="modal fade" id="membersModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title"><i class="bi bi-people-fill"></i> Select Member</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" id="memberSearch" class="form-control mb-3" placeholder="Search members..." onkeyup="filterMembers()"><div style="max-height: 400px; overflow-y: auto;"><ul class="list-group" id="membersList"><?php foreach($members as $m): ?><li class="list-group-item d-flex justify-content-between align-items-center member-item" data-search="<?= strtolower($m['name'] . ' ' . $m['phone']) ?>"><div><div class="fw-bold"><?= htmlspecialchars($m['name']) ?></div><small class="text-muted"><?= htmlspecialchars($m['phone']) ?></small></div><form method="POST"><input type="hidden" name="select_member" value="1"><input type="hidden" name="member_id" value="<?= $m['id'] ?>"><input type="hidden" name="member_name" value="<?= htmlspecialchars($m['name']) ?>"><input type="hidden" name="member_phone" value="<?= htmlspecialchars($m['phone']) ?>"><button class="btn btn-sm btn-primary">Select</button></form></li><?php endforeach; ?></ul></div></div></div></div></div>
     <div class="modal fade" id="reportModal" tabindex="-1" data-bs-backdrop="static" style="z-index: 1080;"><div class="modal-dialog modal-xl"><div class="modal-content h-100 border-0 shadow-lg"><div class="modal-header bg-info text-white"><h5 class="modal-title fw-bold" id="reportTitle"><i class="bi bi-file-text me-2"></i> Shift Report</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-0" style="height: 80vh; background: #525659;"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer bg-light"><button type="button" class="btn btn-secondary px-4 fw-bold" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary px-4 fw-bold shadow-sm" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer me-2"></i> Print</button></div></div></div></div>
 
+    <div class="modal fade" id="receiptModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-receipt"></i> Sale Complete</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0" style="height: 400px;">
+                    <iframe id="receiptFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-primary fw-bold" onclick="document.getElementById('receiptFrame').contentWindow.print()">PRINT</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function filterCat(id, btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); switchTab('items', btn); document.querySelectorAll('.item').forEach(e=>{ e.style.display = (id=='all'||e.dataset.cat==id)?'block':'none'; }); }
@@ -642,6 +660,15 @@
         <?php if(isset($_SESSION['swal_msg'])): ?>
         Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 1500, showConfirmButton: false });
         <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
+        <?php endif; ?>
+
+        <?php if(isset($_SESSION['last_sale_id'])): ?>
+        // AUTO-OPEN RECEIPT MODAL
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>";
+            new bootstrap.Modal(document.getElementById('receiptModal')).show();
+        });
+        <?php unset($_SESSION['last_sale_id']); ?>
         <?php endif; ?>
     </script>
 </body>
