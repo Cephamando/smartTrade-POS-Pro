@@ -23,12 +23,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refund_sale'])) {
     } else {
         $pdo->beginTransaction();
         try {
+            // Update Sale Status
             $pdo->prepare("UPDATE sales SET payment_status = 'refunded' WHERE id = ?")->execute([$saleId]);
+            
+            // Restore Stock
             $items = $pdo->query("SELECT * FROM sale_items WHERE sale_id = $saleId")->fetchAll();
             foreach ($items as $item) {
+                // Check if product is Service
                 $isService = $pdo->query("SELECT type FROM products WHERE id = {$item['product_id']}")->fetchColumn() === 'service';
+                
                 if (!$isService) {
+                    // Restore Quantity
                     $pdo->prepare("UPDATE inventory SET quantity = quantity + ? WHERE product_id = ? AND location_id = ?")->execute([$item['quantity'], $item['product_id'], $sale['location_id']]);
+                    
+                    // Log Refund in Audit Trail
                     $newQty = $pdo->query("SELECT quantity FROM inventory WHERE product_id = {$item['product_id']} AND location_id = {$sale['location_id']}")->fetchColumn();
                     $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id, created_at) VALUES (?, ?, ?, ?, ?, 'refund', ?, NOW())")->execute([$item['product_id'], $sale['location_id'], $_SESSION['user_id'], $item['quantity'], $newQty, $saleId]);
                 }
@@ -63,12 +71,11 @@ $stmt = $pdo->prepare($refundSql); $stmt->execute($refundParams); $refundStats =
 // --- 3. DATA FETCHING ---
 $reportData = [];
 if ($reportType === 'sales') {
-    $stmt = $pdo->prepare("SELECT s.*, u.username as cashier, l.name as location FROM sales s JOIN users u ON s.user_id = u.id JOIN locations l ON s.location_id = l.id WHERE s.created_at BETWEEN ? AND ? $locSql ORDER BY s.created_at DESC");
+    $stmt = $pdo->prepare("SELECT s.*, u.username as cashier, l.name as location FROM sales s LEFT JOIN users u ON s.user_id = u.id LEFT JOIN locations l ON s.location_id = l.id WHERE s.created_at BETWEEN ? AND ? $locSql ORDER BY s.created_at DESC");
     $stmt->execute($params); $reportData = $stmt->fetchAll();
 } elseif ($reportType === 'product') {
     $pParams = [$startDate . ' 00:00:00', $endDate . ' 23:59:59'];
     $pLocSql = ($locationId) ? " AND s.location_id = ?" : "";
-    if ($locationId) $pLocSql = " AND s.location_id = ?";
     if ($locationId) $pParams[] = $locationId;
     $stmt = $pdo->prepare("SELECT p.name, p.sku, SUM(si.quantity) as qty_sold, SUM(si.price_at_sale * si.quantity) as revenue FROM sale_items si JOIN sales s ON si.sale_id = s.id JOIN products p ON si.product_id = p.id WHERE s.created_at BETWEEN ? AND ? $pLocSql AND s.payment_status = 'paid' GROUP BY p.id ORDER BY qty_sold DESC");
     $stmt->execute($pParams); $reportData = $stmt->fetchAll();
@@ -76,7 +83,8 @@ if ($reportType === 'sales') {
     $aParams = [$startDate . ' 00:00:00', $endDate . ' 23:59:59'];
     $aLocSql = ($locationId) ? " AND il.location_id = ?" : "";
     if ($locationId) $aParams[] = $locationId;
-    $stmt = $pdo->prepare("SELECT il.*, p.name as product_name, u.username FROM inventory_logs il JOIN products p ON il.product_id = p.id JOIN users u ON il.user_id = u.id WHERE il.created_at BETWEEN ? AND ? $aLocSql ORDER BY il.created_at DESC");
+    // FIX: Changed JOIN to LEFT JOIN to ensure logs appear even if product/user deleted
+    $stmt = $pdo->prepare("SELECT il.*, COALESCE(p.name, 'Unknown Product') as product_name, COALESCE(u.username, 'Unknown User') as username FROM inventory_logs il LEFT JOIN products p ON il.product_id = p.id LEFT JOIN users u ON il.user_id = u.id WHERE il.created_at BETWEEN ? AND ? $aLocSql ORDER BY il.created_at DESC");
     $stmt->execute($aParams); $reportData = $stmt->fetchAll();
 }
 

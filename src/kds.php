@@ -1,7 +1,10 @@
 <?php
 // SECURITY: Chefs, Head Chefs, Admins Only
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
-if (!in_array($_SESSION['role'], ['chef', 'head_chef', 'admin', 'dev'])) {
+
+// Allow Manager/Admin/Dev/Chef to view KDS
+if (!in_array($_SESSION['role'], ['chef', 'head_chef', 'admin', 'dev', 'manager'])) {
     die("Access Denied: Kitchen Staff Only.");
 }
 
@@ -29,21 +32,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    exit; // Stop here for AJAX actions
+    exit;
 }
 
 // 2. FETCH ACTIVE ORDERS
-// Fix: Ensure we get all 'food' and 'meal' items that are pending or cooking
+// FIX: Removed strict Category check. Now shows ANY item that is Pending/Cooking.
 $sql = "
     SELECT s.id as sale_id, s.created_at, u.username as server,
-           si.id as item_id, si.quantity, si.status, p.name as product_name, c.name as category
+           si.id as item_id, si.quantity, si.status, p.name as product_name, 
+           COALESCE(c.name, 'Uncategorized') as category
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
     JOIN products p ON si.product_id = p.id
-    JOIN categories c ON p.category_id = c.id
-    JOIN users u ON s.user_id = u.id
+    LEFT JOIN categories c ON p.category_id = c.id
+    LEFT JOIN users u ON s.user_id = u.id
     WHERE si.status IN ('pending', 'cooking')
-    AND LOWER(c.type) IN ('food', 'meal') 
     ORDER BY si.status DESC, s.created_at ASC
 ";
 $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
@@ -56,7 +59,7 @@ foreach ($rows as $r) {
         $orders[$sid] = [
             'id' => $sid,
             'time' => $r['created_at'],
-            'waiter' => ucfirst($r['server']),
+            'waiter' => ucfirst($r['server'] ?? 'Staff'),
             'items' => []
         ];
     }
