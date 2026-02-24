@@ -1,85 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Kitchen Display - <?= htmlspecialchars($locationName ?? 'KDS') ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <style>
-        body { background-color: #2c2c2c; color: white; }
-        .order-card { background: #fff; color: #333; border-radius: 8px; overflow: hidden; height: 100%; }
-        .order-header { padding: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .bg-pending { background-color: #ffc107; }
-        .bg-paid { background-color: #198754; color: white; }
-        .order-items { padding: 10px; font-size: 0.95rem; }
-        .order-footer { padding: 10px; background: #f8f9fa; border-top: 1px solid #eee; }
-    </style>
-</head>
-<body>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-fire text-danger"></i> Meal Production</h3>
+    <a href="index.php?page=pos" class="btn btn-outline-secondary"><i class="bi bi-cart4"></i> Go to POS</a>
+</div>
 
-<div class="container-fluid p-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold"><i class="bi bi-fire text-danger"></i> Kitchen Display System</h3>
-        <div>
-            <button class="btn btn-outline-warning fw-bold me-2" onclick="showPickupModal()">
-                <i class="bi bi-tv"></i> Pickup Screen
-            </button>
-            <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm">Dashboard</a>
-        </div>
-    </div>
+<div class="alert alert-info border-info shadow-sm mb-4">
+    <strong><i class="bi bi-info-circle-fill"></i> Batch Production:</strong> Record prepared batches here. Select the POS Workstation below to instantly make the food available for cashiers to sell.
+</div>
 
-    <div class="row g-3">
-        <?php foreach($orders as $o): ?>
-        <div class="col-md-4 col-lg-3">
-            <div class="order-card shadow">
-                <div class="order-header <?= $o['payment_status'] == 'paid' ? 'bg-paid' : 'bg-pending' ?>">
-                    <span>#<?= $o['id'] ?> <?= htmlspecialchars($o['customer_name']) ?></span>
-                    <small><?= date('H:i', strtotime($o['created_at'])) ?></small>
-                </div>
-                <div class="order-items">
-                    <ul class="list-unstyled mb-0">
-                        <?php 
-                        $items = $pdo->query("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = {$o['id']}")->fetchAll();
-                        foreach($items as $i): 
-                        ?>
-                        <li class="d-flex justify-content-between border-bottom py-1">
-                            <span><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?></span>
-                        </li>
+<div class="row g-3">
+    <?php foreach($meals as $meal): ?>
+    <div class="col-md-4 col-lg-3 col-xl-2">
+        <div class="card shadow-sm h-100 border-0 border-bottom border-4 border-danger">
+            <div class="card-body text-center d-flex flex-column p-3">
+                <h6 class="card-title fw-bold text-dark mb-1" style="height: 40px; overflow: hidden;"><?= htmlspecialchars($meal['name']) ?></h6>
+                <div class="mb-3"><span class="badge bg-secondary" style="font-size: 0.65rem;"><?= htmlspecialchars($meal['cat_name']) ?></span></div>
+
+                <form method="POST" onsubmit="return confirm('Send this batch to the POS?');" class="mt-auto">
+                    <input type="hidden" name="produce_item" value="1">
+                    <input type="hidden" name="product_id" value="<?= $meal['id'] ?>">
+                    
+                    <select name="target_location_id" class="form-select form-select-sm mb-2 fw-bold text-primary border-primary" required>
+                        <option value="">Select POS...</option>
+                        <?php foreach($sellableLocs as $sl): ?>
+                            <option value="<?= $sl['id'] ?>">To: <?= htmlspecialchars($sl['name']) ?></option>
                         <?php endforeach; ?>
-                    </ul>
-                </div>
-                <div class="order-footer text-center">
-                    <button class="btn btn-success btn-sm w-100 fw-bold">MARK READY</button>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</div>
+                    </select>
 
-<div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content h-100">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title fw-bold"><i class="bi bi-bag-check-fill"></i> Orders Ready for Pickup</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-0" style="height: 80vh;">
-                <iframe id="pickupFrame" src="" style="width:100%; height:100%; border:none;"></iframe>
-            </div>
-            <div class="modal-footer bg-dark border-top-0">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text bg-white fw-bold">Qty</span>
+                        <input type="number" step="0.01" name="quantity" class="form-control text-center fw-bold text-danger" placeholder="0" required min="0.01">
+                    </div>
+                    <button type="submit" class="btn btn-danger w-100 fw-bold btn-sm"><i class="bi bi-send-check"></i> PRODUCE & SEND</button>
+                </form>
             </div>
         </div>
     </div>
+    <?php endforeach; ?>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-function showPickupModal() {
-    document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1";
-    new bootstrap.Modal(document.getElementById('pickupModal')).show();
-}
+    <?php if(isset($_SESSION['swal_msg'])): ?>
+    Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 1500, showConfirmButton: false });
+    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
+    <?php endif; ?>
 </script>
-</body>
-</html>

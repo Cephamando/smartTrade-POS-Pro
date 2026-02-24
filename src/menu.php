@@ -2,87 +2,53 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
-// Ensure only authorized staff can access
-if (!in_array(strtolower($_SESSION['role'] ?? ''), ['admin', 'manager', 'dev', 'chef', 'head_chef', 'kitchen'])) { 
-    die("Access Denied: Kitchen & Menu Management Only."); 
+$userRole = $_SESSION['role'] ?? '';
+if (!in_array($userRole, ['admin', 'manager', 'dev', 'head_chef'])) {
+    die("<h1>Access Denied</h1><p>Only Head Chefs and Management can edit the Menu.</p>");
 }
 
-$userId = $_SESSION['user_id'];
-
-// Fetch categories for food/meals
-$foodCategories = $pdo->query("SELECT * FROM categories WHERE type IN ('food', 'meal')")->fetchAll();
-// Fetch sellable locations (where meals will be sold)
-$sellableLocations = $pdo->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY name ASC")->fetchAll();
-
-$targetLocId = $_GET['loc'] ?? ($sellableLocations[0]['id'] ?? 0);
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // ACTION: Create New Meal
-    if (isset($_POST['add_meal'])) {
-        $name = trim($_POST['name']);
-        $price = floatval($_POST['price']);
-        $catId = intval($_POST['category_id']);
-        $qty = intval($_POST['initial_qty']);
-        $targetLoc = intval($_POST['target_location']);
-        
-        $pdo->beginTransaction();
-        try {
-            // Insert Product
-            $stmt = $pdo->prepare("INSERT INTO products (name, price, category_id, type, is_active) VALUES (?, ?, ?, 'item', 1)");
-            $stmt->execute([$name, $price, $catId]);
-            $pid = $pdo->lastInsertId();
-            
-            // Initialize stock for all locations to 0
-            $locs = $pdo->query("SELECT id FROM locations")->fetchAll(PDO::FETCH_COLUMN);
-            foreach($locs as $lid) {
-                $pdo->prepare("INSERT INTO inventory (product_id, location_id, quantity) VALUES (?, ?, 0)")->execute([$pid, $lid]);
-            }
-
-            // Set specific quantity for the chosen selling location
-            if ($qty > 0) {
-                $pdo->prepare("UPDATE inventory SET quantity = ? WHERE product_id = ? AND location_id = ?")->execute([$qty, $pid, $targetLoc]);
-            }
-            
-            $pdo->commit();
-            $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Meal Added to Menu.";
-        } catch(Exception $e) {
-            $pdo->rollBack();
-            $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
+// Add or Edit Menu Item Blueprint
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_menu_item'])) {
+    $id = $_POST['item_id'] ?? '';
+    $name = trim($_POST['name']);
+    $price = floatval($_POST['price']);
+    $cost = floatval($_POST['cost_price'] ?? 0);
+    $catId = (int)$_POST['category_id'];
+    
+    try {
+        if ($id) {
+            $pdo->prepare("UPDATE products SET name=?, price=?, cost_price=?, category_id=? WHERE id=?")->execute([$name, $price, $cost, $catId, $id]);
+            $_SESSION['swal_msg'] = "Menu item updated.";
+        } else {
+            // STRICT RULE: Only creates the product. Does NOT create inventory. The Chef must use "Produce" for that.
+            $pdo->prepare("INSERT INTO products (name, price, cost_price, category_id, type, is_active) VALUES (?, ?, ?, ?, 'item', 1)")->execute([$name, $price, $cost, $catId]);
+            $_SESSION['swal_msg'] = "Menu item created. (Stock is currently 0. Use the Produce screen to make it sellable).";
         }
-        header("Location: index.php?page=menu&loc=" . $targetLoc); exit;
+        $_SESSION['swal_type'] = 'success';
+    } catch (Exception $e) {
+        $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
     }
-
-    // ACTION: Set Meal Quantity
-    if (isset($_POST['update_stock'])) {
-        $pid = intval($_POST['product_id']);
-        $qty = intval($_POST['quantity']);
-        $targetLoc = intval($_POST['target_location']);
-
-        // Update Inventory directly
-        $stmt = $pdo->prepare("INSERT INTO inventory (product_id, location_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = ?");
-        $stmt->execute([$pid, $targetLoc, $qty, $qty]);
-        
-        // Log the manual update for auditing
-        $pdo->prepare("INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, created_at) VALUES (?,?,?,?,?, 'menu_update', NOW())")
-            ->execute([$pid, $targetLoc, $userId, 0, $qty]); 
-
-        $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Portions Updated.";
-        header("Location: index.php?page=menu&loc=" . $targetLoc); exit;
-    }
+    header("Location: index.php?page=menu");
+    exit;
 }
 
-// Fetch all food/meal products and their stock at the target location
-$meals = [];
-if ($targetLocId) {
-    $stmt = $pdo->prepare("
-        SELECT p.*, c.name as category_name, COALESCE(i.quantity, 0) as stock_qty 
-        FROM products p 
-        JOIN categories c ON p.category_id = c.id 
-        LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = ?
-        WHERE c.type IN ('food', 'meal') AND p.is_active = 1
-        ORDER BY c.name ASC, p.name ASC
-    ");
-    $stmt->execute([$targetLocId]);
-    $meals = $stmt->fetchAll();
+// Delete (Deactivate) Menu Item
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_item'])) {
+    $pdo->prepare("UPDATE products SET is_active = 0 WHERE id = ?")->execute([$_POST['item_id']]);
+    $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Item removed from menu.";
+    header("Location: index.php?page=menu");
+    exit;
 }
+
+// Fetch only Food/Meal Categories for the dropdown
+$foodCategories = $pdo->query("SELECT * FROM categories WHERE type IN ('food', 'meal') ORDER BY name ASC")->fetchAll();
+
+// Fetch Menu Items
+$menuItems = $pdo->query("
+    SELECT p.*, c.name as cat_name 
+    FROM products p 
+    JOIN categories c ON p.category_id = c.id 
+    WHERE c.type IN ('food', 'meal') AND p.is_active = 1 
+    ORDER BY c.name ASC, p.name ASC
+")->fetchAll();
 ?>
