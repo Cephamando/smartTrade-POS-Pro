@@ -81,7 +81,10 @@
             <?php endif; ?>
 
             <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
-                <button class="btn btn-outline-warning btn-sm fw-bold" onclick="showPickupModal()"><i class="bi bi-bag-check"></i> Pickup</button>
+                <button class="btn btn-outline-warning btn-sm fw-bold position-relative" onclick="showPickupModal()">
+                    <i class="bi bi-bag-check"></i> Pickup
+                    <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
+                </button>
                 <button class="btn btn-outline-light btn-sm" onclick="new bootstrap.Modal(document.getElementById('tabsModal')).show()"><i class="bi bi-receipt"></i> Tabs</button>
             <?php endif; ?>
 
@@ -225,6 +228,8 @@
         </div>
     </div>
 
+    <div class="modal fade" id="reportModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-info text-dark"><h5 class="modal-title fw-bold" id="reportTitle"><i class="bi bi-file-earmark-text"></i> X-Read</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-0" style="height: 65vh;"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer bg-light"><button type="button" class="btn btn-info fw-bold px-4" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer"></i> PRINT X-READ</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+    
     <div class="modal fade" id="tabsModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-header bg-dark text-white"><h5>Active Tabs</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row h-100"><div class="col-4 border-end overflow-auto"><div class="list-group">
     <?php foreach($openTabs as $t): 
         $isPaid = $t['payment_status'] === 'paid'; 
@@ -299,7 +304,6 @@
         let currentCat = 'all';
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Restore "In Stock Only" toggle state from browser memory
             if (localStorage.getItem('posInStockToggle') === 'true') {
                 let toggle = document.getElementById('inStockToggle');
                 if(toggle) toggle.checked = true;
@@ -323,7 +327,6 @@
             
             if (toggleElement) {
                 showInStockOnly = toggleElement.checked;
-                // Save state to browser memory immediately
                 localStorage.setItem('posInStockToggle', showInStockOnly);
             }
             
@@ -560,6 +563,24 @@
         <?php if(isset($_SESSION['swal_msg'])): ?>
         Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 1500, showConfirmButton: false });
         <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
+        <?php endif; ?>
+
+        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+        function checkPosReadyOrders() {
+            fetch('index.php?action=check_ready_orders')
+            .then(r => r.json())
+            .then(data => {
+                let badge = document.getElementById('posReadyBadge');
+                if(badge && data && data.count > 0) { 
+                    badge.innerText = data.count; 
+                    badge.style.display = 'block'; 
+                } else if (badge) { 
+                    badge.style.display = 'none'; 
+                }
+            }).catch(e => { console.error('POS Badge Error:', e); });
+        }
+        checkPosReadyOrders();
+        setInterval(checkPosReadyOrders, 5000);
         <?php endif; ?>
     </script>
 </body>

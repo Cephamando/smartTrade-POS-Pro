@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars(APP_NAME) ?></title>
+    <?php $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite'; ?>
+    <title><?= htmlspecialchars(defined('APP_NAME') ? APP_NAME : 'OdeliaPOS') ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
         :root { 
-            --theme-primary: <?= htmlspecialchars(THEME_COLOR) ?>; 
+            --theme-primary: <?= htmlspecialchars(defined('THEME_COLOR') ? THEME_COLOR : '#3e2723') ?>; 
             --theme-gold: #ffc107; 
             --theme-orange: #fd7e14; 
             --theme-bg: #f8f9fa; 
@@ -37,20 +38,23 @@
     }
     ?>
 
+    <?php if (!isset($_GET['embedded'])): ?>
     <nav class="navbar navbar-expand-lg navbar-custom mb-4 shadow-sm no-print">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php?page=dashboard"><i class="bi bi-grid-fill"></i> <?= htmlspecialchars(APP_NAME) ?></a>
+            <a class="navbar-brand" href="index.php?page=dashboard"><i class="bi bi-grid-fill"></i> <?= htmlspecialchars(defined('APP_NAME') ? APP_NAME : 'OdeliaPOS') ?></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon"></span></button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item"><a class="nav-link" href="index.php?page=dashboard">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=pos">POS</a></li>
                     
-                    <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
-                    <li class="nav-item"><a class="nav-link" href="index.php?page=pickup">Pickup</a></li>
+                    <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="index.php?page=pickup">Pickup <span id="navReadyBadge" class="badge bg-danger rounded-pill" style="display:none; font-size:0.65rem; margin-left: 2px;">0</span></a>
+                    </li>
                     <?php endif; ?>
                     
-                    <?php if (LICENSE_TIER === 'hospitality'): ?>
+                    <?php if ($tier === 'hospitality'): ?>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=kds">Kitchen</a></li>
                     <?php endif; ?>
                     
@@ -59,16 +63,16 @@
                         <ul class="dropdown-menu shadow">
                             <li><a class="dropdown-item" href="index.php?page=inventory">Stock Levels</a></li>
                             <li><a class="dropdown-item" href="index.php?page=categories">Categories</a></li>
-                            <?php if($canReceive && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                            <?php if($canReceive && in_array($tier, ['pro', 'hospitality'])): ?>
                                 <li><a class="dropdown-item" href="index.php?page=receive_stock">Receive Stock (GRV)</a></li>
                             <?php endif; ?>
-                            <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                            <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                             <li><a class="dropdown-item" href="index.php?page=transfers">Transfers</a></li>
                             <?php endif; ?>
                         </ul>
                     </li>
 
-                    <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                    <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=members">Members</a></li>
                     <?php endif; ?>
                     
@@ -79,17 +83,17 @@
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Management</a>
                             <ul class="dropdown-menu shadow">
                                 <li><a class="dropdown-item" href="index.php?page=reports">Reports</a></li>
-                                <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                                 <li><a class="dropdown-item" href="index.php?page=audit">Audit Trail</a></li>
                                 <?php endif; ?>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="index.php?page=users">Users</a></li>
+                                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+                                <li><a class="dropdown-item" href="index.php?page=locations">Locations</a></li>
+                                <?php endif; ?>
                                 <?php if(isset($_SESSION['role']) && $_SESSION['role'] === 'dev'): ?>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item fw-bold text-danger" href="index.php?page=settings"><i class="bi bi-gear-fill"></i> System Settings</a></li>
-                                <?php endif; ?>
-                                <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
-                                <li><a class="dropdown-item" href="index.php?page=locations">Locations</a></li>
                                 <?php endif; ?>
                             </ul>
                         </li>
@@ -142,5 +146,28 @@
         </div>
     </div>
     <?php endif; ?>
+    <?php endif; ?>
 
-    <div class="container-fluid px-4">
+    <div class="container-fluid <?= isset($_GET['embedded']) ? 'p-1' : 'px-4' ?>">
+
+    <?php if (in_array($tier, ['pro', 'hospitality']) && !isset($_GET['embedded'])): ?>
+    <script>
+    function checkNavReadyOrders() {
+        fetch('index.php?action=check_ready_orders')
+        .then(r => r.json())
+        .then(data => {
+            let badge = document.getElementById('navReadyBadge');
+            if(badge && data && data.count > 0) { 
+                badge.innerText = data.count; 
+                badge.style.display = 'inline-block'; 
+            } else if (badge) { 
+                badge.style.display = 'none'; 
+            }
+        }).catch(e => console.error("Nav Badge Error:", e));
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        checkNavReadyOrders();
+        setInterval(checkNavReadyOrders, 5000);
+    });
+    </script>
+    <?php endif; ?>

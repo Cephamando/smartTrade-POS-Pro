@@ -63,6 +63,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['global_switch_locatio
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
 
+    if ($action === 'check_ready_orders') {
+        header('Content-Type: application/json');
+        $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
+        try {
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.location_id = ? AND si.status = 'ready' AND si.fulfillment_status = 'uncollected'");
+            $stmt->execute([$locationId]);
+            echo json_encode(['count' => (int)$stmt->fetchColumn()]);
+        } catch(Exception $e) {
+            echo json_encode(['count' => 0, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($action === 'get_shift_sales') {
+        header('Content-Type: application/json');
+        $shiftId = (int)($_GET['shift_id'] ?? 0);
+        try {
+            $stmt = $pdo->prepare("SELECT id, created_at, customer_name, final_total, payment_method FROM sales WHERE shift_id = ? AND payment_status = 'paid' ORDER BY created_at DESC");
+            $stmt->execute([$shiftId]);
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Exception $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
     if ($action === 'get_stock_level') {
         header('Content-Type: application/json');
         $product_id = $_GET['product_id'] ?? 0;
