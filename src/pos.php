@@ -146,7 +146,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } header("Location: index.php?page=pos"); exit;
         }
 
-        if (isset($_POST['toggle_fulfillment'])) { $key = $_POST['cart_key']; if(isset($_SESSION['cart'][$key])) { $_SESSION['cart'][$key]['fulfillment'] = ($_SESSION['cart'][$key]['fulfillment'] === 'collected') ? 'uncollected' : 'collected'; } header("Location: index.php?page=pos"); exit; }
+        if (isset($_POST['toggle_fulfillment'])) { 
+            $key = $_POST['cart_key']; 
+            if(isset($_SESSION['cart'][$key])) { 
+                $cType = strtolower($_SESSION['cart'][$key]['cat_type'] ?? '');
+                // Block toggling if it's a food/meal item
+                if (!in_array($cType, ['food', 'meal'])) {
+                    $_SESSION['cart'][$key]['fulfillment'] = ($_SESSION['cart'][$key]['fulfillment'] === 'collected') ? 'uncollected' : 'collected'; 
+                }
+            } 
+            header("Location: index.php?page=pos"); exit; 
+        }
+
         if (isset($_POST['update_qty'])) { $key = $_POST['cart_key']; if ($_POST['action'] === 'inc') $_SESSION['cart'][$key]['qty']++; elseif ($_POST['action'] === 'dec') { $_SESSION['cart'][$key]['qty']--; if($_SESSION['cart'][$key]['qty']<=0) unset($_SESSION['cart'][$key]); } header("Location: index.php?page=pos"); exit; }
         if (isset($_POST['remove_item'])) { unset($_SESSION['cart'][$_POST['cart_key']]); header("Location: index.php?page=pos"); exit; }
         if (isset($_POST['clear_cart'])) { unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']); header("Location: index.php?page=pos"); exit; }

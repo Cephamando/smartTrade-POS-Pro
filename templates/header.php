@@ -3,13 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OdeliaPOS - Premium</title>
+    <title><?= htmlspecialchars(APP_NAME) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
-        :root { --theme-brown: #3e2723; --theme-gold: #ffc107; --theme-gold-dark: #d39e00; --theme-orange: #fd7e14; --theme-bg: #fff8e1; }
-        body { background-color: var(--theme-bg); color: var(--theme-brown); }
-        .navbar-custom { background-color: var(--theme-brown); border-bottom: 3px solid var(--theme-gold); }
+        :root { 
+            --theme-primary: <?= htmlspecialchars(THEME_COLOR) ?>; 
+            --theme-gold: #ffc107; 
+            --theme-orange: #fd7e14; 
+            --theme-bg: #f8f9fa; 
+        }
+        body { background-color: var(--theme-bg); color: #333; }
+        .navbar-custom { background-color: var(--theme-primary); border-bottom: 3px solid var(--theme-gold); }
         .navbar-custom .navbar-brand { color: var(--theme-gold) !important; font-weight: bold; }
         .navbar-custom .nav-link { color: rgba(255,255,255,0.8) !important; }
         .navbar-custom .nav-link:hover { color: var(--theme-gold) !important; }
@@ -34,28 +39,38 @@
 
     <nav class="navbar navbar-expand-lg navbar-custom mb-4 shadow-sm no-print">
         <div class="container-fluid">
-            <a class="navbar-brand" href="index.php?page=dashboard"><i class="bi bi-grid-fill"></i> OdeliaPOS</a>
+            <a class="navbar-brand" href="index.php?page=dashboard"><i class="bi bi-grid-fill"></i> <?= htmlspecialchars(APP_NAME) ?></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon"></span></button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item"><a class="nav-link" href="index.php?page=dashboard">Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=pos">POS</a></li>
+                    
+                    <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=pickup">Pickup</a></li>
+                    <?php endif; ?>
+                    
+                    <?php if (LICENSE_TIER === 'hospitality'): ?>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=kds">Kitchen</a></li>
+                    <?php endif; ?>
                     
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Inventory</a>
                         <ul class="dropdown-menu shadow">
                             <li><a class="dropdown-item" href="index.php?page=inventory">Stock Levels</a></li>
                             <li><a class="dropdown-item" href="index.php?page=categories">Categories</a></li>
-                            <?php if($canReceive): ?>
+                            <?php if($canReceive && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                                 <li><a class="dropdown-item" href="index.php?page=receive_stock">Receive Stock (GRV)</a></li>
                             <?php endif; ?>
+                            <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                             <li><a class="dropdown-item" href="index.php?page=transfers">Transfers</a></li>
+                            <?php endif; ?>
                         </ul>
                     </li>
 
+                    <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                     <li class="nav-item"><a class="nav-link" href="index.php?page=members">Members</a></li>
+                    <?php endif; ?>
                     
                     <li class="nav-item"><a class="nav-link text-warning" href="index.php?page=print_shift">Shift Report</a></li>
 
@@ -64,10 +79,18 @@
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Management</a>
                             <ul class="dropdown-menu shadow">
                                 <li><a class="dropdown-item" href="index.php?page=reports">Reports</a></li>
+                                <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                                 <li><a class="dropdown-item" href="index.php?page=audit">Audit Trail</a></li>
+                                <?php endif; ?>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="index.php?page=users">Users</a></li>
+                                <?php if(isset($_SESSION['role']) && $_SESSION['role'] === 'dev'): ?>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item fw-bold text-danger" href="index.php?page=settings"><i class="bi bi-gear-fill"></i> System Settings</a></li>
+                                <?php endif; ?>
+                                <?php if (in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                                 <li><a class="dropdown-item" href="index.php?page=locations">Locations</a></li>
+                                <?php endif; ?>
                             </ul>
                         </li>
                     <?php endif; ?>

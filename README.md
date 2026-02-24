@@ -1,72 +1,58 @@
-# smartTrade-POS-pro 🚀
+# OdeliaPOS
 
-**smartTrade-POS-pro** is a robust, web-based Point of Sale and Inventory Management system designed by **Mando Chishimba** operating as **Odelia Enterprise Zambia**. It is built to handle multi-location hospitality environments (Bars, Kitchens, Stores) with strict inventory controls and shift management.
+A highly scalable, multi-location Point of Sale and Inventory Management System built for retail, hardware, and hospitality businesses. Engineered with a lean native PHP architecture and Docker containerization.
 
-## 🌟 Features
+## 🚀 Key Architecture
 
-### 🏢 Multi-Location Inventory
-* **Centralized Warehousing:** Manage a Master Storeroom and transfer stock to sub-locations.
-* **Location Types:** Distinct logic for **Stores** (Receive goods), **Bars** (Sell drinks), and **Kitchens** (Sell food/Consume ingredients).
-* **Stock Transfers:** Request > Approve workflow for moving items between locations.
+OdeliaPOS utilizes a single-codebase architecture with **Dynamic Feature Toggling**. Instead of maintaining separate apps for different business types, features are hidden or exposed based on the active License Tier.
 
-### 🛒 Point of Sale (POS)
-* **Fast Checkout:** Barcode scanning support and quick-search.
-* **Cart Management:** Discount and Tip handling.
-* **Receipts:** Auto-generates thermal-printer friendly receipts with QR Codes.
-* **Stock Checks:** Prevents selling items that are out of stock at the specific location.
+### 🏢 Licensing Tiers (Product Matrix)
 
-### 🛡️ Controls & Security
-* **Shift Management:** Mandatory "Open Shift" (Float count) and "Close Shift" (Cash count + Manager verification).
-* **Variance Tracking:** Automatically calculates cash/stock discrepancies.
-* **User Roles:** Admin, Manager, and Cashier permission levels.
-* **Force Password Change:** New staff must update credentials on first login.
-
-### 📊 Analytics
-* **Real-time Reports:** Gross Profit (Revenue - Tax - Cost).
-* **Breakdowns:** Sales by Payment Type, Employee, and Product.
-* **Shift History:** Detailed audit logs of every shift closed.
-
----
+| Feature Module | Lite (Retail/Kiosk) | Pro (Multi-Store) | Hospitality (F&B) |
+| :--- | :---: | :---: | :---: |
+| Basic POS & Shift Management | ✅ | ✅ | ✅ |
+| In-Stock Only Filtering | ✅ | ✅ | ✅ |
+| Multi-Location Switching | ❌ | ✅ | ✅ |
+| Hold/Open Tabs & Split Bills | ❌ | ✅ | ✅ |
+| Advanced Inventory (GRVs/Transfers)| ❌ | ✅ | ✅ |
+| Member Loyalty Tracking | ❌ | ✅ | ✅ |
+| Kitchen Display System (KDS) | ❌ | ❌ | ✅ |
+| Digital Pickup Screen | ❌ | ❌ | ✅ |
+| Recipe/Menu Portion Control | ❌ | ❌ | ✅ |
 
 ## 🛠️ Tech Stack
-
-* **Language:** PHP 8.2 (Native MVC Structure)
-* **Database:** MySQL 8.0
-* **Server:** Apache
-* **Frontend:** Bootstrap 5, SweetAlert2, Chart.js
+* **Backend:** Native PHP 8.2 (No heavy frameworks, highly optimized router)
+* **Database:** MySQL 8.3
+* **Frontend:** HTML5, Bootstrap 5.3, Vanilla JavaScript, Chart.js, SweetAlert2
 * **Infrastructure:** Docker & Docker Compose
 
----
+## 🎨 White-Label Ready
+OdeliaPOS includes a built-in Developer settings panel. Log in with a `dev` account to instantly change the **Business Name**, **Theme Colors**, and **Receipt Headers/Footers** globally, allowing you to resell the software seamlessly to different clients.
 
-## 🚀 Installation & Setup
+## ⚙️ Quick Start Installation
 
-### 1. Prerequisites
-Ensure you have **Docker** and **Docker Compose** installed on your machine.
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/yourusername/pos-app.git](https://github.com/yourusername/pos-app.git)
+   cd pos-app
+Start the Docker Containers:
 
-### 2. Clone & Configure
-```bash
-# Clone the repository
-git clone [https://github.com/yourusername/smartTrade-POS-pro.git](https://github.com/yourusername/smartTrade-POS-pro.git)
-cd smartTrade-POS-pro
+Bash
+docker compose up -d
+Initialize the Database:
+Import the init.sql schema into your MySQL container (via Adminer or CLI).
 
-# Create Environment File
-cp .env.example .env
-# Edit .env and set your database passwords!
+Login Credentials:
 
-3. Start the Server
-docker-compose up -d --build
-Access the application at: http://localhost:8090 (or the port defined in docker-compose).
+Username: admin (or dev)
 
-🔐 Default Credentials
-Role,Username,Password,Location
-Super Admin,odelia_admin,password123,Main Store
-Store Manager,store_manager,password123,Main Store
-Barman,main_barman,password123,Main Bar
-Chef,head_chef,password123,Kitchen
+Password: posRoot123! (Default hash configured in the schema)
 
-Note: Users will be prompted to change these passwords upon first login.
+🔐 Security & Access Control
+Global Router Authentication: Every request routes through public/index.php, ensuring strict session validation. Background APIs utilize session_write_close() to prevent UI blocking.
 
-© Copyright
-Odelia Enterprise Zambia All Rights Reserved.
-# SmartTrade-pos
-# SmartTrade-pos
+Role-Based Access: UI elements dynamically respond to roles (dev, admin, manager, cashier, chef, waiter, bartender).
+
+Workflow Integrity: Food items cannot be bypassed at the register; they strictly route to the Kitchen Display System (KDS) and must be fulfilled via the Digital Pickup Screen.
+
+Developed by Mando Chishimba - Odelia Enterprise

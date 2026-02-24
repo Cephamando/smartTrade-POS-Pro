@@ -1,4 +1,10 @@
-<?php if (!isset($todaySales)) { include_once 'src/dashboard.php'; } ?>
+<?php 
+if (!isset($todaySales)) { include_once 'src/dashboard.php'; } 
+$tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
+// Dynamic column sizing based on features
+$topColSize = in_array($tier, ['pro', 'hospitality']) ? 'col-md-3' : 'col-md-4';
+$midColSize = ($tier === 'hospitality') ? 'col-md-4' : 'col-md-6';
+?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -7,16 +13,18 @@
         <span class="text-muted small">Overview for <strong class="text-dark"><?= htmlspecialchars($dashLocName ?? 'All') ?></strong></span>
     </div>
     <div class="d-flex gap-2">
+        <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
         <button class="btn btn-warning fw-bold position-relative" onclick="showPickupModal()">
             <i class="bi bi-tv"></i> Pickup Screen
             <span id="readyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">0</span>
         </button>
+        <?php endif; ?>
         <a href="index.php?page=pos" class="btn btn-primary fw-bold"><i class="bi bi-cart4"></i> Go to POS</a>
     </div>
 </div>
 
 <div class="row g-2 mb-3">
-    <div class="col-md-3 col-6">
+    <div class="<?= $topColSize ?> col-6">
         <a href="index.php?page=reports" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
                 <div class="card-body p-3">
@@ -26,7 +34,7 @@
             </div>
         </a>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="<?= $topColSize ?> col-6">
         <a href="index.php?page=reports" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
                 <div class="card-body p-3">
@@ -36,7 +44,9 @@
             </div>
         </a>
     </div>
-    <div class="col-md-3 col-6">
+    
+    <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+    <div class="<?= $topColSize ?> col-6">
         <a href="index.php?page=pos" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
                 <div class="card-body p-3 position-relative">
@@ -46,7 +56,9 @@
             </div>
         </a>
     </div>
-    <div class="col-md-3 col-6">
+    <?php endif; ?>
+
+    <div class="<?= $topColSize ?> col-6">
         <a href="index.php?page=inventory" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
                 <div class="card-body p-3">
@@ -59,18 +71,23 @@
 </div>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-4">
+    <div class="<?= $midColSize ?>">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-box-seam"></i> Inventory</div>
             <div class="list-group list-group-flush small fw-bold">
+                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <a href="index.php?page=receive_stock" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Receive Stock <i class="bi bi-chevron-right text-muted"></i></a>
+                <?php endif; ?>
                 <a href="index.php?page=inventory" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Manage Products <i class="bi bi-chevron-right text-muted"></i></a>
+                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <a href="index.php?page=audit" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Stock Audit <i class="bi bi-chevron-right text-muted"></i></a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     
-    <div class="col-md-4">
+    <?php if ($tier === 'hospitality'): ?>
+    <div class="<?= $midColSize ?>">
         <div class="card shadow-sm h-100 border-warning">
             <div class="card-header bg-warning text-dark fw-bold py-2"><i class="bi bi-fire"></i> Kitchen & Menu</div>
             <div class="list-group list-group-flush small fw-bold">
@@ -80,14 +97,17 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
-    <div class="col-md-4">
+    <div class="<?= $midColSize ?>">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-people"></i> Staff & Users</div>
             <div class="list-group list-group-flush small fw-bold">
                 <a href="index.php?page=users" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Manage Users <i class="bi bi-chevron-right text-muted"></i></a>
                 <a href="index.php?page=Shifts" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">View Shifts <i class="bi bi-chevron-right text-muted"></i></a>
+                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <a href="index.php?page=members" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Members <i class="bi bi-chevron-right text-muted"></i></a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -116,6 +136,7 @@
     </div>
 </div>
 
+<?php if (in_array($tier, ['pro', 'hospitality'])): ?>
 <div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content h-100">
@@ -142,11 +163,14 @@ function showPickupModal() {
 setInterval(function() {
     fetch('api/check_ready_orders.php').then(r => r.json()).then(data => {
         const badge = document.getElementById('readyBadge');
-        if(data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } 
-        else { badge.style.display = 'none'; }
+        if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } 
+        else if (badge) { badge.style.display = 'none'; }
     }).catch(e => console.log('Pickup poller inactive'));
 }, 5000);
+</script>
+<?php endif; ?>
 
+<script>
 document.addEventListener('DOMContentLoaded', function() {
     new Chart(document.getElementById('salesChart').getContext('2d'), {
         type: 'line',
