@@ -9,12 +9,17 @@ if (!in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
 
 // --- 1. ADD / EDIT USER ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_user'])) {
-    // FIX: Use null coalescing (??) to prevent "Undefined array key" warnings
     $username = trim($_POST['username'] ?? '');
     $fullName = trim($_POST['full_name'] ?? '');
     $role = $_POST['role'] ?? 'cashier'; // Default to cashier if missing
     $pass = $_POST['password'] ?? '';
     $id = $_POST['user_id'] ?? '';
+
+    // SECURITY: Only a 'dev' can assign the 'dev' role. 
+    // If an admin hacks the form to submit 'dev', fallback to 'cashier'.
+    if ($role === 'dev' && $_SESSION['role'] !== 'dev') {
+        $role = 'cashier';
+    }
 
     try {
         if ($id) {
@@ -59,6 +64,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
     header("Location: index.php?page=users"); exit;
 }
 
-// --- 3. FETCH ACTIVE USERS ---
+// --- 3. DYNAMICALLY FETCH ROLES ENUM ---
+$stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'role'");
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+$enumStr = $row['Type']; // Gets string like: enum('admin','shopkeeper','manager',...)
+preg_match_all("/'([^']+)'/", $enumStr, $matches);
+$rolesEnum = $matches[1] ?? ['cashier', 'manager', 'admin'];
+
+// SECURITY: Remove 'dev' from options if the current user is not a dev
+if ($_SESSION['role'] !== 'dev') {
+    $rolesEnum = array_filter($rolesEnum, function($r) {
+        return $r !== 'dev';
+    });
+}
+
+// --- 4. FETCH ACTIVE USERS ---
 $users = $pdo->query("SELECT * FROM users WHERE is_active = 1 ORDER BY role, username")->fetchAll();
 ?>

@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
 // Allow Manager/Admin/Dev/Chef to view KDS
-if (!in_array($_SESSION['role'], ['chef', 'head_chef', 'admin', 'dev', 'manager'])) {
+if (!in_array(strtolower($_SESSION['role'] ?? ''), ['chef', 'head_chef', 'kitchen', 'admin', 'dev', 'manager'])) {
     die("Access Denied: Kitchen Staff Only.");
 }
 

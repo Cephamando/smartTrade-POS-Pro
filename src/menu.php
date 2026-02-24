@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
 // Ensure only authorized staff can access
-if (!in_array($_SESSION['role'], ['admin', 'manager', 'dev', 'chef', 'head_chef'])) { 
+if (!in_array(strtolower($_SESSION['role'] ?? ''), ['admin', 'manager', 'dev', 'chef', 'head_chef', 'kitchen'])) { 
     die("Access Denied: Kitchen & Menu Management Only."); 
 }
 

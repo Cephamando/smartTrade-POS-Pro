@@ -71,7 +71,7 @@
             <button class="btn btn-sm btn-link text-warning ms-1" data-bs-toggle="modal" data-bs-target="#locationModal"><i class="bi bi-pencil-square"></i></button>
         </div>
         <div class="d-flex gap-2 pe-2">
-            <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev','chef','head_chef'])): ?>
+            <?php if(in_array(strtolower($_SESSION['role'] ?? ''), ['admin','manager','dev','chef','head_chef','kitchen'])): ?>
                 <a href="index.php?page=menu" class="btn btn-outline-success btn-sm fw-bold"><i class="bi bi-list-ul"></i> Menu</a>
                 <a href="index.php?page=kitchen" class="btn btn-outline-danger btn-sm fw-bold"><i class="bi bi-fire"></i> Produce</a>
             <?php endif; ?>

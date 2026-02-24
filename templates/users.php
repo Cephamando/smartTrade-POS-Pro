@@ -29,28 +29,28 @@
                     <input type="hidden" name="user_id" id="userId">
                     
                     <div class="mb-3">
-                        <label>Full Name</label>
+                        <label class="form-label fw-bold small text-muted">FULL NAME</label>
                         <input type="text" name="full_name" id="fullName" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label>Username</label>
+                        <label class="form-label fw-bold small text-muted">USERNAME</label>
                         <input type="text" name="username" id="username" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label>Role</label>
-                        <select name="role" id="role" class="form-select">
-                            <option value="cashier">Cashier</option>
-                            <option value="manager">Manager</option>
-                            <option value="admin">Admin</option>
+                        <label class="form-label fw-bold small text-muted">ROLE</label>
+                        <select name="role" id="role" class="form-select fw-bold text-dark">
+                            <?php foreach($rolesEnum as $r): ?>
+                                <option value="<?= htmlspecialchars($r) ?>"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $r))) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label>Password <small class="text-muted" id="passHelp">(Required for new users)</small></label>
+                        <label class="form-label fw-bold small text-muted">PASSWORD <small class="text-danger" id="passHelp">(Required for new users)</small></label>
                         <input type="password" name="password" class="form-control" placeholder="******">
                     </div>
                     
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary fw-bold" id="btnSubmit">Create User</button>
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary fw-bold py-2" id="btnSubmit">Create User</button>
                     </div>
                 </form>
             </div>
@@ -63,10 +63,10 @@
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th class="ps-3">Name</th>
-                            <th>Username</th>
-                            <th>Role</th>
-                            <th class="text-end pe-3">Actions</th>
+                            <th class="ps-3 text-uppercase small text-muted">Name</th>
+                            <th class="text-uppercase small text-muted">Username</th>
+                            <th class="text-uppercase small text-muted">Role</th>
+                            <th class="text-end pe-3 text-uppercase small text-muted">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -74,7 +74,16 @@
                         <tr>
                             <td class="ps-3 fw-bold"><?= htmlspecialchars($u['full_name']) ?></td>
                             <td><?= htmlspecialchars($u['username']) ?></td>
-                            <td><span class="badge bg-<?= $u['role'] == 'admin' ? 'danger' : ($u['role'] == 'manager' ? 'primary' : 'secondary') ?>"><?= strtoupper($u['role']) ?></span></td>
+                            <td>
+                                <?php 
+                                    $badgeColor = 'secondary';
+                                    if(in_array($u['role'], ['admin', 'dev'])) $badgeColor = 'danger';
+                                    if(in_array($u['role'], ['manager', 'head_chef'])) $badgeColor = 'primary';
+                                    if(in_array($u['role'], ['chef', 'kitchen'])) $badgeColor = 'warning text-dark';
+                                    if(in_array($u['role'], ['bartender', 'waiter'])) $badgeColor = 'info text-dark';
+                                ?>
+                                <span class="badge bg-<?= $badgeColor ?>"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $u['role']))) ?></span>
+                            </td>
                             <td class="text-end pe-3">
                                 <button class="btn btn-sm btn-outline-primary" onclick='editUser(<?= json_encode($u) ?>)'><i class="bi bi-pencil"></i></button>
                                 
@@ -107,6 +116,7 @@ function editUser(u) {
     document.getElementById('btnSubmit').innerText = "Update User";
     document.getElementById('btnSubmit').classList.replace('btn-primary', 'btn-warning');
     document.getElementById('passHelp').innerText = "(Leave blank to keep current)";
+    document.getElementById('passHelp').classList.replace('text-danger', 'text-muted');
     document.getElementById('btnCancelEdit').classList.remove('d-none');
 }
 
@@ -121,6 +131,7 @@ function resetForm() {
     document.getElementById('btnSubmit').innerText = "Create User";
     document.getElementById('btnSubmit').classList.replace('btn-warning', 'btn-primary');
     document.getElementById('passHelp').innerText = "(Required for new users)";
+    document.getElementById('passHelp').classList.replace('text-muted', 'text-danger');
     document.getElementById('btnCancelEdit').classList.add('d-none');
 }
 
