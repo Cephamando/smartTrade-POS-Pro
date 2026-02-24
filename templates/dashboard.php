@@ -59,7 +59,7 @@
 </div>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-box-seam"></i> Inventory</div>
             <div class="list-group list-group-flush small fw-bold">
@@ -69,7 +69,19 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100 border-warning">
+            <div class="card-header bg-warning text-dark fw-bold py-2"><i class="bi bi-fire"></i> Kitchen & Menu</div>
+            <div class="list-group list-group-flush small fw-bold">
+                <a href="index.php?page=kds" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Kitchen Display (KDS) <i class="bi bi-chevron-right text-muted"></i></a>
+                <a href="index.php?page=kitchen" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Meal Production <i class="bi bi-chevron-right text-muted"></i></a>
+                <a href="index.php?page=menu" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Menu Builder <i class="bi bi-chevron-right text-muted"></i></a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-people"></i> Staff & Users</div>
             <div class="list-group list-group-flush small fw-bold">
@@ -137,22 +149,22 @@ setInterval(function() {
 
 document.addEventListener('DOMContentLoaded', function() {
     new Chart(document.getElementById('salesChart').getContext('2d'), {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: <?= json_encode($dates) ?>,
-            datasets: [{ label: 'Revenue (ZMW)', data: <?= json_encode($salesData) ?>, backgroundColor: '#198754', barThickness: 15, borderRadius: 4 }]
+            datasets: [{ label: 'Revenue (ZMW)', data: <?= json_encode($salesData) ?>, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, tension: 0.3 }]
         },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { display: false } } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
     });
 
     const payData = <?= json_encode($pmData) ?>;
     new Chart(document.getElementById('paymentChart').getContext('2d'), {
-        type: 'bar',
+        type: 'doughnut',
         data: {
             labels: Object.keys(payData),
-            datasets: [{ label: 'Transactions', data: Object.values(payData), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d'], barThickness: 15, borderRadius: 4 }]
+            datasets: [{ data: Object.values(payData), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d'] }]
         },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { precision:0 }, grid: { display: false } }, y: { grid: { display: false } } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
     });
 });
 </script>

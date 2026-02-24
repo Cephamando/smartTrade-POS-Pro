@@ -65,7 +65,7 @@ $sql = "
         c.name AS category_name,
         l.name AS location_name,
         i.quantity,
-        (i.quantity * p.cost_price) AS stock_value
+        (i.quantity * p.price) AS stock_value
     FROM inventory i
     JOIN products p ON p.id = i.product_id
     JOIN locations l ON l.id = i.location_id
@@ -107,3 +107,5 @@ $totalValue = 0.0;
 foreach ($inventory as $item) {
     $totalValue += (float)$item['stock_value'];
 }
+
+?>

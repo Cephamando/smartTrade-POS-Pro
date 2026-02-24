@@ -11,45 +11,33 @@
     <style>
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; }
         .header-custom { background-color: #2c2c2c; border-bottom: 4px solid #ffc107; color: white; flex: 0 0 auto; z-index: 1050; }
-        
-        /* Flexbox Workspace Constraints */
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
         .product-section { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        
         .category-bar { background: #fff; padding: 10px; border-bottom: 1px solid #ddd; white-space: nowrap; overflow-x: auto; flex: 0 0 auto; }
         .cat-pill { display: inline-block; padding: 8px 18px; margin-right: 8px; border-radius: 50px; background: #f8f9fa; border: 1px solid #dee2e6; color: #333; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .cat-pill:hover { background: #e9ecef; }
         .cat-pill.active { background: #3e2723; color: #ffc107; border-color: #3e2723; }
-        
-        /* Product List Pagination Structure */
         .product-list-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
         .product-list { flex: 1 1 auto; overflow-y: auto; padding: 15px; }
         .pagination-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #ddd; padding: 10px 15px; display: flex; justify-content: center; align-items: center; gap: 15px; }
-        
         .item-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; transition: transform 0.1s, box-shadow 0.1s; cursor: pointer; overflow: hidden; position: relative; height: 100%; display: block; width: 100%; text-align: left; }
         .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: #ffc107; }
         .item-card:active { transform: scale(0.98); }
         .item-card:disabled, .item-card[disabled] { opacity: 0.4 !important; filter: grayscale(100%) !important; background-color: #e9ecef !important; cursor: not-allowed !important; pointer-events: none !important; box-shadow: none !important; border-color: #ddd !important; }
-        
         .stock-badge { position: absolute; top: 8px; right: 8px; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; z-index: 2; }
         .bg-low { background-color: #dc3545; color: white; }
         .bg-ok { background-color: #198754; color: white; }
-        
-        /* Floating Cart Panel CSS */
         .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1000; height: 100%; }
         .cart-header { padding: 15px; background: #3e2723; color: white; flex: 0 0 auto; }
         .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #f8f9fa; min-height: 0; }
         .cart-footer { padding: 20px; background: #fff; border-top: 2px solid #eee; flex: 0 0 auto; }
-        
         .cart-item { background: white; border-radius: 6px; padding: 10px; margin-bottom: 10px; border: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; }
         .btn-fulfillment { font-size: 0.7rem; font-weight: bold; text-transform: uppercase; padding: 2px 6px; }
         .badge-uncollected { background: #fd7e14; color: white; cursor: pointer; }
         .badge-collected { background: #198754; color: white; cursor: default; }
-        
         .btn-charge { background-color: #fd7e14 !important; border-color: #fd7e14 !important; color: #fff !important; font-size: 1.25rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(253, 126, 20, 0.3); }
         .btn-charge:hover { background-color: #e66b0d !important; }
         .btn-charge:disabled { background-color: #ccc !important; border-color: #ccc !important; box-shadow: none; cursor: not-allowed; }
-        
         .split-container { display: flex; height: 500px; gap: 15px; }
         .split-pool { flex: 1; background: #f8f9fa; border: 2px dashed #ccc; border-radius: 8px; padding: 10px; overflow-y: auto; }
         .split-guest-zone { flex: 2; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
@@ -59,13 +47,8 @@
         .guest-footer { padding: 10px; border-top: 1px solid #eee; background: #f1f1f1; border-radius: 0 0 8px 8px; }
         .draggable-item { background: white; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 4px; cursor: grab; font-size: 0.9rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .draggable-item:active { cursor: grabbing; opacity: 0.6; }
-
         @media (max-width: 991px) { .cart-panel { flex: 0 0 340px; width: 340px; } }
-        @media (max-width: 768px) { 
-            .workspace { flex-direction: column; } 
-            .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid #3e2723; flex: 0 0 auto; } 
-            .cart-panel.expanded { height: 85vh; max-height: 85vh; } 
-        }
+        @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid #3e2723; flex: 0 0 auto; } .cart-panel.expanded { height: 85vh; max-height: 85vh; } }
     </style>
 </head>
 <body>
@@ -88,6 +71,11 @@
             <button class="btn btn-sm btn-link text-warning ms-1" data-bs-toggle="modal" data-bs-target="#locationModal"><i class="bi bi-pencil-square"></i></button>
         </div>
         <div class="d-flex gap-2 pe-2">
+            <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev','chef','head_chef'])): ?>
+                <a href="index.php?page=menu" class="btn btn-outline-success btn-sm fw-bold"><i class="bi bi-list-ul"></i> Menu</a>
+                <a href="index.php?page=kitchen" class="btn btn-outline-danger btn-sm fw-bold"><i class="bi bi-fire"></i> Produce</a>
+            <?php endif; ?>
+            
             <?php if ($activeShiftId): ?>
                 <button onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-info text-white border-white btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
