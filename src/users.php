@@ -24,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $stmt = $pdo->prepare("INSERT INTO users (username, full_name, password, role, location_id) VALUES (?, ?, ?, ?, ?)");
+            // CORRECTED: Using password_hash
+            $stmt = $pdo->prepare("INSERT INTO users (username, full_name, password_hash, role, location_id) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$username, $fullName, $password, $role, $locationId]);
             $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "User created successfully.";
         } catch (Exception $e) {
@@ -60,7 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if (!empty($_POST['password'])) {
                 $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE users SET username = ?, full_name = ?, role = ?, location_id = ?, password = ? WHERE id = ?");
+                // CORRECTED: Using password_hash
+                $stmt = $pdo->prepare("UPDATE users SET username = ?, full_name = ?, role = ?, location_id = ?, password_hash = ? WHERE id = ?");
                 $stmt->execute([$username, $fullName, $role, $locationId, $password, $userId]);
             } else {
                 $stmt = $pdo->prepare("UPDATE users SET username = ?, full_name = ?, role = ?, location_id = ? WHERE id = ?");
@@ -81,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$userId]);
         $targetRole = $stmt->fetchColumn();
 
-        // SECURITY: NO ONE CAN DELETE THE DEV ACCOUNT (Not even the Dev, to prevent locking out the system)
+        // SECURITY: NO ONE CAN DELETE THE DEV ACCOUNT
         if ($targetRole === 'dev') {
             $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Critical: The Developer account is protected and cannot be deleted.";
         } 

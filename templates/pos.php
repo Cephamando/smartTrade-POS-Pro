@@ -27,6 +27,7 @@
         .stock-badge { position: absolute; top: 8px; right: 8px; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; z-index: 2; }
         .bg-low { background-color: #dc3545; color: white; }
         .bg-ok { background-color: #198754; color: white; }
+        .bg-recipe { background-color: #0dcaf0; color: #000; }
         .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1000; height: 100%; }
         .cart-header { padding: 15px; background: #3e2723; color: white; flex: 0 0 auto; }
         .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #f8f9fa; min-height: 0; }
@@ -118,13 +119,22 @@
             <div class="product-list-wrapper">
                 <div class="product-list">
                     <div id="items-grid" class="row g-2">
-                        <?php foreach($products as $p): $isOut = ($p['stock_qty'] <= 0); ?>
+                        <?php foreach($products as $p): 
+                            // MODIFIED: If it has a recipe, it ignores the zero stock block!
+                            $hasRecipe = ($p['is_recipe'] > 0);
+                            $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe); 
+                        ?>
                         <div class="col-6 col-md-4 col-lg-3 col-xl-2 item" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= $isOut ? '1' : '0' ?>">
                             <form method="POST" class="h-100">
                                 <input type="hidden" name="add_item" value="1">
                                 <input type="hidden" name="product_id" value="<?= $p['id'] ?>">
                                 <button type="submit" class="item-card position-relative p-2" <?= $isOut ? 'disabled="disabled"' : '' ?>>
-                                    <span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?></span>
+                                    <?php if($hasRecipe): ?>
+                                        <span class="stock-badge bg-recipe">Made to Order</span>
+                                    <?php else: ?>
+                                        <span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?></span>
+                                    <?php endif; ?>
+                                    
                                     <div style="height: 50px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm"><?= htmlspecialchars($p['name']) ?></div>
                                     <div class="text-primary fw-bold">ZMW <?= number_format($p['price'], 2) ?></div>
                                 </button>
@@ -561,7 +571,7 @@
         }
 
         <?php if(isset($_SESSION['swal_msg'])): ?>
-        Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false });
         <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
         <?php endif; ?>
 

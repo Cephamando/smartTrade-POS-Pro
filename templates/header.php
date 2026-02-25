@@ -83,6 +83,7 @@
                             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Management</a>
                             <ul class="dropdown-menu shadow">
                                 <li><a class="dropdown-item" href="index.php?page=reports">Reports</a></li>
+                                <li><a class="dropdown-item text-info fw-bold" href="index.php?page=report_consumption"><i class="bi bi-moisture"></i> Recipe Consumption</a></li>
                                 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                                 <li><a class="dropdown-item" href="index.php?page=audit">Audit Trail</a></li>
                                 <?php endif; ?>
