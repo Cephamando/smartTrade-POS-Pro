@@ -89,7 +89,9 @@
                                 <td class="text-end pe-3">
                                     <?php if ($isNegative): ?>
                                         <div class="text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill"></i> <?= number_format($ing['current_stock'], 4) ?></div>
-                                        <span class="badge bg-danger mt-1">Needs Receiving</span>
+                                        <a href="index.php?page=receive_stock&auto_pid=<?= $ing['id'] ?>&auto_qty=<?= abs($ing['current_stock']) ?>" class="badge bg-danger mt-1 text-decoration-none shadow hover-zoom">
+                                            <i class="bi bi-box-arrow-in-down"></i> Needs Receiving
+                                        </a>
                                     <?php else: ?>
                                         <div class="text-success fw-bold"><?= number_format($ing['current_stock'], 4) ?></div>
                                         <span class="badge bg-success mt-1">Stock OK</span>
@@ -103,3 +105,7 @@
         </div>
     </div>
 </div>
+<style>
+    .hover-zoom { transition: transform 0.2s ease; display: inline-block; }
+    .hover-zoom:hover { transform: scale(1.05); background-color: #dc3545 !important; }
+</style>

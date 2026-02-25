@@ -34,8 +34,10 @@ $stmtCocktails->execute([$sqlStart, $sqlEnd, $selectedLoc]);
 $cocktailsSold = $stmtCocktails->fetchAll(PDO::FETCH_ASSOC);
 
 // 2. QUERY: What raw ingredients were deducted as a result?
+// CORRECTED: Added i.id to the SELECT statement
 $stmtIngredients = $pdo->prepare("
     SELECT 
+        i.id,
         i.name AS raw_name, 
         i.unit, 
         SUM(si.quantity * pr.quantity) AS theoretical_usage,

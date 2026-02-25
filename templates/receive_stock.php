@@ -134,7 +134,30 @@
         document.getElementById(`cost-${id}`).value = cost;
     }
 
-    document.addEventListener('DOMContentLoaded', addRow);
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Generate the first blank row
+        addRow();
+
+        // 2. Check if we were sent here from the Consumption Report to auto-fill it
+        const urlParams = new URLSearchParams(window.location.search);
+        const autoPid = urlParams.get('auto_pid');
+        const autoQty = urlParams.get('auto_qty');
+        
+        if (autoPid) {
+            let pSelect = document.querySelector('select[name="items[0][product_id]"]');
+            if (pSelect) { 
+                pSelect.value = autoPid; 
+                updateCost(pSelect, 0); // Force the unit cost to update automatically
+            }
+        }
+        
+        if (autoQty) {
+            let qInput = document.querySelector('input[name="items[0][qty]"]');
+            if (qInput) { 
+                qInput.value = Math.abs(parseFloat(autoQty)).toFixed(2); 
+            }
+        }
+    });
 
     // --- ALERT HANDLING FIX ---
     <?php if(isset($_SESSION['swal_msg'])): ?>
@@ -145,7 +168,6 @@
             icon: type,
             title: type === 'success' ? 'Success' : 'Error',
             text: msg,
-            // If Success: Show for 2s then redirect. If Error: Stay open until clicked.
             timer: type === 'success' ? 2000 : undefined,
             showConfirmButton: type !== 'success'
         }).then(() => {
