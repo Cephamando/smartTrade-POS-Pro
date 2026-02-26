@@ -8,23 +8,20 @@ $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $closingCash = (float)($_POST['closing_cash'] ?? 0);
     $varianceReason = trim($_POST['variance_reason'] ?? '');
+    $mgrUsername = trim($_POST['manager_username'] ?? '');
     $mgrPassword = $_POST['manager_password'] ?? '';
 
     try {
-        // Validate Manager Password against any Admin/Manager/Dev
-        $mgrValid = false;
-        $stmt = $pdo->query("SELECT password_hash FROM users WHERE role IN ('admin', 'manager', 'dev')");
-        while ($row = $stmt->fetch()) {
-            if (password_verify($mgrPassword, $row['password_hash'])) {
-                $mgrValid = true;
-                break;
-            }
-        }
-        if (!$mgrValid) {
-            throw new Exception("Invalid Manager Password. Shift closure denied.");
+        // 1. Validate Manager Credentials strictly by Username
+        $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
+        $stmt->execute([$mgrUsername]);
+        $mgr = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$mgr || !in_array($mgr['role'], ['admin', 'manager', 'dev']) || !password_verify($mgrPassword, $mgr['password_hash'])) {
+            throw new Exception("Invalid Manager Credentials. Shift closure denied.");
         }
 
-        // Find the active shift
+        // 2. Find the active shift
         $stmt = $pdo->prepare("SELECT id, starting_cash FROM shifts WHERE user_id = ? AND location_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1");
         $stmt->execute([$userId, $locationId]);
         $shift = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -35,23 +32,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $shiftId = $shift['id'];
 
-        // 1. Calculate Cash Sales (using new final_total)
+        // 3. Calculate Cash Sales (using new final_total)
         $stmt = $pdo->prepare("SELECT COALESCE(SUM(final_total), 0) FROM sales WHERE shift_id = ? AND payment_method = 'Cash' AND payment_status = 'paid'");
         $stmt->execute([$shiftId]);
         $cashSales = (float)$stmt->fetchColumn();
 
-        // 2. Calculate Payouts/Expenses
+        // 4. Calculate Payouts/Expenses
         $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE shift_id = ?");
         $stmt->execute([$shiftId]);
         $expenses = (float)$stmt->fetchColumn();
 
-        // 3. Final Math
+        // 5. Final Math
         $expectedCash = $shift['starting_cash'] + $cashSales - $expenses;
         $variance = $closingCash - $expectedCash;
 
+        // 6. Audit Trail: Stamp the manager's name onto the record
+        $finalReason = $varianceReason;
+        if (!empty($finalReason)) {
+            $finalReason .= " (Auth: " . $mgrUsername . ")";
+        } else {
+            $finalReason = "Auth: " . $mgrUsername;
+        }
+
         // Close the shift
         $stmt = $pdo->prepare("UPDATE shifts SET status = 'closed', end_time = NOW(), closing_cash = ?, expected_cash = ?, variance = ?, variance_reason = ? WHERE id = ?");
-        $stmt->execute([$closingCash, $expectedCash, $variance, $varianceReason, $shiftId]);
+        $stmt->execute([$closingCash, $expectedCash, $variance, $finalReason, $shiftId]);
 
         unset($_SESSION['cart']);
         unset($_SESSION['pos_member']);

@@ -76,7 +76,20 @@ $stmt = $pdo->prepare("SELECT id, starting_cash FROM shifts WHERE user_id = ? AN
 $stmt->execute([$userId, $locationId]);
 $activeShift = $stmt->fetch(PDO::FETCH_ASSOC);
 $activeShiftId = $activeShift['id'] ?? null;
+
+// [FIXED] DYNAMICALLY CALCULATE REAL-TIME EXPECTED CASH FOR UI
 $expectedShiftCash = $activeShift['starting_cash'] ?? 0;
+if ($activeShiftId) {
+    // Add Cash Sales
+    $stmtCash = $pdo->prepare("SELECT COALESCE(SUM(final_total), 0) FROM sales WHERE shift_id = ? AND payment_method = 'Cash' AND payment_status = 'paid'");
+    $stmtCash->execute([$activeShiftId]);
+    $expectedShiftCash += (float)$stmtCash->fetchColumn();
+
+    // Subtract Payouts/Expenses
+    $stmtExp = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE shift_id = ?");
+    $stmtExp->execute([$activeShiftId]);
+    $expectedShiftCash -= (float)$stmtExp->fetchColumn();
+}
 
 $pendingShift = null;
 if (!$activeShiftId) {
@@ -259,8 +272,10 @@ if (isset($_POST['log_expense']) && $activeShiftId) {
 
         if ($mgr && in_array($mgr['role'], ['admin', 'manager', 'dev']) && password_verify($mgrPassword, $mgr['password_hash'])) {
             try {
+                // ADD AUDIT TRAIL TO REASON
+                $auditReason = $reason . ' (Auth: ' . $mgrUsername . ')';
                 $pdo->prepare("INSERT INTO expenses (location_id, user_id, shift_id, amount, reason) VALUES (?, ?, ?, ?, ?)")
-                    ->execute([$locationId, $userId, $activeShiftId, $amt, $reason]);
+                    ->execute([$locationId, $userId, $activeShiftId, $amt, $auditReason]);
                 $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Payout authorized and logged.";
             } catch(Exception $e) {
                 $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
