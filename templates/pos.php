@@ -78,6 +78,7 @@
             <?php endif; ?>
             
             <?php if ($activeShiftId): ?>
+                <button class="btn btn-warning text-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="bi bi-cash-stack"></i> Payout</button>
                 <button onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-info text-white border-white btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
 
@@ -120,7 +121,6 @@
                 <div class="product-list">
                     <div id="items-grid" class="row g-2">
                         <?php foreach($products as $p): 
-                            // MODIFIED: If it has a recipe, it ignores the zero stock block!
                             $hasRecipe = ($p['is_recipe'] > 0);
                             $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe); 
                         ?>
@@ -234,6 +234,48 @@
                         <?php endif; ?>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="expenseModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg border-top border-warning border-4">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Petty Cash / Payout</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body p-4">
+                        <input type="hidden" name="log_expense" value="1">
+                        <div class="alert alert-warning small border-warning">
+                            <strong><i class="bi bi-info-circle"></i> Note:</strong> This will instantly deduct cash from your Expected Drawer Total.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">Amount Taken (ZMW)</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-white fw-bold border-end-0">ZMW</span>
+                                <input type="number" step="0.01" name="expense_amount" class="form-control fw-bold border-start-0 text-danger" required placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-muted">Reason / Paid To</label>
+                            <input type="text" name="expense_reason" class="form-control" required placeholder="e.g. Paid delivery driver, bought ice...">
+                        </div>
+                        
+                        <div class="p-3 bg-dark rounded shadow-sm border border-secondary">
+                            <label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2">
+                                <i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED
+                            </label>
+                            <input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username">
+                            <input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password">
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light border-0">
+                        <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning fw-bold shadow-sm px-4">Authorize Payout</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -571,7 +613,7 @@
         }
 
         <?php if(isset($_SESSION['swal_msg'])): ?>
-        Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false });
+        Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false });
         <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
         <?php endif; ?>
 

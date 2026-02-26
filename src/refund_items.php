@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_refund'])) {
         }
 
         // Update Sales Header
-        $pdo->prepare("UPDATE sales SET total_amount = total_amount - ?, final_total = final_total - ? WHERE id = ?")
+        $pdo->prepare("UPDATE sales SET final_total = final_total - ?, final_total = final_total - ? WHERE id = ?")
             ->execute([$totalRefunded, $totalRefunded, $saleId]);
 
         // Log Refund

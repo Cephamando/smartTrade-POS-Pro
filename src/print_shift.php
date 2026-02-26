@@ -1,83 +1,38 @@
 <?php
-// Ensure session is started if not already
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (!isset($_SESSION['user_id'])) { die("Unauthorized"); }
 
-// Security Check
-if (!isset($_SESSION['user_id'])) { 
-    die('<div class="alert alert-danger">Session expired. Please log in again.</div>'); 
-}
+$shiftId = (int)($_GET['shift_id'] ?? 0);
 
-require_once __DIR__ . '/config.php';
+// Fetch shift details
+$stmt = $pdo->prepare("SELECT s.*, u.username, l.name as loc_name FROM shifts s JOIN users u ON s.user_id = u.id JOIN locations l ON s.location_id = l.id WHERE s.id = ?");
+$stmt->execute([$shiftId]);
+$shift = $stmt->fetch(PDO::FETCH_ASSOC);
 
-$userId = $_SESSION['user_id'];
-$userRole = $_SESSION['role'];
-$targetShiftId = null;
-$isDrillDown = false;
+if (!$shift) { die("Shift not found."); }
 
-// 1. Determine Target Shift
-if (isset($_GET['shift_id'])) {
-    $requestedId = $_GET['shift_id'];
-    
-    // Security: Allow if Admin/Manager OR if the shift belongs to the current user
-    $checkStmt = $pdo->prepare("SELECT user_id FROM shifts WHERE id = ?");
-    $checkStmt->execute([$requestedId]);
-    $ownerId = $checkStmt->fetchColumn();
+// Fetch Sales grouped by Payment Method (using final_total)
+$stmt = $pdo->prepare("SELECT payment_method, COUNT(*) as tx_count, COALESCE(SUM(final_total), 0) as total, COALESCE(SUM(tip_amount), 0) as total_tips FROM sales WHERE shift_id = ? AND payment_status = 'paid' GROUP BY payment_method");
+$stmt->execute([$shiftId]);
+$paymentBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (in_array($userRole, ['admin', 'manager', 'dev']) || $ownerId == $userId) {
-        $targetShiftId = $requestedId;
-        $isDrillDown = true; // Treats as a view-only mode
-    } else {
-        die('<div class="alert alert-danger">Access Denied: You cannot view this shift report.</div>');
+$grandTotal = 0;
+$cashSales = 0;
+foreach($paymentBreakdown as $pb) {
+    $grandTotal += $pb['total'];
+    if ($pb['payment_method'] === 'Cash') {
+        $cashSales = $pb['total'];
     }
-} else {
-    // 2. Default: Find my own active shift
-    $stmt = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1");
-    $stmt->execute([$userId]);
-    $targetShiftId = $stmt->fetchColumn();
 }
 
-if ($targetShiftId) {
-    // Fetch Shift Meta (Includes closing cash, expected cash, etc.)
-    $meta = $pdo->prepare("SELECT s.*, u.username, u.full_name FROM shifts s JOIN users u ON s.user_id = u.id WHERE s.id = ?");
-    $meta->execute([$targetShiftId]);
-    $shiftMeta = $meta->fetch();
+// Fetch Payouts / Expenses
+$stmt = $pdo->prepare("SELECT * FROM expenses WHERE shift_id = ?");
+$stmt->execute([$shiftId]);
+$expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if (!$shiftMeta) die("Shift not found.");
+$totalExpenses = 0;
+foreach($expenses as $ex) { $totalExpenses += $ex['amount']; }
 
-    // Calculate Sales Breakdown
-    $salesSql = "SELECT p.name as product_name, SUM(si.quantity) as qty_sold, SUM(si.quantity * si.price_at_sale) as actual_revenue 
-                 FROM sale_items si 
-                 JOIN sales s ON si.sale_id = s.id 
-                 JOIN products p ON si.product_id = p.id 
-                 WHERE s.shift_id = ? AND s.payment_status = 'paid' 
-                 GROUP BY p.id";
-    $salesStmt = $pdo->prepare($salesSql);
-    $salesStmt->execute([$targetShiftId]);
-    $salesData = $salesStmt->fetchAll();
-    
-    // Calculate Totals by Payment Method
-    $totalSql = "SELECT payment_method, SUM(final_total) as total 
-                 FROM sales 
-                 WHERE shift_id = ? AND payment_status = 'paid' 
-                 GROUP BY payment_method";
-    $totalStmt = $pdo->prepare($totalSql);
-    $totalStmt->execute([$targetShiftId]);
-    $totalsData = $totalStmt->fetchAll();
-    
-    // Set Data for Template
-    $_SESSION['shift_report'] = [
-        'meta' => $shiftMeta, // Pass full meta for closing stats
-        'sales' => $salesData, 
-        'totals' => $totalsData,
-        'is_closed' => ($shiftMeta['status'] === 'closed')
-    ];
-    
-    // Load Template directly
-    require_once __DIR__ . '/../templates/shift_summary.php';
-
-} else {
-    echo "<div class='container mt-5'><div class='alert alert-warning shadow-sm'>No active shift found. Please clock in first.</div></div>";
-}
+// Calculate expectations
+$expectedCash = $shift['starting_cash'] + $cashSales - $totalExpenses;
 ?>

@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $saleId = 0;
                 if ($targetTabId === 'new') {
-                    $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, 0, 0, 'Pending', 'pending', ?, 0, 0, NOW())")->execute([$userId, $locationId, $activeShiftId, $customerName]);
+                    $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, 0, 0, 'Pending', 'pending', ?, 0, 0, NOW())")->execute([$userId, $locationId, $activeShiftId, $customerName]);
                     $saleId = $pdo->lastInsertId();
                 } else {
                     $saleId = $targetTabId;
@@ -220,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $newTotal = $pdo->query("SELECT SUM(quantity * price_at_sale) FROM sale_items WHERE sale_id = $saleId")->fetchColumn();
-                $pdo->prepare("UPDATE sales SET total_amount = ?, final_total = ? WHERE id = ?")->execute([$newTotal, $newTotal, $saleId]);
+                $pdo->prepare("UPDATE sales SET final_total = ?, final_total = ? WHERE id = ?")->execute([$newTotal, $newTotal, $saleId]);
                 $pdo->commit(); $_SESSION['last_sale_id'] = $saleId; 
                 unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid'], $_SESSION['pos_member']); 
                 $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab Updated.";
@@ -246,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 if (isset($_SESSION['current_tab_id'])) {
                     $oldTabId = $_SESSION['current_tab_id'];
-                    $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $tendered, $change, $tip]);
+                    $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $tendered, $change, $tip]);
                     $newSaleId = $pdo->lastInsertId();
 
                     foreach ($_SESSION['cart'] as $item) {
@@ -259,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare("DELETE FROM sales WHERE id = ?")->execute([$oldTabId]);
                     $_SESSION['last_sale_id'] = $newSaleId;
                 } else {
-                    $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $tendered, $change, $tip]);
+                    $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $tendered, $change, $tip]);
                     $sid = $pdo->lastInsertId(); $_SESSION['last_sale_id'] = $sid;
                     foreach ($_SESSION['cart'] as $item) {
                         $pid = $item['product_id']; $qty = $item['qty']; $fulfill = $item['fulfillment'] ?? 'uncollected';
@@ -287,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($splitData as $guest) {
                         $total = $guest['total']; $method = $guest['method']; $status = ($method === 'Pending') ? 'pending' : 'paid';
                         $customer = !empty($guest['name']) ? $guest['name'] : 'Guest'; $tendered = ($status === 'paid') ? $total : 0;
-                        $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())");
+                        $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())");
                         $stmt->execute([$userId, $locationId, $activeShiftId, $total, $total, $method, $status, $customer, $tendered]);
                         $saleId = $pdo->lastInsertId();
                         foreach ($guest['items'] as $item) {

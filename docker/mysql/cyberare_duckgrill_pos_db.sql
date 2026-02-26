@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Feb 24, 2026 at 03:12 PM
+-- Generation Time: Feb 25, 2026 at 02:05 AM
 -- Server version: 11.4.10-MariaDB
--- PHP Version: 8.4.16
+-- PHP Version: 8.4.17
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -84,7 +84,8 @@ CREATE TABLE `grvs` (
 INSERT INTO `grvs` (`id`, `vendor_id`, `location_id`, `received_by`, `total_cost`, `reference_no`, `created_at`) VALUES
 (2, 5, 4, 10, 400.00, '', '2026-02-23 16:42:35'),
 (3, 5, 2, 10, 500.00, '', '2026-02-23 16:48:06'),
-(4, 5, 1, 10, 88200.00, '', '2026-02-23 16:56:31');
+(4, 5, 1, 10, 88200.00, '', '2026-02-23 16:56:31'),
+(5, 4, 4, 10, 1200.00, '', '2026-02-24 17:34:13');
 
 -- --------------------------------------------------------
 
@@ -107,7 +108,8 @@ CREATE TABLE `grv_items` (
 INSERT INTO `grv_items` (`id`, `grv_id`, `product_id`, `quantity`, `unit_cost`) VALUES
 (2, 2, 77, 1.00, 400.00),
 (3, 3, 59, 1.00, 500.00),
-(4, 4, 207, 42.00, 2100.00);
+(4, 4, 207, 42.00, 2100.00),
+(5, 5, 265, 48.00, 25.00);
 
 -- --------------------------------------------------------
 
@@ -129,8 +131,11 @@ CREATE TABLE `inventory` (
 
 INSERT INTO `inventory` (`id`, `product_id`, `location_id`, `quantity`, `updated_at`) VALUES
 (8, 77, 4, 1, '2026-02-23 16:42:35'),
-(9, 59, 2, 1, '2026-02-23 16:48:06'),
-(10, 207, 1, 42, '2026-02-23 16:56:31');
+(9, 59, 2, 0, '2026-02-24 17:59:17'),
+(10, 207, 1, 42, '2026-02-23 16:56:31'),
+(11, 265, 4, 24, '2026-02-24 17:38:24'),
+(12, 265, 2, 12, '2026-02-24 18:08:53'),
+(13, 375, 2, 4, '2026-02-24 19:03:43');
 
 -- --------------------------------------------------------
 
@@ -157,7 +162,20 @@ CREATE TABLE `inventory_logs` (
 INSERT INTO `inventory_logs` (`id`, `product_id`, `location_id`, `user_id`, `change_qty`, `after_qty`, `action_type`, `reference_id`, `created_at`) VALUES
 (21, 77, 4, 10, 1.00, 1.00, 'restock', 2, '2026-02-23 16:42:35'),
 (22, 59, 2, 10, 1.00, 1.00, 'restock', 3, '2026-02-23 16:48:06'),
-(23, 207, 1, 10, 42.00, 42.00, 'restock', 4, '2026-02-23 16:56:31');
+(23, 207, 1, 10, 42.00, 42.00, 'restock', 4, '2026-02-23 16:56:31'),
+(24, 265, 4, 10, 48.00, 48.00, 'restock', 5, '2026-02-24 17:34:13'),
+(25, 265, 4, 10, -24.00, 24.00, 'transfer_out', 5, '2026-02-24 17:38:24'),
+(26, 265, 2, 10, 24.00, 24.00, 'transfer_in', 5, '2026-02-24 17:38:41'),
+(27, 265, 2, 11, -1.00, 23.00, 'sale', 8, '2026-02-24 17:46:09'),
+(28, 265, 2, 11, -1.00, 22.00, 'sale', 10, '2026-02-24 17:56:15'),
+(29, 265, 2, 11, -1.00, 21.00, 'sale', 10, '2026-02-24 17:56:38'),
+(30, 265, 2, 11, -1.00, 20.00, 'sale', 10, '2026-02-24 17:57:06'),
+(31, 59, 2, 11, -1.00, 0.00, 'sale', 11, '2026-02-24 17:59:17'),
+(32, 375, 2, 10, 5.00, 5.00, 'produce', NULL, '2026-02-24 18:03:54'),
+(33, 265, 2, 10, -1.00, 19.00, 'sale', 12, '2026-02-24 18:06:53'),
+(34, 265, 2, 10, -5.00, 14.00, 'sale', 13, '2026-02-24 18:08:15'),
+(35, 265, 2, 10, -2.00, 12.00, 'sale', 13, '2026-02-24 18:08:53'),
+(36, 375, 2, 10, -1.00, 4.00, 'sale', 18, '2026-02-24 19:03:43');
 
 -- --------------------------------------------------------
 
@@ -177,6 +195,13 @@ CREATE TABLE `inventory_transfers` (
   `dispatched_at` datetime DEFAULT NULL,
   `received_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `inventory_transfers`
+--
+
+INSERT INTO `inventory_transfers` (`id`, `source_location_id`, `dest_location_id`, `product_id`, `quantity`, `user_id`, `status`, `created_at`, `dispatched_at`, `received_at`) VALUES
+(5, 4, 2, 265, 24.00, 10, 'completed', '2026-02-24 17:37:42', '2026-02-24 17:38:24', '2026-02-24 17:38:41');
 
 -- --------------------------------------------------------
 
@@ -247,6 +272,13 @@ CREATE TABLE `pickup_notifications` (
   `collected_by` int(11) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `pickup_notifications`
+--
+
+INSERT INTO `pickup_notifications` (`id`, `sale_id`, `item_name`, `status`, `collected_by`, `created_at`) VALUES
+(8, 18, 'APPLE CRUMBE', 'collected', 11, '2026-02-24 19:04:25');
 
 -- --------------------------------------------------------
 
@@ -519,7 +551,7 @@ INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `cat
 (262, 'SOUTHERN COMFORT 750 ML', NULL, 60.00, 0.00, 'unit', 1, 1, 'item', 0),
 (263, 'GRANTS WHISKY ORDINARY 750 ML', NULL, 40.00, 0.00, 'unit', 1, 1, 'item', 0),
 (264, 'AQUA SAVANA 500ML', NULL, 10.00, 0.00, 'unit', 1, 1, 'item', 0),
-(265, 'BLACK LABEL LAGER RGB 375mls', NULL, 35.00, 0.00, 'unit', 1, 1, 'item', 0),
+(265, 'BLACK LABEL LAGER RGB 375mls', NULL, 25.00, 25.00, 'unit', 1, 1, 'item', 0),
 (266, 'MOSI LAGER RGB 375mls', NULL, 35.00, 0.00, 'unit', 1, 1, 'item', 0),
 (267, 'GORDONS DRY GIN', NULL, 40.00, 0.00, 'unit', 1, 1, 'item', 0),
 (268, 'ABSOLUTE BLUE VODKA', NULL, 0.00, 0.00, 'unit', 1, 1, 'item', 0),
@@ -714,6 +746,19 @@ INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `cat
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `product_recipes`
+--
+
+CREATE TABLE `product_recipes` (
+  `id` int(11) NOT NULL,
+  `parent_product_id` int(11) NOT NULL COMMENT 'The sellable cocktail/meal',
+  `ingredient_product_id` int(11) NOT NULL COMMENT 'The raw bottle/ingredient',
+  `quantity` decimal(10,4) NOT NULL COMMENT 'Amount deducted per sale (e.g., 0.05 for 50ml)'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `refunds`
 --
 
@@ -774,6 +819,18 @@ CREATE TABLE `sales` (
   `tip_amount` decimal(10,2) DEFAULT 0.00
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+--
+-- Dumping data for table `sales`
+--
+
+INSERT INTO `sales` (`id`, `location_id`, `user_id`, `shift_id`, `total_amount`, `discount`, `total_tax`, `tip`, `final_total`, `payment_method`, `status`, `created_at`, `collected_by`, `payment_status`, `customer_name`, `amount_tendered`, `change_due`, `member_id`, `points_earned`, `points_redeemed`, `split_group_id`, `split_type`, `tip_amount`) VALUES
+(9, 2, 11, 16, 25.00, 0.00, 0.00, 0.00, 25.00, 'Cash', 'completed', '2026-02-24 17:51:45', NULL, 'paid', 'Table 1', 25.00, 0.00, NULL, 0.00, 0.00, NULL, 'none', 0.00),
+(14, 2, 10, 17, 25.00, 0.00, 0.00, 0.00, 25.00, 'Cash', 'completed', '2026-02-24 18:10:42', NULL, 'paid', 'Table 3', 25.00, 0.00, NULL, 0.00, 0.00, NULL, 'none', 0.00),
+(15, 2, 10, 17, 25.00, 0.00, 0.00, 0.00, 25.00, 'Card', 'completed', '2026-02-24 18:11:04', NULL, 'paid', 'Table 2', 25.00, 0.00, NULL, 0.00, 0.00, NULL, 'none', 0.00),
+(16, 2, 10, 17, 50.00, 0.00, 0.00, 0.00, 50.00, 'Cash & Card', 'completed', '2026-02-24 18:11:34', NULL, 'paid', 'Table 9', 50.00, 0.00, NULL, 0.00, 0.00, NULL, 'none', 0.00),
+(17, 2, 10, 17, 500.00, 0.00, 0.00, 0.00, 500.00, 'Cash', 'completed', '2026-02-24 18:12:13', NULL, 'paid', 'table3', 500.00, 0.00, NULL, 0.00, 0.00, NULL, 'none', 0.00),
+(18, 2, 10, 18, 80.00, 0.00, 0.00, 0.00, 80.00, 'Pending', 'completed', '2026-02-24 19:03:43', NULL, 'pending', 'Table 1', 0.00, 0.00, NULL, 0.00, 0.00, NULL, 'none', 0.00);
+
 -- --------------------------------------------------------
 
 --
@@ -792,6 +849,18 @@ CREATE TABLE `sale_items` (
   `fulfillment_status` enum('collected','uncollected') DEFAULT 'collected'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+--
+-- Dumping data for table `sale_items`
+--
+
+INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `quantity`, `price_at_sale`, `cost_at_sale`, `status`, `updated_at`, `fulfillment_status`) VALUES
+(11, 9, 265, 1, 25.00, 0.00, 'ready', NULL, 'collected'),
+(19, 14, 265, 1, 25.00, 0.00, 'ready', NULL, 'collected'),
+(20, 15, 265, 1, 25.00, 0.00, 'ready', NULL, 'collected'),
+(21, 16, 265, 2, 25.00, 0.00, 'served', NULL, 'collected'),
+(22, 17, 59, 1, 500.00, 0.00, 'ready', NULL, 'collected'),
+(23, 18, 375, 1, 80.00, 0.00, 'served', NULL, 'collected');
+
 -- --------------------------------------------------------
 
 --
@@ -808,7 +877,11 @@ CREATE TABLE `settings` (
 --
 
 INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
-('license_tier', 'lite');
+('business_name', 'OdeliaPOS'),
+('license_tier', 'hospitality'),
+('receipt_footer', 'Thank you for your business!'),
+('receipt_header', 'Odelia Enterprise'),
+('theme_color', '#3e2723');
 
 -- --------------------------------------------------------
 
@@ -846,7 +919,12 @@ INSERT INTO `shifts` (`id`, `user_id`, `location_id`, `start_time`, `end_time`, 
 (12, 10, 1, '2026-02-23 16:18:11', '2026-02-23 18:04:41', 0.00, 0.00, 0.00, 0.00, 'closed', '', NULL, NULL, NULL, NULL, NULL, 0.00),
 (13, 2, 1, '2026-02-23 16:43:38', NULL, 0.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, NULL, NULL, NULL, NULL, 0.00),
 (14, 8, 3, '2026-02-23 16:44:17', NULL, 0.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, NULL, NULL, NULL, NULL, 0.00),
-(15, 10, 2, '2026-02-24 08:08:18', '2026-02-24 08:11:15', 0.00, 0.00, 0.00, 0.00, 'closed', '', NULL, NULL, NULL, NULL, NULL, 0.00);
+(15, 10, 2, '2026-02-24 08:08:18', '2026-02-24 08:11:15', 0.00, 0.00, 0.00, 0.00, 'closed', '', NULL, NULL, NULL, NULL, NULL, 0.00),
+(16, 11, 2, '2026-02-24 17:44:05', '2026-02-24 19:00:50', 0.00, 25.00, 25.00, 0.00, 'closed', '', NULL, NULL, NULL, NULL, NULL, 0.00),
+(17, 10, 2, '2026-02-24 18:02:09', '2026-02-24 18:12:45', 0.00, 575.00, 575.00, 0.00, 'closed', '', NULL, NULL, NULL, NULL, NULL, 0.00),
+(18, 10, 2, '2026-02-24 18:14:59', '2026-02-24 19:27:11', 0.00, 0.00, 0.00, 0.00, 'closed', '', NULL, NULL, NULL, NULL, NULL, 0.00),
+(19, 11, 2, '2026-02-24 19:01:10', NULL, 0.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, NULL, NULL, NULL, NULL, 0.00),
+(20, 12, 2, '2026-02-24 21:50:23', NULL, 0.00, 0.00, 0.00, 0.00, 'open', NULL, NULL, NULL, NULL, NULL, NULL, 0.00);
 
 -- --------------------------------------------------------
 
@@ -933,12 +1011,14 @@ INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `lo
 (1, 'admin', 'System Admin', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'admin', 3, '2026-02-06 19:59:35', 0, 1),
 (2, 'mando', 'mando chishimba', '$2y$10$f7zbSGxQ7gvsH5N1dEOLauAgZS3dO1cV/8Gj.UNOmK6Z2a0JxWBbu', 'dev', 3, '2026-02-06 19:59:35', 0, 1),
 (3, 'manager', 'Manager', '$2y$10$3owGZE25FfMAUBAFy9oL7OwSu6atNLFJZW7uwH7DG8k.RC71DWnLq', 'manager', 2, '2026-02-06 19:59:35', 0, 1),
-(4, 'main_bar', 'Main Bar', '$2y$10$rt3.rImohXcDiq/J4HikCOQJp..byFlP4zaFxvLCRgZBVoW9R6TOi', 'cashier', 2, '2026-02-06 19:59:35', 0, 1),
-(5, 'head_chef', 'Head Chef', '$2y$10$oC8.PLHRf618Hx3vHSBMHusOiRFb9m82/mnRg3zYyOJ9eKLZh/CRi', 'manager', 1, '2026-02-06 19:59:35', 0, 1),
-(6, 'waiter', 'Restaurant Waiter', '$2y$10$44N80Jh9tzg6KlcvyXoj..2pjF705XsJjsU/TinTWdEW3BPKBq9ni', 'cashier', 4, '2026-02-06 19:59:35', 0, 1),
+(4, 'main_bar', 'Main Bar', '$2y$10$rt3.rImohXcDiq/J4HikCOQJp..byFlP4zaFxvLCRgZBVoW9R6TOi', 'bartender', 2, '2026-02-06 19:59:35', 0, 1),
+(5, 'head_chef', 'Head Chef', '$2y$10$oC8.PLHRf618Hx3vHSBMHusOiRFb9m82/mnRg3zYyOJ9eKLZh/CRi', 'head_chef', 1, '2026-02-06 19:59:35', 0, 1),
+(6, 'waiter', 'Restaurant Waiter', '$2y$10$44N80Jh9tzg6KlcvyXoj..2pjF705XsJjsU/TinTWdEW3BPKBq9ni', 'waiter', 4, '2026-02-06 19:59:35', 0, 1),
 (7, 'bartender', 'Main Bartender', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'bartender', 2, '2026-02-06 19:59:35', 0, 0),
-(8, 'chef', 'chef', '$2y$10$M9vANzbl70OlafoGFIn/b.0Kyhl6JuQi21i5d6tjcBWnV8RxtjOZ2', 'cashier', 3, '2026-02-10 08:21:50', 0, 1),
-(10, 'daliso', 'Daliso Nindi', '$2y$10$0Cmqbbba.ipH/7x1fh9QOuQ8z4FayAfR1TuvXhzShncyprrq27Z4.', 'admin', 4, '2026-02-10 10:20:55', 0, 1);
+(8, 'chef', 'chef', '$2y$10$M9vANzbl70OlafoGFIn/b.0Kyhl6JuQi21i5d6tjcBWnV8RxtjOZ2', 'chef', 3, '2026-02-10 08:21:50', 0, 1),
+(10, 'daliso', 'Daliso Nindi', '$2y$10$0Cmqbbba.ipH/7x1fh9QOuQ8z4FayAfR1TuvXhzShncyprrq27Z4.', 'admin', 4, '2026-02-10 10:20:55', 0, 1),
+(11, 'chris', 'Chris', '$2y$12$9pLk4UQ7h.YNXIdNs8.f0eZ.91AONboZqzyCdY/vXtqwHOgMN5bI2', 'waiter', NULL, '2026-02-24 17:42:08', 0, 1),
+(12, 'PChanda', 'Pekker Chanda', '$2y$12$UbPaBwGGaV.6yZy0psttvuRssJqu5OL8jyebAyZW1o9RWMq.nd89a', 'admin', NULL, '2026-02-24 19:31:39', 0, 1);
 
 -- --------------------------------------------------------
 
@@ -1059,6 +1139,13 @@ ALTER TABLE `products`
   ADD KEY `category_id` (`category_id`);
 
 --
+-- Indexes for table `product_recipes`
+--
+ALTER TABLE `product_recipes`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `parent_idx` (`parent_product_id`);
+
+--
 -- Indexes for table `refunds`
 --
 ALTER TABLE `refunds`
@@ -1172,31 +1259,31 @@ ALTER TABLE `expenses`
 -- AUTO_INCREMENT for table `grvs`
 --
 ALTER TABLE `grvs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `grv_items`
 --
 ALTER TABLE `grv_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `inventory`
 --
 ALTER TABLE `inventory`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `inventory_logs`
 --
 ALTER TABLE `inventory_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `inventory_transfers`
 --
 ALTER TABLE `inventory_transfers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `locations`
@@ -1220,13 +1307,19 @@ ALTER TABLE `members`
 -- AUTO_INCREMENT for table `pickup_notifications`
 --
 ALTER TABLE `pickup_notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=456;
+
+--
+-- AUTO_INCREMENT for table `product_recipes`
+--
+ALTER TABLE `product_recipes`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `refunds`
@@ -1244,19 +1337,19 @@ ALTER TABLE `refund_requests`
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `sale_items`
 --
 ALTER TABLE `sale_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `shifts`
 --
 ALTER TABLE `shifts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT for table `stock_transfers`
@@ -1286,7 +1379,7 @@ ALTER TABLE `transfers`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `vendors`

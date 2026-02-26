@@ -237,10 +237,44 @@ if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
+if (isset($_POST['recall_tab'])) {
+    $saleId = (int)$_POST['sale_id'];
+    $pdo->prepare("UPDATE sales SET payment_status = 'paid', payment_method = 'Cash' WHERE id = ?")->execute([$saleId]);
+    $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled via Cash.";
+    header("Location: index.php?page=pos"); exit;
+}
+
+// --- 💸 PETTY CASH / PAYOUT LOGIC (WITH MANAGER AUTH) ---
+if (isset($_POST['log_expense']) && $activeShiftId) {
+    $amt = (float)$_POST['expense_amount'];
+    $reason = trim($_POST['expense_reason']);
+    $mgrUsername = $_POST['mgr_username'] ?? '';
+    $mgrPassword = $_POST['mgr_password'] ?? '';
+
+    if ($amt > 0 && !empty($reason)) {
+        // Authenticate Manager
+        $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
+        $stmt->execute([$mgrUsername]);
+        $mgr = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($mgr && in_array($mgr['role'], ['admin', 'manager', 'dev']) && password_verify($mgrPassword, $mgr['password_hash'])) {
+            try {
+                $pdo->prepare("INSERT INTO expenses (location_id, user_id, shift_id, amount, reason) VALUES (?, ?, ?, ?, ?)")
+                    ->execute([$locationId, $userId, $activeShiftId, $amt, $reason]);
+                $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Payout authorized and logged.";
+            } catch(Exception $e) {
+                $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
+            }
+        } else {
+            $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Authorization failed! Invalid manager credentials.";
+        }
+    }
+    header("Location: index.php?page=pos"); exit;
+}
+
 // --- 🖥️ UI DATA FETCHING ---
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-// MODIFIED: Added is_recipe check to the product query
 $stmt = $pdo->prepare("
     SELECT p.*, COALESCE(i.quantity, 0) as stock_qty,
            (SELECT COUNT(*) FROM product_recipes WHERE parent_product_id = p.id) as is_recipe

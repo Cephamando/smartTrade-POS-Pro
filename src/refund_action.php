@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refund_item_id'])) {
         
         // 3. Update Sales Totals
         $refundAmount = $refundQty * $item['price_at_sale'];
-        $pdo->prepare("UPDATE sales SET total_amount = total_amount - ?, final_total = final_total - ? WHERE id = ?")
+        $pdo->prepare("UPDATE sales SET final_total = final_total - ?, final_total = final_total - ? WHERE id = ?")
             ->execute([$refundAmount, $refundAmount, $item['sale_id']]);
 
         // 4. Return to Stock (Optional, usually yes)

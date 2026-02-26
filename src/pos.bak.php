@@ -51,7 +51,7 @@ if (isset($_POST['add_to_tab_action']) && !empty($_SESSION['cart'])) {
     try {
         $saleId = 0;
         if ($targetTabId === 'new') {
-            $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, 0, 0, 'Pending', 'pending', ?, 0, 0, NOW())")
+            $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, 0, 0, 'Pending', 'pending', ?, 0, 0, NOW())")
                 ->execute([$userId, $locId, $activeShiftId, $customerName]);
             $saleId = $pdo->lastInsertId();
         } else {
@@ -71,7 +71,7 @@ if (isset($_POST['add_to_tab_action']) && !empty($_SESSION['cart'])) {
         }
 
         $newTotal = $pdo->query("SELECT SUM(quantity * price_at_sale) FROM sale_items WHERE sale_id = $saleId")->fetchColumn();
-        $pdo->prepare("UPDATE sales SET total_amount = ?, final_total = ? WHERE id = ?")->execute([$newTotal, $newTotal, $saleId]);
+        $pdo->prepare("UPDATE sales SET final_total = ?, final_total = ? WHERE id = ?")->execute([$newTotal, $newTotal, $saleId]);
 
         $pdo->commit();
         unset($_SESSION['cart'], $_SESSION['current_tab_id'], $_SESSION['current_customer'], $_SESSION['tab_paid']); 
@@ -107,7 +107,7 @@ if (isset($_POST['finalize_split'])) {
                 $tendered = ($status === 'paid') ? $total : 0;
 
                 // Create Sale for this split group
-                $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())");
+                $stmt = $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())");
                 $stmt->execute([$userId, $locId, $activeShiftId, $total, $total, $method, $status, $customer, $tendered]);
                 $saleId = $pdo->lastInsertId();
 
@@ -245,10 +245,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $activeShiftId) {
             $sid = 0;
             if (isset($_SESSION['current_tab_id'])) {
                 $sid = $_SESSION['current_tab_id'];
-                $pdo->prepare("UPDATE sales SET total_amount=?, final_total=?, payment_method=?, payment_status=?, customer_name=?, member_id=?, amount_tendered=?, change_due=?, tip_amount=? WHERE id=?")->execute([$total, $final, $method, $status, $cust, $memId, $totalPaid, $change, $tip, $sid]);
+                $pdo->prepare("UPDATE sales SET final_total=?, final_total=?, payment_method=?, payment_status=?, customer_name=?, member_id=?, amount_tendered=?, change_due=?, tip_amount=? WHERE id=?")->execute([$total, $final, $method, $status, $cust, $memId, $totalPaid, $change, $tip, $sid]);
                 $pdo->query("DELETE FROM sale_items WHERE sale_id = $sid");
             } else {
-                $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, total_amount, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $totalPaid, $change, $tip]);
+                $pdo->prepare("INSERT INTO sales (user_id, location_id, shift_id, final_total, final_total, payment_method, payment_status, customer_name, member_id, amount_tendered, change_due, tip_amount, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())")->execute([$userId, $locationId, $activeShiftId, $total, $final, $method, $status, $cust, $memId, $totalPaid, $change, $tip]);
                 $sid = $pdo->lastInsertId();
             }
             foreach ($_SESSION['cart'] as $pid => $item) {
