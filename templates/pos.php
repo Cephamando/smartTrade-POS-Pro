@@ -354,6 +354,8 @@
                 <tr id="item-row-<?= $i['id'] ?>">
                     <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
                     <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger me-2" onclick="voidItem(<?= $i['id'] ?>)" title="Void this item"><i class="bi bi-trash"></i></button>
+
                         <?php if($i['fulfillment_status'] == 'uncollected'): ?>
                             <?php if(in_array(strtolower($i['cat_type'] ?? ''), ['food', 'meal']) && defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
                                 <span class="badge bg-warning text-dark border shadow-sm" style="cursor:pointer;" onclick="switchModal('tabsModal', '', showPickupModal)"><i class="bi bi-fire"></i> KITCHEN</span>
@@ -380,20 +382,15 @@
     <div class="modal fade" id="addToTabModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Add to Tab / Table</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form method="POST"><input type="hidden" name="add_to_tab_action" value="1"><div class="list-group mb-3"><label class="list-group-item list-group-item-action active"><input class="form-check-input me-1" type="radio" name="target_tab_id" value="new" checked> Create New Custom Tab</label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item list-group-item-action"><input class="form-check-input me-1" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong><?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><input type="text" name="tab_customer_name" class="form-control" placeholder="Customer Name (if custom tab)"><button class="btn btn-warning w-100 fw-bold mt-3">CONFIRM</button></form></div></div></div></div>
     
     <div class="modal fade" id="checkoutModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body">
-        
         <input type="hidden" name="checkout" value="1">
         <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
-        
         <?php if(isset($_SESSION['pos_member']) && defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
-        
         <div class="btn-group w-100 mb-3 <?= (defined('LICENSE_TIER') && LICENSE_TIER === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-        
         <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
         <div id="splitSection" style="display:none;"><div class="row g-2 mb-2"><div class="col-5"><select name="method_1" class="form-select fw-bold"><option value="Cash">Cash</option><option value="Card">Card</option><option value="MTN Money">MTN</option></select></div><div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div></div><div class="row g-2 mb-3"><div class="col-5"><select name="method_2" class="form-select fw-bold"><option value="Card" selected>Card</option><option value="Cash">Cash</option><option value="Airtel Money">Airtel</option></select></div><div class="col-7"><div class="input-group"><span class="input-group-text">ZMW</span><input type="number" step="0.01" name="amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div></div></div></div>
-        
         <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" oninput="calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm">COMPLETE TRANSACTION</button></div></form></div></div></div>
     
     <div class="modal fade" id="splitBillModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header bg-dark text-white d-flex justify-content-between"><div><h5 class="modal-title"><i class="bi bi-layout-split me-2"></i> Split Bill</h5><small class="text-muted" id="splitTotalDisplay">Total: ZMW 0.00</small></div><div><div class="btn-group me-3"><button class="btn btn-sm btn-outline-light active" id="btnSplitItem" onclick="setSplitMode('item')">By Item</button><button class="btn btn-sm btn-outline-light" id="btnSplitEven" onclick="setSplitMode('even')">Split Evenly</button></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div></div><div class="modal-body bg-light"><div class="split-container"><div class="split-pool" id="unassignedPool" ondrop="drop(event)" ondragover="allowDrop(event)"><h6 class="text-muted fw-bold text-center mb-3">Unassigned Items</h6></div><div class="split-guest-zone" id="guestZone"></div><button class="btn btn-outline-primary" style="height: 50px; align-self: center;" onclick="addGuest()"><i class="bi bi-plus-lg"></i></button></div></div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><form method="POST" id="splitForm"><input type="hidden" name="finalize_split" value="1"><input type="hidden" name="split_type" id="splitTypeInput" value="item"><input type="hidden" name="split_data" id="splitDataInput"><button type="button" class="btn btn-success fw-bold px-4" onclick="submitSplit()">FINALIZE & PAY</button></form></div></div></div></div>
@@ -414,91 +411,74 @@
         function switchModal(closeId, openId, callback = null) {
             let closeEl = document.getElementById(closeId);
             let mClose = bootstrap.Modal.getInstance(closeEl);
-            
-            if (mClose) mClose.hide();
-            else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; }
-            
+            if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; }
             setTimeout(() => {
                 document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-                document.body.classList.remove('modal-open');
-                document.body.style = '';
-
+                document.body.classList.remove('modal-open'); document.body.style = '';
                 if (callback) callback();
-                
-                if(openId !== '') {
-                    let openEl = document.getElementById(openId);
-                    if (openEl) {
-                        let mOpen = bootstrap.Modal.getInstance(openEl) || new bootstrap.Modal(openEl);
-                        mOpen.show();
-                    }
-                }
+                if(openId !== '') { let openEl = document.getElementById(openId); if (openEl) { let mOpen = bootstrap.Modal.getInstance(openEl) || new bootstrap.Modal(openEl); mOpen.show(); } }
             }, 350);
         }
 
-        function showPickupModal() { 
-            document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; 
-            safeModalShow('pickupModal'); 
+        function showPickupModal() { document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; safeModalShow('pickupModal'); }
+        function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
+
+        // --- NEW: TAB ITEM VOID LOGIC ---
+        function voidItem(itemId) {
+            Swal.fire({
+                title: 'Void Item?',
+                text: "This removes the item from the bill and returns it to inventory stock.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, Void it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch(window.location.href, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, 
+                        body: 'void_item=1&item_id=' + itemId 
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire({ icon: 'success', title: 'Voided', timer: 1200, showConfirmButton: false }).then(() => location.reload());
+                        } else { 
+                            Swal.fire({ icon: 'error', title: 'Error', text: data.msg }); 
+                        }
+                    });
+                }
+            });
         }
 
-        function showTabDetails(id) { 
-            let template = document.getElementById('tab-data-' + id);
-            let container = document.getElementById('tabDetailContainer');
-            if (template && container) { container.innerHTML = template.innerHTML; }
-        }
-
-        // --- NEW: DYNAMIC MASTER CHECKOUT INITIALIZER ---
-        let baseTotal = 0; 
-        let currentTotal = 0;
-        
+        let baseTotal = 0; let currentTotal = 0;
         function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '') { 
             let nameInput = document.querySelector('[name="customer_name"]');
-            
             if (!isTabMode) {
-                // NORMAL CART CHECKOUT
                 baseTotal = <?= $balance ?? 0 ?>; 
                 document.getElementById('settle_tab_id_input').value = '0';
                 nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>';
                 nameInput.readOnly = false;
-                document.getElementById('splitModeGroup').style.display = 'flex'; // Allow splitting
+                document.getElementById('splitModeGroup').style.display = 'flex';
             } else {
-                // TAB SETTLEMENT
                 baseTotal = parseFloat(tabTotal);
-                document.getElementById('modeSingle').checked = true; // Force single pay
-                document.getElementById('splitModeGroup').style.display = 'none'; // Hide splitting
+                document.getElementById('modeSingle').checked = true;
+                document.getElementById('splitModeGroup').style.display = 'none';
                 nameInput.value = tabCustomer;
-                nameInput.readOnly = true; // Lock table name
+                nameInput.readOnly = true; 
             }
-            
             currentTotal = baseTotal; 
-            
-            // Reset fields
             document.getElementById('tipInput').value = '';
-            if(document.getElementById('discountToggle')) { 
-                document.getElementById('discountToggle').checked = false; 
-                toggleDiscount(); 
-            } else { 
-                updateDisplays(); 
-            } 
-            
-            toggleMode(); 
-            safeModalShow('checkoutModal'); 
+            if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } 
+            toggleMode(); safeModalShow('checkoutModal'); 
         }
 
-        // --- NEW: STRICT PICKUP CONSTRAINT UI SCANNER ---
         function openSettleModal(tabId, total, customerName) {
             let tabContainer = document.getElementById('tabDetailContainer');
             let hasUncollected = tabContainer.querySelector('.badge-uncollected') || tabContainer.innerHTML.includes('KITCHEN');
-            
-            if (hasUncollected) {
-                 Swal.fire({ icon: 'warning', title: 'Action Blocked', text: 'You must deliver all items to the table (or collect from Kitchen) before you can settle the bill!' });
-                 return;
-            }
-            
-            // If completely clear, switch to the main payment module in TAB MODE
+            if (hasUncollected) { Swal.fire({ icon: 'warning', title: 'Action Blocked', text: 'You must deliver all items to the table (or collect from Kitchen) before you can settle the bill!' }); return; }
             document.getElementById('settle_tab_id_input').value = tabId;
-            switchModal('tabsModal', '', function() {
-                initCheckout(true, total, customerName);
-            });
+            switchModal('tabsModal', '', function() { initCheckout(true, total, customerName); });
         }
 
         function markCollected(itemId, saleId) {
@@ -506,16 +486,12 @@
             .then(r => r.json())
             .then(data => {
                 if (data.status === 'success') {
-                    if (data.print_receipt) {
-                        document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id;
-                        safeModalShow('receiptModal');
-                    }
+                    if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id; safeModalShow('receiptModal'); }
                     const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); 
                     if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>';
                     const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId);
                     if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>';
-                } else if (data.status === 'redirect_pickup') {
-                    Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } });
+                } else if (data.status === 'redirect_pickup') { Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } });
                 } else { Swal.fire({ icon: 'error', title: 'Action Blocked', text: data.msg }); }
             });
         }
@@ -526,132 +502,56 @@
         function sumSplit() { let val1 = parseFloat(document.getElementById('splitInput1').value) || 0; let val2 = parseFloat(document.getElementById('splitInput2').value) || 0; document.getElementById('tenderedInput').value = (val1 + val2).toFixed(2); calcResult(); }
         function addTipPercent(percent) { let tip = currentTotal * percent; document.getElementById('tipInput').value = tip.toFixed(2); calcResult(); }
         function calcResult() { 
-            let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0;
-            let tip = parseFloat(document.getElementById('tipInput').value) || 0;
-            let diff = tendered - (currentTotal + tip);
-            let label = document.getElementById('resultLabel'); let value = document.getElementById('resultValue'); 
+            let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0; let tip = parseFloat(document.getElementById('tipInput').value) || 0; let diff = tendered - (currentTotal + tip); let label = document.getElementById('resultLabel'); let value = document.getElementById('resultValue'); 
             if(diff >= -0.01) { label.innerText = "CHANGE DUE"; label.className = "small fw-bold text-uppercase text-muted"; value.innerText = "ZMW " + diff.toFixed(2); value.className = "fs-4 fw-bold text-dark"; } 
             else { label.innerText = "BALANCE REMAINING"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(diff).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } 
         }
 
-        let currentPage = 1;
-        const itemsPerPage = 24;
-        let activeItems = [];
-        let currentCat = 'all';
+        let currentPage = 1; const itemsPerPage = 24; let activeItems = []; let currentCat = 'all';
 
         document.addEventListener('DOMContentLoaded', function() {
             if (localStorage.getItem('posInStockToggle') === 'true') { let toggle = document.getElementById('inStockToggle'); if(toggle) toggle.checked = true; }
             initPagination();
-            <?php if(isset($_SESSION['last_sale_id'])): ?>
-                document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>";
-                safeModalShow('receiptModal');
-            <?php unset($_SESSION['last_sale_id']); endif; ?>
+            <?php if(isset($_SESSION['last_sale_id'])): ?> document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>"; safeModalShow('receiptModal'); <?php unset($_SESSION['last_sale_id']); endif; ?>
         });
 
         function initPagination() { applyFilters(); }
         function applyFilters() {
-            let v = document.getElementById('search').value.toLowerCase();
-            let showInStockOnly = false;
-            let toggleElement = document.getElementById('inStockToggle');
+            let v = document.getElementById('search').value.toLowerCase(); let showInStockOnly = false; let toggleElement = document.getElementById('inStockToggle');
             if (toggleElement) { showInStockOnly = toggleElement.checked; localStorage.setItem('posInStockToggle', showInStockOnly); }
             let allItems = Array.from(document.querySelectorAll('#items-grid .item'));
-            activeItems = allItems.filter(e => {
-                let matchCat = (currentCat === 'all' || e.dataset.cat === currentCat);
-                let matchName = e.dataset.name.includes(v);
-                let matchStock = true;
-                if (showInStockOnly) { matchStock = e.dataset.out === "0"; }
-                return matchCat && matchName && matchStock;
-            });
+            activeItems = allItems.filter(e => { let matchCat = (currentCat === 'all' || e.dataset.cat === currentCat); let matchName = e.dataset.name.includes(v); let matchStock = true; if (showInStockOnly) { matchStock = e.dataset.out === "0"; } return matchCat && matchName && matchStock; });
             renderPage(1);
         }
 
         function filterCat(id, btn) { if(btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); } currentCat = id; switchTab('items'); applyFilters(); }
         function filter() { applyFilters(); }
-        function switchTab(tab, btn) { 
-            if(btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); }
-            if (tab === 'services') { document.getElementById('items-grid').style.display = 'none'; document.getElementById('services-grid').style.display = 'flex'; document.getElementById('paginationBar').style.display = 'none'; } 
-            else { document.getElementById('items-grid').style.display = 'flex'; document.getElementById('services-grid').style.display = 'none'; document.getElementById('paginationBar').style.display = 'flex'; applyFilters(); } 
-        }
+        function switchTab(tab, btn) { if(btn) { document.querySelectorAll('.cat-pill').forEach(e=>e.classList.remove('active')); btn.classList.add('active'); } if (tab === 'services') { document.getElementById('items-grid').style.display = 'none'; document.getElementById('services-grid').style.display = 'flex'; document.getElementById('paginationBar').style.display = 'none'; } else { document.getElementById('items-grid').style.display = 'flex'; document.getElementById('services-grid').style.display = 'none'; document.getElementById('paginationBar').style.display = 'flex'; applyFilters(); } }
 
         function renderPage(page) {
-            currentPage = page;
-            const totalPages = Math.ceil(activeItems.length / itemsPerPage) || 1;
-            if (currentPage > totalPages) currentPage = totalPages;
-            if (currentPage < 1) currentPage = 1;
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            document.querySelectorAll('#items-grid .item').forEach(el => el.style.display = 'none');
-            activeItems.slice(startIndex, endIndex).forEach(el => { el.style.display = 'block'; });
-            document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages}`;
+            currentPage = page; const totalPages = Math.ceil(activeItems.length / itemsPerPage) || 1; if (currentPage > totalPages) currentPage = totalPages; if (currentPage < 1) currentPage = 1;
+            const startIndex = (currentPage - 1) * itemsPerPage; const endIndex = startIndex + itemsPerPage;
+            document.querySelectorAll('#items-grid .item').forEach(el => el.style.display = 'none'); activeItems.slice(startIndex, endIndex).forEach(el => { el.style.display = 'block'; }); document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages}`;
         }
+        function prevPage() { if(currentPage > 1) renderPage(currentPage - 1); } function nextPage() { const totalPages = Math.ceil(activeItems.length / itemsPerPage); if(currentPage < totalPages) renderPage(currentPage + 1); }
 
-        function prevPage() { if(currentPage > 1) renderPage(currentPage - 1); }
-        function nextPage() { const totalPages = Math.ceil(activeItems.length / itemsPerPage); if(currentPage < totalPages) renderPage(currentPage + 1); }
         function toggleCart() { document.getElementById('cartPanel').classList.toggle('expanded'); }
         function addService(id, name, price, isOpen) { if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; safeModalShow('openPriceModal'); } else { let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${id}">`; document.body.appendChild(f); f.submit(); } }
         function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; safeModalShow('reportModal'); }
         function confirmAction(event, title, text, confirmBtn='Yes') { event.preventDefault(); Swal.fire({ title: title, text: text, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: confirmBtn }).then((result) => { if (result.isConfirmed) { event.target.submit(); } }); }
         
-        let cartItems = <?= json_encode($_SESSION['cart'] ?? []) ?>;
-        let guests = []; let unassigned = []; let splitMode = 'item'; 
-
-        function openSplitModal() {
-            unassigned = [];
-            guests = [{ id: 1, name: "Guest 1", items: [] }, { id: 2, name: "Guest 2", items: [] }];
-            Object.keys(cartItems).forEach(key => { let item = cartItems[key]; for(let i=0; i<item.qty; i++) { unassigned.push({ id: item.product_id, name: item.name, price: item.price, type: item.type, uid: key + '-' + i }); } });
-            renderSplitUI(); safeModalShow('splitBillModal');
-        }
-
+        let cartItems = <?= json_encode($_SESSION['cart'] ?? []) ?>; let guests = []; let unassigned = []; let splitMode = 'item'; 
+        function openSplitModal() { unassigned = []; guests = [{ id: 1, name: "Guest 1", items: [] }, { id: 2, name: "Guest 2", items: [] }]; Object.keys(cartItems).forEach(key => { let item = cartItems[key]; for(let i=0; i<item.qty; i++) { unassigned.push({ id: item.product_id, name: item.name, price: item.price, type: item.type, uid: key + '-' + i }); } }); renderSplitUI(); safeModalShow('splitBillModal'); }
         function setSplitMode(mode) { splitMode = mode; document.getElementById('splitTypeInput').value = mode; document.getElementById('btnSplitItem').classList.toggle('active', mode === 'item'); document.getElementById('btnSplitEven').classList.toggle('active', mode === 'even'); renderSplitUI(); }
         function addGuest() { guests.push({ id: guests.length + 1, name: "Guest " + (guests.length + 1), items: [] }); renderSplitUI(); }
-
-        function renderSplitUI() {
-            const pool = document.getElementById('unassignedPool'); const zone = document.getElementById('guestZone'); const totalDisplay = document.getElementById('splitTotalDisplay');
-            let grandTotal = 0; pool.innerHTML = '<h6 class="text-muted fw-bold text-center mb-3">Unassigned Items</h6>'; zone.innerHTML = '';
-            if (splitMode === 'item') { unassigned.forEach(item => { grandTotal += parseFloat(item.price); pool.appendChild(createDragEl(item, 'pool')); }); } else { pool.innerHTML = '<div class="text-center text-muted mt-5"><i>Even Split Mode Active<br>Items are auto-distributed</i></div>'; }
-            guests.forEach((g, index) => {
-                let gTotal = 0;
-                if (splitMode === 'item') { g.items.forEach(item => gTotal += parseFloat(item.price)); } else { let cartTotal = 0; Object.values(cartItems).forEach(i => cartTotal += (i.price * i.qty)); gTotal = cartTotal / guests.length; grandTotal = cartTotal; }
-                let col = document.createElement('div'); col.className = 'guest-col';
-                col.innerHTML = `<div class="guest-header p-2"><input type="text" class="form-control form-control-sm fw-bold text-center" value="${g.name}" onchange="guests[${index}].name = this.value" placeholder="Guest Name"><div class="small mt-1">ZMW ${gTotal.toFixed(2)}</div></div><div class="guest-items" ondrop="drop(event, ${index})" ondragover="allowDrop(event)">${splitMode === 'item' ? '' : '<small class="text-muted d-block text-center mt-4">1/' + guests.length + ' Share</small>'}</div><div class="guest-footer"><div class="input-group input-group-sm mb-2"><span class="input-group-text">Tip</span><input type="number" step="0.01" class="form-control" placeholder="0.00" oninput="guests[${index}].tip = this.value"></div><select class="form-select form-select-sm mb-2" onchange="guests[${index}].method = this.value"><option value="Cash">Cash</option><option value="Card">Card</option><option value="Pending">On Tab</option></select></div>`;
-                if (splitMode === 'item') { g.items.forEach(item => { col.querySelector('.guest-items').appendChild(createDragEl(item, 'guest', index)); }); }
-                g.method = g.method || 'Cash'; zone.appendChild(col);
-            });
-            totalDisplay.innerText = "Cart Total: ZMW " + grandTotal.toFixed(2);
-        }
-
+        function renderSplitUI() { const pool = document.getElementById('unassignedPool'); const zone = document.getElementById('guestZone'); const totalDisplay = document.getElementById('splitTotalDisplay'); let grandTotal = 0; pool.innerHTML = '<h6 class="text-muted fw-bold text-center mb-3">Unassigned Items</h6>'; zone.innerHTML = ''; if (splitMode === 'item') { unassigned.forEach(item => { grandTotal += parseFloat(item.price); pool.appendChild(createDragEl(item, 'pool')); }); } else { pool.innerHTML = '<div class="text-center text-muted mt-5"><i>Even Split Mode Active<br>Items are auto-distributed</i></div>'; } guests.forEach((g, index) => { let gTotal = 0; if (splitMode === 'item') { g.items.forEach(item => gTotal += parseFloat(item.price)); } else { let cartTotal = 0; Object.values(cartItems).forEach(i => cartTotal += (i.price * i.qty)); gTotal = cartTotal / guests.length; grandTotal = cartTotal; } let col = document.createElement('div'); col.className = 'guest-col'; col.innerHTML = `<div class="guest-header p-2"><input type="text" class="form-control form-control-sm fw-bold text-center" value="${g.name}" onchange="guests[${index}].name = this.value" placeholder="Guest Name"><div class="small mt-1">ZMW ${gTotal.toFixed(2)}</div></div><div class="guest-items" ondrop="drop(event, ${index})" ondragover="allowDrop(event)">${splitMode === 'item' ? '' : '<small class="text-muted d-block text-center mt-4">1/' + guests.length + ' Share</small>'}</div><div class="guest-footer"><div class="input-group input-group-sm mb-2"><span class="input-group-text">Tip</span><input type="number" step="0.01" class="form-control" placeholder="0.00" oninput="guests[${index}].tip = this.value"></div><select class="form-select form-select-sm mb-2" onchange="guests[${index}].method = this.value"><option value="Cash">Cash</option><option value="Card">Card</option><option value="Pending">On Tab</option></select></div>`; if (splitMode === 'item') { g.items.forEach(item => { col.querySelector('.guest-items').appendChild(createDragEl(item, 'guest', index)); }); } g.method = g.method || 'Cash'; zone.appendChild(col); }); totalDisplay.innerText = "Cart Total: ZMW " + grandTotal.toFixed(2); }
         function createDragEl(item, source, guestIdx = null) { let d = document.createElement('div'); d.className = 'draggable-item'; d.draggable = (splitMode === 'item'); d.innerHTML = `<div class="d-flex justify-content-between"><span>${item.name}</span><span class="fw-bold">${parseFloat(item.price).toFixed(2)}</span></div>`; d.id = item.uid; d.ondragstart = (e) => { e.dataTransfer.setData("text", JSON.stringify({ uid: item.uid, source: source, guestIdx: guestIdx })); }; return d; }
         function allowDrop(ev) { ev.preventDefault(); }
-        function drop(ev, targetGuestIdx = null) {
-            ev.preventDefault(); if (splitMode !== 'item') return; let data = JSON.parse(ev.dataTransfer.getData("text")); let item;
-            if (data.source === 'pool') { let idx = unassigned.findIndex(i => i.uid === data.uid); item = unassigned.splice(idx, 1)[0]; } else { let idx = guests[data.guestIdx].items.findIndex(i => i.uid === data.uid); item = guests[data.guestIdx].items.splice(idx, 1)[0]; }
-            if (targetGuestIdx !== null) { guests[targetGuestIdx].items.push(item); } else { unassigned.push(item); } renderSplitUI();
-        }
+        function drop(ev, targetGuestIdx = null) { ev.preventDefault(); if (splitMode !== 'item') return; let data = JSON.parse(ev.dataTransfer.getData("text")); let item; if (data.source === 'pool') { let idx = unassigned.findIndex(i => i.uid === data.uid); item = unassigned.splice(idx, 1)[0]; } else { let idx = guests[data.guestIdx].items.findIndex(i => i.uid === data.uid); item = guests[data.guestIdx].items.splice(idx, 1)[0]; } if (targetGuestIdx !== null) { guests[targetGuestIdx].items.push(item); } else { unassigned.push(item); } renderSplitUI(); }
+        function submitSplit() { if (splitMode === 'item' && unassigned.length > 0) { Swal.fire({ icon: 'warning', title: 'Unassigned Items', text: 'Please assign all items.' }); return; } let payload = guests.map(g => { let items = []; let total = 0; if (splitMode === 'item') { let grouped = {}; g.items.forEach(i => { if (!grouped[i.id]) grouped[i.id] = { id: i.id, qty: 0, price: i.price, type: i.type }; grouped[i.id].qty++; total += parseFloat(i.price); }); items = Object.values(grouped); } else { let cartTotal = 0; Object.values(cartItems).forEach(i => cartTotal += (i.price * i.qty)); total = cartTotal / guests.length; } return { name: g.name, method: g.method, tip: g.tip || 0, total: total, items: items }; }); document.getElementById('splitDataInput').value = JSON.stringify(payload); document.getElementById('splitForm').submit(); }
 
-        function submitSplit() {
-            if (splitMode === 'item' && unassigned.length > 0) { Swal.fire({ icon: 'warning', title: 'Unassigned Items', text: 'Please assign all items.' }); return; }
-            let payload = guests.map(g => {
-                let items = []; let total = 0;
-                if (splitMode === 'item') { let grouped = {}; g.items.forEach(i => { if (!grouped[i.id]) grouped[i.id] = { id: i.id, qty: 0, price: i.price, type: i.type }; grouped[i.id].qty++; total += parseFloat(i.price); }); items = Object.values(grouped); } 
-                else { let cartTotal = 0; Object.values(cartItems).forEach(i => cartTotal += (i.price * i.qty)); total = cartTotal / guests.length; }
-                return { name: g.name, method: g.method, tip: g.tip || 0, total: total, items: items };
-            });
-            document.getElementById('splitDataInput').value = JSON.stringify(payload); document.getElementById('splitForm').submit();
-        }
-
-        <?php if(isset($_SESSION['swal_msg'])): ?>
-        Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false });
-        <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-        <?php endif; ?>
-
-        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
-        function checkPosReadyOrders() {
-            fetch('index.php?action=check_ready_orders')
-            .then(r => r.json())
-            .then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); });
-        }
-        checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000);
-        <?php endif; ?>
+        <?php if(isset($_SESSION['swal_msg'])): ?> Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
+        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
 </body>
 </html>

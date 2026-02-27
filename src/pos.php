@@ -39,7 +39,7 @@ function deductStock($pdo, $productId, $qty, $locId, $uId, $actionOverride = 'sa
     }
 }
 
-// --- 📡 AJAX HANDLERS (KITCHEN SECURITY) ---
+// --- 📡 AJAX HANDLERS (KITCHEN & VOID) ---
 if (isset($_POST['mark_collected'])) {
     header('Content-Type: application/json');
     $itemId = (int)$_POST['item_id'];
@@ -56,7 +56,7 @@ if (isset($_POST['mark_collected'])) {
 
             if ($item['fulfillment_status'] !== 'collected') {
                 $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE id = ?")->execute([$itemId]);
-                $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND fulfillment_status != 'collected'");
+                $stmtCheck = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND fulfillment_status != 'collected' AND status != 'voided'");
                 $stmtCheck->execute([$item['sale_id']]);
                 $uncollectedCount = $stmtCheck->fetchColumn();
                 echo json_encode(['status' => 'success', 'sale_id' => $item['sale_id'], 'tab_completed' => ($uncollectedCount == 0), 'print_receipt' => ($uncollectedCount == 0)]);
@@ -67,6 +67,42 @@ if (isset($_POST['mark_collected'])) {
             echo json_encode(['status' => 'error', 'msg' => 'Item not found.']);
         }
     } catch(Exception $e) { echo json_encode(['status' => 'error', 'msg' => $e->getMessage()]); }
+    exit;
+}
+
+// THE NEW VOID ENGINE
+if (isset($_POST['void_item'])) {
+    header('Content-Type: application/json');
+    $itemId = (int)$_POST['item_id'];
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT si.*, s.payment_status FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.id = ?");
+        $stmt->execute([$itemId]);
+        $item = $stmt->fetch();
+        
+        if ($item && $item['payment_status'] === 'pending' && $item['status'] !== 'voided') {
+            // 1. Mark item as voided
+            $pdo->prepare("UPDATE sale_items SET status = 'voided' WHERE id = ?")->execute([$itemId]);
+            
+            // 2. Recalculate Table Totals
+            $saleId = $item['sale_id'];
+            $pdo->prepare("UPDATE sales SET 
+                subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status != 'voided'), 
+                final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status != 'voided') 
+                WHERE id = ?")->execute([$saleId, $saleId, $saleId]);
+                
+            // 3. Reverse Inventory (Passing negative quantity adds it back)
+            deductStock($pdo, $item['product_id'], -$item['quantity'], $locationId, $userId, 'void_return');
+            
+            $pdo->commit();
+            echo json_encode(['status' => 'success']);
+        } else {
+            throw new Exception("Cannot void this item. Table might already be paid.");
+        }
+    } catch(Exception $e) { 
+        $pdo->rollBack(); 
+        echo json_encode(['status' => 'error', 'msg' => $e->getMessage()]); 
+    }
     exit;
 }
 
@@ -165,7 +201,7 @@ if (isset($_POST['log_waste']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 💳 MASTER CHECKOUT LOGIC (HANDLES BOTH CART AND TABS) ---
+// --- 💳 MASTER CHECKOUT LOGIC ---
 if (isset($_POST['checkout']) && $activeShiftId) {
     try {
         $pdo->beginTransaction();
@@ -179,8 +215,7 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         if ($isSplit == '1') { $pm = 'Split'; }
 
         if ($settleTabId > 0) {
-            // SCENARIO 1: SETTLING AN EXISTING TAB/TABLE
-            $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ?");
+            $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status != 'voided'");
             $stmt->execute([$settleTabId]);
             $total = (float)$stmt->fetchColumn();
             
@@ -194,7 +229,6 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
 
         } else {
-            // SCENARIO 2: NORMAL CART CHECKOUT
             $total = 0; foreach($_SESSION['cart'] as $item) { $total += $item['price'] * $item['qty']; }
             if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $total *= 0.9; }
             $finalTotal = $total + $tip;
@@ -208,7 +242,6 @@ if (isset($_POST['checkout']) && $activeShiftId) {
                 $fulfillment = $item['fulfillment'] ?? 'collected';
                 $itemStatus = ($fulfillment === 'uncollected') ? 'pending' : 'ready';
                 $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, fulfillment_status, status) VALUES (?, ?, ?, ?, ?, ?)")->execute([$saleId, $item['product_id'], $item['qty'], $item['price'], $fulfillment, $itemStatus]);
-                
                 deductStock($pdo, $item['product_id'], $item['qty'], $locationId, $userId); 
             }
 
@@ -226,7 +259,7 @@ if (isset($_POST['checkout']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 🧾 SPLIT BILL LOGIC (CART ONLY) ---
+// --- 🧾 SPLIT BILL LOGIC ---
 if (isset($_POST['finalize_split']) && $activeShiftId) {
     $splitData = json_decode($_POST['split_data'], true);
     if ($splitData) {
@@ -283,7 +316,7 @@ if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
             $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, fulfillment_status, status) VALUES (?, ?, ?, ?, ?, ?)")->execute([$targetId, $item['product_id'], $item['qty'], $item['price'], $fulfillment, $itemStatus]);
             deductStock($pdo, $item['product_id'], $item['qty'], $locationId, $userId);
         }
-        $pdo->prepare("UPDATE sales SET subtotal = (SELECT SUM(price*quantity) FROM sale_items WHERE sale_id = ?), final_total = (SELECT SUM(price*quantity) FROM sale_items WHERE sale_id = ?) WHERE id = ?")->execute([$targetId, $targetId, $targetId]);
+        $pdo->prepare("UPDATE sales SET subtotal = (SELECT SUM(price*quantity) FROM sale_items WHERE sale_id = ? AND status != 'voided'), final_total = (SELECT SUM(price*quantity) FROM sale_items WHERE sale_id = ? AND status != 'voided') WHERE id = ?")->execute([$targetId, $targetId, $targetId]);
         $pdo->commit();
         $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Added to tab/table.";
     } catch(Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
@@ -335,10 +368,11 @@ $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_ac
 
 $balance = 0; foreach($_SESSION['cart'] as $i) { $balance += $i['price'] * $i['qty']; }
 
+// Fetch Open Tabs (FILTERING OUT VOIDED ITEMS)
 $openTabs = $pdo->query("SELECT * FROM sales WHERE payment_status = 'pending' AND location_id = $locationId")->fetchAll(PDO::FETCH_ASSOC);
 $tabItems = [];
 foreach($openTabs as $t) {
-    $stmt = $pdo->prepare("SELECT si.*, COALESCE(p.name, 'Custom Item') as name, c.type as cat_type FROM sale_items si LEFT JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = ?");
+    $stmt = $pdo->prepare("SELECT si.*, COALESCE(p.name, 'Custom Item') as name, c.type as cat_type FROM sale_items si LEFT JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = ? AND si.status != 'voided'");
     $stmt->execute([$t['id']]);
     $tabItems[$t['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
