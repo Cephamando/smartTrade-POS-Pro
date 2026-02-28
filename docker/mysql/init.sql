@@ -27,11 +27,31 @@ INSERT INTO `categories` (`id`, `name`, `description`, `type`) VALUES
 (4, 'Snacks', NULL, 'food'),
 (5, 'Cleaning Material',  NULL, 'other');
 
+DROP TABLE IF EXISTS `daily_closures`;
+CREATE TABLE `daily_closures` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `location_id` int NOT NULL,
+  `closure_date` date NOT NULL,
+  `closed_by` int NOT NULL,
+  `total_cash_expected` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_cash_actual` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_card` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_mobile` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_tips` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_expenses` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `variance` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_closure` (`location_id`,`closure_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 DROP TABLE IF EXISTS `expenses`;
 CREATE TABLE `expenses` (
   `id` int NOT NULL AUTO_INCREMENT,
   `location_id` int NOT NULL,
   `user_id` int NOT NULL,
+  `shift_id` int NOT NULL DEFAULT '0',
   `amount` decimal(10,2) NOT NULL,
   `reason` varchar(255) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -183,6 +203,17 @@ CREATE TABLE `pickup_notifications` (
   `collected_by` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+DROP TABLE IF EXISTS `product_recipes`;
+CREATE TABLE `product_recipes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `parent_product_id` int NOT NULL COMMENT 'The sellable cocktail/meal',
+  `ingredient_product_id` int NOT NULL COMMENT 'The raw bottle/ingredient',
+  `quantity` decimal(10,4) NOT NULL COMMENT 'Amount deducted per sale (e.g., 0.05 for 50ml)',
+  PRIMARY KEY (`id`),
+  KEY `parent_idx` (`parent_product_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
@@ -425,7 +456,7 @@ INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `cat
 (231, 'BEEFEATER WHITE',  NULL, 40.00,  0.00, 'unit', 1,  1,  'item', 0),
 (232, 'FANTA_ORANGE_RGB_300mls',  NULL, 15.00,  0.00, 'unit', 1,  1,  'item', 0),
 (233, 'HENDRICKS',  NULL, 70.00,  0.00, 'unit', 1,  1,  'item', 0),
-(234, 'AMARULA 750 ML', NULL, 40.00,  0.00, 'unit', 1,  1,  'item', 0),
+(234, 'AMARULA 750 ML', NULL, 100.00, 80.00,  'unit', 1,  1,  'item', 0),
 (235, 'FANTA ORANGE PET 500mls',  NULL, 25.00,  0.00, 'unit', 1,  1,  'item', 0),
 (236, 'GLENLIVET 12 YEARS 750 ML',  NULL, 100.00, 0.00, 'unit', 1,  1,  'item', 0),
 (237, 'FLYING FISH CAN 500mls', NULL, 60.00,  0.00, 'unit', 1,  1,  'item', 0),
@@ -464,7 +495,7 @@ INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `cat
 (270, 'ABSOLUTE BLUE VODKA',  NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
 (271, 'ABSOLUTE VODKA WATERMELON',  NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
 (272, 'ACTIVE SPECIAL', NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
-(273, 'AMARULA GIN',  NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
+(273, 'AMARULA GIN',  NULL, 0.00, 60.00,  'unit', 1,  1,  'item', 0),
 (274, 'BELGRAVIA 10', NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
 (275, 'BELGRAVIA 8 750 ML', NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
 (276, 'BELGRAVIA BLACK BERRY',  NULL, 0.00, 0.00, 'unit', 1,  1,  'item', 0),
@@ -684,17 +715,39 @@ CREATE TABLE `refunds` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
+DROP TABLE IF EXISTS `restaurant_tables`;
+CREATE TABLE `restaurant_tables` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `location_id` int NOT NULL DEFAULT '0',
+  `zone_name` varchar(50) NOT NULL DEFAULT 'Main Dining',
+  `table_name` varchar(50) NOT NULL,
+  `capacity` int NOT NULL DEFAULT '4',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+TRUNCATE `restaurant_tables`;
+INSERT INTO `restaurant_tables` (`id`, `location_id`, `zone_name`, `table_name`, `capacity`) VALUES
+(1, 1,  'Main Dining',  'Table 1',  4),
+(2, 1,  'Main Dining',  'Table 2',  4),
+(3, 1,  'Main Dining',  'Table 3',  6),
+(4, 1,  'Main Dining',  'Table 4',  2),
+(5, 1,  'Patio / Outside',  'Patio 1',  4),
+(6, 1,  'Patio / Outside',  'Patio 2',  4),
+(7, 1,  'VIP Bar',  'Bar Stool A',  1),
+(8, 1,  'VIP Bar',  'Bar Stool B',  1);
+
 DROP TABLE IF EXISTS `sale_items`;
 CREATE TABLE `sale_items` (
   `id` int NOT NULL AUTO_INCREMENT,
   `sale_id` int NOT NULL,
   `product_id` int NOT NULL,
   `quantity` int NOT NULL,
-  `price_at_sale` decimal(10,2) NOT NULL,
+  `price` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `price_at_sale` decimal(10,2) NOT NULL DEFAULT '0.00',
   `cost_at_sale` decimal(10,2) DEFAULT '0.00',
-  `status` enum('pending','cooking','ready','served','refunded') DEFAULT 'pending',
+  `status` varchar(20) NOT NULL DEFAULT 'ready',
   `updated_at` timestamp NULL DEFAULT NULL,
-  `fulfillment_status` enum('collected','uncollected') DEFAULT 'collected',
+  `fulfillment_status` varchar(20) NOT NULL DEFAULT 'collected',
   PRIMARY KEY (`id`),
   KEY `sale_id` (`sale_id`),
   KEY `product_id` (`product_id`),
@@ -707,9 +760,11 @@ DROP TABLE IF EXISTS `sales`;
 CREATE TABLE `sales` (
   `id` int NOT NULL AUTO_INCREMENT,
   `location_id` int NOT NULL,
+  `table_id` int DEFAULT NULL,
   `user_id` int NOT NULL,
   `shift_id` int DEFAULT NULL,
-  `total_amount` decimal(10,2) NOT NULL,
+  `subtotal` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
   `discount` decimal(10,2) DEFAULT '0.00',
   `total_tax` decimal(10,2) DEFAULT '0.00',
   `tip` decimal(10,2) DEFAULT '0.00',
@@ -718,7 +773,7 @@ CREATE TABLE `sales` (
   `status` enum('completed','refund_requested','refunded','partially_refunded') DEFAULT 'completed',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `collected_by` varchar(100) DEFAULT NULL,
-  `payment_status` enum('paid','pending','refunded') NOT NULL DEFAULT 'pending',
+  `payment_status` varchar(20) NOT NULL DEFAULT 'paid',
   `customer_name` varchar(100) DEFAULT 'Walk-in',
   `amount_tendered` decimal(10,2) DEFAULT '0.00',
   `change_due` decimal(10,2) DEFAULT '0.00',
@@ -736,6 +791,21 @@ CREATE TABLE `sales` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
+DROP TABLE IF EXISTS `settings`;
+CREATE TABLE `settings` (
+  `setting_key` varchar(50) NOT NULL,
+  `setting_value` varchar(255) NOT NULL,
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+TRUNCATE `settings`;
+INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
+('business_name', 'duckGrill-POS'),
+('license_tier',  'hospitality'),
+('receipt_footer',  'Thank you for your business!'),
+('receipt_header',  'duckGrill'),
+('theme_color', '#581904');
+
 DROP TABLE IF EXISTS `shifts`;
 CREATE TABLE `shifts` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -747,7 +817,7 @@ CREATE TABLE `shifts` (
   `closing_cash` decimal(10,2) DEFAULT '0.00',
   `expected_cash` decimal(10,2) DEFAULT '0.00',
   `manager_closing_cash` decimal(10,2) DEFAULT '0.00',
-  `status` enum('pending_approval','open','closed') DEFAULT 'pending_approval',
+  `status` varchar(20) NOT NULL DEFAULT 'open',
   `variance_reason` text,
   `handover_notes` text,
   `start_verified_by` int DEFAULT NULL,
@@ -850,16 +920,16 @@ CREATE TABLE `users` (
 TRUNCATE `users`;
 INSERT INTO `users` (`id`, `username`, `full_name`, `password_hash`, `role`, `location_id`, `created_at`, `force_password_change`, `is_active`) VALUES
 (1, 'admin',  'System Admin', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'admin',  3,  '2026-02-06 19:59:35',  0,  1),
-(2, 'mando',  'mando chishimba',  '$2y$10$f7zbSGxQ7gvsH5N1dEOLauAgZS3dO1cV/8Gj.UNOmK6Z2a0JxWBbu', 'dev',  4,  '2026-02-06 19:59:35',  0,  1),
-(3, 'manager',  'Manager',  '$2y$10$3owGZE25FfMAUBAFy9oL7OwSu6atNLFJZW7uwH7DG8k.RC71DWnLq', 'manager',  6,  '2026-02-06 19:59:35',  0,  1),
-(4, 'main_bar', 'Main Bar', '$2y$10$icKWWXY1OG338h7dCs/YzuP4K7qcHOrGX65KhdvgQ89HEhRbbiwum', 'bartender',  2,  '2026-02-06 19:59:35',  0,  1),
+(2, 'mando',  'mando chishimba',  '$2y$10$f7zbSGxQ7gvsH5N1dEOLauAgZS3dO1cV/8Gj.UNOmK6Z2a0JxWBbu', 'dev',  6,  '2026-02-06 19:59:35',  0,  1),
+(3, 'manager',  'Manager',  '$2y$10$3owGZE25FfMAUBAFy9oL7OwSu6atNLFJZW7uwH7DG8k.RC71DWnLq', 'manager',  1,  '2026-02-06 19:59:35',  0,  1),
+(4, 'main_bar', 'Main Bar', '$2y$10$VlnXSk.UJ.Wkp1Zr4nIMQOkjUdZqBuW64xHxSZG4SPE45f9lwpMri', 'bartender',  2,  '2026-02-06 19:59:35',  0,  1),
 (5, 'head_chef',  'Head Chef',  '$2y$10$Mjj1v4RzMY4u0hdaNUcdCeuoq5OBjWndjv4P3phfjoCmtkeEskUHy', 'head_chef',  1,  '2026-02-06 19:59:35',  0,  1),
 (6, 'waiter', 'Restaurant Waiter',  '$2y$10$EGK83.eKGrOChYOMm.IWg.2IUjJNFusgrA35equMDe18uAaxY8fl2', 'waiter', 4,  '2026-02-06 19:59:35',  0,  1),
 (7, 'bartender',  'Main Bartender', '$2y$10$AJ1DKDKmwF3BHFNYpQUgwOTwbzuUCXH04KMXRykW.chnVaFT2NIfu', 'bartender',  2,  '2026-02-06 19:59:35',  0,  0),
 (8, 'chef', 'chef', '$2y$10$M9vANzbl70OlafoGFIn/b.0Kyhl6JuQi21i5d6tjcBWnV8RxtjOZ2', 'chef', 1,  '2026-02-10 08:21:50',  0,  1),
 (9, 'Res_Bar',  'Restaurant Bar', '$2y$10$Tn2NAv5T0.1kqWKPKOvthOVSGRS9prQbZevAa6DYqWvQsNE/lsBvy', 'bartender',  1,  '2026-02-10 09:53:29',  0,  1),
 (10,  'daliso', 'Daliso Nindi', '$2y$10$0Cmqbbba.ipH/7x1fh9QOuQ8z4FayAfR1TuvXhzShncyprrq27Z4.', 'admin',  6,  '2026-02-10 10:20:55',  0,  1),
-(11,  'Front_Manager',  'Front Desk Manager', '$2y$10$F9JzTIUjAP3wP9Egyk7b3uzy7XDZzDwku4t4V8YIezc15YuY8kng6', 'manager',  NULL, '2026-02-14 09:31:02',  0,  1);
+(11,  'Front_Manager',  'Front Desk Manager', '$2y$10$F9JzTIUjAP3wP9Egyk7b3uzy7XDZzDwku4t4V8YIezc15YuY8kng6', 'manager',  1,  '2026-02-14 09:31:02',  0,  1);
 
 DROP TABLE IF EXISTS `vendors`;
 CREATE TABLE `vendors` (
@@ -879,4 +949,4 @@ INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`, `is_active`) VAL
 (4, 'Shoprite', 'Maybin', '12345678', 1),
 (5, 'PRAV', 'PAVIN',  '097',  1);
 
--- 2026-02-24 11:10:36 UTC
+-- 2026-02-28 04:01:46 UTC

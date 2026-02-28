@@ -181,3 +181,39 @@
 
 </body>
 </html>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // 1. Instantly upgrade all existing dropdowns on the page (Vendors, Products, Locations)
+        $('select').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: 'Type to search...'
+        });
+
+        // 2. Failsafe: If you click "Add Item" to spawn a new row dynamically, 
+        // this observer watches the DOM and instantly upgrades the new dropdowns!
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
+                    // Find any newly added <select> tags that haven't been upgraded yet
+                    $(mutation.addedNodes).find('select').not('.select2-hidden-accessible').select2({
+                        theme: 'bootstrap-5',
+                        width: '100%',
+                        placeholder: 'Type to search...'
+                    });
+                }
+            });
+        });
+        
+        // Start watching the table body (or form) for newly added rows
+        const grvContainer = document.querySelector('form') || document.querySelector('tbody');
+        if(grvContainer) {
+            observer.observe(grvContainer, { childList: true, subtree: true });
+        }
+    });
+</script>

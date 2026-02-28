@@ -149,3 +149,28 @@
         </div>
     </div>
 </div>
+
+<link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Find the catalog table and apply the pagination engine
+        if (!$.fn.DataTable.isDataTable('table')) {
+            $('table').DataTable({
+                "pageLength": 25, // Default items per page
+                "lengthMenu": [25, 50, 100, 250, 500], // Options for the dropdown
+                "language": {
+                    "search": "",
+                    "searchPlaceholder": "Quick filter products..."
+                },
+                "stateSave": true // Remembers the page you were on after editing an item!
+            });
+            
+            // Clean up the styling to match Bootstrap 5
+            $('.dataTables_filter input').addClass('form-control d-inline-block w-auto ms-2 border-primary shadow-sm');
+            $('.dataTables_length select').addClass('form-select d-inline-block w-auto border-primary shadow-sm');
+        }
+    });
+</script>
