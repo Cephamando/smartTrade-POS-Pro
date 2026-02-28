@@ -41,11 +41,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link" href="index.php?page=dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a>
-                </li>
-                <li class="nav-item ms-2">
-                    <a class="nav-link fw-bold text-success border border-success rounded px-3" href="index.php?page=pos"><i class="bi bi-cart-check"></i> LAUNCH POS</a>
-                </li>
-                
+                </li>                
                 <?php if(in_array($role, ['admin', 'manager', 'dev'])): ?>
                 <li class="nav-item dropdown ms-3">
                     <a class="nav-link dropdown-toggle" href="#" id="invDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -58,7 +54,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                         
                         <li><a class="dropdown-item fw-bold" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock Levels</a></li>
                         <li><a class="dropdown-item fw-bold text-primary" href="index.php?page=receive_stock"><i class="bi bi-box-arrow-in-down"></i> Receive Stock (GRV)</a></li>
-                        <li><a class="dropdown-item fw-bold text-info" href="index.php?page=transfer_stock"><i class="bi bi-arrow-left-right"></i> Transfer Stock</a></li>
+                        <li><a class="dropdown-item fw-bold text-info" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Transfer Stock</a></li>
                         
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="index.php?page=vendors"><i class="bi bi-truck"></i> Vendors</a></li>
@@ -78,15 +74,24 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                         <li><a class="dropdown-item" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
                         <li><a class="dropdown-item" href="index.php?page=locations"><i class="bi bi-geo-alt"></i> Locations</a></li>
                         <li><a class="dropdown-item" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Table Settings</a></li>
+                        
+                        <?php if($role === 'dev'): ?>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item fw-bold text-danger" href="index.php?page=settings"><i class="bi bi-gear-fill"></i> System Settings</a></li>
+                        <?php endif; ?>
                     </ul>
                 </li>
                 <?php endif; ?>
+
 
                 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <li class="nav-item ms-3">
                     <a class="nav-link text-warning fw-bold" href="index.php?page=pickup"><i class="bi bi-fire"></i> Kitchen Display</a>
                 </li>
                 <?php endif; ?>
+                <li class="nav-item ms-2">
+                    <a class="nav-link fw-bold text-success border border-success rounded px-3" href="index.php?page=pos"><i class="bi bi-cart-check"></i> LAUNCH POS</a>
+                </li>
             </ul>
             
             <div class="d-flex align-items-center">

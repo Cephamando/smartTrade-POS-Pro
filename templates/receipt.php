@@ -3,6 +3,16 @@ if (!isset($_GET['sale_id'])) die("Invalid Sale ID");
 $saleId = (int)$_GET['sale_id'];
 $isBill = isset($_GET['is_bill']) && $_GET['is_bill'] == '1';
 
+// Fetch Custom System Settings for Receipts
+$settingsStmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_header', 'receipt_footer')");
+$sysSettings = [];
+while ($sRow = $settingsStmt->fetch(PDO::FETCH_ASSOC)) {
+    $sysSettings[$sRow['setting_key']] = $sRow['setting_value'];
+}
+$bizName = !empty($sysSettings['business_name']) ? $sysSettings['business_name'] : 'OdeliaPOS';
+$receiptHeader = $sysSettings['receipt_header'] ?? '';
+$receiptFooter = $sysSettings['receipt_footer'] ?? 'Thank you for your business!';
+
 $stmt = $pdo->prepare("
     SELECT s.*, u.username, l.name as loc_name 
     FROM sales s 
@@ -42,7 +52,18 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body onload="window.print()">
     <div class="text-center border-bottom">
-        <h2 style="margin:0;"><?= htmlspecialchars($sale['loc_name'] ?? 'OdeliaPOS') ?></h2>
+        <h2 style="margin:0;"><?= htmlspecialchars($bizName) ?></h2>
+        
+        <?php if (!empty($receiptHeader)): ?>
+        <div style="font-size: 12px; margin: 5px 0;">
+            <?= nl2br(htmlspecialchars($receiptHeader)) ?>
+        </div>
+        <?php endif; ?>
+        
+        <div style="font-size: 12px; margin: 5px 0;">
+            <strong><?= htmlspecialchars($sale['loc_name'] ?? '') ?></strong>
+        </div>
+
         <p style="margin:5px 0;">
             <span style="font-size: 16px; font-weight: bold;"><?= $isBill ? '--- PROFORMA BILL ---' : 'RECEIPT' ?></span><br>
             Order #<?= $sale['id'] ?><br>
@@ -87,7 +108,7 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <?php endif; ?>
     
     <div class="text-center border-top" style="margin-top: 15px;">
-        <p>Thank you for your business!</p>
+        <p><?= nl2br(htmlspecialchars($receiptFooter)) ?></p>
     </div>
 </body>
 </html>

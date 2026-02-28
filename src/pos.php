@@ -66,6 +66,18 @@ if (isset($_POST['mark_collected'])) {
 if (isset($_POST['void_item'])) {
     header('Content-Type: application/json');
     $itemId = (int)$_POST['item_id'];
+    
+    // NEW: MANAGER AUTH FOR VOIDING
+    $mgrUser = $_POST['mgr_user'] ?? '';
+    $mgrPass = $_POST['mgr_pass'] ?? '';
+    $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
+    $stmt->execute([$mgrUser]);
+    $mgr = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$mgr || !in_array($mgr['role'], ['admin', 'manager', 'dev']) || !password_verify($mgrPass, $mgr['password_hash'])) {
+        echo json_encode(['status' => 'error', 'msg' => 'Manager Authorization Failed.']);
+        exit;
+    }
+
     try {
         $pdo->beginTransaction();
         $stmt = $pdo->prepare("SELECT si.*, s.payment_status FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.id = ?");
@@ -159,8 +171,20 @@ if (isset($_POST['toggle_fulfillment'])) {
 }
 
 if (isset($_POST['log_waste']) && $activeShiftId) {
-    foreach($_SESSION['cart'] as $item) { deductStock($pdo, $item['product_id'], $item['qty'], $locationId, $userId, 'waste'); }
-    $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Waste logged."; header("Location: index.php?page=pos"); exit;
+    // NEW: MANAGER AUTH FOR WASTE
+    $mgrUser = $_POST['mgr_user'] ?? '';
+    $mgrPass = $_POST['mgr_pass'] ?? '';
+    $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
+    $stmt->execute([$mgrUser]);
+    $mgr = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($mgr && in_array($mgr['role'], ['admin', 'manager', 'dev']) && password_verify($mgrPass, $mgr['password_hash'])) {
+        foreach($_SESSION['cart'] as $item) { deductStock($pdo, $item['product_id'], $item['qty'], $locationId, $userId, 'waste'); }
+        $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Waste logged."; 
+    } else {
+        $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Manager Authorization Failed.";
+    }
+    header("Location: index.php?page=pos"); exit;
 }
 
 // --- 💳 MASTER CHECKOUT LOGIC ---
@@ -173,6 +197,30 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         $isSplit = $_POST['is_split'] ?? '0';
         $status = ($pm === 'Pending') ? 'pending' : 'paid';
         if ($isSplit == '1') { $pm = 'Split'; }
+
+        // Calculate expected final total early to check if it's a refund
+        $checkTotal = 0;
+        if ($settleTabId > 0) {
+            $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')"); 
+            $stmt->execute([$settleTabId]); 
+            $checkTotal = (float)$stmt->fetchColumn();
+        } else {
+            foreach($_SESSION['cart'] as $item) { $checkTotal += $item['price'] * $item['qty']; }
+        }
+        if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $checkTotal *= 0.9; }
+        $checkTotal += $tip;
+
+        // NEW: MANAGER AUTH FOR NEGATIVE/REFUND CARTS
+        if ($checkTotal < 0) {
+            $mgrUser = $_POST['mgr_username'] ?? '';
+            $mgrPass = $_POST['mgr_password'] ?? '';
+            $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
+            $stmt->execute([$mgrUser]);
+            $mgr = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$mgr || !in_array($mgr['role'], ['admin', 'manager', 'dev']) || !password_verify($mgrPass, $mgr['password_hash'])) {
+                throw new Exception("Manager Authorization required for Cash Refunds.");
+            }
+        }
 
         if ($settleTabId > 0) {
             $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')"); $stmt->execute([$settleTabId]); $total = (float)$stmt->fetchColumn();
@@ -200,15 +248,12 @@ if (isset($_POST['checkout']) && $activeShiftId) {
                 $stockAction = $isRefund ? 'refund' : 'sale';
                 deductStock($pdo, $item['product_id'], $dbQty, $locationId, $userId, $stockAction); 
                 
-                // NEW: IF THIS REFUND CAME FROM A TAB, REMOVE IT FROM THE TAB VISUALLY
                 if ($isRefund && !empty($item['refund_sale_item_id'])) {
                     $stmt = $pdo->prepare("SELECT sale_id FROM sale_items WHERE id = ?");
                     $stmt->execute([$item['refund_sale_item_id']]);
                     $origSaleId = $stmt->fetchColumn();
                     if ($origSaleId) {
                         $pdo->prepare("UPDATE sale_items SET status = 'refunded' WHERE id = ?")->execute([$item['refund_sale_item_id']]);
-                        
-                        // If original tab was unpaid, recalculate it so they aren't overcharged.
                         $stmt2 = $pdo->prepare("SELECT payment_status FROM sales WHERE id = ?");
                         $stmt2->execute([$origSaleId]);
                         if ($stmt2->fetchColumn() === 'pending') {

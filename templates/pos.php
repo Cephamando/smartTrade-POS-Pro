@@ -185,7 +185,8 @@
                     <?php endif; ?>
                     <div class="row g-2">
                         <div class="col-<?= (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])) ? '6' : '12' ?>"><form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'Empty order?')"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
-                        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="col-6"><form method="POST" onsubmit="confirmAction(event, 'Log Waste?', 'Deduct as loss?')"><input type="hidden" name="log_waste" value="1"><button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></form></div><?php endif; ?>
+                        
+                        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="col-6"><button type="button" class="btn btn-dark w-100 btn-sm fw-bold text-warning" onclick="logWasteAuth()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></div><?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -274,7 +275,7 @@
                 <tr id="item-row-<?= $i['id'] ?>">
                     <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
                     <td class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="pushToCart(<?= $i['product_id'] ?>, <?= $i['price'] ?>, <?= $i['id'] ?>)" title="Copy to Cart / Refund"><i class="bi bi-cart-plus"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="pushToCart(<?= $i['product_id'] ?>, <?= $i['price'] ?>, <?= $i['id'] ?>, '<?= $tabPaymentStatus ?>')" title="Copy to Cart / Refund"><i class="bi bi-cart-plus"></i></button>
 
                         <?php if ($tabPaymentStatus === 'pending'): ?>
                         <button type="button" class="btn btn-sm btn-outline-danger me-2" onclick="voidItem(<?= $i['id'] ?>)" title="Void this item"><i class="bi bi-trash"></i></button>
@@ -299,7 +300,6 @@
                 <?php if($tabPaymentStatus === 'paid'): ?>
                     <div class="alert alert-success text-center fw-bold py-3 mb-0 shadow-sm"><i class="bi bi-check-circle-fill"></i> PAID IN FULL</div>
                 <?php else: ?>
-                    
                     <div class="row g-2 mt-3">
                         <div class="col-5">
                             <button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)">
@@ -312,7 +312,6 @@
                             </button>
                         </div>
                     </div>
-
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
@@ -322,6 +321,13 @@
         <input type="hidden" name="checkout" value="1"><input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
+        
+        <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;">
+            <label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label>
+            <input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username">
+            <input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password">
+        </div>
+
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         
@@ -337,18 +343,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- NEW JAVASCRIPT: PRINT BILL ---
-        function printTabBill(saleId) {
-            document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1";
-            safeModalShow('receiptModal');
-        }
-
-        function highlightTabSelection(selectedLabel) {
-            document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active'));
-            selectedLabel.classList.add('active');
-            let radio = selectedLabel.querySelector('input[type="radio"]');
-            if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; }
-        }
+        function printTabBill(saleId) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1"; safeModalShow('receiptModal'); }
+        function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
 
         function toggleRefundMode() {
             let isRefund = document.getElementById('refundToggle').checked;
@@ -363,31 +359,72 @@
             }
         }
 
-        function pushToCart(productId, price, saleItemId = 0) {
+        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') {
             let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0';
+            
+            if (isRefund === '1' && tabStatus === 'pending') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Stop!',
+                    text: 'This table has not paid yet! You cannot refund cash for an unpaid item. Please use the red Void (Trash) button to remove the item from their bill.'
+                });
+                return;
+            }
+
             let f = document.createElement('form'); f.method = 'POST';
             f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${productId}"><input type="hidden" name="custom_price" value="${price}"><input type="hidden" name="is_refund" value="${isRefund}"><input type="hidden" name="refund_sale_item_id" value="${saleItemId}">`;
             document.body.appendChild(f); f.submit();
         }
 
-        function safeModalShow(id) { 
-            let el = document.getElementById(id); 
-            if (!el) { console.error("Modal not found: " + id); return; } 
-            try {
-                let m = bootstrap.Modal.getInstance(el);
-                if (!m) { m = new bootstrap.Modal(el); }
-                m.show(); 
-            } catch(e) {
-                el.classList.add('show');
-                el.style.display = 'block';
-            }
+        // --- NEW: MANAGER AUTH FOR LOGGING WASTE ---
+        function logWasteAuth() {
+            Swal.fire({ 
+                title: 'Log Waste', 
+                html: '<p class="text-muted small">Enter manager credentials to write off cart as lost stock.</p><input id="swal-w-user" class="swal2-input" placeholder="Manager Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Manager Password">', 
+                icon: 'warning', 
+                showCancelButton: true, 
+                confirmButtonColor: '#d33', 
+                confirmButtonText: 'Authorize Waste',
+                preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; }
+                    let f = document.createElement('form'); f.method = 'POST';
+                    f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`;
+                    document.body.appendChild(f); f.submit();
+                }
+            });
         }
 
+        function safeModalShow(id) { let el = document.getElementById(id); if (!el) { console.error("Modal not found: " + id); return; } try { let m = bootstrap.Modal.getInstance(el); if (!m) { m = new bootstrap.Modal(el); } m.show(); } catch(e) { el.classList.add('show'); el.style.display = 'block'; } }
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
         function showPickupModal() { document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; safeModalShow('pickupModal'); }
         function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
 
-        function voidItem(itemId) { Swal.fire({ title: 'Void Item?', text: "Removes item from bill and returns stock.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Yes, Void it!' }).then((result) => { if (result.isConfirmed) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { Swal.fire({ icon: 'success', title: 'Voided', timer: 1200, showConfirmButton: false }).then(() => location.reload()); } else { Swal.fire({ icon: 'error', title: 'Error', text: data.msg }); } }); } }); }
+        // --- NEW: MANAGER AUTH FOR VOIDING ITEMS ---
+        function voidItem(itemId) { 
+            Swal.fire({ 
+                title: 'Void Item', 
+                html: '<p class="text-muted small">Enter manager credentials to void this item.</p><input id="swal-user" class="swal2-input" placeholder="Manager Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Manager Password">', 
+                icon: 'warning', 
+                showCancelButton: true, 
+                confirmButtonColor: '#d33', 
+                confirmButtonText: 'Authorize & Void',
+                preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } }
+            }).then((result) => { 
+                if (result.isConfirmed) { 
+                    if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; }
+                    fetch(window.location.href, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, 
+                        body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass)
+                    }).then(r => r.json()).then(data => { 
+                        if (data.status === 'success') { Swal.fire({ icon: 'success', title: 'Voided', timer: 1200, showConfirmButton: false }).then(() => location.reload()); } 
+                        else { Swal.fire({ icon: 'error', title: 'Error', text: data.msg }); } 
+                    }); 
+                } 
+            }); 
+        }
 
         let baseTotal = 0; let currentTotal = 0;
         function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '') { 
@@ -395,8 +432,25 @@
             if (!isTabMode) { baseTotal = <?= $balance ?? 0 ?>; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; nameInput.readOnly = false; } 
             else { baseTotal = parseFloat(tabTotal); nameInput.value = tabCustomer; nameInput.readOnly = true; }
             currentTotal = baseTotal; document.getElementById('tipInput').value = '';
-            if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); } 
-            else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); }
+            
+            // NEW: SHOW AUTH BLOCK IF TOTAL IS NEGATIVE (REFUND)
+            if (currentTotal < 0) { 
+                document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); 
+                document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); 
+                document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; 
+                document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); 
+                document.getElementById('refundAuthSection').style.display = 'block';
+                document.getElementById('mgrUserRefund').required = true;
+                document.getElementById('mgrPassRefund').required = true;
+            } else { 
+                document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); 
+                document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); 
+                document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; 
+                document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); 
+                document.getElementById('refundAuthSection').style.display = 'none';
+                document.getElementById('mgrUserRefund').required = false;
+                document.getElementById('mgrPassRefund').required = false;
+            }
             if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } 
             safeModalShow('checkoutModal'); 
         }
