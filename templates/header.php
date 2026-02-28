@@ -55,7 +55,12 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                         <li><a class="dropdown-item" href="index.php?page=products"><i class="bi bi-tags"></i> Products & Menu</a></li>
                         <li><a class="dropdown-item" href="index.php?page=categories"><i class="bi bi-folder"></i> Categories</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item fw-bold text-primary" href="index.php?page=receive_stock"><i class="bi bi-box-arrow-in-down"></i> Receive Stock</a></li>
+                        
+                        <li><a class="dropdown-item fw-bold" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock Levels</a></li>
+                        <li><a class="dropdown-item fw-bold text-primary" href="index.php?page=receive_stock"><i class="bi bi-box-arrow-in-down"></i> Receive Stock (GRV)</a></li>
+                        <li><a class="dropdown-item fw-bold text-info" href="index.php?page=transfer_stock"><i class="bi bi-arrow-left-right"></i> Transfer Stock</a></li>
+                        
+                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="index.php?page=vendors"><i class="bi bi-truck"></i> Vendors</a></li>
                         <li><a class="dropdown-item" href="index.php?page=inventory_logs"><i class="bi bi-clock-history"></i> Stock History</a></li>
                     </ul>
@@ -67,6 +72,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                     </a>
                     <ul class="dropdown-menu shadow" aria-labelledby="mgmtDropdown">
                         <li><a class="dropdown-item" href="index.php?page=reports"><i class="bi bi-bar-chart"></i> Master Reports</a></li>
+                        <li><a class="dropdown-item text-danger fw-bold" href="index.php?page=report_consumption"><i class="bi bi-pie-chart"></i> Recipe Consumption</a></li>
                         <li><a class="dropdown-item fw-bold text-success" href="index.php?page=z_read"><i class="bi bi-journal-check"></i> End of Day (Z-Read)</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
@@ -78,7 +84,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
 
                 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <li class="nav-item ms-3">
-                    <a class="nav-link text-warning fw-bold" href="index.php?page=kds"><i class="bi bi-fire"></i> Kitchen Display</a>
+                    <a class="nav-link text-warning fw-bold" href="index.php?page=pickup"><i class="bi bi-fire"></i> Kitchen Display</a>
                 </li>
                 <?php endif; ?>
             </ul>

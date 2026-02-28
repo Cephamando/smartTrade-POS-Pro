@@ -1,6 +1,7 @@
 <?php
 if (!isset($_GET['sale_id'])) die("Invalid Sale ID");
 $saleId = (int)$_GET['sale_id'];
+$isBill = isset($_GET['is_bill']) && $_GET['is_bill'] == '1';
 
 $stmt = $pdo->prepare("
     SELECT s.*, u.username, l.name as loc_name 
@@ -26,7 +27,7 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Receipt #<?= $saleId ?></title>
+    <title><?= $isBill ? 'Bill' : 'Receipt' ?> #<?= $saleId ?></title>
     <style>
         body { font-family: 'Courier New', Courier, monospace; font-size: 14px; width: 300px; margin: 0 auto; padding: 10px; color: #000; }
         .text-center { text-align: center; }
@@ -42,7 +43,11 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <body onload="window.print()">
     <div class="text-center border-bottom">
         <h2 style="margin:0;"><?= htmlspecialchars($sale['loc_name'] ?? 'OdeliaPOS') ?></h2>
-        <p style="margin:5px 0;">Receipt #<?= $sale['id'] ?><br><?= date('d M Y h:i A', strtotime($sale['created_at'])) ?></p>
+        <p style="margin:5px 0;">
+            <span style="font-size: 16px; font-weight: bold;"><?= $isBill ? '--- PROFORMA BILL ---' : 'RECEIPT' ?></span><br>
+            Order #<?= $sale['id'] ?><br>
+            <?= date('d M Y h:i A', strtotime($sale['created_at'])) ?>
+        </p>
     </div>
     <p><strong>Cashier:</strong> <?= htmlspecialchars($sale['username']) ?><br>
     <strong>Customer:</strong> <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in') ?></p>
@@ -70,10 +75,16 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <tr class="fw-bold" style="font-size: 16px;"><td>TOTAL:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td></tr>
     </table>
     
+    <?php if(!$isBill): ?>
     <table>
         <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
         <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
     </table>
+    <?php else: ?>
+    <div class="text-center fw-bold" style="font-size: 15px; margin-top: 10px; padding: 5px; border: 1px solid #000;">
+        PLEASE PAY THIS AMOUNT
+    </div>
+    <?php endif; ?>
     
     <div class="text-center border-top" style="margin-top: 15px;">
         <p>Thank you for your business!</p>

@@ -121,7 +121,7 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-people"></i> Staff & Users</div>
             <div class="list-group list-group-flush small fw-bold">
                 <a href="index.php?page=users" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Manage Users <i class="bi bi-chevron-right text-muted"></i></a>
-                <a href="index.php?page=Shifts" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">View Shifts <i class="bi bi-chevron-right text-muted"></i></a>
+                <a href="index.php?page=shifts" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">View Shifts <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <a href="index.php?page=members" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Members <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php endif; ?>
@@ -290,6 +290,33 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
+<div class="modal fade" id="shiftSaleBreakdownModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg border-info border-top border-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-receipt text-info me-2"></i> Sale Breakdown <span id="shiftModalSaleIdBadge" class="badge bg-secondary ms-2"></span></h5>
+                <button type="button" class="btn-close" onclick="backToShiftSales()"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="ps-4">Item</th>
+                            <th class="text-center">Qty</th>
+                            <th class="text-end pe-4">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shiftSaleBreakdownBody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-outline-secondary w-100 fw-bold" onclick="backToShiftSales()">Back to Sales List</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
 <div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -344,13 +371,30 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const payData = <?= json_encode($pmData) ?>;
+    
+    // UPDATED: HORIZONTAL BAR CHART FOR PAYMENT METHODS
     new Chart(document.getElementById('paymentChart').getContext('2d'), {
-        type: 'doughnut',
+        type: 'bar',
         data: {
             labels: Object.keys(payData),
-            datasets: [{ data: Object.values(payData), backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d'] }]
+            datasets: [{ 
+                label: 'Total (ZMW)',
+                data: Object.values(payData), 
+                backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d', '#198754'],
+                borderRadius: 4
+            }]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        options: { 
+            indexAxis: 'y', // Flips the bar chart horizontally
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false } // Hide legend since labels are on the Y axis
+            },
+            scales: {
+                x: { beginAtZero: true }
+            }
+        }
     });
 });
 
@@ -418,8 +462,8 @@ function loadShiftSales() {
                             <div class="small text-muted text-truncate" style="max-width:100px;">${sale.customer_name}</div>
                         </td>
                         <td class="text-end pe-3">
-                            <div class="fw-bold text-dark">ZMW ${parseFloat(sale.final_total).toFixed(2)}</div>
-                            <div style="font-size: 0.65rem;" class="fw-bold text-uppercase ${pmColor}">${sale.payment_method}</div>
+                            <button type="button" onclick="viewShiftSaleBreakdown(${sale.id})" class="btn btn-link p-0 fw-bold text-decoration-underline text-primary shadow-none" style="font-size: 1rem;">ZMW ${parseFloat(sale.final_total).toFixed(2)}</button>
+                            <div style="font-size: 0.65rem;" class="fw-bold text-uppercase ${pmColor} mt-1">${sale.payment_method}</div>
                         </td>
                     </tr>`;
                 });
@@ -437,6 +481,63 @@ function backToShiftStatus() {
     
     setTimeout(() => {
         new bootstrap.Modal(document.getElementById('shiftDetailsModal')).show();
+    }, 400);
+}
+
+function viewShiftSaleBreakdown(saleId) {
+    let salesModal = bootstrap.Modal.getInstance(document.getElementById('shiftSalesModal'));
+    if(salesModal) salesModal.hide();
+
+    document.getElementById('shiftModalSaleIdBadge').innerText = '#' + saleId;
+    document.getElementById('shiftSaleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted"><div class="spinner-border text-info spinner-border-sm me-2"></div> Fetching data...</td></tr>';
+    
+    setTimeout(() => {
+        new bootstrap.Modal(document.getElementById('shiftSaleBreakdownModal')).show();
+    }, 400);
+
+    fetch('index.php?page=reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'fetch_sale_details=1&sale_id=' + saleId
+    })
+    .then(r => r.json())
+    .then(data => {
+        let tbody = document.getElementById('shiftSaleBreakdownBody');
+        if (data.status === 'success') {
+            tbody.innerHTML = '';
+            if (data.items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No items found for this sale.</td></tr>';
+                return;
+            }
+            data.items.forEach(i => {
+                let statusBadge = '';
+                if (i.status === 'voided') statusBadge = ' <span class="badge bg-danger">VOID</span>';
+                else if (i.status === 'refunded') statusBadge = ' <span class="badge bg-warning text-dark">REFUNDED</span>';
+                
+                let priceClass = parseFloat(i.price) < 0 ? 'text-danger' : 'text-dark';
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="ps-4 fw-bold text-secondary">${i.name} ${statusBadge}</td>
+                        <td class="text-center fw-bold">${i.quantity}</td>
+                        <td class="text-end pe-4 fw-bold ${priceClass}">ZMW ${parseFloat(i.price * i.quantity).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-danger text-center py-3">Error: ${data.msg}</td></tr>`;
+        }
+    }).catch(err => {
+        document.getElementById('shiftSaleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-danger text-center py-3">Network error loading details.</td></tr>';
+    });
+}
+
+function backToShiftSales() {
+    let breakdownModal = bootstrap.Modal.getInstance(document.getElementById('shiftSaleBreakdownModal'));
+    if(breakdownModal) breakdownModal.hide();
+    
+    setTimeout(() => {
+        new bootstrap.Modal(document.getElementById('shiftSalesModal')).show();
     }, 400);
 }
 </script>

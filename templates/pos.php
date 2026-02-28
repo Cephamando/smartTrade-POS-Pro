@@ -44,6 +44,9 @@
         .table-available { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
         .table-occupied { background: #ffebee; border-color: #f44336; color: #c62828; }
         .table-capacity { position: absolute; top: 5px; right: 8px; font-size: 0.7rem; font-weight: bold; opacity: 0.7; }
+        .tab-radio-label { cursor: pointer; transition: 0.2s; }
+        .tab-radio-label:hover { background-color: #f8f9fa; }
+        .tab-radio-label.active { background-color: #ffc107 !important; color: #000 !important; border-color: #ffc107; font-weight: bold; }
         @media (max-width: 991px) { .cart-panel { flex: 0 0 340px; width: 340px; } }
         @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid #3e2723; flex: 0 0 auto; } .cart-panel.expanded { height: 85vh; max-height: 85vh; } }
     </style>
@@ -57,7 +60,7 @@
         <div class="d-flex align-items-center ps-2">
             <span class="fs-5 fw-bold text-warning me-3" id="headerPosLabel">POS</span>
             <span class="text-light ms-2"><i class="bi bi-geo-alt-fill text-warning" id="headerLocIcon"></i> <?= htmlspecialchars($locationName) ?></span>
-            <button type="button" class="btn btn-sm btn-link text-warning ms-1" onclick="safeModalShow('locationModal')"><i class="bi bi-pencil-square"></i></button>
+            <button type="button" class="btn btn-sm btn-link text-warning ms-1" data-bs-toggle="modal" data-bs-target="#locationModal"><i class="bi bi-pencil-square"></i></button>
         </div>
         <div class="d-flex gap-2 pe-2">
             <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev','chef','head_chef']) && defined('LICENSE_TIER') && LICENSE_TIER === 'hospitality'): ?>
@@ -66,7 +69,7 @@
             <?php endif; ?>
             
             <?php if ($activeShiftId): ?>
-                <button type="button" class="btn btn-warning text-dark btn-sm fw-bold" onclick="safeModalShow('expenseModal')"><i class="bi bi-cash-stack"></i> Payout</button>
+                <button type="button" class="btn btn-warning text-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="bi bi-cash-stack"></i> Payout</button>
                 <button type="button" onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-light btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
 
@@ -74,12 +77,12 @@
                 <button type="button" class="btn btn-outline-warning btn-sm fw-bold position-relative" onclick="showPickupModal()">
                     <i class="bi bi-bag-check"></i> Pickup <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
                 </button>
-                <button type="button" class="btn btn-outline-info btn-sm fw-bold" onclick="safeModalShow('floorplanModal')"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button>
-                <button type="button" class="btn btn-outline-light btn-sm" onclick="safeModalShow('tabsModal')"><i class="bi bi-receipt"></i> Tabs</button>
+                <button type="button" class="btn btn-outline-info btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#floorplanModal"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button>
+                <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
             <?php endif; ?>
 
             <?php if ($activeShiftId): ?>
-                <button type="button" class="btn btn-danger btn-sm fw-bold" onclick="safeModalShow('endShiftModal')"><i class="bi bi-power"></i> End</button>
+                <button type="button" class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
             <?php else: ?><span class="badge bg-secondary">LOCKED</span><?php endif; ?>
             <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm"><i class="bi bi-house"></i></a>
         </div>
@@ -176,13 +179,56 @@
                 <div class="d-grid gap-2 mb-3">
                     <button type="button" class="btn w-100 py-3 btn-charge shadow <?= $balance < 0 ? 'bg-danger border-danger' : '' ?>" onclick="initCheckout(false)" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>><?= $balance < 0 ? 'REFUND CASH' : 'CHARGE' ?></button>
                     <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
-                    <div class="btn-group w-100"><button type="button" class="btn btn-warning fw-bold py-2" onclick="safeModalShow('addToTabModal')" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>ADD TO TAB</button></div>
+                    <div class="btn-group w-100">
+                        <button type="button" class="btn btn-warning fw-bold py-2" data-bs-toggle="modal" data-bs-target="#addToTabModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>ADD TO TAB</button>
+                    </div>
                     <?php endif; ?>
                     <div class="row g-2">
                         <div class="col-<?= (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])) ? '6' : '12' ?>"><form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'Empty order?')"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
                         <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="col-6"><form method="POST" onsubmit="confirmAction(event, 'Log Waste?', 'Deduct as loss?')"><input type="hidden" name="log_waste" value="1"><button class="btn btn-dark w-100 btn-sm fw-bold text-warning" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></form></div><?php endif; ?>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Change Workstation</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-4"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div>
+
+    <div class="modal fade" id="addToTabModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg border-warning border-top border-4">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-plus-square text-warning"></i> Add to Tab / Table</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body p-4">
+                        <input type="hidden" name="add_to_tab_action" value="1">
+                        <label class="form-label small fw-bold text-muted mb-2">SELECT DESTINATION</label>
+                        
+                        <div class="list-group mb-3" id="tabSelectionGroup">
+                            <label class="list-group-item tab-radio-label active" onclick="highlightTabSelection(this)">
+                                <input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked>
+                                <span class="fw-bold">Create New Custom Tab</span>
+                            </label>
+                            
+                            <?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?>
+                            <label class="list-group-item tab-radio-label" onclick="highlightTabSelection(this)">
+                                <input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> 
+                                <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong>
+                            </label>
+                            <?php endif; endforeach; ?>
+                        </div>
+                        
+                        <div id="newTabNameInput">
+                            <label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label>
+                            <input type="text" name="tab_customer_name" class="form-control" placeholder="Enter name or walk-in">
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light border-0">
+                        <button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -229,6 +275,7 @@
                     <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="pushToCart(<?= $i['product_id'] ?>, <?= $i['price'] ?>, <?= $i['id'] ?>)" title="Copy to Cart / Refund"><i class="bi bi-cart-plus"></i></button>
+
                         <?php if ($tabPaymentStatus === 'pending'): ?>
                         <button type="button" class="btn btn-sm btn-outline-danger me-2" onclick="voidItem(<?= $i['id'] ?>)" title="Void this item"><i class="bi bi-trash"></i></button>
                         <?php endif; ?>
@@ -252,9 +299,20 @@
                 <?php if($tabPaymentStatus === 'paid'): ?>
                     <div class="alert alert-success text-center fw-bold py-3 mb-0 shadow-sm"><i class="bi bi-check-circle-fill"></i> PAID IN FULL</div>
                 <?php else: ?>
-                    <button type="button" class="btn btn-primary w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openSettleModal(<?= $tid ?>, <?= array_sum(array_map(function($x){ return $x['price']*$x['quantity']; }, $items)) ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
-                        <i class="bi bi-cash-coin"></i> Settle Tab
-                    </button>
+                    
+                    <div class="row g-2 mt-3">
+                        <div class="col-5">
+                            <button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)">
+                                <i class="bi bi-printer"></i> Print Bill
+                            </button>
+                        </div>
+                        <div class="col-7">
+                            <button type="button" class="btn btn-primary w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openSettleModal(<?= $tid ?>, <?= array_sum(array_map(function($x){ return $x['price']*$x['quantity']; }, $items)) ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
+                                <i class="bi bi-cash-coin"></i> Settle Tab
+                            </button>
+                        </div>
+                    </div>
+
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
@@ -279,6 +337,19 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // --- NEW JAVASCRIPT: PRINT BILL ---
+        function printTabBill(saleId) {
+            document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1";
+            safeModalShow('receiptModal');
+        }
+
+        function highlightTabSelection(selectedLabel) {
+            document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active'));
+            selectedLabel.classList.add('active');
+            let radio = selectedLabel.querySelector('input[type="radio"]');
+            if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; }
+        }
+
         function toggleRefundMode() {
             let isRefund = document.getElementById('refundToggle').checked;
             document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0');
@@ -299,13 +370,17 @@
             document.body.appendChild(f); f.submit();
         }
 
-        // --- NEW: BULLETPROOF MODAL LAUNCHER ---
         function safeModalShow(id) { 
             let el = document.getElementById(id); 
             if (!el) { console.error("Modal not found: " + id); return; } 
-            let m = bootstrap.Modal.getInstance(el);
-            if (!m) { m = new bootstrap.Modal(el); }
-            m.show(); 
+            try {
+                let m = bootstrap.Modal.getInstance(el);
+                if (!m) { m = new bootstrap.Modal(el); }
+                m.show(); 
+            } catch(e) {
+                el.classList.add('show');
+                el.style.display = 'block';
+            }
         }
 
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
@@ -348,12 +423,7 @@
             if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Syncing Tabs...', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); }
         });
 
-        // --- NEW JAVASCRIPT FOR X-READ LAUNCHER ---
-        function showShiftReport(shiftId) { 
-            document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; 
-            document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; 
-            safeModalShow('reportModal'); 
-        }
+        function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; safeModalShow('reportModal'); }
 
         function initPagination() { applyFilters(); }
         function applyFilters() { let v = document.getElementById('search').value.toLowerCase(); let showInStockOnly = false; let toggleElement = document.getElementById('inStockToggle'); if (toggleElement) { showInStockOnly = toggleElement.checked; localStorage.setItem('posInStockToggle', showInStockOnly); } let allItems = Array.from(document.querySelectorAll('#items-grid .item')); activeItems = allItems.filter(e => { let matchCat = (currentCat === 'all' || e.dataset.cat === currentCat); let matchName = e.dataset.name.includes(v); let matchStock = true; if (showInStockOnly) { matchStock = e.dataset.out === "0"; } return matchCat && matchName && matchStock; }); renderPage(1); }
