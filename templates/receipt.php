@@ -1,101 +1,82 @@
 <?php
-if (!isset($_SESSION['user_id'])) { exit; }
+if (!isset($_GET['sale_id'])) die("Invalid Sale ID");
+$saleId = (int)$_GET['sale_id'];
 
-$saleId = $_GET['sale_id'] ?? 0;
-$sale = $pdo->query("SELECT s.*, u.full_name as cashier, l.name as location_name, l.address, l.phone 
-                     FROM sales s 
-                     JOIN users u ON s.user_id = u.id 
-                     JOIN locations l ON s.location_id = l.id 
-                     WHERE s.id = $saleId")->fetch();
-
+$stmt = $pdo->prepare("
+    SELECT s.*, u.username, l.name as loc_name 
+    FROM sales s 
+    JOIN users u ON s.user_id = u.id 
+    LEFT JOIN locations l ON s.location_id = l.id 
+    WHERE s.id = ?
+");
+$stmt->execute([$saleId]);
+$sale = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$sale) die("Sale not found.");
 
-$items = $pdo->query("SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = $saleId")->fetchAll();
-
-$subTotal = $sale['final_total']; 
-$tip = $sale['tip_amount'];
-$grandTotal = $subTotal + $tip;
-$tendered = $sale['amount_tendered'];
-$change = $tendered - $grandTotal;
-$isUnpaid = ($sale['payment_status'] == 'pending');
+$stmt = $pdo->prepare("
+    SELECT si.*, p.name 
+    FROM sale_items si 
+    LEFT JOIN products p ON si.product_id = p.id 
+    WHERE si.sale_id = ? AND si.status != 'voided'
+");
+$stmt->execute([$saleId]);
+$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Receipt #<?= $sale['id'] ?></title>
+    <meta charset="UTF-8">
+    <title>Receipt #<?= $saleId ?></title>
     <style>
-        body { font-family: 'Courier New', monospace; font-size: 12px; max-width: 300px; margin: 0 auto; padding: 10px; background: #fff; color: #000; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; width: 300px; margin: 0 auto; padding: 10px; color: #000; }
         .text-center { text-align: center; }
-        .text-end { text-align: right; }
+        .text-right { text-align: right; }
         .fw-bold { font-weight: bold; }
-        .header { border-bottom: 1px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
-        .item-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-        .totals { border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px; }
-        .totals-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
-        .footer { margin-top: 20px; text-align: center; font-size: 10px; }
-        .unpaid-banner { border: 2px solid #000; padding: 5px; margin: 10px 0; font-weight: bold; font-size: 1.2em; text-transform: uppercase; }
-        @media print { .no-print { display: none; } }
+        .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
+        .border-top { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 2px 0; vertical-align: top; }
+        .amount { text-align: right; }
     </style>
 </head>
-<body>
-    <div class="header text-center">
-        <h3 style="margin:0;"><?= htmlspecialchars($sale['location_name'] ?? '') ?></h3>
-        <p style="margin:5px 0;"><?= htmlspecialchars($sale['address'] ?? '') ?><br>Tel: <?= htmlspecialchars($sale['phone'] ??'') ?></p>
-        <p style="margin:0;">Rcpt: #<?= $sale['id'] ?> &bull; <?= date('d/m/y H:i', strtotime($sale['created_at'])) ?></p>
-        <p style="margin:0;">Staff: <?= htmlspecialchars($sale['cashier']) ?></p>
+<body onload="window.print()">
+    <div class="text-center border-bottom">
+        <h2 style="margin:0;"><?= htmlspecialchars($sale['loc_name'] ?? 'OdeliaPOS') ?></h2>
+        <p style="margin:5px 0;">Receipt #<?= $sale['id'] ?><br><?= date('d M Y h:i A', strtotime($sale['created_at'])) ?></p>
     </div>
-
-    <?php if ($isUnpaid): ?>
-        <div class="text-center unpaid-banner">
-            *** UNPAID TAB ***<br>
-            NOT A RECEIPT
-        </div>
-    <?php endif; ?>
-
-    <div class="items">
-        <?php foreach($items as $i): ?>
-        <div class="item-row">
-            <span><?= $i['quantity'] ?> x <?= htmlspecialchars($i['name']) ?></span>
-            <span class="fw-bold"><?= number_format($i['price_at_sale'] * $i['quantity'], 2) ?></span>
-        </div>
-        <?php endforeach; ?>
+    <p><strong>Cashier:</strong> <?= htmlspecialchars($sale['username']) ?><br>
+    <strong>Customer:</strong> <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in') ?></p>
+    
+    <table class="border-bottom">
+        <thead>
+            <tr><th>Item</th><th style="text-align:center">Qty</th><th class="amount">Total</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach($items as $i): ?>
+            <tr>
+                <td><?= htmlspecialchars($i['name']) ?></td>
+                <td style="text-align:center"><?= $i['quantity'] ?></td>
+                <td class="amount"><?= number_format($i['price'] * $i['quantity'], 2) ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    
+    <table class="border-bottom">
+        <tr><td>Subtotal:</td><td class="amount"><?= number_format($sale['subtotal'], 2) ?></td></tr>
+        <?php if($sale['tip_amount'] > 0): ?>
+        <tr><td>Tip/Service:</td><td class="amount"><?= number_format($sale['tip_amount'], 2) ?></td></tr>
+        <?php endif; ?>
+        <tr class="fw-bold" style="font-size: 16px;"><td>TOTAL:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td></tr>
+    </table>
+    
+    <table>
+        <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
+        <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
+    </table>
+    
+    <div class="text-center border-top" style="margin-top: 15px;">
+        <p>Thank you for your business!</p>
     </div>
-
-    <div class="totals">
-        <div class="totals-row"><span>Subtotal:</span><span><?= number_format($subTotal, 2) ?></span></div>
-        
-        <?php if($tip > 0): ?>
-        <div class="totals-row"><span>Tip:</span><span><?= number_format($tip, 2) ?></span></div>
-        <?php endif; ?>
-        
-        <div class="totals-row fw-bold" style="font-size: 1.2em; margin: 5px 0;">
-            <span>TOTAL:</span><span><?= number_format($grandTotal, 2) ?></span>
-        </div>
-        
-        <?php if (!$isUnpaid): ?>
-            <div class="totals-row"><span>Paid (<?= $sale['payment_method'] ?>):</span><span><?= number_format($tendered, 2) ?></span></div>
-            <?php if($change > 0): ?>
-                <div class="totals-row"><span>Change Due:</span><span><?= number_format($change, 2) ?></span></div>
-            <?php endif; ?>
-        <?php else: ?>
-             <div class="totals-row fw-bold" style="margin-top:5px; border-top: 1px solid #000; padding-top:5px;">
-                <span>BALANCE DUE:</span><span><?= number_format($grandTotal, 2) ?></span>
-            </div>
-        <?php endif; ?>
-    </div>
-
-    <div class="footer">
-        <?php if ($isUnpaid): ?>
-            <p>Please pay at the cashier.</p>
-        <?php else: ?>
-            <p>Thank you for your support!</p>
-        <?php endif; ?>
-        
-        <?php if($sale['customer_name'] !== 'Walk-in'): ?>
-        <p>Guest: <?= htmlspecialchars($sale['customer_name']) ?></p>
-        <?php endif; ?>
-    </div>
-
-    <button class="no-print" style="width:100%; padding:10px; background:#000; color:#fff; cursor:pointer; margin-top:10px;" onclick="window.print()">PRINT RECEIPT</button>
 </body>
 </html>

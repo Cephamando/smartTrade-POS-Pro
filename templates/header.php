@@ -23,7 +23,12 @@
 <?php
 $role = $_SESSION['role'] ?? 'cashier';
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
+
+// Check if this page is being loaded inside the POS modal iframe
+$isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
 ?>
+
+<?php if (!$isEmbedded): ?>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-warning border-3 shadow-sm mb-4">
     <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold text-warning" href="index.php?page=dashboard">
@@ -73,7 +78,7 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 
                 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <li class="nav-item ms-3">
-                    <a class="nav-link text-warning fw-bold" href="index.php?page=pickup"><i class="bi bi-fire"></i> Kitchen Display</a>
+                    <a class="nav-link text-warning fw-bold" href="index.php?page=kds"><i class="bi bi-fire"></i> Kitchen Display</a>
                 </li>
                 <?php endif; ?>
             </ul>
@@ -86,3 +91,7 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
     </div>
 </nav>
 <div class="container-fluid px-4">
+
+<?php else: ?>
+<div class="container-fluid p-2 pt-3">
+<?php endif; ?>
