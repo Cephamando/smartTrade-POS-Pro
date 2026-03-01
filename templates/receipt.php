@@ -32,6 +32,9 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$saleId]);
 $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// If it's a bill, we generate two copies. If it's a final checkout, just one receipt.
+$copies = $isBill ? ['CASHIER COPY (PROFORMA)', 'CLIENT COPY (PROFORMA)'] : ['RECEIPT'];
 ?>
 <!DOCTYPE html>
 <html>
@@ -41,74 +44,96 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <style>
         body { font-family: 'Courier New', Courier, monospace; font-size: 14px; width: 300px; margin: 0 auto; padding: 10px; color: #000; }
         .text-center { text-align: center; }
-        .text-right { text-align: right; }
         .fw-bold { font-weight: bold; }
         .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
         .border-top { border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { text-align: left; padding: 2px 0; vertical-align: top; }
         .amount { text-align: right; }
+        
+        /* The cut line for 2-part receipts */
+        .cut-line { border-top: 2px dashed #000; margin: 25px 0; position: relative; text-align: center; }
+        .cut-line span { background: #fff; padding: 0 10px; position: relative; top: -10px; font-size: 12px; color: #000; }
     </style>
 </head>
 <body>
-    <div class="text-center border-bottom">
-        <h2 style="margin:0;"><?= htmlspecialchars($bizName) ?></h2>
+    
+    <?php foreach($copies as $index => $copyName): ?>
         
-        <?php if (!empty($receiptHeader)): ?>
-        <div style="font-size: 12px; margin: 5px 0;">
-            <?= nl2br(htmlspecialchars($receiptHeader)) ?>
-        </div>
+        <?php if($index > 0): ?>
+            <div class="cut-line"><span>✂️ CUT HERE ✂️</span></div>
         <?php endif; ?>
-        
-        <div style="font-size: 12px; margin: 5px 0;">
-            <strong><?= htmlspecialchars($sale['loc_name'] ?? '') ?></strong>
+
+        <div class="receipt-section">
+            <div class="text-center border-bottom">
+                <h2 style="margin:0;"><?= htmlspecialchars($bizName) ?></h2>
+                
+                <?php if (!empty($receiptHeader)): ?>
+                <div style="font-size: 12px; margin: 5px 0;">
+                    <?= nl2br(htmlspecialchars($receiptHeader)) ?>
+                </div>
+                <?php endif; ?>
+                
+                <div style="font-size: 12px; margin: 5px 0;">
+                    <strong><?= htmlspecialchars($sale['loc_name'] ?? '') ?></strong>
+                </div>
+
+                <p style="margin:5px 0;">
+                    <span style="font-size: 16px; font-weight: bold; border: 1px solid #000; padding: 2px 5px; display: inline-block; margin-bottom: 5px;"><?= $copyName ?></span><br>
+                    Order #<?= $sale['id'] ?><br>
+                    <?= date('d M Y h:i A', strtotime($sale['created_at'])) ?>
+                </p>
+            </div>
+            
+            <p><strong>Cashier:</strong> <?= htmlspecialchars($sale['username']) ?><br>
+            <strong>Customer:</strong> <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in') ?></p>
+            
+            <table class="border-bottom">
+                <thead>
+                    <tr><th>Item</th><th style="text-align:center">Qty</th><th class="amount">Total</th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach($items as $i): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($i['name']) ?></td>
+                        <td style="text-align:center"><?= $i['quantity'] ?></td>
+                        <td class="amount"><?= number_format($i['price'] * $i['quantity'], 2) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            
+            <table class="border-bottom">
+                <tr><td>Subtotal:</td><td class="amount"><?= number_format($sale['subtotal'], 2) ?></td></tr>
+                <?php if($sale['tip_amount'] > 0): ?>
+                <tr><td>Tip/Service:</td><td class="amount"><?= number_format($sale['tip_amount'], 2) ?></td></tr>
+                <?php endif; ?>
+                <tr class="fw-bold" style="font-size: 16px;"><td>TOTAL:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td></tr>
+            </table>
+            
+            <?php if(!$isBill): ?>
+            <table>
+                <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
+                <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
+            </table>
+            <?php else: ?>
+            <div class="text-center fw-bold" style="font-size: 15px; margin-top: 10px; padding: 5px; border: 2px solid #000;">
+                PLEASE PAY THIS AMOUNT
+            </div>
+            <?php endif; ?>
+            
+            <div class="text-center border-top" style="margin-top: 15px;">
+                <p><?= nl2br(htmlspecialchars($receiptFooter)) ?></p>
+            </div>
         </div>
 
-        <p style="margin:5px 0;">
-            <span style="font-size: 16px; font-weight: bold;"><?= $isBill ? '--- PROFORMA BILL ---' : 'RECEIPT' ?></span><br>
-            Order #<?= $sale['id'] ?><br>
-            <?= date('d M Y h:i A', strtotime($sale['created_at'])) ?>
-        </p>
-    </div>
-    <p><strong>Cashier:</strong> <?= htmlspecialchars($sale['username']) ?><br>
-    <strong>Customer:</strong> <?= htmlspecialchars($sale['customer_name'] ?? 'Walk-in') ?></p>
-    
-    <table class="border-bottom">
-        <thead>
-            <tr><th>Item</th><th style="text-align:center">Qty</th><th class="amount">Total</th></tr>
-        </thead>
-        <tbody>
-            <?php foreach($items as $i): ?>
-            <tr>
-                <td><?= htmlspecialchars($i['name']) ?></td>
-                <td style="text-align:center"><?= $i['quantity'] ?></td>
-                <td class="amount"><?= number_format($i['price'] * $i['quantity'], 2) ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
-    
-    <table class="border-bottom">
-        <tr><td>Subtotal:</td><td class="amount"><?= number_format($sale['subtotal'], 2) ?></td></tr>
-        <?php if($sale['tip_amount'] > 0): ?>
-        <tr><td>Tip/Service:</td><td class="amount"><?= number_format($sale['tip_amount'], 2) ?></td></tr>
-        <?php endif; ?>
-        <tr class="fw-bold" style="font-size: 16px;"><td>TOTAL:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td></tr>
-    </table>
-    
-    <?php if(!$isBill): ?>
-    <table>
-        <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
-        <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
-    </table>
-    <?php else: ?>
-    <div class="text-center fw-bold" style="font-size: 15px; margin-top: 10px; padding: 5px; border: 1px solid #000;">
-        PLEASE PAY THIS AMOUNT
-    </div>
-    <?php endif; ?>
-    
-    <div class="text-center border-top" style="margin-top: 15px;">
-        <p><?= nl2br(htmlspecialchars($receiptFooter)) ?></p>
-    </div>
+    <?php endforeach; ?>
+
+    <script>
+        // Automatically trigger the print prompt to speed up cashier workflow
+        window.onload = function() {
+            setTimeout(function() { window.print(); }, 500);
+        };
+    </script>
 </body>
 </html>

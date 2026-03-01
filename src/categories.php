@@ -92,5 +92,5 @@ $categories = $pdo->query("
 ")->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch Master Categories for the dropdowns
-$parents = $pdo->query("SELECT id, name FROM categories WHERE parent_id IS NULL ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+$parents = $pdo->query("SELECT id, name FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>

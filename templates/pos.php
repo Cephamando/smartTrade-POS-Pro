@@ -13,7 +13,6 @@
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
         .product-section { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         
-        /* Drill-Down Categories UI */
         .cat-card { background: #fff; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px 10px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: bold; color: #333; display: flex; flex-direction: column; align-items: center; justify-content: center; user-select: none; }
         .cat-card:hover { border-color: #ffc107; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
         .cat-card.active { background: #3e2723; border-color: #ffc107; color: #fff; }
@@ -115,9 +114,13 @@
             <?php
             $mainCats = [];
             $subCatsByParent = [];
+            $catParents = [];
+            $catNames = [];
             foreach($categories as $cat) {
+                $catNames[$cat['id']] = $cat['name'];
                 if (!empty($cat['parent_id'])) {
                     $subCatsByParent[$cat['parent_id']][] = $cat;
+                    $catParents[$cat['id']] = $cat['parent_id'];
                 } else {
                     $mainCats[] = $cat;
                 }
@@ -136,7 +139,7 @@
                         <?php $hasSubs = isset($subCatsByParent[$cat['id']]); ?>
                         <div class="col-4 col-md-3 col-lg-2">
                             <div class="cat-card h-100 shadow-sm <?= $hasSubs ? 'border-info bg-info bg-opacity-10' : '' ?>" 
-                                 onclick="<?= $hasSubs ? "showSubCategories({$cat['id']}, '".htmlspecialchars(addslashes($cat['name']))."')" : "filterItems('{$cat['id']}', '".htmlspecialchars(addslashes($cat['name']))."')" ?>">
+                                 onclick="<?= $hasSubs ? "showSubCategories('{$cat['id']}', '".htmlspecialchars(addslashes($cat['name']))."')" : "filterItems('{$cat['id']}', '".htmlspecialchars(addslashes($cat['name']))."')" ?>">
                                 <i class="bi <?= $hasSubs ? 'bi-folder-fill text-info' : 'bi-tags text-warning' ?> cat-icon"></i>
                                 <span class="small text-uppercase <?= $hasSubs ? 'fw-bold text-info' : '' ?>"><?= htmlspecialchars($cat['name']) ?></span>
                             </div>
@@ -331,8 +334,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // SAFE JS PARSING
+        function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
+
         let currentCat = 'all';
         const subCategoriesMap = <?= json_encode($subCatsByParent) ?>;
+        const catParents = <?= json_encode($catParents) ?>;
+        const catNames = <?= json_encode($catNames) ?>;
         const iconMap = {'whiskey bottles': 'bi-droplet-half', 'whiskey tots': 'bi-cup', 'ciders': 'bi-cup-straw', 'wines and creams': 'bi-cup-fill', 'softies': 'bi-cup-straw', 'lagers': 'bi-cup-straw', 'mixers': 'bi-cup-straw', 'mineral water': 'bi-water'};
 
         function showMainGrid() {
@@ -345,45 +353,61 @@
             applyFilters();
         }
 
-                function showSubCategories(parentId, parentName) {
+        function showSubCategories(categoryId, categoryName) {
             document.getElementById('main-category-grid').style.display = 'none';
             document.getElementById('product-list-wrapper').style.display = 'none';
             
             let container = document.getElementById('subCategoryContainer');
             
-            // "All" button now remembers its parent context
+            let parentOfCurrent = catParents[categoryId] || null;
+            let parentName = parentOfCurrent && catNames[parentOfCurrent] ? escapeJS(catNames[parentOfCurrent]) : '';
+            let safeCatName = escapeJS(categoryName);
+            
+            let backAction = parentOfCurrent ? `showSubCategories('${parentOfCurrent}', '${parentName}')` : `showMainGrid()`;
+
             container.innerHTML = `
                 <div class="col-4 col-md-3 col-lg-2">
-                    <div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('${parentId}', 'All ${parentName}', true, '${parentId}', '${parentName.replace(/'/g, "\'")}')">
+                    <div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('${categoryId}', 'All ${safeCatName}', true, '${categoryId}', '${safeCatName}')">
                         <i class="bi bi-grid cat-icon text-secondary"></i>
-                        <span class="small text-uppercase">All ${parentName}</span>
+                        <span class="small text-uppercase">All ${categoryName}</span>
                     </div>
                 </div>
             `;
             
-            let subs = subCategoriesMap[parentId] || [];
+            let subs = subCategoriesMap[categoryId] || [];
             subs.forEach(sub => {
-                let icon = iconMap[sub.name.toLowerCase()] || 'bi-arrow-return-right';
-                // Pass parent context into the items view
-                container.innerHTML += `
-                    <div class="col-4 col-md-3 col-lg-2">
-                        <div class="cat-card h-100 shadow-sm border-info" onclick="filterItems('${sub.id}', '${sub.name.replace(/'/g, "\'")}', true, '${parentId}', '${parentName.replace(/'/g, "\'")}')">
-                            <i class="bi ${icon} cat-icon text-info"></i>
-                            <span class="small text-uppercase">${sub.name}</span>
+                let hasSubs = subCategoriesMap[sub.id] && subCategoriesMap[sub.id].length > 0;
+                let safeSubName = escapeJS(sub.name);
+                
+                if (hasSubs) {
+                    container.innerHTML += `
+                        <div class="col-4 col-md-3 col-lg-2">
+                            <div class="cat-card h-100 shadow-sm border-info bg-info bg-opacity-10" onclick="showSubCategories('${sub.id}', '${safeSubName}')">
+                                <i class="bi bi-folder-fill cat-icon text-info"></i>
+                                <span class="small text-uppercase fw-bold text-info">${sub.name}</span>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                } else {
+                    let icon = iconMap[sub.name.toLowerCase()] || 'bi-arrow-return-right';
+                    container.innerHTML += `
+                        <div class="col-4 col-md-3 col-lg-2">
+                            <div class="cat-card h-100 shadow-sm border-info" onclick="filterItems('${sub.id}', '${safeSubName}', true, '${categoryId}', '${safeCatName}')">
+                                <i class="bi ${icon} cat-icon text-info"></i>
+                                <span class="small text-uppercase">${sub.name}</span>
+                            </div>
+                        </div>
+                    `;
+                }
             });
 
             document.getElementById('sub-category-grid').style.display = 'block';
             document.getElementById('drilldown-header').style.display = 'flex';
-            document.getElementById('currentCategoryLabel').innerText = parentName;
-            
-            // The back button HERE correctly returns to the Main Grid
-            document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()');
+            document.getElementById('currentCategoryLabel').innerText = categoryName;
+            document.getElementById('backBtn').setAttribute('onclick', backAction);
         }
 
-                function filterItems(id, name, fromSub = false, parentId = null, parentName = '') {
+        function filterItems(id, name, fromSub = false, parentId = null, parentName = '') {
             document.getElementById('main-category-grid').style.display = 'none';
             document.getElementById('sub-category-grid').style.display = 'none';
             document.getElementById('product-list-wrapper').style.display = 'flex';
@@ -391,10 +415,8 @@
             
             document.getElementById('currentCategoryLabel').innerText = name;
             
-            // Context-Aware Back Button!
             if (fromSub && parentId) {
-                let safeParentName = parentName.replace(/'/g, "\'");
-                document.getElementById('backBtn').setAttribute('onclick', `showSubCategories('${parentId}', '${safeParentName}')`);
+                document.getElementById('backBtn').setAttribute('onclick', `showSubCategories('${parentId}', '${escapeJS(parentName)}')`);
             } else {
                 document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()');
             }
@@ -405,7 +427,7 @@
             document.getElementById('paginationBar').style.display = 'flex';
             applyFilters();
         }
-        
+
         function switchTab(tab, name) {
             document.getElementById('main-category-grid').style.display = 'none';
             document.getElementById('sub-category-grid').style.display = 'none';
@@ -467,11 +489,16 @@
         function addTipPercent(percent) { let tip = currentTotal * percent; document.getElementById('tipInput').value = tip.toFixed(2); calcResult(); }
         function calcResult() { let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0; let tip = parseFloat(document.getElementById('tipInput').value) || 0; let diff = tendered - (currentTotal + tip); let label = document.getElementById('resultLabel'); let value = document.getElementById('resultValue'); if (currentTotal < 0) { label.innerText = "CASH OUT OF DRAWER"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(currentTotal).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } else { if(diff >= -0.01) { label.innerText = "CHANGE DUE"; label.className = "small fw-bold text-uppercase text-muted"; value.innerText = "ZMW " + diff.toFixed(2); value.className = "fs-4 fw-bold text-dark"; } else { label.innerText = "BALANCE REMAINING"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(diff).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } } }
 
-        let currentPage = 1; const itemsPerPage = 24; let activeItems = [];
-        document.addEventListener('DOMContentLoaded', function() { if (localStorage.getItem('posInStockToggle') === 'true') { let toggle = document.getElementById('inStockToggle'); if(toggle) toggle.checked = true; } initPagination(); <?php if(isset($_SESSION['last_sale_id'])): ?> document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>"; safeModalShow('receiptModal'); <?php unset($_SESSION['last_sale_id']); endif; ?> let pickupMod = document.getElementById('pickupModal'); if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Syncing Tabs...', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); } });
-        function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; safeModalShow('reportModal'); }
-        function initPagination() { applyFilters(); }
-        
+        function getAllDescendants(catId) {
+            let desc = [];
+            let subs = subCategoriesMap[catId] || [];
+            subs.forEach(s => {
+                desc.push(s.id.toString());
+                desc = desc.concat(getAllDescendants(s.id)); 
+            });
+            return desc;
+        }
+
         function filter() { 
             document.getElementById('main-category-grid').style.display = 'none'; 
             document.getElementById('sub-category-grid').style.display = 'none'; 
@@ -492,8 +519,8 @@
             let allItems = Array.from(document.querySelectorAll('#items-grid .item')); 
             
             let validCats = [currentCat];
-            if (currentCat !== 'all' && subCategoriesMap[currentCat]) {
-                subCategoriesMap[currentCat].forEach(sub => validCats.push(sub.id.toString()));
+            if (currentCat !== 'all') {
+                validCats = validCats.concat(getAllDescendants(currentCat));
             }
 
             activeItems = allItems.filter(e => { 
@@ -506,6 +533,16 @@
             renderPage(1); 
         }
 
+        let currentPage = 1; const itemsPerPage = 24; let activeItems = [];
+        document.addEventListener('DOMContentLoaded', function() { 
+            if (localStorage.getItem('posInStockToggle') === 'true') { let toggle = document.getElementById('inStockToggle'); if(toggle) toggle.checked = true; } 
+            initPagination(); 
+            <?php if(isset($_SESSION['last_sale_id'])): ?> document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>"; safeModalShow('receiptModal'); <?php unset($_SESSION['last_sale_id']); endif; ?> 
+            <?php if(isset($_SESSION['last_bill_id'])): ?> document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_bill_id'] ?>&is_bill=1"; safeModalShow('receiptModal'); <?php unset($_SESSION['last_bill_id']); endif; ?>
+            let pickupMod = document.getElementById('pickupModal'); if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Syncing Tabs...', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); } 
+        });
+        function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; safeModalShow('reportModal'); }
+        function initPagination() { applyFilters(); }
         function renderPage(page) { currentPage = page; const totalPages = Math.ceil(activeItems.length / itemsPerPage) || 1; if (currentPage > totalPages) currentPage = totalPages; if (currentPage < 1) currentPage = 1; const startIndex = (currentPage - 1) * itemsPerPage; const endIndex = startIndex + itemsPerPage; document.querySelectorAll('#items-grid .item').forEach(el => el.style.display = 'none'); activeItems.slice(startIndex, endIndex).forEach(el => { el.style.display = 'block'; }); document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages}`; }
         function prevPage() { if(currentPage > 1) renderPage(currentPage - 1); } function nextPage() { const totalPages = Math.ceil(activeItems.length / itemsPerPage); if(currentPage < totalPages) renderPage(currentPage + 1); }
         function toggleCart() { document.getElementById('cartPanel').classList.toggle('expanded'); }

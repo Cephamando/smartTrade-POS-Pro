@@ -318,7 +318,7 @@ if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
             deductStock($pdo, $item['product_id'], $dbQty, $locationId, $userId, $isRefund ? 'refund' : 'sale');
         }
         $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$targetId, $targetId, $targetId]);
-        $pdo->commit(); $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Added to tab/table.";
+        $pdo->commit(); $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Added to tab/table."; $_SESSION['last_bill_id'] = $targetId;
     } catch(Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
     header("Location: index.php?page=pos"); exit;
 }
