@@ -171,7 +171,7 @@ if (isset($_POST['toggle_fulfillment'])) {
 }
 
 if (isset($_POST['log_waste']) && $activeShiftId) {
-    // MANAGER AUTH FOR WASTE
+    // NEW: MANAGER AUTH FOR WASTE
     $mgrUser = $_POST['mgr_user'] ?? '';
     $mgrPass = $_POST['mgr_pass'] ?? '';
     $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
@@ -210,7 +210,7 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $checkTotal *= 0.9; }
         $checkTotal += $tip;
 
-        // MANAGER AUTH FOR NEGATIVE/REFUND CARTS
+        // NEW: MANAGER AUTH FOR NEGATIVE/REFUND CARTS
         if ($checkTotal < 0) {
             $mgrUser = $_POST['mgr_username'] ?? '';
             $mgrPass = $_POST['mgr_password'] ?? '';
@@ -317,7 +317,7 @@ if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
             $isRefund = $item['is_refund'] ?? false; $dbQty = $isRefund ? -$item['qty'] : $item['qty']; 
             deductStock($pdo, $item['product_id'], $dbQty, $locationId, $userId, $isRefund ? 'refund' : 'sale');
         }
-        $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$targetId, $targetId, $targetId]);
+        $pdo->prepare("UPDATE sales SET subtotal = (SELECT SUM(price*quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT SUM(price*quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$targetId, $targetId, $targetId]);
         $pdo->commit(); $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Added to tab/table.";
     } catch(Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
     header("Location: index.php?page=pos"); exit;

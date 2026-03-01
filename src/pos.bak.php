@@ -18,7 +18,7 @@ if (isset($_POST['mark_collected'])) {
         // Check if Tab is Fully Complete
         $saleState = $pdo->query("SELECT payment_status FROM sales WHERE id = $saleId")->fetch();
         $pendingCount = $pdo->query("SELECT COUNT(*) FROM sale_items WHERE sale_id = $saleId AND fulfillment_status = 'uncollected'")->fetchColumn();
-        $isTabComplete = ($saleState['payment_status'] === 'paid' && $pendingCount == 0);
+        $isTabComplete = ($saleState['payment_status'] === 'paid' && $pendingCount == 0);aa
 
         echo json_encode([
             'status' => 'success', 

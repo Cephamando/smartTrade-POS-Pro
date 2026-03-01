@@ -15,6 +15,13 @@
     </style>
 </head>
 <body>
+
+<?php if(defined('SYSTEM_LOCKED') && SYSTEM_LOCKED && $_SESSION['role'] !== 'dev'): ?>
+<div class="bg-danger text-white text-center fw-bold p-2 mb-3 shadow-sm" style="font-size:1.1em; letter-spacing:1px; z-index: 1000; position:relative;">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i> SYSTEM LOCKED: LICENSE EXPIRED. READ-ONLY MODE. <i class="bi bi-exclamation-triangle-fill ms-2"></i>
+</div>
+<?php endif; ?>
+
 <?php
 $role = $_SESSION['role'] ?? 'cashier';
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';

@@ -2,12 +2,21 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-session_start();
-define('BASE_PATH', dirname(__DIR__));
+// Ensure local time accuracy for the Kill Switch
+date_default_timezone_set('Africa/Lusaka');
+
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+
+define('BASE_PATH', __DIR__);
 $configFile = BASE_PATH . '/src/config.php';
 
-if (file_exists($configFile)) { require_once $configFile; } else { die("<h1>System Error</h1>"); }
+if (file_exists($configFile)) { 
+    require_once $configFile; 
+} else { 
+    die("<h1>System Error</h1><p>Configuration file not found.</p>"); 
+}
 
+// --- FETCH SYSTEM SETTINGS ---
 $appSettings = [
     'license_tier' => 'lite', 
     'business_name' => 'OdeliaPOS', 
@@ -37,12 +46,14 @@ define('RECEIPT_FOOTER', $appSettings['receipt_footer']);
 define('LOCKOUT_DATE', $appSettings['lockout_date']);
 define('SYSTEM_LOCKED', (!empty(LOCKOUT_DATE) && strtotime(LOCKOUT_DATE) <= time()));
 
+// --- GLOBAL LOCATION SWITCH (ADMIN/DEV) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['global_switch_location'])) {
     if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'dev'])) {
         $newLocId = (int)$_POST['target_location_id'];
         $_SESSION['location_id'] = $newLocId;
         $_SESSION['pos_location_id'] = $newLocId;
         $_SESSION['manual_location_override'] = true; 
+        
         $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
         $stmt->execute([$newLocId]);
         $_SESSION['location_name'] = $stmt->fetchColumn() ?: 'Unknown';
@@ -52,8 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['global_switch_locatio
     exit;
 }
 
+// --- HANDLE GLOBAL ACTIONS ---
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
+
     if ($action === 'check_ready_orders') {
         header('Content-Type: application/json');
         $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
@@ -64,6 +77,7 @@ if (isset($_GET['action'])) {
         } catch(Exception $e) { echo json_encode(['count' => 0, 'error' => $e->getMessage()]); }
         exit;
     }
+
     if ($action === 'get_shift_sales') {
         header('Content-Type: application/json');
         $shiftId = (int)($_GET['shift_id'] ?? 0);
@@ -74,6 +88,7 @@ if (isset($_GET['action'])) {
         } catch (Exception $e) { echo json_encode(['error' => $e->getMessage()]); }
         exit;
     }
+
     if ($action === 'get_stock_level') {
         header('Content-Type: application/json');
         $product_id = $_GET['product_id'] ?? 0;
@@ -85,6 +100,7 @@ if (isset($_GET['action'])) {
         } catch (Exception $e) { echo json_encode(['stock' => 0, 'error' => $e->getMessage()]); }
         exit;
     }
+
     if ($action === 'logout') {
         session_destroy();
         header("Location: index.php?page=login");
@@ -92,6 +108,7 @@ if (isset($_GET['action'])) {
     }
 }
 
+// --- GET PAGE REQUEST & ROLE ---
 $page = isset($_GET['page']) ? basename($_GET['page']) : '';
 $userRole = $_SESSION['role'] ?? 'cashier';
 
@@ -105,6 +122,7 @@ if (empty($page)) {
     }
 }
 
+// --- GLOBAL AUTHENTICATION CHECK ---
 $publicPages = ['login']; 
 if (!in_array($page, $publicPages) && !isset($_SESSION['user_id'])) {
     session_destroy(); 
@@ -126,6 +144,7 @@ if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'de
             $page = 'kitchen';
         }
     } else {
+        // Cashiers / Waiters are strictly locked to the POS
         $allowed = array_merge($allowedCommon, ['pos']);
         if (!in_array($page, $allowed)) {
             $page = 'pos';
@@ -136,13 +155,13 @@ if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'de
 // --- 🛑 SYSTEM LOCKOUT ENFORCEMENT ---
 if (SYSTEM_LOCKED && isset($_SESSION['role']) && $_SESSION['role'] !== 'dev') {
     
-    // Stop all modifying actions
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $page !== 'login') {
-        die("<div style='padding:20px; color:red; font-family:sans-serif;'><h2>SYSTEM LOCKED</h2><p>Modifications disabled. License expired.</p><a href='index.php'>Go Back</a></div>");
+    // Stop all modifying POST actions across the board
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $page !== 'login' && $page !== 'logout') {
+        die("<div style='padding:20px; color:red; font-family:sans-serif;'><h2>SYSTEM LOCKED</h2><p>Modifications disabled. License expired.</p><button onclick='history.back()'>Go Back</button></div>");
     }
     
     if (!in_array($userRole, ['admin', 'manager'])) {
-        // Operational Staff are hard-locked out of the entire platform
+        // Operational Staff (Cashiers, Chefs) are hard-locked out of the platform
         if ($page !== 'logout') {
             die("<div style='text-align:center; padding-top:150px; font-family:sans-serif; background:#111; color:#fff; height:100vh; margin:0;'><h1 style='color:#ff4d4d; font-size: 3rem;'>SYSTEM LOCKED</h1><p style='font-size: 1.2rem; color: #ccc;'>Software license has expired. Please notify management.</p><br><br><a href='index.php?action=logout' style='color:#fff; background: #dc3545; border-radius: 5px; padding:15px 30px; text-decoration:none; font-weight: bold;'>LOGOUT</a></div>");
         }
@@ -150,27 +169,34 @@ if (SYSTEM_LOCKED && isset($_SESSION['role']) && $_SESSION['role'] !== 'dev') {
         // Admins/Managers are isolated to Reports in Read-Only Mode
         $allowedWhenLocked = ['reports', 'z_read', 'logout', 'receipt', 'print_shift'];
         if (!in_array($page, $allowedWhenLocked)) {
-            $page = 'reports'; // Force route to reporting
+            $page = 'reports'; // Force route back to reporting
         }
     }
 }
 
-// 6. ROUTING LOGIC
+// --- ROUTING LOGIC ---
 $controllerPath = BASE_PATH . "/src/{$page}.php";
 $templatePath   = BASE_PATH . "/templates/{$page}.php";
 
 if (file_exists($controllerPath)) {
     require_once $controllerPath;
     if (file_exists($templatePath)) {
+        
+        // Standalone pages that do NOT need the Navigation Bar
         $isStandalone = in_array($page, ['login', 'receipt', 'pos', 'kds', 'pickup', 'print_shift']);
         
         if (!$isStandalone && file_exists(BASE_PATH . "/templates/header.php")) {
             require_once BASE_PATH . "/templates/header.php";
         }
+        
         require_once $templatePath;
+        
         if (!$isStandalone && file_exists(BASE_PATH . "/templates/footer.php")) {
             require_once BASE_PATH . "/templates/footer.php";
         }
+        
+    } else {
+        echo "Template missing for page: $page";
     }
 } else {
     header("Location: index.php");
