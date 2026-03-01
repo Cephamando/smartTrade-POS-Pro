@@ -17,7 +17,7 @@ if (file_exists($configFile)) {
     die("<h1>System Error</h1><p>Configuration file not found.</p>");
 }
 
-// --- 🌍 FETCH SYSTEM SETTINGS (WHITE LABEL & LICENSE) 🌍 ---
+// --- FETCH SYSTEM SETTINGS (WHITE LABEL & LICENSE) ---
 $appSettings = [
     'license_tier' => 'lite', 
     'business_name' => 'OdeliaPOS', 
@@ -42,7 +42,7 @@ define('THEME_COLOR', $appSettings['theme_color']);
 define('RECEIPT_HEADER', $appSettings['receipt_header']);
 define('RECEIPT_FOOTER', $appSettings['receipt_footer']);
 
-// --- 🌍 GLOBAL LOCATION SWITCH (ADMIN/DEV) 🌍 ---
+// --- GLOBAL LOCATION SWITCH (ADMIN/DEV) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['global_switch_location'])) {
     if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'dev'])) {
         $newLocId = (int)$_POST['target_location_id'];
@@ -70,9 +70,7 @@ if (isset($_GET['action'])) {
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.location_id = ? AND si.status = 'ready' AND si.fulfillment_status = 'uncollected'");
             $stmt->execute([$locationId]);
             echo json_encode(['count' => (int)$stmt->fetchColumn()]);
-        } catch(Exception $e) {
-            echo json_encode(['count' => 0, 'error' => $e->getMessage()]);
-        }
+        } catch(Exception $e) { echo json_encode(['count' => 0, 'error' => $e->getMessage()]); }
         exit;
     }
 
@@ -83,9 +81,7 @@ if (isset($_GET['action'])) {
             $stmt = $pdo->prepare("SELECT id, created_at, customer_name, final_total, payment_method FROM sales WHERE shift_id = ? AND payment_status = 'paid' ORDER BY created_at DESC");
             $stmt->execute([$shiftId]);
             echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-        } catch (Exception $e) {
-            echo json_encode(['error' => $e->getMessage()]);
-        }
+        } catch (Exception $e) { echo json_encode(['error' => $e->getMessage()]); }
         exit;
     }
 
@@ -97,9 +93,7 @@ if (isset($_GET['action'])) {
             $stmt = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
             $stmt->execute([$product_id, $location_id]);
             echo json_encode(['stock' => (int)$stmt->fetchColumn() ?: 0]);
-        } catch (Exception $e) {
-            echo json_encode(['stock' => 0, 'error' => $e->getMessage()]);
-        }
+        } catch (Exception $e) { echo json_encode(['stock' => 0, 'error' => $e->getMessage()]); }
         exit;
     }
 
@@ -110,13 +104,22 @@ if (isset($_GET['action'])) {
     }
 }
 
-// 5. GET PAGE REQUEST
+// 5. GET PAGE REQUEST & ROLE
 $page = isset($_GET['page']) ? basename($_GET['page']) : '';
+$userRole = $_SESSION['role'] ?? 'cashier';
+
 if (empty($page)) {
-    $page = isset($_SESSION['user_id']) ? 'dashboard' : 'login';
+    if (isset($_SESSION['user_id'])) {
+        // Smart Landing Pages
+        if (in_array($userRole, ['admin', 'manager', 'dev'])) { $page = 'dashboard'; } 
+        elseif (in_array($userRole, ['chef', 'head_chef'])) { $page = 'kitchen'; } 
+        else { $page = 'pos'; }
+    } else {
+        $page = 'login';
+    }
 }
 
-// --- 🔒 GLOBAL AUTHENTICATION CHECK 🔒 ---
+// --- GLOBAL AUTHENTICATION CHECK ---
 $publicPages = ['login']; 
 if (!in_array($page, $publicPages) && !isset($_SESSION['user_id'])) {
     session_destroy(); 
@@ -124,8 +127,28 @@ if (!in_array($page, $publicPages) && !isset($_SESSION['user_id'])) {
     exit;
 }
 if ($page === 'login' && isset($_SESSION['user_id'])) {
-    header("Location: index.php?page=dashboard");
+    header("Location: index.php");
     exit;
+}
+
+// --- STRICT ROLE-BASED ACCESS CONTROL (RBAC) ---
+if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'dev'])) {
+    $allowedCommon = ['receipt', 'logout', 'pickup', 'print_shift', 'end_shift_action']; // Everyone can see receipts and logout
+    
+    if (in_array($userRole, ['chef', 'head_chef'])) {
+        $allowed = array_merge($allowedCommon, ['kitchen', 'kds', 'pickup', 'menu', 'inventory']);
+        if (!in_array($page, $allowed)) {
+            header("Location: index.php?page=kitchen");
+            exit;
+        }
+    } else {
+        // Cashiers / Waiters are strictly locked to the POS
+        $allowed = array_merge($allowedCommon, ['pos']);
+        if (!in_array($page, $allowed)) {
+            header("Location: index.php?page=pos");
+            exit;
+        }
+    }
 }
 
 // 6. ROUTING LOGIC
@@ -135,7 +158,8 @@ $templatePath   = BASE_PATH . "/templates/{$page}.php";
 if (file_exists($controllerPath)) {
     require_once $controllerPath;
     if (file_exists($templatePath)) {
-        $isStandalone = in_array($page, ['login', 'receipt']);
+        // Fullscreen Apps that don't need the header
+        $isStandalone = in_array($page, ['login', 'receipt', 'pos', 'kds', 'pickup', 'print_shift']);
         
         if (!$isStandalone && file_exists(BASE_PATH . "/templates/header.php")) {
             require_once BASE_PATH . "/templates/header.php";
@@ -146,7 +170,7 @@ if (file_exists($controllerPath)) {
         }
     }
 } else {
-    header("Location: index.php?page=" . (isset($_SESSION['user_id']) ? 'dashboard' : 'login'));
+    header("Location: index.php");
     exit;
 }
 ?>

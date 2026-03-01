@@ -35,4 +35,31 @@ foreach($expenses as $ex) { $totalExpenses += $ex['amount']; }
 
 // Calculate expectations
 $expectedCash = $shift['starting_cash'] + $cashSales - $totalExpenses;
+
+// NEW: Breakdown by Category
+$stmt = $pdo->prepare("
+    SELECT c.name as category_name, SUM(si.quantity) as qty, SUM(si.price * si.quantity) as amount
+    FROM sale_items si
+    JOIN sales s ON si.sale_id = s.id
+    LEFT JOIN products p ON si.product_id = p.id
+    LEFT JOIN categories c ON p.category_id = c.id
+    WHERE s.shift_id = ? AND s.payment_status = 'paid' AND si.status NOT IN ('voided', 'refunded')
+    GROUP BY c.id
+    ORDER BY amount DESC
+");
+$stmt->execute([$shiftId]);
+$categoriesBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// NEW: Breakdown by Product (Itemized)
+$stmt = $pdo->prepare("
+    SELECT COALESCE(p.name, 'Custom Item') as name, SUM(si.quantity) as qty, SUM(si.price * si.quantity) as amount
+    FROM sale_items si
+    JOIN sales s ON si.sale_id = s.id
+    LEFT JOIN products p ON si.product_id = p.id
+    WHERE s.shift_id = ? AND s.payment_status = 'paid' AND si.status NOT IN ('voided', 'refunded')
+    GROUP BY p.id, p.name
+    ORDER BY qty DESC
+");
+$stmt->execute([$shiftId]);
+$productBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>

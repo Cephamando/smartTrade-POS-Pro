@@ -50,7 +50,7 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .amount { text-align: right; }
     </style>
 </head>
-<body onload="window.print()">
+<body>
     <div class="text-center border-bottom">
         <h2 style="margin:0;"><?= htmlspecialchars($bizName) ?></h2>
         

@@ -4,6 +4,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); ex
 
 $userId = $_SESSION['user_id'];
 $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
+$userRole = $_SESSION['role'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $closingCash = (float)($_POST['closing_cash'] ?? 0);
@@ -61,10 +62,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($_SESSION['cart']);
         unset($_SESSION['pos_member']);
 
-        $_SESSION['swal_type'] = 'success';
-        $_SESSION['swal_msg'] = 'Shift closed successfully. Variance: ZMW ' . number_format($variance, 2);
-        header("Location: index.php?page=dashboard");
-        exit;
+        // --- SMART LOGOUT / REDIRECT LOGIC ---
+        if (!in_array($userRole, ['admin', 'manager', 'dev'])) {
+            // Auto-logout standard staff (Cashiers, Waiters) after closing shift
+            header("Location: index.php?action=logout");
+            exit;
+        } else {
+            // Let Admins/Managers return to the dashboard
+            $_SESSION['swal_type'] = 'success';
+            $_SESSION['swal_msg'] = 'Shift closed successfully. Variance: ZMW ' . number_format($variance, 2);
+            header("Location: index.php?page=dashboard");
+            exit;
+        }
+
     } catch (Exception $e) {
         $_SESSION['swal_type'] = 'error';
         $_SESSION['swal_msg'] = $e->getMessage();

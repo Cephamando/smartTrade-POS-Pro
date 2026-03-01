@@ -1,130 +1,149 @@
-<div class="d-print-none d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3 class="fw-bold mb-0"><i class="bi bi-journal-check text-success"></i> Master Z-Read (Daily Closure)</h3>
-        <span class="text-muted small">Aggregate all shifts and lock the day's financials.</span>
-    </div>
-    <button onclick="window.print()" class="btn btn-outline-dark fw-bold shadow-sm"><i class="bi bi-printer"></i> Print Z-Read</button>
+<style>
+    @media print {
+        body * { visibility: hidden; }
+        #printableZRead, #printableZRead * { visibility: visible; }
+        #printableZRead { position: absolute; left: 0; top: 0; width: 100%; }
+        .no-print { display: none !important; }
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 mt-3 no-print">
+    <h3 class="fw-bold m-0"><i class="bi bi-journal-check text-success me-2"></i> End of Day (Z-Read)</h3>
+    <button onclick="window.print()" class="btn btn-dark fw-bold shadow-sm"><i class="bi bi-printer"></i> Print Z-Read</button>
 </div>
 
-<div class="card shadow-sm border-0 mb-4 d-print-none">
-    <div class="card-body bg-light">
+<div class="card shadow-sm border-0 mb-4 border-top border-success border-4 no-print">
+    <div class="card-body bg-light p-4">
         <form method="GET" action="index.php" class="row g-3 align-items-end">
             <input type="hidden" name="page" value="z_read">
             <div class="col-md-4">
-                <label class="form-label small fw-bold text-muted">Target Date</label>
-                <input type="date" name="target_date" class="form-control fw-bold" value="<?= htmlspecialchars($selectedDate) ?>" required>
+                <label class="form-label fw-bold small text-muted">REPORT DATE</label>
+                <input type="date" name="date" class="form-control fw-bold" value="<?= htmlspecialchars($date) ?>">
             </div>
-            <div class="col-md-5">
-                <label class="form-label small fw-bold text-muted">Filter Workstation</label>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">WORKSTATION</label>
                 <select name="location_id" class="form-select fw-bold">
-                    <?php foreach($locations as $l): ?>
-                        <option value="<?= $l['id'] ?>" <?= ($l['id'] == $selectedLoc) ? 'selected' : '' ?>><?= htmlspecialchars($l['name']) ?></option>
+                    <?php foreach($locations as $loc): ?>
+                        <option value="<?= $loc['id'] ?>" <?= ($locationId == $loc['id']) ? 'selected' : '' ?>><?= htmlspecialchars($loc['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-dark w-100 fw-bold"><i class="bi bi-search"></i> Load Day</button>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-success w-100 fw-bold py-2 shadow-sm"><i class="bi bi-search"></i> GENERATE</button>
             </div>
         </form>
     </div>
 </div>
 
-<div id="printArea" class="mx-auto" style="max-width: 600px;">
-    
-    <?php if ($isClosed): ?>
-        <div class="alert alert-success border-success text-center fw-bold shadow-sm d-print-none">
-            <i class="bi bi-lock-fill"></i> This day was officially CLOSED and locked by a Manager.
-        </div>
-    <?php elseif ($openShiftsCount > 0): ?>
-        <div class="alert alert-danger border-danger text-center fw-bold shadow-sm d-print-none">
-            <i class="bi bi-exclamation-triangle-fill"></i> Warning: There are <?= $openShiftsCount ?> open shifts! You cannot run a Z-Read until all cashiers end their shifts.
-        </div>
-    <?php endif; ?>
+<div id="printableZRead" class="bg-white p-4 rounded shadow border border-2">
+    <div class="text-center border-bottom pb-3 mb-4">
+        <h2 class="fw-bold mb-1"><?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?></h2>
+        <h4 class="text-muted mb-2">End of Day (Z-Read) Report</h4>
+        <div class="fw-bold fs-5">Date: <?= date('d F Y', strtotime($date)) ?></div>
+        <div class="text-muted small mt-1">Generated: <?= date('d M Y, H:i') ?></div>
+    </div>
 
-    <div class="card border-dark shadow-sm">
-        <div class="card-header bg-dark text-white text-center py-3">
-            <h4 class="mb-0 fw-bold">END OF DAY REPORT (Z-READ)</h4>
-            <div class="small text-warning"><?= date('l, F j, Y', strtotime($selectedDate)) ?></div>
-        </div>
-        <div class="card-body p-4">
-            
-            <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">DIGITAL TRANSACTIONS</h6>
-            <div class="d-flex justify-content-between mb-2">
-                <span class="fw-bold">Card Sales:</span>
-                <span class="text-dark">ZMW <?= number_format($totals['Card'], 2) ?></span>
-            </div>
-            <div class="d-flex justify-content-between mb-4">
-                <span class="fw-bold">Mobile Money (MTN/Airtel/Zamtel):</span>
-                <span class="text-dark">ZMW <?= number_format($totals['Mobile'], 2) ?></span>
-            </div>
-
-            <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">CASH RECONCILIATION</h6>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Total Opening Floats:</span>
-                <span>ZMW <?= number_format($totalStartingCash, 2) ?></span>
-            </div>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Total Cash Sales:</span>
-                <span>+ ZMW <?= number_format($totals['Cash'], 2) ?></span>
-            </div>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Total Payouts / Petty Cash:</span>
-                <span class="text-danger">- ZMW <?= number_format($totalExpenses, 2) ?></span>
-            </div>
-            <div class="d-flex justify-content-between mb-4 bg-light p-2 rounded border">
-                <span class="fw-bold">EXPECTED CASH IN SAFE:</span>
-                <span class="fw-bold fs-5">ZMW <?= number_format($expectedCash, 2) ?></span>
-            </div>
-
-            <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">MANAGER AUDIT</h6>
-            <div class="d-flex justify-content-between mb-2">
-                <span>Actual Cash Declared by Cashiers:</span>
-                <span class="fw-bold <?= ($totalActualCash < $expectedCash) ? 'text-danger' : 'text-success' ?>">ZMW <?= number_format($totalActualCash, 2) ?></span>
-            </div>
-            <div class="d-flex justify-content-between mb-4">
-                <span class="fw-bold">DAILY VARIANCE:</span>
-                <span class="fw-bold <?= ($dailyVariance < 0) ? 'text-danger' : 'text-success' ?>">ZMW <?= number_format($dailyVariance, 2) ?></span>
-            </div>
-
-            <div class="text-center mt-5 border-top pt-3 small text-muted">
-                <div>Printed on: <?= date('Y-m-d H:i:s') ?></div>
-                <div class="mt-4 border-bottom w-50 mx-auto pb-4">Manager Signature</div>
+    <div class="row g-4 mb-4 border-bottom pb-4">
+        <div class="col-6">
+            <div class="border border-success p-3 rounded bg-success bg-opacity-10 text-center h-100 shadow-sm">
+                <small class="fw-bold text-success text-uppercase">Gross Sales</small>
+                <h3 class="fw-bold text-success m-0 mt-2">ZMW <?= number_format($metrics['gross_sales'] ?? 0, 2) ?></h3>
             </div>
         </div>
-        
-        <?php if (!$isClosed && $openShiftsCount == 0 && $expectedCash > 0): ?>
-            <div class="card-footer bg-white p-3 d-print-none">
-                <form method="POST">
-                    <input type="hidden" name="execute_z_read" value="1">
-                    <input type="hidden" name="location_id" value="<?= $selectedLoc ?>">
-                    <input type="hidden" name="target_date" value="<?= $selectedDate ?>">
-                    <button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow" onclick="return confirm('Are you sure you want to lock today\'s financials? This cannot be undone.')">
-                        <i class="bi bi-lock-fill"></i> LOCK DAY & EXECUTE Z-READ
-                    </button>
-                </form>
+        <div class="col-6">
+            <div class="border p-3 rounded bg-light text-center h-100 shadow-sm">
+                <small class="fw-bold text-muted text-uppercase">Total Transactions</small>
+                <h3 class="fw-bold text-dark m-0 mt-2"><?= number_format($metrics['total_transactions'] ?? 0) ?></h3>
             </div>
-        <?php endif; ?>
+        </div>
+        <div class="col-4">
+            <div class="border p-3 rounded text-center h-100 bg-light">
+                <small class="fw-bold text-muted text-uppercase">Total Refunds</small>
+                <h4 class="fw-bold text-danger m-0 mt-2">ZMW <?= number_format($metrics['total_refunded'] ?? 0, 2) ?></h4>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="border p-3 rounded text-center h-100 bg-light">
+                <small class="fw-bold text-muted text-uppercase">Tips Collected</small>
+                <h4 class="fw-bold text-info m-0 mt-2">ZMW <?= number_format($metrics['total_tips'] ?? 0, 2) ?></h4>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="border border-warning p-3 rounded text-center h-100 bg-warning bg-opacity-10">
+                <small class="fw-bold text-dark text-uppercase">Petty Cash / Payouts</small>
+                <h4 class="fw-bold text-danger m-0 mt-2">ZMW <?= number_format($expenses['total_expenses'] ?? 0, 2) ?></h4>
+                <small class="text-muted fw-bold"><?= $expenses['expense_count'] ?> Transactions</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <h5 class="fw-bold text-primary mb-3"><i class="bi bi-wallet2"></i> Payment Methods</h5>
+            <table class="table table-sm table-hover align-middle border">
+                <thead class="table-light"><tr><th class="ps-2">Method</th><th class="text-center">Count</th><th class="text-end pe-2">Amount</th></tr></thead>
+                <tbody>
+                    <?php $totalMethods = 0; foreach($paymentMethods as $pm): $totalMethods += $pm['amount']; ?>
+                    <tr>
+                        <td class="fw-bold text-secondary ps-2"><?= htmlspecialchars($pm['payment_method']) ?></td>
+                        <td class="text-center"><?= $pm['count'] ?></td>
+                        <td class="text-end fw-bold text-dark pe-2">ZMW <?= number_format($pm['amount'], 2) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+                <tfoot class="table-light">
+                    <tr><td colspan="2" class="fw-bold text-end">Total Collected:</td><td class="text-end fw-bold text-primary pe-2">ZMW <?= number_format($totalMethods, 2) ?></td></tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="col-md-6">
+            <h5 class="fw-bold text-success mb-3"><i class="bi bi-tags"></i> Sales by Category</h5>
+            <table class="table table-sm table-hover align-middle border">
+                <thead class="table-light"><tr><th class="ps-2">Category</th><th class="text-center">Qty</th><th class="text-end pe-2">Amount</th></tr></thead>
+                <tbody>
+                    <?php $totalCats = 0; foreach($categoriesBreakdown as $cat): $totalCats += $cat['amount']; ?>
+                    <tr>
+                        <td class="fw-bold text-secondary ps-2"><?= htmlspecialchars($cat['category_name'] ?: 'Uncategorized') ?></td>
+                        <td class="text-center"><?= $cat['qty'] ?></td>
+                        <td class="text-end fw-bold text-dark pe-2">ZMW <?= number_format($cat['amount'], 2) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+                <tfoot class="table-light">
+                    <tr><td colspan="2" class="fw-bold text-end">Categorized Total:</td><td class="text-end fw-bold text-success pe-2">ZMW <?= number_format($totalCats, 2) ?></td></tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div>
+        <h5 class="fw-bold text-info mb-3"><i class="bi bi-box-seam"></i> Itemized Sales</h5>
+        <table class="table table-sm table-hover table-striped align-middle border">
+            <thead class="table-dark">
+                <tr>
+                    <th class="ps-3 py-2">Product Name</th>
+                    <th class="text-center py-2">Total Sold</th>
+                    <th class="text-end pe-3 py-2">Revenue Generated</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if(empty($productBreakdown)): ?>
+                    <tr><td colspan="3" class="text-center text-muted py-3">No products sold on this date.</td></tr>
+                <?php else: foreach($productBreakdown as $prod): ?>
+                    <tr>
+                        <td class="ps-3 fw-bold text-secondary"><?= htmlspecialchars($prod['name']) ?></td>
+                        <td class="text-center fw-bold fs-6"><?= $prod['qty'] ?></td>
+                        <td class="text-end pe-3 fw-bold text-dark">ZMW <?= number_format($prod['amount'], 2) ?></td>
+                    </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="text-center text-muted small mt-5 pt-3 border-top">
+        *** END OF Z-READ REPORT ***
     </div>
 </div>
 
-<style>
-    @media print {
-        body { background-color: white !important; }
-        .d-print-none { display: none !important; }
-        .card { border: none !important; box-shadow: none !important; }
-        .card-header { background-color: white !important; color: black !important; border-bottom: 2px solid black !important; }
-        .bg-light { background-color: white !important; border: 1px dashed #ccc !important; }
-    }
-</style>
-
-<script>
-    <?php if(isset($_SESSION['swal_msg'])): ?>
-        Swal.fire({ 
-            icon: '<?= addslashes($_SESSION['swal_type']) ?>', 
-            title: '<?= addslashes($_SESSION['swal_msg']) ?>', 
-            timer: 3000, 
-            showConfirmButton: <?= $_SESSION['swal_type'] === 'error' ? 'true' : 'false' ?> 
-        });
-        <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-    <?php endif; ?>
-</script>
+<?php include 'footer.php'; ?>

@@ -344,7 +344,7 @@ $stmt = $pdo->prepare("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty, (SELECT
 $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1")->fetchAll(PDO::FETCH_ASSOC);
 $balance = 0; foreach($_SESSION['cart'] as $i) { $balance += $i['price'] * $i['qty']; }
 
-$stmt = $pdo->prepare("SELECT DISTINCT s.* FROM sales s LEFT JOIN sale_items si ON s.id = si.sale_id WHERE s.location_id = ? AND (s.payment_status = 'pending' OR (si.fulfillment_status = 'uncollected' AND si.status NOT IN ('voided', 'refunded'))) ORDER BY s.id DESC");
+$stmt = $pdo->prepare("SELECT DISTINCT s.* FROM sales s JOIN sale_items si ON s.id = si.sale_id WHERE s.location_id = ? AND si.status NOT IN ('voided', 'refunded') AND (s.payment_status = 'pending' OR si.fulfillment_status = 'uncollected') ORDER BY s.id DESC");
 $stmt->execute([$locationId]);
 $openTabs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

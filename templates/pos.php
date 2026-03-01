@@ -60,7 +60,8 @@
         <div class="d-flex align-items-center ps-2">
             <span class="fs-5 fw-bold text-warning me-3" id="headerPosLabel">POS</span>
             <span class="text-light ms-2"><i class="bi bi-geo-alt-fill text-warning" id="headerLocIcon"></i> <?= htmlspecialchars($locationName) ?></span>
-            <button type="button" class="btn btn-sm btn-link text-warning ms-1" data-bs-toggle="modal" data-bs-target="#locationModal"><i class="bi bi-pencil-square"></i></button>
+            <button type="button" class="btn btn-sm btn-link text-warning ms-1 me-2" data-bs-toggle="modal" data-bs-target="#locationModal" title="Change Location"><i class="bi bi-pencil-square"></i></button>
+            <span class="text-light border-start border-secondary ps-3"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
         </div>
         <div class="d-flex gap-2 pe-2">
             <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev','chef','head_chef']) && defined('LICENSE_TIER') && LICENSE_TIER === 'hospitality'): ?>
@@ -84,7 +85,11 @@
             <?php if ($activeShiftId): ?>
                 <button type="button" class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
             <?php else: ?><span class="badge bg-secondary">LOCKED</span><?php endif; ?>
-            <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm"><i class="bi bi-house"></i></a>
+            <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev'])): ?>
+            <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm" title="Dashboard"><i class="bi bi-house"></i></a>
+            <?php else: ?>
+            <a href="index.php?action=logout" class="btn btn-outline-danger btn-sm fw-bold" title="Logout"><i class="bi bi-power"></i> Exit</a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -341,7 +346,41 @@
     <div class="modal fade" id="pickupModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-body p-0"><iframe id="pickupFrame" src="" style="width:100%; height:80vh; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
     <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-success text-white"><h5>Receipt</h5></div><div class="modal-body p-0" style="height:400px;"><iframe id="receiptFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-primary" onclick="document.getElementById('receiptFrame').contentWindow.print()">PRINT</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <div class="modal fade" id="endShiftModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold">End Shift</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="index.php?page=end_shift_action" method="POST">
+                    <div class="modal-body p-4">
+                        <div class="alert alert-light border text-center mb-4">
+                            <small class="text-uppercase fw-bold text-muted">Expected Cash</small>
+                            <div class="h2 fw-bold text-dark m-0">ZMW <?= number_format($expectedShiftCash ?? 0, 2) ?></div>
+                        </div>
+                        <label class="fw-bold small text-muted">ACTUAL CLOSING CASH</label>
+                        <div class="input-group input-group-lg mb-3">
+                            <span class="input-group-text fw-bold">ZMW</span>
+                            <input type="number" step="0.01" name="closing_cash" class="form-control fw-bold text-primary" required value="<?= $expectedShiftCash ?>">
+                        </div>
+                        <label class="fw-bold small text-muted">VARIANCE REASON</label>
+                        <textarea name="variance_reason" class="form-control mb-3" placeholder="Explain any difference..."></textarea>
+                        
+                        <label class="fw-bold small text-danger mt-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label>
+                        <input type="text" name="manager_username" class="form-control mb-2" required placeholder="Manager Username">
+                        <input type="password" name="manager_password" class="form-control" required placeholder="Required for verification">
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="submit" class="btn btn-danger w-100 fw-bold py-3 shadow">CLOSE SHIFT</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function printTabBill(saleId) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1"; safeModalShow('receiptModal'); }
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }

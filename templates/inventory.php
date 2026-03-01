@@ -186,3 +186,35 @@ function populateEdit(id, name, qty, price, loc) {
     </div>
 </div>
 
+
+
+<?php if(in_array($_SESSION['role'], ['chef', 'head_chef'])): ?>
+<style>
+    /* Hide all Edit/Update buttons, Data-Targets, and Modal Triggers */
+    button[data-bs-target*="#edit"], 
+    button[data-bs-target*="#update"], 
+    button[data-bs-target*="Modal"],
+    .btn-edit, 
+    .btn-warning,
+    .btn-primary[data-bs-toggle="modal"],
+    .btn-outline-primary {
+        display: none !important;
+    }
+</style>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Strip onClick events from table rows just in case they trigger edit modals
+        let rows = document.querySelectorAll("table tbody tr");
+        rows.forEach(row => {
+            row.removeAttribute("onclick");
+            row.style.cursor = "default";
+        });
+        
+        // Let the Chef know they are in Read-Only Mode
+        let header = document.querySelector("h3") || document.querySelector("h4");
+        if(header) {
+            header.innerHTML += ' <span class="badge bg-secondary ms-2" style="font-size:0.5em; vertical-align:middle;">Read-Only Mode</span>';
+        }
+    });
+</script>
+<?php endif; ?>

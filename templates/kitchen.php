@@ -1,6 +1,6 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="bi bi-fire text-danger"></i> Meal Production</h3>
-    <a href="index.php?page=pos" class="btn btn-outline-secondary"><i class="bi bi-cart4"></i> Go to POS</a>
+    <!-- <a href="index.php?page=pos" class="btn btn-outline-secondary"><i class="bi bi-cart4"></i> Go to POS</a> -->
 </div>
 
 <div class="alert alert-info border-info shadow-sm mb-4">

@@ -1,6 +1,6 @@
 <?php
-// SECURITY: Only Managers/Admins/Dev
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'manager', 'dev'], true)) {
+// SECURITY: Allow Admins, Managers, Devs, AND Chefs
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'manager', 'dev', 'chef', 'head_chef'], true)) {
     header("Location: index.php?page=dashboard");
     exit;
 }
@@ -15,9 +15,18 @@ $catFilter = $_GET['category_id'] ?? '';
 $search    = trim($_GET['search'] ?? '');
 
 // --------------------------------------------------
-// HANDLE INVENTORY UPDATE
+// HANDLE INVENTORY UPDATE (Strictly Block Chefs!)
 // --------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_product'])) {
+    
+    // Hard Backend Constraint: Chefs cannot execute this block
+    if (in_array($_SESSION['role'], ['chef', 'head_chef'])) {
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg']  = 'Access Denied: Chefs have View-Only access to stock levels.';
+        header("Location: index.php?page=inventory");
+        exit;
+    }
+
     try {
         $invId   = (int)$_POST['inventory_id'];
         $qty     = (float)$_POST['quantity'];
@@ -73,7 +82,6 @@ $sql = "
     WHERE 1=1
 ";
 
-
 $params = [];
 
 if ($locFilter !== '') {
@@ -94,7 +102,6 @@ if ($search !== '') {
 
 $sql .= " ORDER BY p.name ASC";
 
-
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $inventory = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -107,5 +114,4 @@ $totalValue = 0.0;
 foreach ($inventory as $item) {
     $totalValue += (float)$item['stock_value'];
 }
-
 ?>
