@@ -8,21 +8,32 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
+        /* DYNAMIC THEME SETTINGS */
+        :root {
+            --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>;
+            --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>;
+            --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>;
+        }
+        
+        /* CORE LAYOUT */
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; }
-        .header-custom { background-color: #2c2c2c; border-bottom: 4px solid #ffc107; color: white; flex: 0 0 auto; z-index: 1050; transition: background-color 0.3s, border-color 0.3s; }
+        .header-custom { background-color: var(--pos-main-color) !important; border-bottom: 4px solid var(--pos-accent-color) !important; color: white; flex: 0 0 auto; z-index: 1050; transition: background-color 0.3s, border-color 0.3s; }
+        #headerPosLabel, #headerLocIcon { color: var(--pos-accent-color) !important; }
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
         .product-section { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         
+        /* DRILL-DOWN CARDS */
         .cat-card { background: #fff; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px 10px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: bold; color: #333; display: flex; flex-direction: column; align-items: center; justify-content: center; user-select: none; }
-        .cat-card:hover { border-color: #ffc107; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
-        .cat-card.active { background: #3e2723; border-color: #ffc107; color: #fff; }
+        .cat-card:hover { border-color: var(--pos-accent-color) !important; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        .cat-card.active { background: var(--pos-cart-color) !important; border-color: var(--pos-accent-color) !important; color: #fff; }
         .cat-icon { font-size: 2rem; margin-bottom: 8px; }
 
+        /* PRODUCT GRID */
         .product-list-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
         .product-list { flex: 1 1 auto; overflow-y: auto; padding: 15px; }
         .pagination-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #ddd; padding: 10px 15px; display: flex; justify-content: center; align-items: center; gap: 15px; }
         .item-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; transition: transform 0.1s, box-shadow 0.1s; cursor: pointer; overflow: hidden; position: relative; height: 100%; display: block; width: 100%; text-align: left; }
-        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: #ffc107; }
+        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: var(--pos-accent-color) !important; }
         .item-card:active { transform: scale(0.98); }
         .item-card:disabled, .item-card[disabled] { opacity: 0.4 !important; filter: grayscale(100%) !important; background-color: #e9ecef !important; cursor: not-allowed !important; pointer-events: none !important; box-shadow: none !important; border-color: #ddd !important; }
         .stock-badge { position: absolute; top: 8px; right: 8px; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; z-index: 2; }
@@ -30,8 +41,9 @@
         .bg-ok { background-color: #198754; color: white; }
         .bg-recipe { background-color: #0dcaf0; color: #000; }
         
+        /* CART PANEL */
         .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1000; height: 100%; }
-        .cart-header { padding: 15px; background: #3e2723; color: white; flex: 0 0 auto; }
+        .cart-header { padding: 15px; background-color: var(--pos-cart-color) !important; color: white; flex: 0 0 auto; }
         .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #f8f9fa; min-height: 0; }
         .cart-footer { padding: 20px; background: #fff; border-top: 2px solid #eee; flex: 0 0 auto; }
         .cart-item { background: white; border-radius: 6px; padding: 10px; margin-bottom: 10px; border: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; }
@@ -42,6 +54,7 @@
         .btn-charge:hover { background-color: #e66b0d !important; }
         .btn-charge:disabled { background-color: #ccc !important; border-color: #ccc !important; box-shadow: none; cursor: not-allowed; }
         
+        /* TABLES */
         .table-box { border-radius: 12px; height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden; }
         .table-box:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
         .table-available { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
@@ -49,9 +62,10 @@
         .table-capacity { position: absolute; top: 5px; right: 8px; font-size: 0.7rem; font-weight: bold; opacity: 0.7; }
         .tab-radio-label { cursor: pointer; transition: 0.2s; }
         .tab-radio-label:hover { background-color: #f8f9fa; }
-        .tab-radio-label.active { background-color: #ffc107 !important; color: #000 !important; border-color: #ffc107; font-weight: bold; }
+        .tab-radio-label.active { background-color: var(--pos-accent-color) !important; color: #000 !important; border-color: var(--pos-accent-color) !important; font-weight: bold; }
+        
         @media (max-width: 991px) { .cart-panel { flex: 0 0 340px; width: 340px; } }
-        @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid #3e2723; flex: 0 0 auto; } .cart-panel.expanded { height: 85vh; max-height: 85vh; } }
+        @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid var(--pos-cart-color) !important; flex: 0 0 auto; } .cart-panel.expanded { height: 85vh; max-height: 85vh; } }
     </style>
 </head>
 <body>
@@ -106,7 +120,7 @@
                     <label class="form-check-label fw-bold text-danger small text-uppercase" for="refundToggle" style="cursor:pointer; letter-spacing: 0.5px;">Return Mode</label>
                 </div>
                 <div class="form-check form-switch fs-5 ms-3">
-                    <input class="form-check-input border-dark" type="checkbox" id="inStockToggle" onchange="filter()">
+                    <input class="form-check-input border-dark" type="checkbox" id="inStockToggle" onchange="applyFilters()">
                     <label class="form-check-label fw-bold text-dark small mt-1" for="inStockToggle">In-Stock Only</label>
                 </div>
             </div>
@@ -334,7 +348,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // SAFE JS PARSING
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
 
         let currentCat = 'all';
@@ -441,7 +454,7 @@
             document.getElementById('paginationBar').style.display = 'none'; 
         }
 
-        function printTabBill(saleId) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1"; safeModalShow('receiptModal'); }
+        function printTabBill(saleId) { document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); }
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
 
         function toggleRefundMode() {
@@ -481,7 +494,7 @@
         }
 
         function openSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('tabsModal', '', function() { initCheckout(true, total, customerName); }); }
-        function markCollected(itemId, saleId) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id; safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } }); } else { Swal.fire({ icon: 'error', title: 'Action Blocked', text: data.msg }); } }); }
+        function markCollected(itemId, saleId) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id + "&_t=" + new Date().getTime(); safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } }); } else { Swal.fire({ icon: 'error', title: 'Action Blocked', text: data.msg }); } }); }
         function toggleDiscount() { let chk = document.getElementById('discountToggle'); if(chk && chk.checked) { currentTotal = baseTotal * 0.90; document.getElementById('discountLabel').style.display = 'block'; } else { currentTotal = baseTotal; document.getElementById('discountLabel').style.display = 'none'; } updateDisplays(); }
         function updateDisplays() { document.getElementById('displayTotalDue').innerText = currentTotal.toFixed(2); document.getElementById('tenderedInput').value = currentTotal.toFixed(2); calcResult(); }
         function toggleMode() { let isSplit = document.getElementById('modeSplit').checked; document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { document.getElementById('splitInput1').value = ""; document.getElementById('splitInput2').value = ""; document.getElementById('tenderedInput').value = "0.00"; } else { document.getElementById('tenderedInput').value = currentTotal.toFixed(2); } calcResult(); }
@@ -537,8 +550,8 @@
         document.addEventListener('DOMContentLoaded', function() { 
             if (localStorage.getItem('posInStockToggle') === 'true') { let toggle = document.getElementById('inStockToggle'); if(toggle) toggle.checked = true; } 
             initPagination(); 
-            <?php if(isset($_SESSION['last_sale_id'])): ?> document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_sale_id'] ?>"; safeModalShow('receiptModal'); <?php unset($_SESSION['last_sale_id']); endif; ?> 
-            <?php if(isset($_SESSION['last_bill_id'])): ?> document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=<?= $_SESSION['last_bill_id'] ?>&is_bill=1"; safeModalShow('receiptModal'); <?php unset($_SESSION['last_bill_id']); endif; ?>
+            <?php if(isset($_SESSION["last_sale_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_sale_id"] ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_sale_id"]); endif; ?> 
+            <?php if(isset($_SESSION["last_bill_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_bill_id"] ?>&is_bill=1&items=<?= $_SESSION["last_added_item_ids"] ?? "" ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_bill_id"], $_SESSION["last_added_item_ids"]); endif; ?>
             let pickupMod = document.getElementById('pickupModal'); if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Syncing Tabs...', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); } 
         });
         function showShiftReport(shiftId) { document.getElementById('reportTitle').innerText = "X-Read (Open Shift)"; document.getElementById('reportFrame').src = "index.php?page=print_shift&shift_id=" + shiftId; safeModalShow('reportModal'); }

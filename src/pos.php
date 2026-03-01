@@ -311,14 +311,16 @@ if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
             $stmt = $pdo->prepare("INSERT INTO sales (location_id, table_id, user_id, shift_id, subtotal, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, ?, 0, 0, 'Pending', 'pending', ?)"); $stmt->execute([$locationId, $tableId, $userId, $activeShiftId, $name]); $targetId = $pdo->lastInsertId();
         } else { if ($tableId) { $pdo->prepare("UPDATE sales SET table_id = ? WHERE id = ?")->execute([$tableId, $targetId]); } }
         
+        $new_item_ids = [];
         foreach($_SESSION['cart'] as $item) {
             $fulfillment = $item['fulfillment'] ?? 'collected'; $itemStatus = ($fulfillment === 'uncollected') ? 'pending' : 'ready';
             $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, fulfillment_status, status) VALUES (?, ?, ?, ?, ?, ?)")->execute([$targetId, $item['product_id'], $item['qty'], $item['price'], $fulfillment, $itemStatus]);
+            $new_item_ids[] = $pdo->lastInsertId();
             $isRefund = $item['is_refund'] ?? false; $dbQty = $isRefund ? -$item['qty'] : $item['qty']; 
             deductStock($pdo, $item['product_id'], $dbQty, $locationId, $userId, $isRefund ? 'refund' : 'sale');
         }
         $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$targetId, $targetId, $targetId]);
-        $pdo->commit(); $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Added to tab/table."; $_SESSION['last_bill_id'] = $targetId;
+        $pdo->commit(); $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Added to tab/table."; $_SESSION['last_bill_id'] = $targetId; $_SESSION['last_added_item_ids'] = implode(',', $new_item_ids);
     } catch(Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
     header("Location: index.php?page=pos"); exit;
 }
@@ -338,6 +340,11 @@ if (isset($_POST['log_expense']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
+
+// --- FETCH THEME SETTINGS ---
+$settingsStmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
+$sysSettings = [];
+while ($sRow = $settingsStmt->fetch(PDO::FETCH_ASSOC)) { $sysSettings[$sRow['setting_key']] = $sRow['setting_value']; }
 // --- 🖥️ UI DATA FETCHING ---
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 $stmt = $pdo->prepare("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty, (SELECT COUNT(*) FROM product_recipes WHERE parent_product_id = p.id) as is_recipe FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = ? WHERE p.type = 'item' AND p.is_active = 1"); $stmt->execute([$locationId]); $products = $stmt->fetchAll(PDO::FETCH_ASSOC);

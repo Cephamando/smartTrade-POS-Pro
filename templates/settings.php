@@ -1,50 +1,52 @@
-<div class="container mt-4">
-    <h3><i class="bi bi-gear-fill text-danger me-2"></i> Developer System Settings</h3>
-    <hr>
-    <div class="card shadow-sm border-danger border-top border-4 mb-5">
-        <div class="card-body p-4">
-            <form method="POST">
-                <input type="hidden" name="save_settings" value="1">
-                
-                <h5 class="fw-bold mb-3 text-secondary">White Labeling</h5>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Business Name (Appears on Receipts & Navbar)</label>
-                    <input type="text" name="business_name" class="form-control form-control-lg fw-bold text-primary" value="<?= htmlspecialchars($sysSettings['business_name'] ?? 'OdeliaPOS') ?>">
-                </div>
-                
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Receipt Header (TPIN, Address, etc.)</label>
-                        <textarea name="receipt_header" class="form-control" rows="3"><?= htmlspecialchars($sysSettings['receipt_header'] ?? '') ?></textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Receipt Footer (Return policy, Wifi, etc.)</label>
-                        <textarea name="receipt_footer" class="form-control" rows="3"><?= htmlspecialchars($sysSettings['receipt_footer'] ?? 'Thank you!') ?></textarea>
-                    </div>
-                </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>⚙️ System Settings</h3>
+</div>
 
-                <hr class="my-4">
-                <h5 class="fw-bold mb-3 text-danger"><i class="bi bi-shield-lock-fill"></i> Licensing & Kill Switch</h5>
-                
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">License Tier Configuration</label>
-                        <select name="license_tier" class="form-select form-select-lg fw-bold">
-                            <option value="lite" <?= ($sysSettings['license_tier'] ?? '') === 'lite' ? 'selected' : '' ?>>Lite (Standard Retail)</option>
-                            <option value="pro" <?= ($sysSettings['license_tier'] ?? '') === 'pro' ? 'selected' : '' ?>>Pro (Advanced Retail)</option>
-                            <option value="hospitality" <?= ($sysSettings['license_tier'] ?? '') === 'hospitality' ? 'selected' : '' ?>>Hospitality (Kitchen & KDS)</option>
-                        </select>
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm border-0 border-top border-4 border-dark">
+            <div class="card-body p-4">
+                <form method="POST" action="index.php?page=settings">
+                    
+                    <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2">Business & Receipts</h5>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">BUSINESS NAME</label>
+                        <input type="text" name="business_name" class="form-control" value="<?= htmlspecialchars($settings['business_name'] ?? '') ?>" placeholder="e.g. Odelia POS">
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold text-danger">Software Lockout Date (Kill Switch)</label>
-                        <input type="datetime-local" name="lockout_date" class="form-control form-control-lg fw-bold border-danger text-danger" value="<?= htmlspecialchars($sysSettings['lockout_date'] ?? '') ?>">
-                        <small class="text-muted fw-bold">If past this date, the system locks into Read-Only Mode for clients.</small>
-                    </div>
-                </div>
 
-                <button type="submit" class="btn btn-danger w-100 fw-bold mt-4 py-3 shadow-sm fs-5"><i class="bi bi-cpu-fill"></i> SAVE SYSTEM CONFIGURATION</button>
-            </form>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">RECEIPT HEADER (Optional)</label>
+                        <textarea name="receipt_header" class="form-control" rows="3" placeholder="Tax Number, Slogan, etc."><?= htmlspecialchars($settings['receipt_header'] ?? '') ?></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted">RECEIPT FOOTER</label>
+                        <textarea name="receipt_footer" class="form-control" rows="2" placeholder="Thank you for your business!"><?= htmlspecialchars($settings['receipt_footer'] ?? '') ?></textarea>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2 mt-4">🎨 Color Theme Editor</h5>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Main Header Color</label>
+                            <input type="color" name="theme_color" class="form-control form-control-color w-100" value="<?= htmlspecialchars($settings['theme_color'] ?? '#2c2c2c') ?>" title="Choose Header Color">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Accent Color (Borders/Icons)</label>
+                            <input type="color" name="theme_accent" class="form-control form-control-color w-100" value="<?= htmlspecialchars($settings['theme_accent'] ?? '#ffc107') ?>" title="Choose Accent Color">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">Cart Header Color</label>
+                            <input type="color" name="theme_cart" class="form-control form-control-color w-100" value="<?= htmlspecialchars($settings['theme_cart'] ?? '#3e2723') ?>" title="Choose Cart Color">
+                        </div>
+                    </div>
+
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-dark fw-bold px-5 py-2 shadow-sm"><i class="bi bi-save"></i> Save Settings</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
-<?php include 'footer.php'; ?>
