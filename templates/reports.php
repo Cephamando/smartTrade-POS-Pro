@@ -9,22 +9,95 @@
     
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11">
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
+</script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr">
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
+</script>
     
     <style>
         body { background-color: #f8f9fa; }
         .metric-card { border: none; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
         .metric-card:hover { transform: translateY(-3px); }
         .table-responsive { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 15px; }
-        @media print {
-            .no-print { display: none !important; }
-            .card, .table-responsive { box-shadow: none !important; border: 1px solid #ddd !important; }
-        }
+            @media print {
+        @page { margin: 10mm; size: portrait; }
+        body { background-color: #fff !important; font-family: 'Courier New', Courier, monospace !important; color: #000 !important; }
+        
+        /* Hide all UI elements, navigation, and DataTables controls */
+        .no-print, .nav-tabs, form, .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate { display: none !important; }
+        
+        /* Reveal the dedicated print header */
+        #print-only-header { display: block !important; text-align: center; border-bottom: 2px dashed #000; padding-bottom: 15px; margin-bottom: 25px; }
+        
+        /* Reformat the 4 Metric Cards into a formal grid */
+        .row.g-3.mb-4 { display: flex !important; flex-wrap: nowrap !important; margin-bottom: 25px !important; }
+        .col-md-3 { flex: 0 0 25% !important; max-width: 25% !important; padding: 0 5px !important; }
+        .metric-card { border: 2px solid #000 !important; background: #fff !important; color: #000 !important; text-align: center !important; padding: 15px 5px !important; box-shadow: none !important; border-radius: 0 !important; }
+        .metric-card * { color: #000 !important; }
+        .metric-card .display-6 { font-size: 16pt !important; font-weight: 900 !important; margin-top: 5px; }
+        .metric-card .small { font-size: 10pt !important; font-weight: bold !important; text-transform: uppercase; }
+        
+        /* Reformat the Table for paper */
+        .table-responsive { padding: 0 !important; background: transparent !important; box-shadow: none !important; }
+        table.table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; }
+        table.table th, table.table td { border: 1px solid #000 !important; padding: 8px !important; color: #000 !important; font-size: 10pt !important; }
+        table.table thead th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: #000 !important; font-weight: bold !important; border-bottom: 2px solid #000 !important; }
+        
+        /* Format status badges into clean text tags */
+        .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; padding: 2px 6px !important; font-size: 9pt !important; text-transform: uppercase; font-weight: bold !important; }
+        
+        /* Strip interactive styling from links */
+        a, button.btn-link { text-decoration: none !important; color: #000 !important; }
+    }
+    #print-only-header { display: none; }
     </style>
 </head>
 <body class="p-3">
+<div id="print-only-header">
+    <h2 style="margin: 0; font-weight: 900; text-transform: uppercase; font-size: 24pt;">Master Report</h2>
+    <h4 style="margin: 5px 0; font-size: 14pt;">Category: <?= strtoupper($reportType) ?></h4>
+    <p style="margin: 0; font-size: 12pt;"><strong>Period:</strong> <?= date('d M Y', strtotime($startDate)) ?> to <?= date('d M Y', strtotime($endDate)) ?></p>
+    <p style="margin: 0; font-size: 10pt;">Generated: <?= date('d M Y, H:i') ?></p>
+</div>
 
 <div class="d-flex justify-content-between align-items-center mb-4 no-print">
     <div>
@@ -33,7 +106,7 @@
     </div>
     <div class="d-flex gap-2">
         <a href="index.php?page=dashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Dashboard</a>
-        <button onclick="window.print()" class="btn btn-dark"><i class="bi bi-printer"></i> Print Report</button>
+        <button onclick="printMasterReport()" class="btn btn-dark"><i class="bi bi-printer"></i> Print Report</button>
     </div>
 </div>
 
@@ -90,11 +163,13 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card metric-card bg-secondary text-white h-100">
+        <div class="card metric-card bg-dark text-white h-100">
             <div class="card-body">
-                <div class="small text-uppercase opacity-75 fw-bold">Avg. Ticket</div>
-                <div class="display-6 fw-bold">ZMW <?= number_format($metrics['avg_ticket'] ?? 0, 2) ?></div>
+                <div class="small text-uppercase opacity-75 fw-bold">Voided Items (<?= $voidStats['void_count'] ?? 0 ?>)</div>
+                <div class="display-6 fw-bold">ZMW <?= number_format($voidStats['total_voided'] ?? 0, 2) ?></div>
             </div>
+        </div>
+    </div>
         </div>
     </div>
 </div>
@@ -140,8 +215,9 @@
                 <td><?= htmlspecialchars($row['location']) ?></td>
                 <td><span class="badge bg-secondary"><?= $row['payment_method'] ?></span></td>
                 <td>
-                    <?php if(strtolower($row['payment_status'])=='paid'): ?><span class="badge bg-success">PAID</span>
-                    <?php elseif(strtolower($row['payment_status'])=='refunded'): ?><span class="badge bg-danger">REFUNDED</span>
+                    <?php if($row['final_total'] < 0 || strtolower($row['payment_status'])=='refunded'): ?><span class="badge bg-danger">REFUNDED</span>
+                    <?php elseif($row['final_total'] == 0 || strtolower($row['payment_status'])=='voided'): ?><span class="badge bg-dark">VOIDED</span>
+                    <?php elseif(strtolower($row['payment_status'])=='paid'): ?><span class="badge bg-success">PAID</span>
                     <?php else: ?><span class="badge bg-warning text-dark">PENDING</span><?php endif; ?>
                 </td>
                 <td class="text-end text-muted"><?= $row['tip_amount'] > 0 ? number_format($row['tip_amount'], 2) : '-' ?></td>
@@ -189,10 +265,10 @@
                 <td class="text-center fw-bold"><?= $row['quantity'] ?></td>
                 <td class="text-end fw-bold <?= $row['line_total'] < 0 ? 'text-danger' : 'text-success' ?>">ZMW <?= number_format($row['line_total'], 2) ?></td>
                 <td>
-                    <?php if($row['item_status'] == 'voided'): ?> <span class="badge bg-dark">VOID</span>
-                    <?php elseif($row['item_status'] == 'refunded'): ?> <span class="badge bg-warning text-dark">REFUNDED</span>
+                    <?php if($row['item_status'] == 'voided' || (isset($row['line_total']) && $row['line_total'] == 0)): ?> <span class="badge bg-dark">VOID</span>
+                    <?php elseif($row['item_status'] == 'refunded' || (isset($row['line_total']) && $row['line_total'] < 0)): ?> <span class="badge bg-danger">REFUNDED</span>
                     <?php elseif(strtolower($row['payment_status']) == 'paid'): ?> <span class="badge bg-success">PAID</span>
-                    <?php else: ?> <span class="badge bg-danger">PENDING</span>
+                    <?php else: ?> <span class="badge bg-warning text-dark">PENDING</span>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -270,10 +346,90 @@
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.0.min.js">
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
+</script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js">
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
+</script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js">
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
+</script>
 
 <script>
     flatpickr(".datepicker", { dateFormat: "Y-m-d", allowInput: true });
@@ -348,6 +504,26 @@
     });
     <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
     <?php endif; ?>
+
+// --- SMART PRINT FUNCTION ---
+function printMasterReport() {
+    if ($.fn.DataTable.isDataTable('#reportsTable')) {
+        let table = $('#reportsTable').DataTable();
+        let currentLen = table.page.len();
+        
+        // Expand the table to show ALL rows before printing
+        table.page.len(-1).draw(); 
+        
+        // Wait a split second for the browser to render the long table, then print
+        setTimeout(() => {
+            window.print();
+            // Restore the pagination back to normal after printing is done
+            table.page.len(currentLen).draw(); 
+        }, 500);
+    } else {
+        window.print();
+    }
+}
 </script>
 </body>
 </html>

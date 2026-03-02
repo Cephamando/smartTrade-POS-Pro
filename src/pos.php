@@ -84,9 +84,9 @@ if (isset($_POST['void_item'])) {
         $stmt->execute([$itemId]);
         $item = $stmt->fetch();
         if ($item && $item['payment_status'] === 'pending' && !in_array($item['status'], ['voided', 'refunded'])) {
-            $pdo->prepare("UPDATE sale_items SET status = 'voided' WHERE id = ?")->execute([$itemId]);
+            $pdo->prepare("UPDATE sale_items SET status = 'voided', fulfillment_status = 'voided' WHERE id = ?")->execute([$itemId]);
             $saleId = $item['sale_id'];
-            $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$saleId, $saleId, $saleId]);
+            $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$saleId, $saleId, $saleId]); $pdo->prepare("UPDATE sales SET payment_status = 'voided' WHERE id = ? AND final_total <= 0")->execute([$saleId]);
             deductStock($pdo, $item['product_id'], -$item['quantity'], $locationId, $userId, 'void_return');
             $pdo->commit(); echo json_encode(['status' => 'success']);
         } else { throw new Exception("Cannot void this item. Table might already be paid."); }
@@ -253,7 +253,7 @@ if (isset($_POST['checkout']) && $activeShiftId) {
                     $stmt->execute([$item['refund_sale_item_id']]);
                     $origSaleId = $stmt->fetchColumn();
                     if ($origSaleId) {
-                        $pdo->prepare("UPDATE sale_items SET status = 'refunded' WHERE id = ?")->execute([$item['refund_sale_item_id']]);
+                        $pdo->prepare("UPDATE sale_items SET status = 'refunded', fulfillment_status = 'refunded' WHERE id = ?")->execute([$item['refund_sale_item_id']]);
                         $stmt2 = $pdo->prepare("SELECT payment_status FROM sales WHERE id = ?");
                         $stmt2->execute([$origSaleId]);
                         if ($stmt2->fetchColumn() === 'pending') {

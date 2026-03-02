@@ -75,10 +75,16 @@ $stmt->execute($params);
 $metrics = $stmt->fetch(); 
 
 $refundParams = $params; 
-$refundSql = "SELECT SUM(final_total) as total_refunded, COUNT(*) as refund_count FROM sales s WHERE created_at BETWEEN ? AND ?" . $locSql . " AND payment_status = 'refunded'"; 
+$refundSql = "SELECT SUM(ABS(final_total)) as total_refunded, COUNT(*) as refund_count FROM sales s WHERE created_at BETWEEN ? AND ?" . $locSql . " AND final_total < 0"; 
 $stmt = $pdo->prepare($refundSql); 
 $stmt->execute($refundParams); 
-$refundStats = $stmt->fetch(); 
+$refundStats = $stmt->fetch();
+
+$voidParams = $params;
+$voidSql = "SELECT SUM(si.price * si.quantity) as total_voided, COUNT(si.id) as void_count FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.created_at BETWEEN ? AND ?" . $locSql . " AND si.status = 'voided'";
+$stmt = $pdo->prepare($voidSql);
+$stmt->execute($voidParams);
+$voidStats = $stmt->fetch(); 
 
 // --- 3. DATA FETCHING --- 
 $reportData = []; 
