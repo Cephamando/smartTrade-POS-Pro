@@ -2,8 +2,26 @@
     @media print {
         body * { visibility: hidden; }
         #printableZRead, #printableZRead * { visibility: visible; }
-        #printableZRead { position: absolute; left: 0; top: 0; width: 100%; }
+        #printableZRead { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
         .no-print { display: none !important; }
+        
+        /* THERMAL PRINTER OVERRIDES */
+        body, table, th, td, p, span, div, li, h1, h2, h3, h4, h5, h6, h1.fw-bold, h2.fw-bold, h3.fw-bold, h4.fw-bold, h5.fw-bold, td.fw-bold, span.fw-bold { 
+            font-family: "Courier New", Courier, monospace !important; 
+            font-weight: 900 !important; 
+            color: #000 !important; 
+            background-color: transparent !important;
+        }
+        
+        /* Remove shadows and borders that look bad on thermal paper */
+        .shadow, .shadow-sm { box-shadow: none !important; }
+        .rounded { border-radius: 0 !important; }
+        
+        /* Thicken grid lines for visibility */
+        .border, .border-bottom, .border-top { border-color: #000 !important; border-width: 2px !important; }
+        table.table-bordered th, table.table-bordered td { border: 2px solid #000 !important; }
+        .table-dark { background-color: transparent !important; color: #000 !important; border-bottom: 2px dashed #000 !important; }
+        .table-dark th { color: #000 !important; }
     }
 </style>
 

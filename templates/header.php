@@ -83,7 +83,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
 
                 <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
                 <li class="nav-item ms-3">
-                    <a class="nav-link text-warning fw-bold" href="index.php?page=pickup"><i class="bi bi-fire"></i> Kitchen Display</a>
+                    <a class="nav-link text-warning fw-bold" href="index.php?page=kds"><i class="bi bi-fire"></i> Kitchen Display</a>
                 </li>
                 <?php endif; ?>
                 <li class="nav-item ms-2">
