@@ -37,6 +37,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3>📦 Product Catalog</h3>
         <div class="no-print">
+            <button class="btn btn-warning fw-bold me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#importModal"><i class="bi bi-upload"></i> Import CSV</button>
             <button onclick="exportToExcel()" class="btn btn-success fw-bold me-2 shadow-sm">
                 <i class="bi bi-file-earmark-excel"></i> Export Excel
             </button>
@@ -98,12 +99,6 @@
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
-                        <?php else: ?>
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
-                                    No products found. Add your first product.
-                                </td>
-                            </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -191,6 +186,41 @@
     </div>
 </div>
 
+<div class="modal fade no-print" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-warning border-top border-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold"><i class="bi bi-cloud-upload"></i> Import Products (CSV)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=products" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="import_csv" value="1">
+                    
+                    <div class="alert alert-info small">
+                        <strong>Expected CSV Columns (in exact order):</strong><br>
+                        1. Name<br>
+                        2. Category<br>
+                        3. SKU<br>
+                        4. Unit (e.g., unit, kg, bottle)<br>
+                        5. Cost Price<br>
+                        6. Selling Price<br><br>
+                        <em>Note: The system will automatically create missing categories and update existing products to avoid duplicates!</em>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">SELECT CSV FILE</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-warning w-100 fw-bold py-2 shadow-sm">Upload & Process Data</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
@@ -203,7 +233,8 @@
                 "lengthMenu": [[25, 50, 100, 250, 500, -1], [25, 50, 100, 250, 500, "All"]],
                 "language": {
                     "search": "",
-                    "searchPlaceholder": "Quick filter products..."
+                    "searchPlaceholder": "Quick filter products...",
+                    "emptyTable": "No products found. Add your first product or use the Import CSV button."
                 },
                 "stateSave": true 
             });

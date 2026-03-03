@@ -303,6 +303,41 @@
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= (defined('LICENSE_TIER') && LICENSE_TIER === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
         <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
+        <div id="splitSection" style="display:none;" class="p-3 bg-light rounded border border-secondary mb-3">
+            <label class="form-label small fw-bold text-dark mb-2"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT DETAILS</label>
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <select name="split_method_1" class="form-select fw-bold">
+                        <option value="Cash">Cash</option>
+                        <option value="Card" selected>Card</option>
+                        <option value="MTN Money">MTN Money</option>
+                        <option value="Airtel Money">Airtel Money</option>
+                    </select>
+                </div>
+                <div class="col-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">ZMW</span>
+                        <input type="number" step="0.01" name="split_amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()">
+                    </div>
+                </div>
+            </div>
+            <div class="row g-2">
+                <div class="col-6">
+                    <select name="split_method_2" class="form-select fw-bold">
+                        <option value="Cash" selected>Cash</option>
+                        <option value="Card">Card</option>
+                        <option value="MTN Money">MTN Money</option>
+                        <option value="Airtel Money">Airtel Money</option>
+                    </select>
+                </div>
+                <div class="col-6">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">ZMW</span>
+                        <input type="number" step="0.01" name="split_amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()">
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" oninput="calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm" id="btnCheckoutSubmit">COMPLETE TRANSACTION</button></div></form></div></div></div>
 
     <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This instantly deducts cash from Expected Drawer Total.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
@@ -564,5 +599,19 @@
         <?php if(isset($_SESSION['swal_msg'])): ?> Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
         <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
+
+<script>
+    // Intercept Bootstrap's attempt to steal focus away from SweetAlert
+    document.addEventListener('focusin', function(e) {
+        if (typeof Swal !== 'undefined' && Swal.isVisible()) {
+            let swalContainer = document.querySelector('.swal2-container');
+            if (swalContainer && !swalContainer.contains(e.target)) {
+                e.stopImmediatePropagation(); // Block Bootstrap!
+                let firstInput = swalContainer.querySelector('input');
+                if(firstInput) firstInput.focus(); // Drop cursor in SweetAlert
+            }
+        }
+    }, true);
+</script>
 </body>
 </html>

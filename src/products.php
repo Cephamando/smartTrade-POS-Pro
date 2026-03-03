@@ -65,6 +65,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['swal_msg'] = "Product '$name' saved successfully.";
         }
 
+        // 3. IMPORT CSV
+        if (isset($_POST['import_csv']) && isset($_FILES['csv_file'])) {
+            if ($_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {
+                $tmpName = $_FILES['csv_file']['tmp_name'];
+                if (($handle = fopen($tmpName, "r")) !== FALSE) {
+                    
+                    // Skip the header row
+                    $headers = fgetcsv($handle, 1000, ",");
+                    
+                    $added = 0;
+                    $updated = 0;
+                    
+                    $pdo->beginTransaction();
+                    try {
+                        while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                            
+                            // Map columns based on our expected format
+                            $name = trim($data[0] ?? '');
+                            if (empty($name)) continue; // Skip blank rows
+                            
+                            $categoryName = trim($data[1] ?? '');
+                            $skuRaw = trim($data[2] ?? '');
+                            $sku = $skuRaw === '' ? null : $skuRaw;
+                            $unit = trim($data[3] ?? 'unit');
+                            $costPrice = (float)($data[4] ?? 0);
+                            $price = (float)($data[5] ?? 0);
+                            
+                            // 1. Resolve Category ID (Auto-create if missing)
+                            $catId = null;
+                            if (!empty($categoryName)) {
+                                $catStmt = $pdo->prepare("SELECT id FROM categories WHERE name = ?");
+                                $catStmt->execute([$categoryName]);
+                                if ($catStmt->rowCount() > 0) {
+                                    $catId = $catStmt->fetchColumn();
+                                } else {
+                                    $pdo->prepare("INSERT INTO categories (name) VALUES (?)")->execute([$categoryName]);
+                                    $catId = $pdo->lastInsertId();
+                                }
+                            }
+                            
+                            // 2. Check for existing product (By SKU first, then Name)
+                            $prodId = null;
+                            if ($sku) {
+                                $checkSku = $pdo->prepare("SELECT id FROM products WHERE sku = ?");
+                                $checkSku->execute([$sku]);
+                                $prodId = $checkSku->fetchColumn();
+                            }
+                            if (!$prodId) {
+                                $checkName = $pdo->prepare("SELECT id FROM products WHERE name = ?");
+                                $checkName->execute([$name]);
+                                $prodId = $checkName->fetchColumn();
+                            }
+                            
+                            // 3. Update or Insert
+                            if ($prodId) {
+                                // Exists: Update the details
+                                $updateSql = "UPDATE products SET category_id=?, cost_price=?, price=?, unit=?, sku=? WHERE id=?";
+                                $pdo->prepare($updateSql)->execute([$catId, $costPrice, $price, $unit, $sku, $prodId]);
+                                $updated++;
+                            } else {
+                                // New: Insert product
+                                $insertSql = "INSERT INTO products (name, category_id, cost_price, price, unit, sku) VALUES (?, ?, ?, ?, ?, ?)";
+                                $pdo->prepare($insertSql)->execute([$name, $catId, $costPrice, $price, $unit, $sku]);
+                                $newProdId = $pdo->lastInsertId();
+                                
+                                // Securely attach it to the current location's stock inventory
+                                $stockSql = "INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, 0)";
+                                $pdo->prepare($stockSql)->execute([$userLocId, $newProdId]);
+                                $added++;
+                            }
+                        }
+                        $pdo->commit();
+                        $_SESSION['swal_type'] = 'success';
+                        $_SESSION['swal_msg'] = "Import complete! Added: $added, Updated: $updated.";
+                    } catch (Exception $e) {
+                        $pdo->rollBack();
+                        throw new Exception("Import Failed: " . $e->getMessage());
+                    }
+                    fclose($handle);
+                } else {
+                    throw new Exception("Failed to read the uploaded CSV file.");
+                }
+            } else {
+                throw new Exception("Upload error. Please check your file and try again.");
+            }
+        }
+
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

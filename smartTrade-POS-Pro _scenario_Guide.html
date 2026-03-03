@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master QA Test Plan - OdeliaPOS</title>
+    <style>
+        /* Base Styling */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        
+        /* A4 Page Formatting for Screen Preview */
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            margin: 10mm auto;
+            border: 1px #D3D3D3 solid;
+            border-radius: 5px;
+            background: white;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+
+        h1, h2, h3 { color: #2c3e50; }
+        .cover-page { text-align: center; margin-top: 30%; }
+        .cover-page h1 { font-size: 36pt; margin-bottom: 10px; }
+        .cover-page h3 { font-size: 18pt; color: #7f8c8d; }
+        .cover-page .metadata { margin-top: 100px; font-size: 14pt; text-align: left; width: 60%; margin-left: auto; margin-right: auto; }
+        .metadata div { border-bottom: 1px solid #ccc; padding: 10px 0; margin-bottom: 10px;}
+
+        /* Table Styling */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; }
+        th, td { border: 1px solid #bdc3c7; padding: 8px 10px; text-align: left; vertical-align: top; }
+        th { background-color: #34495e; color: #fff; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        
+        .col-id { width: 5%; font-weight: bold; text-align: center; }
+        .col-action { width: 35%; }
+        .col-expected { width: 35%; }
+        .col-status { width: 10%; text-align: center; }
+        .col-notes { width: 15%; }
+
+        .checkbox { width: 15px; height: 15px; border: 1px solid #333; display: inline-block; margin-right: 5px; vertical-align: middle; }
+        .status-box { display: flex; align-items: center; justify-content: center; margin-bottom: 4px; font-size: 8pt; }
+
+        .module-header {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px 15px;
+            margin-top: 0;
+            border-radius: 4px 4px 0 0;
+            font-size: 14pt;
+        }
+
+        /* Print Specifics */
+        @media print {
+            body, .page { 
+                margin: 0; padding: 0; box-shadow: none; border: none; background: transparent; width: 100%; min-height: auto; 
+            }
+            .page { padding: 15mm; }
+            .page-break { page-break-after: always; }
+            th { background-color: #34495e !important; color: white !important; -webkit-print-color-adjust: exact; }
+            .module-header { background-color: #2c3e50 !important; color: white !important; -webkit-print-color-adjust: exact; }
+            tr:nth-child(even) { background-color: #f9f9f9 !important; -webkit-print-color-adjust: exact; }
+            
+            /* Prevent rows from breaking across pages */
+            tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page page-break">
+        <div class="cover-page">
+            <h1>OdeliaPOS</h1>
+            <h3>Comprehensive Quality Assurance (QA) Script</h3>
+            <p>Master Testing Scenario Guide v1.0</p>
+            
+            <div class="metadata">
+                <div><strong>Tested By (Name):</strong> </div>
+                <div><strong>Date of Test:</strong> </div>
+                <div><strong>System Environment:</strong> [ ] Localhost &nbsp;&nbsp; [ ] Staging &nbsp;&nbsp; [ ] Production</div>
+                <div><strong>Overall Status:</strong> [ ] PASS &nbsp;&nbsp; [ ] FAIL &nbsp;&nbsp; [ ] CONDITIONAL</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page page-break">
+        <h2 class="module-header">Module 1: Authentication, Users & Dashboard</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-id">ID</th><th class="col-action">Test Action / Scenario</th><th class="col-expected">Expected Result</th><th class="col-status">Status</th><th class="col-notes">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">1.1</td>
+                    <td class="col-action"><strong>Login Validation:</strong> Attempt to log in with an incorrect password, then a correct username/password combination.</td>
+                    <td class="col-expected">Invalid attempt shows error. Valid attempt redirects to Dashboard.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">1.2</td>
+                    <td class="col-action"><strong>Role Enforcement:</strong> Log in as a 'Cashier'. Attempt to access 'Settings' and 'Users' via URL manipulation (`index.php?page=settings`).</td>
+                    <td class="col-expected">Cashier should be denied access and redirected/shown permission error.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">1.3</td>
+                    <td class="col-action"><strong>User Management:</strong> As Admin, navigate to Users. Create a new user, assign a role, and change an existing user's password.</td>
+                    <td class="col-expected">User is created successfully. Password changes apply immediately allowing new login.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">1.4</td>
+                    <td class="col-action"><strong>Dashboard Metrics:</strong> Complete a test sale, then check the main Dashboard.</td>
+                    <td class="col-expected">"Today's Sales" and "Transactions" metrics update instantly to reflect the new sale.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="page page-break">
+        <h2 class="module-header">Module 2: Inventory, Categories & Products</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-id">ID</th><th class="col-action">Test Action / Scenario</th><th class="col-expected">Expected Result</th><th class="col-status">Status</th><th class="col-notes">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">2.1</td>
+                    <td class="col-action"><strong>Category Management:</strong> Create a Main Category (e.g., 'Beverages') and a Subcategory (e.g., 'Beers').</td>
+                    <td class="col-expected">Categories are linked. UI displays hierarchy correctly.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">2.2</td>
+                    <td class="col-action"><strong>Product Creation:</strong> Add a new standard product. Assign to subcategory, set price, cost, and SKU.</td>
+                    <td class="col-expected">Product saves successfully and appears in the Products grid.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">2.3</td>
+                    <td class="col-action"><strong>CSV Import:</strong> Import a CSV file containing new products and existing SKUs.</td>
+                    <td class="col-expected">New products are added. Existing SKUs are intelligently updated (no duplicates).</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">2.4</td>
+                    <td class="col-action"><strong>Receive Stock:</strong> Create a PO from a Vendor. Receive 50 units of a product.</td>
+                    <td class="col-expected">Inventory count increases by 50. Audit log records 'stock_in'.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">2.5</td>
+                    <td class="col-action"><strong>Stock Adjustments:</strong> Manually adjust stock for a product from 50 down to 48 (shrinkage).</td>
+                    <td class="col-expected">Stock updates to 48. Audit log records 'adjustment' with reason.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">2.6</td>
+                    <td class="col-action"><strong>Stock Transfers:</strong> Transfer 10 units from 'Main Store' to 'Bar'.</td>
+                    <td class="col-expected">Main Store drops by 10; Bar increases by 10. Transfer logs match.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="page page-break">
+        <h2 class="module-header">Module 3: Point of Sale (POS) Operations</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-id">ID</th><th class="col-action">Test Action / Scenario</th><th class="col-expected">Expected Result</th><th class="col-status">Status</th><th class="col-notes">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">3.1</td>
+                    <td class="col-action"><strong>Walk-in Checkout:</strong> Add 3 items to cart. Click Charge, select 'Cash', tender exact amount.</td>
+                    <td class="col-expected">Sale completes. Official Receipt prints automatically. Stock decreases.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">3.2</td>
+                    <td class="col-action"><strong>Add to Tab (Incremental Print):</strong> Open a Tab for "Table 1". Add 2 drinks. Click 'Add to Tab'.</td>
+                    <td class="col-expected">Modal closes. Thermal printer prints ONLY the <strong>BARMAN SLIP</strong> (no prices).</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">3.3</td>
+                    <td class="col-action"><strong>Print Proforma:</strong> Go to Tabs menu. Find "Table 1" and click 'Print Bill'.</td>
+                    <td class="col-expected">Prints <strong>CLIENT PROFORMA</strong> showing detailed breakdown and totals.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">3.4</td>
+                    <td class="col-action"><strong>Settle Tab:</strong> Open "Table 1" tab. Click Settle, tender payment (Card/Mobile).</td>
+                    <td class="col-expected">Tab closes. Prints <strong>OFFICIAL RECEIPT</strong>. Tab is removed from active list.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">3.5</td>
+                    <td class="col-action"><strong>Item Voiding (Manager Override):</strong> Add an item to a tab. Attempt to Void it. Enter Admin credentials in the SweetAlert popup.</td>
+                    <td class="col-expected">Input fields are accessible (Focus Trap bypassed). Item voids successfully.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">3.6</td>
+                    <td class="col-action"><strong>Zero-Total Void Logic:</strong> Open a tab with 1 item. Void that single item so the total drops to ZMW 0.00.</td>
+                    <td class="col-expected">Tab automatically closes and is marked as VOIDED in the backend.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">3.7</td>
+                    <td class="col-action"><strong>POS UI Logic:</strong> Toggle the "In-Stock Only" switch while inside a specific subcategory.</td>
+                    <td class="col-expected">Filter applies to the *current* subcategory, it does NOT reset to the main grid.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="page page-break">
+        <h2 class="module-header">Module 4: Kitchen (KDS) & Order Fulfillment</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-id">ID</th><th class="col-action">Test Action / Scenario</th><th class="col-expected">Expected Result</th><th class="col-status">Status</th><th class="col-notes">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">4.1</td>
+                    <td class="col-action"><strong>KDS Routing:</strong> Process an order containing a product assigned to the 'Kitchen' category.</td>
+                    <td class="col-expected">Order immediately appears on the Kitchen Display (KDS) screen.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">4.2</td>
+                    <td class="col-action"><strong>Mark Ready:</strong> On the KDS screen, click 'Mark Ready' for the order.</td>
+                    <td class="col-expected">Order moves off KDS and alerts the Pickup/Collection screen.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">4.3</td>
+                    <td class="col-action"><strong>Order Pickup:</strong> On the Pickup screen, mark the order as 'Collected'.</td>
+                    <td class="col-expected">Order clears from the screen. Status updates to completed.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="page">
+        <h2 class="module-header">Module 5: Shifts, Reports & Refunds</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-id">ID</th><th class="col-action">Test Action / Scenario</th><th class="col-expected">Expected Result</th><th class="col-status">Status</th><th class="col-notes">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="col-id">5.1</td>
+                    <td class="col-action"><strong>Refund Process:</strong> Go to Reports -> Sales Ledger. Find a Paid sale and click the Refund icon.</td>
+                    <td class="col-expected">Refund processes. Stock is restored. A negative balancing transaction is created.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">5.2</td>
+                    <td class="col-action"><strong>Report Badges:</strong> Check the Sales Ledger & Itemized Sales for the Voided and Refunded transactions.</td>
+                    <td class="col-expected">Displays Red 'REFUNDED' or Dark 'VOIDED' badges based on transaction math.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">5.3</td>
+                    <td class="col-action"><strong>Report Metrics:</strong> Review the Master Reports Dashboard cards.</td>
+                    <td class="col-expected">Refunded Cash and Voided Items cards calculate values accurately.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">5.4</td>
+                    <td class="col-action"><strong>Formal Report Printing:</strong> Click 'Print Report' on the Master Reports page.</td>
+                    <td class="col-expected">UI strips away. Formats as a pure financial document. All DataTables rows expand to print.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">5.5</td>
+                    <td class="col-action"><strong>X-Read (Mid-Shift):</strong> Go to POS, click X-Read. Check the print preview.</td>
+                    <td class="col-expected">Populates current shift totals. Renders in Extra-Bold CSS for thermal printers.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+                <tr>
+                    <td class="col-id">5.6</td>
+                    <td class="col-action"><strong>Close Shift / Z-Read:</strong> Go to Shift Management, Close Shift, print the Z-Read.</td>
+                    <td class="col-expected">Shift closes out. Z-Read prints in high-contrast thermal styling.</td>
+                    <td class="col-status"><div class="status-box"><div class="checkbox"></div> P</div><div class="status-box"><div class="checkbox"></div> F</div></td>
+                    <td class="col-notes"></td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 20px;">
+            <h4>Sign-Off</h4>
+            <p>I confirm that the above scenarios have been executed and the system performs according to the expected outcomes.</p>
+            <br><br>
+            <p><strong>Signature:</strong> ___________________________ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>Date:</strong> ___________________</p>
+        </div>
+    </div>
+
+</body>
+</html>
