@@ -36,7 +36,7 @@
         .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: var(--pos-accent-color) !important; }
         .item-card:active { transform: scale(0.98); }
         .item-card:disabled, .item-card[disabled] { opacity: 0.4 !important; filter: grayscale(100%) !important; background-color: #e9ecef !important; cursor: not-allowed !important; pointer-events: none !important; box-shadow: none !important; border-color: #ddd !important; }
-        .stock-badge { position: absolute; top: 8px; right: 8px; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; z-index: 2; }
+        .stock-badge { display: inline-block; font-size: 0.7rem; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
         .bg-low { background-color: #dc3545; color: white; }
         .bg-ok { background-color: #198754; color: white; }
         .bg-recipe { background-color: #0dcaf0; color: #000; }
@@ -185,10 +185,12 @@
                         <div class="col-6 col-md-4 col-lg-3 col-xl-2 item" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= $isOut ? '1' : '0' ?>">
                             <form method="POST" class="h-100 add-item-form">
                                 <input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="<?= $p['id'] ?>"><input type="hidden" name="is_refund" class="refund-input" value="0">
-                                <button type="submit" class="item-card position-relative p-2" <?= $isOut ? 'disabled="disabled"' : '' ?>>
-                                    <?php if($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?></span><?php endif; ?>
-                                    <div style="height: 50px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm"><?= htmlspecialchars($p['name']) ?></div>
-                                    <div class="text-primary fw-bold">ZMW <?= number_format($p['price'], 2) ?></div>
+                                <button type="submit" class="item-card d-flex flex-column text-start p-2" <?= $isOut ? 'disabled="disabled"' : '' ?>>
+                                    <div style="height: 38px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm w-100"><?= htmlspecialchars($p['name']) ?></div>
+                                    <div class="mb-1 w-100">
+                                        <?php if($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?> in stock</span><?php endif; ?>
+                                    </div>
+                                    <div class="text-primary fw-bold w-100 mt-auto fs-6">ZMW <?= number_format($p['price'], 2) ?></div>
                                 </button>
                             </form>
                         </div>

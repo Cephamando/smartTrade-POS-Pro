@@ -13,8 +13,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'receipt_footer' => $_POST['receipt_footer'] ?? '',
         'theme_color' => $_POST['theme_color'] ?? '#2c2c2c',
         'theme_accent' => $_POST['theme_accent'] ?? '#ffc107',
-        'theme_cart' => $_POST['theme_cart'] ?? '#3e2723'
+                'theme_cart' => $_POST['theme_cart'] ?? '#3e2723'
     ];
+
+    // SECURE DEV OVERRIDE: Only devs can save license/lockout changes
+    if ($_SESSION['role'] === 'dev') {
+        if (isset($_POST['license_tier'])) $settingsToSave['license_tier'] = $_POST['license_tier'];
+        if (isset($_POST['lockout_date'])) $settingsToSave['lockout_date'] = $_POST['lockout_date'];
+    }
 
     try {
         $pdo->beginTransaction();

@@ -42,7 +42,34 @@
                         </div>
                     </div>
 
-                    <div class="text-end">
+                                        <?php if($_SESSION['role'] === 'dev'): ?>
+                    <div class="mt-5 p-4 border border-danger rounded bg-white shadow-sm position-relative">
+                        <span class="badge bg-danger position-absolute top-0 start-50 translate-middle px-3 py-2 fs-6 shadow-sm"><i class="bi bi-shield-lock-fill"></i> DEVELOPER CONTROLS</span>
+                        <h5 class="fw-bold text-danger mb-3 border-bottom border-danger pb-2"><i class="bi bi-key-fill"></i> License & Trial Management</h5>
+                        
+                        <div class="alert alert-danger small fw-bold mb-4">
+                            <i class="bi bi-exclamation-triangle-fill"></i> WARNING: Setting a Lockout Date in the past will instantly trigger the System Kill Switch, locking out all operational staff and restricting Admins to read-only reporting.
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted">LICENSE TIER</label>
+                                <select name="license_tier" class="form-select fw-bold border-danger">
+                                    <option value="lite" <?= (isset($settings['license_tier']) && $settings['license_tier'] == 'lite') ? 'selected' : '' ?>>Lite (Standard POS)</option>
+                                    <option value="pro" <?= (isset($settings['license_tier']) && $settings['license_tier'] == 'pro') ? 'selected' : '' ?>>Pro (Advanced Features)</option>
+                                    <option value="hospitality" <?= (isset($settings['license_tier']) && $settings['license_tier'] == 'hospitality') ? 'selected' : '' ?>>Hospitality (KDS & Tabs)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted">SYSTEM LOCKOUT DATE</label>
+                                <input type="date" name="lockout_date" class="form-control fw-bold border-danger text-danger" value="<?= htmlspecialchars($settings['lockout_date'] ?? '') ?>" placeholder="Leave blank for lifetime access">
+                                <small class="text-muted d-block mt-1">Leave blank to disable the kill switch.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="text-end mt-4">
                         <button type="submit" class="btn btn-dark fw-bold px-5 py-2 shadow-sm"><i class="bi bi-save"></i> Save Settings</button>
                     </div>
                 </form>
