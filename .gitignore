@@ -19,6 +19,7 @@ Thumbs.db
 *.swp
 my assets/
 my assets.zip
+myStuff/
 
 # --- Logs ---
 *.log

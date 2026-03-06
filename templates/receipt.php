@@ -198,7 +198,25 @@ if ($isIncremental) {
                 
                 <?php if(!$isBill): ?>
                 <table>
+                    <?php if($sale['payment_method'] === 'Split'): ?>
+                    <tr><td colspan="2" class="fw-bold">Paid Via Split:</td></tr>
+                    <?php if(!empty($sale['split_method_1']) && $sale['split_amount_1'] > 0): ?>
+                    <tr><td>- <?= htmlspecialchars($sale['split_method_1']) ?></td><td class="amount fw-bold">ZMW <?= number_format($sale['split_amount_1'], 2) ?></td></tr>
+                    <?php endif; ?>
+                    <?php if(!empty($sale['split_method_2']) && $sale['split_amount_2'] > 0): ?>
+                    <tr><td>- <?= htmlspecialchars($sale['split_method_2']) ?></td><td class="amount fw-bold">ZMW <?= number_format($sale['split_amount_2'], 2) ?></td></tr>
+                    <?php endif; ?>
+                    <?php else: ?>
                     <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
+                    <?php endif; ?>
+                    <?php if(isset($sale['amount_tendered']) && $sale['amount_tendered'] > 0 && (stripos($sale['payment_method'], 'cash') !== false || $sale['payment_method'] === 'Split')): ?>
+                    <tr><td>Tendered:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>
+                    <tr><td>Change:</td><td class="amount fw-bold">ZMW <?= number_format($sale['change_due'], 2) ?></td></tr>
+                    <?php endif; ?>
+                    <?php if($sale['payment_status'] === 'pending' && $sale['amount_tendered'] > 0): ?>
+                    <tr><td>Paid So Far:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>
+                    <tr class="fw-bold" style="font-size:16px;"><td>BALANCE DUE:</td><td class="amount">ZMW <?= number_format($sale['final_total'] - $sale['amount_tendered'], 2) ?></td></tr>
+                    <?php endif; ?>
                     <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
                 </table>
                 <?php else: ?>

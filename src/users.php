@@ -91,7 +91,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         else if ($userId === $_SESSION['user_id']) {
             $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "You cannot delete your active session.";
         } else {
+            try {
             $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+        } catch (PDOException $e) {
+            if ($e->getCode() == '23000') {
+                $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = ?")->execute([$userId]);
+                $_SESSION['swal_type'] = 'info';
+                $_SESSION['swal_msg'] = 'User has historical data. Account deactivated instead.';
+            } else {
+                throw $e; // Re-throw if it's a different error
+            }
+        }
             $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "User deleted.";
         }
         header("Location: index.php?page=users"); exit;

@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = "Please fill in all fields.";
     } else {
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, role, location_id, force_password_change FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT u.id, u.username, u.password_hash, u.role, u.location_id, u.force_password_change, l.name as location_name FROM users u LEFT JOIN locations l ON u.location_id = l.id WHERE u.username = ? AND (u.is_active = 1 OR u.is_active IS NULL)");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
 
@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['location_id'] = $user['location_id'];
+            $_SESSION['location_name'] = $user['location_name'];
             $_SESSION['force_change'] = $user['force_password_change'];
 
             if ($user['force_password_change'] == 1) {

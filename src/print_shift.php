@@ -11,19 +11,59 @@ $shift = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$shift) { die("Shift not found."); }
 
-// Fetch Sales grouped by Payment Method (using final_total)
-$stmt = $pdo->prepare("SELECT payment_method, COUNT(*) as tx_count, COALESCE(SUM(final_total), 0) as total, COALESCE(SUM(tip_amount), 0) as total_tips FROM sales WHERE shift_id = ? AND payment_status = 'paid' GROUP BY payment_method");
+// Fetch Sales to manually group and accommodate Splits
+$stmt = $pdo->prepare("SELECT payment_method, final_total, tip_amount, split_method_1, split_amount_1, split_method_2, split_amount_2 FROM sales WHERE shift_id = ? AND payment_status = 'paid'");
 $stmt->execute([$shiftId]);
-$paymentBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$paymentBreakdownAssoc = [];
 $grandTotal = 0;
 $cashSales = 0;
-foreach($paymentBreakdown as $pb) {
-    $grandTotal += $pb['total'];
-    if ($pb['payment_method'] === 'Cash') {
-        $cashSales = $pb['total'];
+
+foreach($sales as $s) {
+    $grandTotal += $s['final_total'];
+    if ($s['payment_method'] === 'Split') {
+        $change = $s['change_due'] ?? 0;
+        $sa1 = $s['split_amount_1'];
+        $sa2 = $s['split_amount_2'];
+        
+        // Deduct any physical change given from the Cash portions so X-Read balances perfectly
+        if ($s['split_method_1'] === 'Cash' && $change > 0) {
+            $deduct = min($sa1, $change);
+            $sa1 -= $deduct;
+            $change -= $deduct;
+        }
+        if ($s['split_method_2'] === 'Cash' && $change > 0) {
+            $deduct = min($sa2, $change);
+            $sa2 -= $deduct;
+            $change -= $deduct;
+        }
+
+        if (!empty($s['split_method_1']) && $s['split_amount_1'] > 0) {
+            $m1 = $s['split_method_1'];
+            if (!isset($paymentBreakdownAssoc[$m1])) $paymentBreakdownAssoc[$m1] = ['payment_method' => $m1, 'tx_count' => 0, 'total' => 0, 'total_tips' => 0];
+            $paymentBreakdownAssoc[$m1]['total'] += $sa1;
+            $paymentBreakdownAssoc[$m1]['tx_count'] += 0.5;
+            if ($m1 === 'Cash') $cashSales += $sa1;
+        }
+        if (!empty($s['split_method_2']) && $s['split_amount_2'] > 0) {
+            $m2 = $s['split_method_2'];
+            if (!isset($paymentBreakdownAssoc[$m2])) $paymentBreakdownAssoc[$m2] = ['payment_method' => $m2, 'tx_count' => 0, 'total' => 0, 'total_tips' => 0];
+            $paymentBreakdownAssoc[$m2]['total'] += $sa2;
+            $paymentBreakdownAssoc[$m2]['tx_count'] += 0.5;
+            if ($m2 === 'Cash') $cashSales += $sa2;
+        }
+    } else {
+        $pm = $s['payment_method'];
+        if (!isset($paymentBreakdownAssoc[$pm])) $paymentBreakdownAssoc[$pm] = ['payment_method' => $pm, 'tx_count' => 0, 'total' => 0, 'total_tips' => 0];
+        $paymentBreakdownAssoc[$pm]['total'] += $s['final_total'];
+        $paymentBreakdownAssoc[$pm]['total_tips'] += $s['tip_amount'];
+        $paymentBreakdownAssoc[$pm]['tx_count'] += 1;
+        if ($pm === 'Cash') $cashSales += $s['final_total'];
     }
 }
+$paymentBreakdown = array_values($paymentBreakdownAssoc);
+foreach($paymentBreakdown as &$pb) { $pb['tx_count'] = ceil($pb['tx_count']); }
 
 // Fetch Payouts / Expenses
 $stmt = $pdo->prepare("SELECT * FROM expenses WHERE shift_id = ?");

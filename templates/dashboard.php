@@ -408,7 +408,7 @@ function showShiftDetails(shift) {
     document.getElementById('sdLoc').innerText = shift.location_name;
     
     let d = new Date(shift.start_time);
-    document.getElementById('sdStart').innerText = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    document.getElementById('sdStart').innerText = d.toLocaleDateString([], {month: 'short', day: '2-digit', year: 'numeric'}) + ' - ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
     let startCash = parseFloat(shift.starting_cash) || 0;
     let sales = parseFloat(shift.current_cash_sales) || 0;

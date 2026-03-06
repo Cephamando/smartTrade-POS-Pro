@@ -2,7 +2,56 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
+// --- 🔄 TRANSFER / MERGE ITEMS ---
+if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
+    try {
+        $pdo->beginTransaction();
+        $sourceTabId = (int)$_POST['source_tab_id'];
+        $targetTabId = $_POST['target_tab_id'];
+        $selectedItems = $_POST['transfer_item_ids'] ?? [];
+
+        if (empty($selectedItems)) throw new Exception("No items selected for transfer.");
+
+        // Resolve Destination
+        if ($targetTabId === 'new') {
+            $name = $_POST['new_tab_name'] ?: 'Transferred Tab ' . rand(100,999);
+            $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, 0, 0, 'Pending', 'pending', ?)");
+            $stmt->execute([$locationId, $userId, $activeShiftId, $name]);
+            $targetTabId = $pdo->lastInsertId();
+        } else {
+            $targetTabId = (int)$targetTabId;
+            if ($targetTabId === $sourceTabId) throw new Exception("Cannot transfer to the same tab.");
+        }
+
+        // Move the physical items
+        $inClause = implode(',', array_map('intval', $selectedItems));
+        $pdo->prepare("UPDATE sale_items SET sale_id = ? WHERE id IN ($inClause) AND sale_id = ?")->execute([$targetTabId, $sourceTabId]);
+
+        // Recalculate both tabs
+        $recalc = $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?");
+        $recalc->execute([$sourceTabId, $sourceTabId, $sourceTabId]);
+        $recalc->execute([$targetTabId, $targetTabId, $targetTabId]);
+
+        // Auto-close Source Tab if emptied
+        $checkEmpty = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')");
+        $checkEmpty->execute([$sourceTabId]);
+        if ($checkEmpty->fetchColumn() == 0) {
+            $pdo->prepare("UPDATE sales SET payment_status = 'voided' WHERE id = ?")->execute([$sourceTabId]);
+        }
+
+        $pdo->commit();
+        $_SESSION['swal_type'] = 'success';
+        $_SESSION['swal_msg'] = "Items transferred successfully.";
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg'] = "Transfer Error: " . $e->getMessage();
+    }
+    header("Location: index.php?page=pos"); exit;
+}
+
 $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
+if (empty($_SESSION['location_name']) && $locationId > 0) { $stmtLoc = $pdo->prepare("SELECT name FROM locations WHERE id = ?"); $stmtLoc->execute([$locationId]); $_SESSION['location_name'] = $stmtLoc->fetchColumn() ?: 'HQ'; }
 $locationName = $_SESSION['location_name'] ?? 'HQ';
 $userId = $_SESSION['user_id'];
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
@@ -197,6 +246,11 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         $isSplit = $_POST['is_split'] ?? '0';
         $status = ($pm === 'Pending') ? 'pending' : 'paid';
         if ($isSplit == '1') { $pm = 'Split'; }
+        $amountTendered = isset($_POST['amount_tendered']) ? (float)$_POST['amount_tendered'] : 0;
+        $sm1 = $_POST['split_method_1'] ?? null;
+        $sa1 = (float)($_POST['split_amount_1'] ?? 0);
+        $sm2 = $_POST['split_method_2'] ?? null;
+        $sa2 = (float)($_POST['split_amount_2'] ?? 0);
 
         // Calculate expected final total early to check if it's a refund
         $checkTotal = 0;
@@ -226,7 +280,13 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')"); $stmt->execute([$settleTabId]); $total = (float)$stmt->fetchColumn();
             if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $total *= 0.9; }
             $finalTotal = $total + $tip;
-            $pdo->prepare("UPDATE sales SET subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ? WHERE id = ?")->execute([$total, $tip, $finalTotal, $pm, $status, $settleTabId]);
+            $stmtPT = $pdo->prepare("SELECT amount_tendered FROM sales WHERE id = ?"); 
+            $stmtPT->execute([$settleTabId]); 
+            $prevTendered = (float)$stmtPT->fetchColumn(); 
+            $cumulativeTendered = $prevTendered + $amountTendered; 
+            $status = ($cumulativeTendered >= $finalTotal) ? 'paid' : 'pending'; 
+            $changeDue = ($cumulativeTendered > $finalTotal) ? ($cumulativeTendered - $finalTotal) : 0;
+            $pdo->prepare("UPDATE sales SET subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ? WHERE id = ?")->execute([$total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $settleTabId]);
             if ($status === 'paid') { $_SESSION['last_sale_id'] = $settleTabId; } $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
         } else {
             $total = 0; foreach($_SESSION['cart'] as $item) { $total += $item['price'] * $item['qty']; }
@@ -234,8 +294,10 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             $finalTotal = $total + $tip;
             $customerName = $_POST['customer_name'] ?? 'Walk-in';
 
-            $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$locationId, $userId, $activeShiftId, $total, $tip, $finalTotal, $pm, $status, $customerName]);
+            $status = ($amountTendered >= $finalTotal && $pm !== 'Pending') ? 'paid' : 'pending';
+            $changeDue = ($amountTendered > $finalTotal) ? ($amountTendered - $finalTotal) : 0;
+            $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$locationId, $userId, $activeShiftId, $total, $tip, $finalTotal, $pm, $status, $customerName, $amountTendered, $changeDue, $sm1, $sa1, $sm2, $sa2]);
             $saleId = $pdo->lastInsertId();
 
             foreach($_SESSION['cart'] as $item) {
