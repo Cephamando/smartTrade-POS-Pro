@@ -21,7 +21,8 @@ $todayTransactions = $pdo->prepare("SELECT COUNT(*) FROM sales WHERE DATE(create
 $todayTransactions->execute($params);
 $todayTransactions = $todayTransactions->fetchColumn() ?: 0;
 
-$unpaidTabs = $pdo->prepare("SELECT COUNT(*) FROM sales WHERE payment_status = 'pending'" . $locSql);
+// FIX: Only count pending tabs that actually have un-voided items inside them!
+$unpaidTabs = $pdo->prepare("SELECT COUNT(*) FROM sales WHERE payment_status = 'pending' AND id IN (SELECT sale_id FROM sale_items WHERE status NOT IN ('voided', 'refunded'))" . $locSql);
 $unpaidTabs->execute($params);
 $unpaidTabs = $unpaidTabs->fetchColumn() ?: 0;
 

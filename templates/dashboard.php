@@ -7,6 +7,7 @@ $midColSize = ($tier === 'hospitality') ? 'col-md-4' : 'col-md-6';
 global $pdo;
 $activeShiftsStmt = $pdo->query("
     SELECT s.id, s.start_time, s.starting_cash, u.full_name as cashier_name, u.role, l.name as location_name,
+           (SELECT SUM(final_total) FROM sales WHERE shift_id = s.id AND payment_status = 'paid') as total_sales,
            (SELECT SUM(final_total) FROM sales WHERE shift_id = s.id AND payment_status = 'paid' AND payment_method LIKE '%Cash%') as current_cash_sales,
            (SELECT SUM(amount) FROM expenses WHERE user_id = s.user_id AND created_at >= s.start_time) as expenses
     FROM shifts s
@@ -249,7 +250,7 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="col-6">
                         <div class="card border-0 shadow-sm h-100 border-bottom border-warning border-4">
                             <div class="card-body p-3 text-center bg-warning bg-opacity-10">
-                                <small class="text-dark text-uppercase fw-bold" style="font-size:0.7rem;">Expected In Drawer</small>
+                                <small class="text-dark text-uppercase fw-bold" style="font-size:0.7rem;">Expected Cash Drawer</small>
                                 <div class="fw-bold text-dark fs-5 mt-1" id="sdExpected">ZMW 0.00</div>
                             </div>
                         </div>
@@ -411,12 +412,15 @@ function showShiftDetails(shift) {
     document.getElementById('sdStart').innerText = d.toLocaleDateString([], {month: 'short', day: '2-digit', year: 'numeric'}) + ' - ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
     let startCash = parseFloat(shift.starting_cash) || 0;
-    let sales = parseFloat(shift.current_cash_sales) || 0;
+    let totalSales = parseFloat(shift.total_sales) || 0;
+    let cashSales = parseFloat(shift.current_cash_sales) || 0;
     let expenses = parseFloat(shift.expenses) || 0;
-    let expected = (startCash + sales) - expenses;
+    
+    // Use Cash Sales exclusively for Expected Drawer Cash
+    let expected = (startCash + cashSales) - expenses;
     
     document.getElementById('sdFloat').innerText = 'ZMW ' + startCash.toFixed(2);
-    document.getElementById('sdSales').innerText = 'ZMW ' + sales.toFixed(2);
+    document.getElementById('sdSales').innerText = 'ZMW ' + totalSales.toFixed(2);
     document.getElementById('sdExpected').innerText = 'ZMW ' + expected.toFixed(2);
     
     new bootstrap.Modal(document.getElementById('shiftDetailsModal')).show();
