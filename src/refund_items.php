@@ -35,8 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_refund'])) {
                 $newQty = $item['quantity'] - $qty;
                 $pdo->prepare("UPDATE sale_items SET quantity = ? WHERE id = ?")->execute([$newQty, $itemId]);
                 // Insert Refunded Line for record
-                $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, 'refunded', 'collected')")
-                    ->execute([$saleId, $item['product_id'], $qty, $item['price_at_sale']]);
+                $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, status, fulfillment_status) VALUES (?, ?, ?, ?, 'refunded', 'collected')")
+                    ->execute([$saleId, $item['product_id'], $qty, $item['price']]);
             }
 
             // Update Stock
@@ -44,12 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_refund'])) {
                 ->execute([$qty, $item['product_id'], $sale['location_id']]);
 
             // Calc Refund Value
-            $refundAmount = $qty * $item['price_at_sale'];
+            $refundAmount = $qty * $item['price'];
             $totalRefunded += $refundAmount;
         }
 
         // Update Sales Header
-        $pdo->prepare("UPDATE sales SET final_total = final_total - ?, final_total = final_total - ? WHERE id = ?")
+        $pdo->prepare("UPDATE sales SET subtotal = subtotal - ?, final_total = final_total - ? WHERE id = ?")
             ->execute([$totalRefunded, $totalRefunded, $saleId]);
 
         // Log Refund

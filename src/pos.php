@@ -2,54 +2,6 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (!isset($_SESSION['user_id'])) { header("Location: index.php?page=login"); exit; }
 
-// --- 🔄 TRANSFER / MERGE ITEMS ---
-if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
-    try {
-        $pdo->beginTransaction();
-        $sourceTabId = (int)$_POST['source_tab_id'];
-        $targetTabId = $_POST['target_tab_id'];
-        $selectedItems = $_POST['transfer_item_ids'] ?? [];
-
-        if (empty($selectedItems)) throw new Exception("No items selected for transfer.");
-
-        // Resolve Destination
-        if ($targetTabId === 'new') {
-            $name = $_POST['new_tab_name'] ?: 'Transferred Tab ' . rand(100,999);
-            $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, 0, 0, 'Pending', 'pending', ?)");
-            $stmt->execute([$locationId, $userId, $activeShiftId, $name]);
-            $targetTabId = $pdo->lastInsertId();
-        } else {
-            $targetTabId = (int)$targetTabId;
-            if ($targetTabId === $sourceTabId) throw new Exception("Cannot transfer to the same tab.");
-        }
-
-        // Move the physical items
-        $inClause = implode(',', array_map('intval', $selectedItems));
-        $pdo->prepare("UPDATE sale_items SET sale_id = ? WHERE id IN ($inClause) AND sale_id = ?")->execute([$targetTabId, $sourceTabId]);
-
-        // Recalculate both tabs
-        $recalc = $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?");
-        $recalc->execute([$sourceTabId, $sourceTabId, $sourceTabId]);
-        $recalc->execute([$targetTabId, $targetTabId, $targetTabId]);
-
-        // Auto-close Source Tab if emptied
-        $checkEmpty = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')");
-        $checkEmpty->execute([$sourceTabId]);
-        if ($checkEmpty->fetchColumn() == 0) {
-            $pdo->prepare("UPDATE sales SET payment_status = 'voided' WHERE id = ?")->execute([$sourceTabId]);
-        }
-
-        $pdo->commit();
-        $_SESSION['swal_type'] = 'success';
-        $_SESSION['swal_msg'] = "Items transferred successfully.";
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $_SESSION['swal_type'] = 'error';
-        $_SESSION['swal_msg'] = "Transfer Error: " . $e->getMessage();
-    }
-    header("Location: index.php?page=pos"); exit;
-}
-
 $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
 if (empty($_SESSION['location_name']) && $locationId > 0) { $stmtLoc = $pdo->prepare("SELECT name FROM locations WHERE id = ?"); $stmtLoc->execute([$locationId]); $_SESSION['location_name'] = $stmtLoc->fetchColumn() ?: 'HQ'; }
 $locationName = $_SESSION['location_name'] ?? 'HQ';
@@ -171,6 +123,67 @@ if (isset($_POST['approve_shift_start'])) {
     $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?"); $stmt->execute([$_POST['mgr_username']]); $mgr = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($mgr && in_array($mgr['role'], ['admin', 'manager', 'dev']) && password_verify($_POST['mgr_password'], $mgr['password_hash'])) { $pdo->prepare("UPDATE shifts SET status = 'open', start_time = NOW() WHERE id = ?")->execute([$_POST['pending_shift_id']]); $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Shift started."; } 
     else { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Invalid credentials."; } header("Location: index.php?page=pos"); exit;
+}
+
+// --- 🔄 TRANSFER / MERGE ITEMS ---
+if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
+    try {
+        $pdo->beginTransaction();
+        $sourceTabId = (int)$_POST['source_tab_id'];
+        $targetTabId = $_POST['target_tab_id'];
+        $selectedItems = $_POST['transfer_item_ids'] ?? [];
+
+        if (empty($selectedItems)) throw new Exception("No items selected for transfer.");
+
+        // Resolve Destination
+        if ($targetTabId === 'new') {
+            $targetTableId = !empty($_POST['target_table_id']) ? (int)$_POST['target_table_id'] : null;
+            $name = trim($_POST['new_tab_name'] ?? '');
+            
+            // If no name was typed, try to grab the physical Table Name
+            if (empty($name)) {
+                if ($targetTableId) {
+                    $stmtTbl = $pdo->prepare("SELECT table_name FROM restaurant_tables WHERE id = ?");
+                    $stmtTbl->execute([$targetTableId]);
+                    $name = $stmtTbl->fetchColumn() ?: 'Table ' . $targetTableId;
+                } else {
+                    $name = 'Transferred ' . rand(100,999);
+                }
+            }
+            
+            $stmt = $pdo->prepare("INSERT INTO sales (location_id, table_id, user_id, shift_id, subtotal, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, ?, 0, 0, 'Pending', 'pending', ?)");
+            $stmt->execute([$locationId, $targetTableId, $userId, $activeShiftId, $name]);
+            $targetTabId = $pdo->lastInsertId();
+        } else {
+            $targetTabId = (int)$targetTabId;
+            if ($targetTabId === $sourceTabId) throw new Exception("Cannot transfer to the same tab.");
+        }
+
+        // Move the physical items
+        $inClause = implode(',', array_map('intval', $selectedItems));
+        $pdo->prepare("UPDATE sale_items SET sale_id = ? WHERE id IN ($inClause) AND sale_id = ?")->execute([$targetTabId, $sourceTabId]);
+
+        // Recalculate both tabs
+        $recalc = $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?");
+        $recalc->execute([$sourceTabId, $sourceTabId, $sourceTabId]);
+        $recalc->execute([$targetTabId, $targetTabId, $targetTabId]);
+
+        // Auto-close Source Tab if emptied
+        $checkEmpty = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')");
+        $checkEmpty->execute([$sourceTabId]);
+        if ($checkEmpty->fetchColumn() == 0) {
+            $pdo->prepare("UPDATE sales SET payment_status = 'voided' WHERE id = ?")->execute([$sourceTabId]);
+        }
+
+        $pdo->commit();
+        $_SESSION['swal_type'] = 'success';
+        $_SESSION['swal_msg'] = "Items transferred successfully.";
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg'] = "Transfer Error: " . $e->getMessage();
+    }
+    header("Location: index.php?page=pos"); exit;
 }
 
 // --- 🛒 CART MANAGEMENT ---

@@ -1,3 +1,24 @@
+<?php
+// --- GLOBAL LOCATION SWITCHER LOGIC ---
+if (isset($_POST['change_global_location']) && isset($_SESSION['user_id']) && isset($pdo)) {
+    $newLocId = (int)$_POST['change_global_location'];
+    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
+    $stmt->execute([$newLocId]);
+    $newLocName = $stmt->fetchColumn();
+    if ($newLocName) {
+        $_SESSION['location_id'] = $newLocId;
+        $_SESSION['location_name'] = $newLocName;
+        $_SESSION['pos_location_id'] = $newLocId; // Keep the POS natively synced
+    }
+    header("Location: " . $_SERVER['REQUEST_URI']);
+    exit;
+}
+
+$allGlobalLocations = [];
+if (isset($pdo)) {
+    $allGlobalLocations = $pdo->query("SELECT id, name FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,6 +33,7 @@
         @media (min-width: 992px) {
             .navbar .dropdown:hover .dropdown-menu { display: block; margin-top: 0; }
         }
+        .hover-location:hover { background-color: rgba(255, 193, 7, 0.1); border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -29,6 +51,27 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
 ?>
 
 <?php if (!$isEmbedded): ?>
+
+<div class="modal fade" id="globalLocationModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content shadow-lg border-warning">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">Select Workstation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 bg-light">
+                <form method="POST">
+                    <?php foreach($allGlobalLocations as $loc): $isActive = (($_SESSION['location_id'] ?? 0) == $loc['id']); ?>
+                        <button name="change_global_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-2 fw-bold text-start shadow-sm <?= $isActive ? 'border-warning bg-warning bg-opacity-10' : '' ?>">
+                            <i class="bi bi-geo-alt-fill <?= $isActive ? 'text-warning' : 'text-secondary' ?> me-2"></i> <?= htmlspecialchars($loc['name']) ?>
+                        </button>
+                    <?php endforeach; ?>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-warning border-3 shadow-sm mb-4">
     <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold text-warning" href="index.php">
@@ -111,7 +154,12 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
         <?php endif; ?>
 
             <div class="d-flex align-items-center ms-auto">
-                <span class="text-light me-4 fw-bold">
+                <span class="text-light me-4 fw-bold p-2 hover-location" style="cursor:pointer; transition:0.2s;" data-bs-toggle="modal" data-bs-target="#globalLocationModal" title="Change Workstation">
+                    <i class="bi bi-geo-alt-fill text-warning me-1"></i> <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
+                    <i class="bi bi-pencil-square text-secondary ms-1" style="font-size:0.8em;"></i>
+                </span>
+                
+                <span class="text-light me-4 fw-bold border-start border-secondary ps-4">
                     <i class="bi bi-person-badge text-info me-1"></i> <?= htmlspecialchars(strtoupper($role)) ?>: <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
                 </span>
                 <a href="index.php?action=logout" class="btn btn-outline-danger btn-sm fw-bold"><i class="bi bi-power"></i> Logout</a>

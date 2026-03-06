@@ -24,7 +24,7 @@
                         <tr>
                             <td><?= htmlspecialchars($i['name']) ?></td>
                             <td><?= $i['quantity'] ?></td>
-                            <td><?= number_format($i['price_at_sale'], 2) ?></td>
+                            <td><?= number_format($i['price'], 2) ?></td>
                             <td>
                                 <input type="number" name="refund_qty[<?= $i['id'] ?>]" class="form-control form-control-sm" min="0" max="<?= $i['quantity'] ?>" value="0">
                             </td>
