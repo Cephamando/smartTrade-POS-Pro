@@ -1,4 +1,11 @@
 <?php
+// --- ROBOSHADOW SECURITY HEADERS ---
+header("X-Frame-Options: SAMEORIGIN"); // Prevents Clickjacking
+header("X-Content-Type-Options: nosniff"); // Prevents MIME-sniffing
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload"); // Enforces HTTPS
+header("Permissions-Policy: geolocation=(), microphone=(), camera=()"); // Restricts browser hardware access
+header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; img-src 'self' data:;"); // Mitigates XSS
+
 // Prevent direct access
 if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) { die('Access denied'); }
 
