@@ -1,0 +1,25 @@
+# --- ROBOSHADOW SERVER-LEVEL SECURITY PATCH ---
+<IfModule mod_headers.c>
+    # Apply Security Headers to ALL files
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Content-Type-Options "nosniff"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    
+    # OWASP Strict Content-Security-Policy (with explicit fallbacks)
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+    
+    # OWASP Spectre & Cache Fixes
+    Header set Cross-Origin-Resource-Policy "same-origin"
+    Header set Cross-Origin-Embedder-Policy "require-corp"
+    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header set Cache-Control "no-cache, no-store, must-revalidate, private"
+    Header set Pragma "no-cache"
+</IfModule>
+
+<IfModule mod_php.c>
+    # Force Secure Cookies before PHP sessions start
+    php_flag session.cookie_httponly on
+    php_value session.cookie_samesite "Lax"
+    php_flag session.use_only_cookies on
+</IfModule>
