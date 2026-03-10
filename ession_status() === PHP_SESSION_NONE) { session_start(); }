@@ -1,0 +1,1050 @@
+[33mcommit 8c050dac80ff81fe170463ca8723564d9043bb07[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Mar 10 07:27:15 2026 +0200
+
+    feat: implemented intelligent online tabs, API stock routing, and UI web orders panel
+
+[33mcommit c518ac7d2bc299e5e668f8181c9eb0d9ddc4ae7c[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Mar 8 12:22:11 2026 +0200
+
+    implemented app file organisation
+
+[33mcommit ebcb068efa4d8d22f7599ab02035160da44ca42a[m[33m ([m[1;33mtag: [m[1;33mv2.0[m[33m)[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Mar 8 12:05:29 2026 +0200
+
+    chore: finalize OWASP strict security policy and prep v2.0 release
+
+[33mcommit 3c671e08bd2cb31d5981f364ac5cf7124fc4add0[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Mar 7 21:16:07 2026 +0200
+
+    feat(security): implement OWASP security headers, CSRF protection, SRI hashes, and update login UI footer
+
+[33mcommit 8c8f1c971637cd3196312d8cbebc7c997deab0fd[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Mar 6 14:15:11 2026 +0200
+
+    fix(dashboard): correct unpaid tabs count to ignore voided items and fix shift overall sales vs cash sales display
+
+[33mcommit 513ef7680541e6385f581fb166d1c110ab41614d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Mar 6 11:00:06 2026 +0200
+
+    feat: core pos upgrades - partial pay, split reporting, table transfers, z-read math, and global location switcher
+
+[33mcommit a913e8cd6f38f1a4fcde5131a29ac35ebd3c96fc[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Mar 6 03:32:45 2026 +0200
+
+    enhanced receipt, z-read, x-read and payment form
+
+[33mcommit 9bccdbf31443fb797f259e4cbf3755ba9ee05208[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Wed Mar 4 06:20:14 2026 +0200
+
+    feat: Add Developer Trial Management and fix POS product card layout
+    
+    - Settings (Feature): Implemented secure Developer Controls UI for License & Trial Management, allowing devs to set a System Lockout Date and License Tier.
+    - Settings (Security): Restricted backend trial management POST actions strictly to 'dev' roles.
+    - POS (Fix): Resolved CSS absolute positioning issue on product cards. Rebuilt the card layout using flexbox to neatly stack the product name, stock/recipe badges, and price to prevent text overlap.
+
+[33mcommit e82dc9d45d7f8cae7d6d3ab76b49c4cf1f3b36d3[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Mar 3 20:26:41 2026 +0200
+
+    feat: Implement Physical Stock Take module and CSV export tools
+    
+    - Inventory (Feature): Transformed the inventory table into an interactive Physical Stock Take worksheet with real-time variance calculation.
+    - Inventory (Backend): Built a bulk processing engine to instantly update stock levels based on physical counts.
+    - Database: Dynamically patched the 'inventory_logs' table to include a 'reason' column for variance tracking.
+    - File Manager: Injected a JS-based CSV generator to allow instant downloading of the inventory grid.
+    - Print Stylesheet: Upgraded the Print Stock view to act as a physical clipboard worksheet, deliberately hiding input placeholders to provide clean, writable boxes.
+    - Bug Fix: Resolved the DataTables column count mismatch error and fixed the missing 'location_id' variable in the hidden inputs.
+
+[33mcommit 6305f8faa27727aff6da6457bcb01495e4e52f61[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Mar 3 18:48:02 2026 +0200
+
+    bug fixes: void item input unblocking and split pay options rendering
+
+[33mcommit 057cc5f69e527fddd44e5b1f5edb3e11a628fe74[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Mar 3 01:20:29 2026 +0200
+
+    feat: Enhance reporting analytics, refund tracking, and formal print layouts
+    
+    - Reports (Fix): Corrected UI badges in Sales Ledger and Itemized views to accurately display 'VOIDED' and 'REFUNDED' statuses by prioritizing transaction math over legacy text flags.
+    - Reports (Metrics): Upgraded SQL logic to accurately calculate total cash refunded. Replaced the 'Avg Ticket' card with a new 'Voided Items' tracking card.
+    - Reports (Print): Injected a professional '@media print' stylesheet to strip web UI (buttons, search bars) and format the master report as a formal financial document.
+    - Reports (Print): Built a smart JS print handler that temporarily disables DataTables pagination, ensuring all rows are captured on the printed page.
+
+[33mcommit c96e8259ac63cc8c036c0536d858fae20c0f14a8[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Mar 3 00:21:27 2026 +0200
+
+    fix: Resolve modal focus traps and optimize reports for thermal printing
+    
+    - Reports: Forced high-contrast, extra-bold CSS on X-Read and Z-Read for legible thermal printing.
+    - POS UI: Injected JavaScript to dynamically strip 'tabindex' from Bootstrap modals, permanently fixing the SweetAlert focus trap bug that blocked typing in authorization inputs.
+
+[33mcommit 1964257b9e98de930bb01169c1832533e28fcca4[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Mar 1 21:32:04 2026 +0200
+
+    feat: Smart receipts, product import/export, and POS UI stabilization
+    
+    - Receipts: Implemented Incremental Printing logic (Barman Slip, Proforma, Official Receipt).
+    - Receipts: Grouped and consolidated items on final bills.
+    - Receipts: Defeated iframe caching using DOM flush and timestamps.
+    - Receipts: Applied bold styling for thermal printers.
+    - Products: Built smart CSV Import and native Excel Export.
+    - Products: Added printable catalog view.
+    - POS UI: Fixed 'In-Stock' toggle to respect subcategory context.
+    - Settings: Restored and hard-linked Color Theme Editor to POS.
+
+[33mcommit 7e99ee7635e9ef496b9a346519d7552ce595b363[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Mar 1 17:46:03 2026 +0200
+
+    feat: Implement infinite category drill-down, dual-receipts, and printable inventory
+    
+    - Database: Added parent_id to categories table to support infinite nested hierarchy.
+    - POS UI: Overhauled category navigation to dynamically render sub-folders and drill-down cards with context-aware Back routing.
+    - POS UI: Fixed JS escaping issues to prevent UI freezing on category names.
+    - Management: Upgraded Category Manager (CRUD) to allow editing category types and parent folders.
+    - Receipts: Implemented auto-print trigger for table/tab orders.
+    - Receipts: Upgraded template to generate dual copies (Cashier & Client) with a cut-line for proforma invoices.
+    - Inventory: Added a Print Stock button with custom @media print CSS to generate clean inventory reports.
+    - Data: Categorized existing beverages into distinct sub-cards.
+
+[33mcommit 077a096832e44b6dcc3eee69a8e8bc76c8d2642d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Mar 1 17:04:02 2026 +0200
+
+    enhanced POS and categories. Subcategorised POS menu
+
+[33mcommit 67f09a34b307e45850443b2091b0f197d2df782d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Mar 1 11:54:05 2026 +0200
+
+    feat: complete UI/UX polish and strict workflow enforcements
+    
+    - Enforced Transfer constraints (Source/Dest validation, Stock validation).
+    - Patched RBAC Router to accurately handle Chefs and Cashiers without blocking Modals.
+    - Implemented Auto-Logout for Cashiers instantly upon Shift Close.
+    - Configured Chefs to have strict 'Read-Only' access to Inventory.
+    - Streamlined X-Read printing by stripping navigation menus and fixing auto-print triggers.
+    - Re-architected Z-Read and X-Read backend to explicitly detail payment methods, categories, and itemized sales.
+    - Updated POS UI to display the active logged-in user at the top left.
+
+[33mcommit 6193b4c73c017cee695568d8926ca4a6d9cf8ba5[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 28 23:58:10 2026 +0200
+
+    feat: enforce manager auth for sensitive actions and dynamic receipts
+    
+    - POS Security Upgrades:
+      - Enforced Manager Authorization (username & password prompt) for Voiding items from an active tab.
+      - Enforced Manager Authorization for Logging Waste / Lost Stock.
+      - Enforced Manager Authorization for processing Cash Refunds (negative carts).
+      - Added smart UI logic to reveal auth fields only when a cart total becomes negative.
+    
+    - Dynamic Receipts & Settings:
+      - Upgraded receipt template to dynamically fetch Business Name, TPIN/Header, and Custom Footer from the system settings.
+      - Maintained Proforma Bill toggle logic inside the unified receipt file.
+      - Restored 'System Settings' link in the Management dropdown (strictly locked to 'dev' role).
+
+[33mcommit f45a993355084d14e49108b5bb7104c9b83903e2[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 28 23:14:56 2026 +0200
+
+    feat: complete master reports and proforma bills
+    
+    - Reports Engine:
+      - Added full Sales Ledger Breakdown (clickable total amounts show exact receipt items via AJAX).
+      - Built 'Live Itemized Sales' tab with DataTables search/export engine for deep product-level auditing.
+      - Implemented 'Recipe Consumption' metrics.
+    
+    - POS & Dashboard:
+      - Switched Dashboard payment methods to horizontal bar chart for better visibility.
+      - Hardwired POS header buttons to native Bootstrap triggers for indestructible modal loading.
+      - Added 'Print Bill' (Proforma) functionality to active tabs before settling.
+      - Fixed capitalization routing bug on Shifts page.
+
+[33mcommit f702a7e0cb7c9a2e384457512d6105245fbadedd[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 28 12:02:39 2026 +0200
+
+    feat: complete refund engine and advanced tab workflows
+    
+    - Refund & Returns Engine:
+      - Added 'Return Mode' toggle with visual red UI alerts.
+      - Items added in return mode invert price and restock inventory safely.
+      - Implemented 'Copy to Cart / Refund' quick-action on active tab items.
+      - Refunded items are visually marked and removed from active tabs to prevent double-returns.
+    
+    - Advanced Tab & KDS Workflow:
+      - Enabled 'Pay First, Eat Later' workflow (paid tabs stay active until food is collected).
+      - Added real-time kitchen status tracking ('PREPARING' vs 'GO TO PICKUP').
+      - Implemented Auto-Sync listener to refresh POS seamlessly after closing the KDS modal.
+    
+    - UI & Stability Fixes:
+      - Rebuilt thermal receipt template with itemized breakdown, tip calculation, and payment status.
+      - Hardened top nav buttons (X-Read, Payout, Shift) with indestructible JS modal triggers to prevent Bootstrap freezing.
+
+[33mcommit a45627e57d22e6dafe4034346d1dad046cdf7408[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 28 07:09:19 2026 +0200
+
+    ui: enhance navigation, catalog pagination, and grv searchable dropdowns
+    
+    - Navigation: Fixed Bootstrap dropdown race conditions and restored missing Admin menu links.
+    - Product Catalog: Integrated DataTables for automatic pagination, state-saving, and live search.
+    - Receive Stock (GRV): Injected Select2 engine with DOM MutationObserver to make all dynamic product dropdowns instantly searchable.
+
+[33mcommit 6b2244a6c26bd4f60a1798e4417eb33495023642[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 27 21:59:58 2026 +0200
+
+    feat: implement item voiding engine for active tabs and tables
+    
+    - Tab Voiding Engine:
+      - Added UI 'Trash Can' button to active tab items with SweetAlert confirmation.
+      - Built AJAX endpoint to safely mark items as 'voided' in the database.
+      - Engineered reverse-inventory math to automatically restock voided ingredients/items.
+      - Implemented dynamic, real-time recalculation of table subtotal and final_total upon voiding.
+
+[33mcommit 891d6f485d21cec464d5ef24907422f157fcbbad[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 27 00:44:51 2026 +0200
+
+    feat: implement table floorplan and unified checkout constraints
+    
+    - Table Management & Floorplan:
+      - Created restaurant_tables database schema to track zones and capacities.
+      - Built an interactive POS floorplan grid (Green = Available, Red = Occupied) with one-click table assignment.
+      - Upgraded database to track table_id natively inside the sales table.
+    
+    - Unified Settlement & Kitchen Constraints:
+      - Routed table/tab settlement through the main Checkout Modal, unlocking tips, discounts, and multiple payment methods (Cash/Card/Mobile).
+      - Implemented Strict Kitchen Constraint: Actively blocks cashiers from settling a table if food items remain uncollected.
+    
+    - UI Stability Fixes:
+      - Engineered an event-driven modal switcher to permanently resolve Bootstrap backdrop freezing.
+      - Fixed disappearing tab details by isolating hidden DOM templates.
+      - Restored proper iframe loading for the POS header Pickup button.
+
+[33mcommit 37d0beaf188025360dcc8667cd62e7760c8cd69e[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Thu Feb 26 03:26:28 2026 +0200
+
+    security: enforce manager identity tracking for till payouts and shift closures
+    
+    - Security & Audit Trail Enhancements:
+      - Required manager username alongside password for authorization in POS modals (End Shift and Payout).
+      - Updated backend controllers to strictly validate the specific manager's credentials and role.
+      - Implemented permanent audit trailing by stamping the authorizing manager's username directly into database records (shift variance reasons and expense logs).
+
+[33mcommit 7ff15f2311d784340b3b23122917946c219e9f88[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Thu Feb 26 02:32:26 2026 +0200
+
+    feat: implement petty cash module and fix shift reconciliation totals
+    
+    - Financial Control (Petty Cash):
+      - Created expenses table to track shift-based payouts (location_id, shift_id).
+      - Built 'Payout' modal in POS to log till deductions (e.g., buying ice, paying drivers).
+      - Enforced Manager Authorization (username/password verification) for all cash withdrawals.
+    
+    - Shift & Reporting Fixes:
+      - Upgraded X-Read and End Shift engines to actively deduct logged expenses from the Expected Drawer Cash.
+      - Rewrote shift calculation logic to read from the new final_total column instead of the legacy total_amount column.
+      - Executed global codebase migration to replace all legacy total_amount references, restoring accuracy to the Dashboard and Master Reports.
+
+[33mcommit 7ad3d5faffa13e4f00423e67ff2f02c409ed2f6b[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Wed Feb 25 04:04:02 2026 +0200
+
+    fix: resolve legacy DB schema conflicts and enable GRV auto-population
+    
+    - Database Migrations & Fixes:
+      - Resolved strict ENUM constraint errors for statuses in shifts, sales, and sale_items to support hospitality states.
+      - Fixed missing column errors for subtotal, tip_amount, action_type, and price during POS checkout.
+      - Handled legacy total_amount and price_at_sale columns to prevent checkout crashes and preserve historical dashboard data.
+      - Fixed user creation and manager approval checks to correctly target the password_hash column.
+      - Added missing product ID to the Recipe Consumption SQL query to prevent UI crashes.
+    
+    - Workflow Enhancements:
+      - Upgraded the Recipe Consumption report 'Needs Receiving' badge to pass product and quantity data via URL.
+      - Enhanced the Goods Received Voucher (receive_stock.php) script to parse URL parameters and dynamically auto-populate the first row of the GRV form.
+
+[33mcommit ae7240df2572a79c57f660a32f76b7007c2a25aa[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Wed Feb 25 03:36:27 2026 +0200
+
+    feat: implement recipe engine, backflushing, and security hardening
+    
+    - Hardened dev account security.
+    - Created product_recipes table and Recipe Builder UI.
+    - Implemented auto-deduction (backflushing) during POS checkout.
+    - Added smart Made to Order badges for zero-stock cocktails.
+    - Migrated legacy database columns (ENUM to VARCHAR) and added subtotal/tip tracking.
+    - Built Recipe Consumption & Variance report.
+
+[33mcommit 958e265250fb92098a0651f57491e9143e15dc5e[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Wed Feb 25 02:03:52 2026 +0200
+
+    secured dev user account
+
+[33mcommit 65a4bfb2b2c85c2d6b5a496d32db7491eb2d00c6[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Wed Feb 25 00:53:23 2026 +0200
+
+    feat: implement real-time shift monitoring, drill-down sales, and global notification badges
+    
+    - Dashboard & Shift Management:
+      - Added a live 'Active Employee Shifts' panel displaying real-time duration and workstation status.
+      - Implemented a drill-down shift modal to calculate expected drawer totals.
+      - Added an interactive transaction audit table that fetches shift-specific receipts on the fly.
+    
+    - Global API Routing (public/index.php):
+      - Migrated get_shift_sales and check_ready_orders endpoints directly into the global router to bypass folder-level routing restrictions.
+    
+    - POS & UI Enhancements:
+      - Restored the missing X-Read print modal in templates/pos.php.
+      - Added 'embedded' URL parameter support in templates/header.php to strip the navbar inside iframes.
+      - Deployed real-time polling notification badges across the Header, Dashboard, and POS to alert staff of ready kitchen orders.
+
+[33mcommit a2bdcdb23d6693d8386e3a4d8426478b2256704d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 24 17:46:04 2026 +0200
+
+    refactor: enforce kitchen workflows and decouple menu blueprint from production
+    
+    - POS Frontend & Cart Logic:
+      - Implemented localStorage persistence for the 'In-Stock Only' toggle.
+      - Disabled direct cart fulfillment for 'food'/'meal' items to enforce KDS routing.
+      - Added strict backend validation to block fulfillment bypasses.
+    
+    - Kitchen Production Engine (kitchen.php):
+      - Replaced hardcoded KDS mockup with a live batch production engine.
+      - Implemented Target Location routing for cooked stock to respect Location Isolation.
+      - Added automated stock injection and transaction logging.
+    
+    - Menu Builder Restructure (menu.php):
+      - Refactored to act strictly as a recipe/blueprint creator.
+      - Removed legacy phantom stock injection to enforce the physical production workflow.
+
+[33mcommit 8e735f13d278de2e67a0ee37a84ecd47f7ae1214[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 24 16:59:34 2026 +0200
+
+    feat: implement dynamic licensing tiers, white-labeling, and POS optimizations
+    
+    - Feature Toggling (License Tiers):
+      - Introduced a 3-tier licensing system ('lite', 'pro', 'hospitality') controlled via the database.
+      - Dynamically restructures the Dashboard, Header navigation, and POS UI based on the active tier.
+    - White-Labeling & System Configuration:
+      - Created a `settings` table to store dynamic branding (business name, theme color) and receipt layouts.
+      - Added a Dev-only 'System Settings' UI (`src/settings.php`, `templates/settings.php`) for on-the-fly configuration without touching code.
+    - Performance Optimizations:
+      - Optimized the main router (`public/index.php`) to gracefully check for the settings table, preventing heavy exception-logging loops.
+      - Implemented `session_write_close()` in background polling APIs to prevent PHP session blocking and eliminate UI lag.
+    - POS & Kitchen Workflow Enforcement:
+      - Added an "In-Stock Only" filter on the POS screen that remembers its state via Local Storage.
+      - Enforced kitchen workflows: Cashiers can no longer bypass the KDS by marking 'food' or 'meal' items as collected directly from the cart.
+
+[33mcommit cde742b18f6c827d7e4d4c0c27226c10608a6969[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 24 13:18:11 2026 +0200
+
+    Fix: Enforce global authentication and resolve admin location switch
+    
+    - Global Router Security: Implemented a centralized session authentication check directly in `public/index.php`. This intercepts all unauthenticated requests across the app and forces a clean redirect to the login screen, resolving bypass issues caused by server restarts or expired PHP sessions.
+    - Global Location Switch: Added backend handler in the main router to process the `global_switch_location` POST request from the header modal. When Admins or Devs switch locations, the system now properly updates all relevant tracking variables and seamlessly redirects them back to their current page.
+
+[33mcommit 8f1107bd20f2c6782b594ec0bb274d319b645923[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 24 10:51:59 2026 +0200
+
+    Fix: Resolve kitchen access issues and implement dynamic user roles
+    
+    - Access Control Fixes:
+      - Fixed a case-sensitivity bug that was locking the Chef out of the Kitchen Display System (KDS) and Menu Builder by enforcing `strtolower()` on session roles.
+      - Added the 'kitchen' role to the authorized arrays across `src/kds.php`, `src/menu.php`, and `templates/pos.php` to ensure robust access for all kitchen staff.
+    - User Management Refactor:
+      - Replaced the hardcoded HTML role dropdown in `templates/users.php` with a dynamic loader that fetches available roles directly from the database ENUM column (`src/users.php`).
+      - Improved the UI by formatting role names (e.g., 'head_chef' to 'Head Chef') and assigning dynamic badge colors based on the user's role.
+    - Security Enhancements:
+      - Removed the 'dev' role from the dropdown options for standard Admins and Managers.
+      - Added backend validation to automatically fallback to the 'cashier' role if a non-developer attempts to force-assign the 'dev' role via form manipulation.
+
+[33mcommit 27738db60ec048541aaa9e4e03ad1e0362b37dcf[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 24 07:40:13 2026 +0200
+
+    Feature: Enhance POS layout, Kitchen workflow, and Admin controls
+    
+    - Inventory Fix: Corrected the "Total Stock Value" calculation in `src/inventory.php` to derive from the retail selling price (`p.price`) rather than the cost price.
+    - POS UI Overhaul:
+      - Implemented strict Flexbox rules in the POS workspace so the cart action buttons (Charge, Split, Add to Tab) float persistently at the bottom of the screen.
+      - Added JavaScript-based pagination (24 items per page) to the product grid to prevent clipping and improve rendering performance for large menus.
+    - Kitchen & Menu Builder:
+      - Created `src/menu.php` and `templates/menu.php` to allow Chefs to add new meals and dynamically adjust available portions for sale.
+      - Meals with '0' portions now automatically gray out and disable on the POS.
+      - Restored quick-access "Menu" and "Produce" buttons in the POS header and added a dedicated "Kitchen & Menu" section to the Dashboard.
+    - Admin Location Override: Fixed the session logic in `src/pos.php` so that Admins, Managers, and Devs can freely switch and view different POS stations without being continuously locked to their active shift location.
+
+[33mcommit 9c135dcf3125bc5bea731cf37a92b64532c1b349[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 20 12:07:24 2026 +0200
+
+    UI: Implement product pagination and floating cart layout in POS
+    
+    - Refactored the POS workspace using strict Flexbox rules to allow the cart panel to float independently. The cart action buttons (Charge, Split, Add to Tab, Clear, Lost Stock) now remain permanently fixed and visible at the bottom of the screen while cart items scroll above them.
+    - Implemented a JavaScript-based pagination system for the product grid (24 items per page) to prevent layout clipping and improve rendering performance when dealing with large inventories.
+    - Integrated the new pagination logic seamlessly with the existing real-time search and category filtering functions.
+    - Maintained the recently restored End Shift, X-Read, and Lost Stock action buttons.
+
+[33mcommit 5db1da9474a2e90e73186873a2d960c198b84ce3[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 20 07:23:28 2026 +0200
+
+    restored POS authorisation z-index for visibility
+
+[33mcommit 65ac69acbcc18996be89f4802083ab8d6afd001d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Wed Feb 18 18:10:24 2026 +0200
+
+    Fix: Overhaul POS logic for refunds, KDS, splits, and audit logs
+    
+    - Implemented Partial Refund logic: Added `src/refund_items.php` to split sale lines and restore specific quantities to stock.
+    - Refactored Cart Logic: Switched to unique IDs for cart items to support separate lines for duplicate products.
+    - Fixed KDS & Collection:
+      - Beverages/Snacks now bypass kitchen status (auto-ready).
+      - Strict validation for Food/Meals (must be 'Ready' to collect).
+      - 'Mark Collected' now forces status to 'served' to clear KDS.
+    - Enhanced Split Billing: Added editable Guest Names in split modal; pending splits now create named Tabs.
+    - Fixed Inventory Audit: 'Add to Tab' and 'Lost Stock' actions now correctly write to `inventory_logs`.
+    - Updated Reports: switched to `LEFT JOIN` to preserve history of deleted users/products; linked Refund button to new partial refund page.
+    - UI Improvements:
+      - Made Dashboard cards clickable.
+      - Restored 'End Shift', 'X-Read', and 'Lost Stock' buttons in POS.
+      - Added copyright and address to global Footer.
+
+[33mcommit ab885f4652f6ed946119a17334b8af91a7587e83[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 17 23:36:01 2026 +0200
+
+    Stabilised POS system features
+
+[33mcommit 61c67ea4f0e1f05edc46e8266c7dd79584ac5ebe[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 17 19:36:37 2026 +0200
+
+    enhanced CART management, but cart still not separating if item >1
+
+[33mcommit fd3573aebe774363c492a2f63a1016135f8574d1[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 14 13:00:19 2026 +0200
+
+    Fix POS workflow, KDS integration, and Tab duplication bugs
+    
+    - Fixed 'Transparent Screen' crash on checkout by initializing missing PHP variables in pos.php.
+    - Resolved Tab duplication ('Ghosting') issue by implementing 'Wipe & Replace' logic when updating an existing tab.
+    - Fixed Service creation database error by saving SKU as NULL instead of empty string to respect unique constraints.
+    - Updated KDS logic to display all 'pending' or 'cooking' items, relaxing strict category filters.
+    - Fixed Pickup Dashboard to show 'Ready' meals immediately, even if the order is not yet paid (Tab mode).
+    - Patched receive.php to prevent 'Array Offset' warnings during permission checks.
+    - Improved POS Javascript to safely handle special characters in product names (e.g., quotes).
+
+[33mcommit 763369ae2f29fe6e7c560d8f22624746bf67c0fb[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 14 12:45:20 2026 +0200
+
+    POS enhancement: Enforce tabs to be collected at pickup (pickup still not receiving done meals from kitchen
+
+[33mcommit 208b8bbb031cc8b4f80bcd451b177e98a6ada0bc[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 14 08:56:24 2026 +0200
+
+    fixed POS, Add Product and Database mismatches
+
+[33mcommit 65771e1e55f0a37e0cc7fefba3844b8996e6dc01[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Thu Feb 12 17:24:05 2026 +0200
+
+    Patching
+
+[33mcommit 785f3308bed21e10c7df7aad91bf95fa3412ffd4[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 10 13:33:35 2026 +0200
+
+    Implement Refunds, Reports, and Enhanced UX
+    
+    - **Reports Module:** Implemented comprehensive Sales, Product Performance, and Inventory Audit reports with date and location filtering.
+    - **Refund Logic:** Added functionality to process refunds, automatically marking sales as 'refunded', restoring inventory quantities, and logging audit trails.
+    - **Database Updates:** Updated `sales` and `inventory_logs` tables to support 'refunded' status and flexible action types.
+    - **User Management:** Implemented "Soft Delete" (deactivation) for users to prevent foreign key constraint violations with historical sales data. Fixed PHP warnings regarding undefined array keys.
+    - **Receipts:** Created a dedicated receipt template and fixed Master Invoice logic to correctly itemize tips and calculate change.
+    - **UI/UX Overhaul:**
+      - Integrated **SweetAlert2** for all success/error notifications and confirmation dialogs.
+      - Added **Flatpickr** for user-friendly date selection in reports.
+      - Converted POS Receipt and Pickup screens to open in Modals instead of new windows/tabs.
+      - Fixed Favicon 404 console errors.
+
+[33mcommit f1ef9c6e9459dae9c1016854ca0eca6a4e6678c6[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 10 02:39:11 2026 +0200
+
+    Updated DB
+
+[33mcommit f35be3de9a0c3dd5a0dd11efb44b7e85ef9580ae[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 10 02:37:27 2026 +0200
+
+    Fixed deprecation errors
+
+[33mcommit 78000215ff6b9739edcbc615557903146047c952[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Tue Feb 10 02:25:31 2026 +0200
+
+    Enhanced split billing and Bill Merging
+    
+    - **Split Logic Fix:** Resolved issue where "Even Split" created empty carts by dynamically generating a "Split Bill Balance" service item to hold the value.
+    - **Master Invoice:** Implemented a "Master Receipt" generator to aggregate all sub-bills from a split group into a single summary document.
+    - **Workflow Optimization:** Added direct "PAY" buttons to the Split Invoice Summary modal, allowing immediate settlement of pending sub-bills without navigation.
+    - **Tips Integration:** Added specific tip input fields for each guest in the Split Bill modal and updated checkout logic to persist `tip_amount` to the database.
+    - **Bill Merging:** Added functionality to merge multiple selected tabs into a single transaction, calculating the new total and cleaning up old records.
+    - **UI/UX Refactor:** Updated receipt buttons to open in modals rather than new windows and fixed layout issues in the POS modal structures.
+
+[33mcommit 5f6b1c2633138b0ad0a55e09967d6781b777c122[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 23:20:35 2026 +0200
+
+    Fixed The split invoice which is pending not responding to cart.placement, unresponsive open tab', payment is unable to be completed and upaid tabs' on the dashboard not detecting the open tabs item(s).
+
+[33mcommit 94075d0ec5aae40627ebb74ece3e0d0c9607e269[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 22:13:28 2026 +0200
+
+    Enhanced split billing with split invoicing
+
+[33mcommit 2fd5ca55a65a84c8920448a4dcef507a68849a86[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 22:00:17 2026 +0200
+
+    Implimented split invoicing
+
+[33mcommit 6e9a62770e4bed5fa60854910a272a31dcb6b85d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 21:47:04 2026 +0200
+
+    Added db update
+
+[33mcommit 4b7ef4ecce787b5377b65952f16567a2c119cff5[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 21:42:27 2026 +0200
+
+    Added Complementary service
+
+[33mcommit f5cccd56da563fdb90b68432e31a001880e86f3e[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 18:12:37 2026 +0200
+
+    fixed location change constraint
+
+[33mcommit fd5cc118926d9cf621cf7f09d501ddc55b60b7ee[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 17:55:50 2026 +0200
+
+    Feat: Enhanced stock management scope.
+    
+    - Increased the z-index of the Report Modal so it appears on top of the Location Selection modal after closing a shift.
+    - Updated the query to calculate Stock Value (Price * Qty) and handle the requested filters (Location, User, Period).
+    - Added the "Stock Value" column, a "Location" column, and a filter bar for Period, Location, and User.
+
+[33mcommit c90f71a405354c193c8f3ec98b5b7d3fb7133571[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 17:16:35 2026 +0200
+
+    Implimented Shift selection prompt on first shift
+
+[33mcommit 588497c30b765d86a312ea9781fd7706d22f3aff[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 17:03:27 2026 +0200
+
+    Implemented Lost Stock button in the cart panel
+
+[33mcommit f3ba825495a230c81c7aa979f8385007a8145daf[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 11:37:47 2026 +0200
+
+    Removed new tab openings and updated db
+
+[33mcommit 3342b8af8c6b7397964c20931a40bb49f05ece42[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 11:04:08 2026 +0200
+
+    implemented shift authorisation guadrail
+
+[33mcommit 473bfc6d4d98b8df94addf4dece913cec44edf40[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 09:29:07 2026 +0200
+
+    feat: implement manager refunds, enhanced stock transfers, and reporting UI
+    
+    - **Refunds:**
+      - Implemented Manager Approval workflow for Refunds.
+      - Added `refunds` database table.
+      - Created `src/refund_action.php` to handle stock reversal and transaction recording.
+      - Updated Reports page to display Net Revenue (Gross - Refunds) and highlight refunded transactions.
+    
+    - **Inventory & Transfers:**
+      - Fixed "Zero Stock" display bug by adding `get_stock_level` global action in `index.php`.
+      - Updated `templates/transfers.php` to show live stock levels for both Source and Destination in the Requisition Modal.
+      - Preserved original Tabbed navigation (Incoming/Outgoing/Requests) while adding "Action Required" indicators.
+      - Synchronized `location_stock` table with live `inventory` data.
+    
+    - **UI/UX:**
+      - Refactored `templates/header.php` to group Reports into a dropdown menu.
+      - Added "Daily Sales Summary" and "Product Performance" quick-view modals.
+      - Fixed deprecated variable warnings in Transfer templates.
+
+[33mcommit 2401d16b5a607523aca32a2993564ca335dfaee1[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Mon Feb 9 08:37:02 2026 +0200
+
+    restore point 080226
+
+[33mcommit e3e9e72279e0fb1b57fdddc63d4c1c938dbc31ec[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 7 07:38:59 2026 +0200
+
+    receipts now displaying discount break down
+
+[33mcommit b286ef02960da815b8ec0991b8c04d0bb838341b[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Feb 7 01:12:08 2026 +0200
+
+    feat: Enhance POS payments, member benefits, and pickup flow
+    
+    Major update to refine the checkout experience, integrate member loyalty features, and fix payment reconciliation logic.
+    
+    POS & Payments:
+    - Refined Split Payment UI: Switched to independent inputs for payment methods with a master "Actual Tendered" field that drives calculations.
+    - Implemented "Smart Balance": System automatically detects Partial Payments (creates a Tab) vs Fully Paid (shows Change) based on the tendered amount.
+    - Fixed critical bug where the cart would not clear after checkout due to session write ordering.
+    - Ensured "Put on Tab" option is always visible in the payment dropdown.
+    
+    Member Features:
+    - Added "Members" button to POS header with a searchable selection modal.
+    - Added "Remove Member" functionality in the active user display.
+    - Implemented "Member Benefits" toggle in the Payment Modal to apply a 10% discount.
+    - Updated backend to calculate and store discounted totals.
+    
+    Pickup & Receipts:
+    - Restored "Pickup" button to the POS header.
+    - Fixed SQL error in Pickup Confirmation (now correctly saves User ID instead of Name).
+    - Implemented auto-popup for Receipts immediately after confirming pickup.
+    - Updated Receipt template to explicitly show "PARTIAL PAYMENT" status and "BALANCE DUE" for unpaid tabs.
+
+[33mcommit bd10fc925fda94b438fa961d1d51ff9a750deef4[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 6 22:37:26 2026 +0200
+
+    feat: Overhaul POS, KDS, and Payment flows
+    
+    Major update to fix POS stability, implement complex payment logic, and enable the full Kitchen/Pickup workflow.
+    
+    POS & Payments:
+    - Fixed critical crash (undefined $total) in POS dashboard.
+    - Implemented Split Payment logic (Cash + Mobile Money/Card).
+    - Added specific Mobile Money providers: MTN, Airtel, Zamtel.
+    - Enforced stock limits: Disabled "Add to Cart" for items with 0 quantity.
+    - Restored "Pickup" button to POS header.
+    
+    Shift Management:
+    - Implemented Start Shift / End Shift modals with Manager Approval.
+    - Added X-Read (Shift Summary) as a popup modal in the POS header.
+    - Fixed Z-Report (End Shift) workflow to keep user on POS screen.
+    
+    Kitchen (KDS) & Pickup:
+    - Implemented real-time KDS polling (auto-refresh every 5s).
+    - Fixed order flow: Items now default to 'pending' status for KDS visibility.
+    - Added logic to move items from Pending -> Cooking -> Ready -> Pickup.
+    
+    Receipts & Reconciliation:
+    - Added Payment Status indicators (PAID vs UNPAID/TAB).
+    - Added Collection Status indicators (COLLECTED vs NOT COLLECTED) for food items.
+    - Fixed receipt auto-printing trigger after checkout.
+    
+    System & UI:
+    - Created src/seeder.php for database reset and testing data.
+    - Fixed UI contrast issues (invisible 'Charge' button).
+    - Improved styling for Cart Panel and Product Grid.
+
+[33mcommit a6f52c530f287c47ada3a3008cee99c6191c2385[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 6 17:10:02 2026 +0200
+
+    updated schema
+
+[33mcommit 58bb9227abe1448c4451124b23a8772cf0db3d8f[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Feb 6 15:43:06 2026 +0200
+
+    enhanced POS to have manager signoff before shift begins
+
+[33mcommit 5a35bba961dcf2bbc32991c93247ba7e1d00480c[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 21:12:37 2026 +0200
+
+    Further enhanced dashboard UI
+
+[33mcommit f3939a8737235bbf2798548c16207844a0b7dcdf[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 21:09:00 2026 +0200
+
+    enhanced appaearance of POS and dashboard
+
+[33mcommit af2c3eed03ca8f5f96ab6394215a1eec0f4b0501[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 20:49:41 2026 +0200
+
+    feat: Implemented Loyalty System, Mobile POS, and Golden Theme
+    
+    Summary of changes:
+    - Membership: Added Member Management module (CRUD) and database schema.
+    - Loyalty: Integrated 'Earn & Burn' logic into POS. Members earn 5% points on sales; points can be redeemed at checkout.
+    - POS: Added Member Lookup, Points Balance display, and Mobile Money provider tracking.
+    - UI/UX: Overhauled entire application with a new "Golden, Orange, & Brown" hospitality theme.
+    - Mobile: Made POS and KDS fully responsive (collapsible cart, touch-friendly grid) for phone/tablet use.
+    - Dashboard: Added 'Active Staff Monitor' with drill-down to live shift reports.
+    - Dashboard: Fixed card alignment and added direct drill-down to 'Unpaid Invoices'.
+    - Printing: Updated receipts to show "Points Earned" and "Points Used" summaries.
+    - Fix: Improved 'Station Selector' modal logic (added Cancel/Exit options).
+    - Fix: Hardened main router (index.php) with relative path detection for better server compatibility.
+
+[33mcommit 07e6c37d7d564f920ddc4765c242119679e01f94[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 19:22:36 2026 +0200
+
+    feat: Added POS Station Selector, Stock History Cards, and Full UAT
+    
+    Summary of changes:
+    - POS: Implemented 'Work Station' selector to force location choice before selling (handling 'pos_location_id').
+    - POS: Added 'Switch Station' button to POS header.
+    - Inventory: Added 'Stock Card' history modal showing detailed logs (GRV, Sales, Transfers) per product.
+    - Inventory: Added AJAX handler to fetch product history logs.
+    - UAT: Created comprehensive 'full_uat_scenario.html' covering all operational and admin workflows.
+    - Docs: Merged operational and administrative test scenarios into a single document.
+
+[33mcommit ae9e2643b3647751a6a587c4549963b4de2a89bd[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 17:05:11 2026 +0200
+
+    feat: Major POS enhancements, Inventory Logging, and Dashboard upgrades
+    
+    Summary of changes:
+    
+    Inventory & Stock Control:
+    - Implemented `inventory_logs` table and logic to track every stock movement (Sales, Transfers, GRVs).
+    - Added new 'Audit Trail' page for managers to view stock history.
+    - Implemented automated stock requisition: System now auto-requests stock from Warehouse when items hit critical levels.
+    - Updated Transfer logic to validate source stock levels before dispatch.
+    
+    POS & Payments:
+    - Enhanced Checkout Modal: Added Change Calculator and Mobile Money Provider selection (MTN, Airtel, Zamtel).
+    - Fixed Tab/Pay Later logic: 'Pay Later' is now hidden when recalling an existing tab to enforce settlement.
+    - Receipt Printing: Fixed auto-print trigger and added 'Double Copy' mode (Client + Kitchen/Store).
+    - Fixed `shift_id` error to ensure sales are always linked to an open shift.
+    - Database: Updated `payment_method` column to VARCHAR to support detailed provider names.
+    
+    Dashboard & Reporting:
+    - Added "Action Center" cards: Quick view for Unpaid Invoices and Pending Requisitions with drill-down links.
+    - Added Critical Stock Alert banner.
+    - Integrated Audio Notification ("Ping") when KDS orders are ready for pickup.
+    - Optimized Sales Report printing (hid navigation badges and non-essential metrics).
+    
+    KDS & Pickup:
+    - Filtered KDS and Pickup screens to strictly show 'Food' and 'Meal' categories (ignoring drinks).
+    - Updated Pickup Screen navigation to redirect back to POS instead of Dashboard.
+    - Auto-set `collected_by` status immediately upon payment for smoother workflow.
+
+[33mcommit ab63eb400bf6357a6ed7bbc63f43ec3aeb5f759a[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 07:46:36 2026 +0200
+
+    fix: Resolve Inventory split-brain, update POS location logic, and fix Payment/Null DB constraints
+
+[33mcommit fd8402bbcbaca5165eee4389178bc9fbefc3dcd4[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sun Feb 1 04:40:25 2026 +0200
+
+    added head chef as manager
+
+[33mcommit d799a13d9b295cfce0cd8a47ef6afb10df10ad8e[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 16:25:37 2026 +0200
+
+    added scenario page to test system
+
+[33mcommit ed1e4f25d2c49139446a24e36993d051910b0329[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 16:11:25 2026 +0200
+
+    feat: Implement End-to-End Pickup Workflow, Double Receipts, and Kiosk Mode UI
+    
+    - **Pickup Screen Overhaul:**
+      - **Collected By Selector:** Added mandatory dropdown to select the server collecting the order before confirmation.
+      - **AJAX Workflow:** Converted "Confirm" action to an asynchronous request to prevent page reloads.
+      - **Embedded Receipt Modal:** Implemented a popup modal to preview and print receipts immediately after collection without leaving the queue.
+      - **Navigation:** Added "Exit to Dashboard" button for quick access.
+    
+    - **Receipt System Redesign:**
+      - **Dynamic Status Logic:** - Initial POS receipt now prints "NOT COLLECTED" (Red).
+        - Pickup receipt now prints "SERVED BY: [Name]" (Client Copy) and "COLLECTED BY: [Name]" (Kitchen Copy).
+      - **Double-Copy Support:** Added logic to generate two labeled copies (Client/Kitchen) with a visual cut-line (✂) upon collection.
+      - **Safety Fixes:** applied `?? ''` null coalescing checks to all template variables to prevent PHP 8.1 deprecation warnings.
+      - **Auto-Print Disabled:** Removed `window.print()` on load to allow manual verification before printing.
+    
+    - **UI/UX & Security:**
+      - **Kiosk Mode Enforcement:** Removed `target="_blank"` from POS Pickup button to prevent opening new tabs/windows.
+      - **KDS Update:** Added "Exit to Dashboard" button to the Kitchen Display System header.
+      - **Database Schema:** Added `collected_by` column to `sales` table and `phone`/`address` columns to `locations` table.
+
+[33mcommit eb8d9e9ad7dacb233c3748725794b4ae491b363c[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 09:21:53 2026 +0200
+
+    feat: Enhance User Management with Full Names, Dynamic Roles, and Strict Security
+    
+    - **Database Schema:**
+      - Added `full_name` column to `users` table for better identification.
+    
+    - **User Management Logic:**
+      - **Full Name Support:** Updated Create/Edit workflows to capture and display full names.
+      - **Dynamic Roles:** Implemented database inspection to fetch Role options directly from the MySQL ENUM definition (removes hardcoded lists).
+      - **Password Reset:** Added "Factory Reset" feature to instantly set user passwords to default (`pos123`) and force change on next login.
+      - **Expanded Access:** Allowed `dev` and `manager` roles to access the User Management panel (previously Admin-only).
+    
+    - **Security Hardening (RBAC):**
+      - **Dev Protection:** Implemented strict controls preventing Admins/Managers from editing, deleting, or promoting `dev` accounts. Only a `dev` can manage another `dev`.
+      - **UI Visual Feedback:** Greyed out and disabled action buttons for restricted accounts (e.g., Admins see disabled buttons for Dev users).
+    
+    - **UI/UX Improvements:**
+      - **Safe Data Passing:** Refactored Edit Modal to use `data-attributes` instead of inline onclick parameters, preventing syntax errors with special characters.
+      - **Null Safety:** Applied null coalescing operators (`?? ''`) to all user fields to prevent PHP deprecation warnings.
+      - **SweetAlert Integration:** Replaced default browser alerts with SweetAlert for Password Reset confirmations.
+
+[33mcommit 6aaec98d1e0f6f12bde38c646d8f7ea64d8d69a4[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 07:16:02 2026 +0200
+
+    fix: Improve KDS card sizing and enforce POS stock validation
+    
+    - **KDS UI Improvements:**
+      - Removed full-height enforcement on KDS cards to prevent stretching on large screens.
+      - Implemented `align-items-start` flex behavior so tickets only take up necessary vertical space.
+      - Adjusted internal scrolling (`max-height: 50vh`) to handle large orders gracefully within compact cards.
+    
+    - **POS Stock Control:**
+      - Implemented strict stock validation before adding items to the cart.
+      - Added a database check to fetch `current_stock` alongside product details.
+      - Logic now blocks the sale of out-of-stock items and triggers a warning alert.
+    
+    - **POS UX Enhancements:**
+      - Updated SweetAlert configuration to render HTML content (enabling clickable links).
+      - Configured "Stock Warning" alerts to persist until dismissed, allowing users time to click the "Create Requisition" link.
+
+[33mcommit 89d80ce53c143632182e913677402b21b69a9a3b[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 06:38:59 2026 +0200
+
+    updated to use the null coalescing operator (??) on dashboard
+
+[33mcommit f2444d334d742b4d143548d1ea2b3bcbaa867e52[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 06:23:18 2026 +0200
+
+    updated schema
+
+[33mcommit ba176bf311eb6be4732832e8a05e6443964c4f98[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Sat Jan 31 06:15:41 2026 +0200
+
+    fix: Resolve KDS styling, Pickup errors, and POS Category routing
+    
+    - **KDS & Pickup:**
+      - Fixed variable name mismatch in Pickup template (`$readyItems` -> `$readyOrders`).
+      - Styled Pickup Screen for high visibility (dark mode, large fonts).
+      - Fixed KDS styling issues where layout was unstyled due to missing header.
+      - Implemented "Paper Ticket" style for KDS cards to improve readability.
+    
+    - **POS System:**
+      - Fixed Category routing logic to ensure food items post to KDS correctly.
+      - Implemented backend category lookup to prevent client-side form manipulation.
+      - Added "Collected" action to clear Ready orders from Dashboard/POS badges.
+    
+    - **Dashboard:**
+      - Fixed fatal error by properly fetching location details in dashboard controller.
+      - Added real-time "Ready for Pickup" notification badge.
+
+[33mcommit 1b094fca289bcdbd01f565e04e97ec2acc6f9896[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 13:34:16 2026 +0200
+
+    Implemented Pickup Notification Badge and Chef's 'Menu Manager' now focused strictly on food/meal categories.
+
+[33mcommit 55d50b5d234c7069d73a1232171665bd52266597[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 10:39:55 2026 +0200
+
+    feat: Implement Chef-Exclusive Menu Management Module
+    
+    - **Menu Logic (RBAC):**
+      - Implemented strict role-based access control for menu management.
+      - Restricted access exclusively to `chef`, `head_chef`, `admin`, and `dev` roles.
+    
+    - **Menu Interface:**
+      - Created a dedicated "Chef Menu Manager" interface.
+      - Added functionality to Create new dishes, Edit prices/categories, and Update names.
+      - Implemented "86'ing" functionality (Status Toggle) to instantly hide/show items on the POS without deleting them.
+    
+    - **Navigation & Routing:**
+      - Registered 'menu' route in the public index.
+      - Added conditional navigation link that only appears for Chef roles.
+    
+    - **Database:**
+      - Utilized existing `products` table, manipulating `is_active` flag for availability.
+
+[33mcommit 71736e60629060564845202505ae19f3fa2a80f5[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 10:14:12 2026 +0200
+
+    feat: Implement Sales Reporting and Advanced Stock Requisition Workflow
+    
+    - **Reporting Module:**
+      - Implemented Sales Report with Date Range and Location filters.
+      - Added KPI Cards: Total Revenue, Total Transactions, Average Basket Size.
+      - Added Payment Method Breakdown (Cash vs Mobile vs Card) and Top 5 Selling Products.
+      - Implemented Transaction Log with ability to view/reprint historical receipts.
+    
+    - **Advanced Inventory Transfers:**
+      - Upgraded transfers to a 3-step Requisition Cycle: Request -> Dispatch -> Receive.
+      - Implemented status workflow: 'pending' (Request), 'in_transit' (Dispatched), 'completed' (Received).
+      - Added UI Tabs for managing Incoming Stock, Outgoing Dispatches, and My Requests.
+      - Added validation to prevent dispatching stock if source inventory is insufficient.
+    
+    - **Database & Fixes:**
+      - Created `inventory_transfers` table with status enums and tracking timestamps (dispatched_at, received_at).
+      - Fixed database schema initialization for transfers.
+      - Added "Reports" link to the navigation bar for Managers/Admins.
+    
+    - **Refactoring:**
+      - Standardized modal usage across Reporting and POS for receipt viewing.
+
+[33mcommit 22ff45998afa057cef5b60391c5a95aea154044d[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 09:34:52 2026 +0200
+
+    updated database
+
+[33mcommit 187e3c580348c0308afd3414f14bcc8172af8857[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 09:24:59 2026 +0200
+
+    feat: Implement Core POS, KDS, Inventory, and Admin Modules
+    
+    - **POS System:**
+      - Implemented full Point of Sale interface with product search and grid view.
+      - Added session-based cart with add/remove/clear functionality.
+      - Implemented Checkout logic handling Cash, Card, and Mobile payments.
+      - Added Receipt generation (Customer + Kitchen tickets) in a modal popup.
+    
+    - **Kitchen & Pickup:**
+      - Created KDS (Kitchen Display System) with real-time order ticketing.
+      - Implemented status workflow: Pending -> Cooking -> Ready.
+      - Built Pickup Screen for waiters/customers to track ready orders.
+    
+    - **Inventory Operations:**
+      - Implemented Stock Receiving (GRV) with vendor selection and cost tracking.
+      - Added Internal Stock Transfers between locations with stock validation.
+    
+    - **Administration:**
+      - Added User Management with Role-Based Access Control (RBAC).
+      - Implemented Vendor, Location, and Category management modules.
+      - Added "Force Password Change" security policy for first-time logins.
+    
+    - **Technical & Fixes:**
+      - Applied Post-Redirect-Get (PRG) pattern to prevent form resubmission.
+      - Fixed PHP 8.1+ null deprecation warnings in templates.
+      - Resolved CSS styling issues for full-screen pages (POS, KDS).
+      - Updated database schema for users, vendors, and locations.
+
+[33mcommit 166ec398717691acf455ddf21f74a68904893f89[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 09:24:07 2026 +0200
+
+    feat: Implement Core POS, KDS, Inventory, and Admin Modules
+    
+    - **POS System:**
+      - Implemented full Point of Sale interface with product search and grid view.
+      - Added session-based cart with add/remove/clear functionality.
+      - Implemented Checkout logic handling Cash, Card, and Mobile payments.
+      - Added Receipt generation (Customer + Kitchen tickets) in a modal popup.
+    
+    - **Kitchen & Pickup:**
+      - Created KDS (Kitchen Display System) with real-time order ticketing.
+      - Implemented status workflow: Pending -> Cooking -> Ready.
+      - Built Pickup Screen for waiters/customers to track ready orders.
+    
+    - **Inventory Operations:**
+      - Implemented Stock Receiving (GRV) with vendor selection and cost tracking.
+      - Added Internal Stock Transfers between locations with stock validation.
+    
+    - **Administration:**
+      - Added User Management with Role-Based Access Control (RBAC).
+      - Implemented Vendor, Location, and Category management modules.
+      - Added "Force Password Change" security policy for first-time logins.
+    
+    - **Technical & Fixes:**
+      - Applied Post-Redirect-Get (PRG) pattern to prevent form resubmission.
+      - Fixed PHP 8.1+ null deprecation warnings in templates.
+      - Resolved CSS styling issues for full-screen pages (POS, KDS).
+      - Updated database schema for users, vendors, and locations.
+
+[33mcommit dece935b02234938d1242aac7696029c988da1c9[m
+Merge: f116b3f e16e596
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Fri Jan 30 07:07:32 2026 +0200
+
+    Merge local work with cloud host version and fix conflicts
+
+[33mcommit e16e596ba2fd6802bfea1fc47bb65956e79d505f[m
+Author: Mando Chishimba <mando.chishimba@gmail.com>
+Date:   Thu Jan 29 21:42:52 2026 +0000
+
+    user, location management added
+
+[33mcommit f116b3f58d7889822ae3d09cf33c9282e280a5ca[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Thu Jan 29 23:21:00 2026 +0200
+
+    added environment template
+
+[33mcommit 7ada259a605cf8023401243ff3680797153bbc6b[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Thu Jan 29 23:15:18 2026 +0200
+
+    v1.0 pro
+
+[33mcommit c4d773c26eb7b5e1a023290a6dbea53edabfd798[m
+Author: Cephamando <mando.chishimba@gmail.com>
+Date:   Thu Jan 29 23:12:08 2026 +0200
+
+    first commit

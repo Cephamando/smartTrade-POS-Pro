@@ -8,7 +8,6 @@ $locationName = $_SESSION['location_name'] ?? 'HQ';
 $userId = $_SESSION['user_id'];
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 
-// --- ⚙️ HELPER: INVENTORY DEDUCTION ENGINE ⚙️ ---
 function executeDeduction($pdo, $pId, $qty, $locId, $uId, $actionType) {
     $stmt = $pdo->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location_id = ?");
     $stmt->execute([$pId, $locId]);
@@ -40,7 +39,6 @@ function deductStock($pdo, $productId, $qty, $locId, $uId, $actionOverride = 'sa
     }
 }
 
-// --- 📡 AJAX HANDLERS ---
 if (isset($_POST['mark_collected'])) {
     header('Content-Type: application/json');
     $itemId = (int)$_POST['item_id'];
@@ -67,7 +65,6 @@ if (isset($_POST['mark_collected'])) {
 if (isset($_POST['void_item'])) {
     header('Content-Type: application/json');
     $itemId = (int)$_POST['item_id'];
-    
     $mgrUser = $_POST['mgr_user'] ?? '';
     $mgrPass = $_POST['mgr_pass'] ?? '';
     $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
@@ -94,7 +91,6 @@ if (isset($_POST['void_item'])) {
     exit;
 }
 
-// --- 📍 LOCATION & SHIFT CHECK ---
 if (isset($_POST['set_pos_location'])) {
     $_SESSION['pos_location_id'] = (int)$_POST['set_pos_location'];
     $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?"); $stmt->execute([$_SESSION['pos_location_id']]);
@@ -124,7 +120,6 @@ if (isset($_POST['approve_shift_start'])) {
     else { $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Invalid credentials."; } header("Location: index.php?page=pos"); exit;
 }
 
-// --- 🔄 TRANSFER / MERGE ITEMS ---
 if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
     try {
         $pdo->beginTransaction();
@@ -178,7 +173,6 @@ if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 🛒 CART MANAGEMENT ---
 if (!isset($_SESSION['cart'])) { $_SESSION['cart'] = []; }
 
 if (isset($_POST['add_item']) && $activeShiftId) {
@@ -285,9 +279,22 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             $stmtPT->execute([$settleTabId]); 
             $prevTendered = (float)$stmtPT->fetchColumn(); 
             $cumulativeTendered = $prevTendered + $amountTendered; 
+            
+            // MARK AS COMPLETED IF PAID
             $status = ($cumulativeTendered >= $finalTotal) ? 'paid' : 'pending'; 
+            $saleStatus = ($status === 'paid') ? 'completed' : 'pending';
+            
             $changeDue = ($cumulativeTendered > $finalTotal) ? ($cumulativeTendered - $finalTotal) : 0;
-            $pdo->prepare("UPDATE sales SET subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ? WHERE id = ?")->execute([$total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $settleTabId]);
+            
+            // FIX IS HERE: Enforce the $activeShiftId during the update so the Z-Read sees it!
+            $pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ? WHERE id = ?")
+                ->execute([$activeShiftId, $saleStatus, $total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $settleTabId]);
+            
+            // Auto-fulfill uncollected items if tab is fully paid
+            if ($saleStatus === 'completed') {
+                $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$settleTabId]);
+            }
+
             if ($status === 'paid') { $_SESSION['last_sale_id'] = $settleTabId; } $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
         } else {
             $total = 0; foreach($_SESSION['cart'] as $item) { $total += $item['price'] * $item['qty']; }
@@ -334,7 +341,6 @@ if (isset($_POST['checkout']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 🧾 SPLIT BILL LOGIC ---
 if (isset($_POST['finalize_split']) && $activeShiftId) {
     $splitData = json_decode($_POST['split_data'], true);
     if ($splitData) {
@@ -363,7 +369,6 @@ if (isset($_POST['finalize_split']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 🍻 ADD TO TAB LOGIC ---
 if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
     try {
         $pdo->beginTransaction();
@@ -388,7 +393,6 @@ if (isset($_POST['add_to_tab_action']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 💸 PAYOUT LOGIC ---
 if (isset($_POST['log_expense']) && $activeShiftId) {
     $amt = (float)$_POST['expense_amount']; $reason = trim($_POST['expense_reason']); $mgrUsername = $_POST['mgr_username'] ?? ''; $mgrPassword = $_POST['mgr_password'] ?? '';
     if ($amt > 0 && !empty($reason)) {
@@ -403,22 +407,10 @@ if (isset($_POST['log_expense']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 🌐 ONLINE ORDER COMPLETION ---
-if (isset($_POST['complete_online_order']) && $activeShiftId) {
-    $saleId = (int)$_POST['complete_online_order'];
-    $pdo->prepare("UPDATE sales SET status = 'completed', payment_status = 'paid' WHERE id = ?")->execute([$saleId]);
-    $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$saleId]);
-    $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Online order marked as collected.";
-    header("Location: index.php?page=pos"); exit;
-}
-
-
-// --- FETCH THEME SETTINGS ---
 $settingsStmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
 $sysSettings = [];
 while ($sRow = $settingsStmt->fetch(PDO::FETCH_ASSOC)) { $sysSettings[$sRow['setting_key']] = $sRow['setting_value']; }
 
-// --- 🖥️ UI DATA FETCHING ---
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 $stmt = $pdo->prepare("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty, (SELECT COUNT(*) FROM product_recipes WHERE parent_product_id = p.id) as is_recipe FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = ? WHERE p.type = 'item' AND p.is_active = 1"); $stmt->execute([$locationId]); $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1")->fetchAll(PDO::FETCH_ASSOC);
@@ -435,13 +427,7 @@ foreach($openTabs as $t) {
     $tabItems[$t['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC); 
 }
 
-// FETCH ONLINE TABS
-$onlineTabsStmt = $pdo->prepare("
-    SELECT id, total_amount, customer_name, split_group_id as external_id, created_at 
-    FROM sales 
-    WHERE status = 'pending' AND payment_method = 'Online'
-    ORDER BY created_at DESC
-");
+$onlineTabsStmt = $pdo->prepare("SELECT id, total_amount, customer_name, split_group_id as external_id, created_at FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY created_at DESC");
 $onlineTabsStmt->execute();
 $onlineTabs = $onlineTabsStmt->fetchAll(PDO::FETCH_ASSOC);
 

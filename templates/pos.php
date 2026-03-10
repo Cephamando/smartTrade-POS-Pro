@@ -8,27 +8,16 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* DYNAMIC THEME SETTINGS */
-        :root {
-            --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>;
-            --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>;
-            --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>;
-        }
-        
-        /* CORE LAYOUT */
+        :root { --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>; --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>; --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>; }
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; }
         .header-custom { background-color: var(--pos-main-color) !important; border-bottom: 4px solid var(--pos-accent-color) !important; color: white; flex: 0 0 auto; z-index: 1050; transition: background-color 0.3s, border-color 0.3s; }
         #headerPosLabel, #headerLocIcon { color: var(--pos-accent-color) !important; }
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
         .product-section { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        
-        /* DRILL-DOWN CARDS */
         .cat-card { background: #fff; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px 10px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: bold; color: #333; display: flex; flex-direction: column; align-items: center; justify-content: center; user-select: none; }
         .cat-card:hover { border-color: var(--pos-accent-color) !important; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
         .cat-card.active { background: var(--pos-cart-color) !important; border-color: var(--pos-accent-color) !important; color: #fff; }
         .cat-icon { font-size: 2rem; margin-bottom: 8px; }
-
-        /* PRODUCT GRID */
         .product-list-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
         .product-list { flex: 1 1 auto; overflow-y: auto; padding: 15px; }
         .pagination-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #ddd; padding: 10px 15px; display: flex; justify-content: center; align-items: center; gap: 15px; }
@@ -40,8 +29,6 @@
         .bg-low { background-color: #dc3545; color: white; }
         .bg-ok { background-color: #198754; color: white; }
         .bg-recipe { background-color: #0dcaf0; color: #000; }
-        
-        /* CART PANEL */
         .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1000; height: 100%; }
         .cart-header { padding: 15px; background-color: var(--pos-cart-color) !important; color: white; flex: 0 0 auto; }
         .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #f8f9fa; min-height: 0; }
@@ -53,8 +40,6 @@
         .btn-charge { background-color: #fd7e14 !important; border-color: #fd7e14 !important; color: #fff !important; font-size: 1.25rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(253, 126, 20, 0.3); }
         .btn-charge:hover { background-color: #e66b0d !important; }
         .btn-charge:disabled { background-color: #ccc !important; border-color: #ccc !important; box-shadow: none; cursor: not-allowed; }
-        
-        /* TABLES */
         .table-box { border-radius: 12px; height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden; }
         .table-box:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
         .table-available { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
@@ -63,7 +48,6 @@
         .tab-radio-label { cursor: pointer; transition: 0.2s; }
         .tab-radio-label:hover { background-color: #f8f9fa; }
         .tab-radio-label.active { background-color: var(--pos-accent-color) !important; color: #000 !important; border-color: var(--pos-accent-color) !important; font-weight: bold; }
-        
         @media (max-width: 991px) { .cart-panel { flex: 0 0 340px; width: 340px; } }
         @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid var(--pos-cart-color) !important; flex: 0 0 auto; } .cart-panel.expanded { height: 85vh; max-height: 85vh; } }
     </style>
@@ -175,8 +159,7 @@
             </div>
 
             <div id="sub-category-grid" class="p-3 bg-white" style="display:none; flex: 1 1 auto; overflow-y: auto;">
-                <div class="row g-3" id="subCategoryContainer">
-                    </div>
+                <div class="row g-3" id="subCategoryContainer"></div>
             </div>
 
             <div id="drilldown-header" class="bg-white p-3 border-bottom d-flex align-items-center justify-content-between shadow-sm" style="display:none; flex: 0 0 auto; position: relative; z-index: 10;">
@@ -320,10 +303,9 @@
                 <div class="row g-2 mt-3">
                     <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
                     <div class="col-6">
-                        <form method="POST" onsubmit="confirmAction(event, 'Order Collected?', 'Are you sure the delivery driver has collected this order?', 'Yes, Collected')">
-                            <input type="hidden" name="complete_online_order" value="<?= $tid ?>">
-                            <button type="submit" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-check-circle"></i> Mark Collected</button>
-                        </form>
+                        <button type="button" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
+                            <i class="bi bi-cash-coin"></i> Checkout Order
+                        </button>
                     </div>
                 </div>
             </div>
@@ -331,9 +313,7 @@
     </div>
 
     <div class="modal fade" id="addToTabModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-plus-square text-warning"></i> Add to Tab / Table</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="add_to_tab_action" value="1"><label class="form-label small fw-bold text-muted mb-2">SELECT DESTINATION</label><div class="list-group mb-3" id="tabSelectionGroup"><label class="list-group-item tab-radio-label active" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">Create New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="newTabNameInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="tab_customer_name" class="form-control" placeholder="Enter name or walk-in"></div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
-
     <div class="modal fade" id="floorplanModal"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bg-light"><div class="modal-header bg-dark text-white border-warning border-bottom border-3"><h5 class="modal-title fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2 text-warning"></i> Table Floorplan</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><?php if(empty($restaurantTables)): ?><div class="text-center text-muted my-5"><i class="bi bi-info-circle display-4"></i><p class="mt-3">No tables have been configured for this location yet.</p></div><?php else: ?><?php foreach($restaurantTables as $zoneName => $tables): ?><h5 class="fw-bold text-muted border-bottom pb-2 mb-3 mt-4"><?= htmlspecialchars($zoneName) ?></h5><div class="row g-3"><?php foreach($tables as $table): $activeTab = null; foreach($openTabs as $t) { if ($t['table_id'] == $table['id']) { $activeTab = $t; break; } } $isOccupied = ($activeTab !== null); ?><div class="col-6 col-md-4 col-lg-3"><?php if($isOccupied): ?><div class="table-box table-occupied" onclick="switchModal('floorplanModal', 'tabsModal', () => showTabDetails(<?= $activeTab['id'] ?>))"><span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span><h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5><div class="small fw-bold">ZMW <?= number_format($activeTab['final_total'], 2) ?></div><div class="badge bg-danger mt-2">OCCUPIED</div></div><?php else: ?><form method="POST" class="h-100"><input type="hidden" name="add_to_tab_action" value="1"><input type="hidden" name="target_tab_id" value="new"><input type="hidden" name="target_table_id" value="<?= $table['id'] ?>"><input type="hidden" name="tab_customer_name" value="<?= htmlspecialchars($table['table_name']) ?>"><button type="submit" class="table-box table-available w-100" <?= empty($_SESSION['cart']) ? 'onclick="alert(\'Add items to the cart first to open a table!\'); return false;"' : '' ?>><span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span><h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5><div class="badge bg-success mt-2">AVAILABLE</div></button></form><?php endif; ?></div><?php endforeach; ?></div><?php endforeach; ?><?php endif; ?></div></div></div></div>
-
     <div class="modal fade" id="tabsModal"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-header bg-dark text-white border-info border-bottom border-3"><h5 class="modal-title fw-bold"><i class="bi bi-receipt me-2 text-info"></i> Active Tabs</h5><button type="button" class="btn btn-sm btn-outline-info ms-auto me-3 fw-bold" onclick="switchModal('tabsModal', 'floorplanModal')"><i class="bi bi-grid-3x3-gap-fill"></i> View Tables</button><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row h-100"><div class="col-4 border-end overflow-auto"><div class="list-group"><?php foreach($openTabs as $t): $isPaid = $t['payment_status'] === 'paid'; $bg = $isPaid ? 'bg-success-subtle' : ''; $badge = $isPaid ? '<span class="badge bg-success">PAID</span>' : ''; ?><button class="list-group-item list-group-item-action <?= $bg ?>" onclick="showTabDetails(<?= $t['id'] ?>)"><div class="d-flex justify-content-between"><strong><?= htmlspecialchars($t['customer_name']) ?></strong> <?= $badge ?></div><div class="small text-muted">ZMW <?= number_format($t['final_total'],2) ?></div></button><?php endforeach; ?></div></div><div class="col-8 p-3" id="tabDetailContainer"><p class="text-center text-muted mt-5">Select a tab from the list to view details.</p></div></div></div></div></div></div>
 
     <div id="hiddenTabTemplates" style="display:none;">
@@ -362,17 +342,17 @@
     </div>
 
     <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
-
     <div class="modal fade" id="transferModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow-lg border-info border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-arrow-left-right text-info me-2"></i> Transfer / Merge Items</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="transfer_tab_items" value="1"><input type="hidden" name="source_tab_id" id="transfer_source_id" value=""><div class="row"><div class="col-md-6 border-end"><div class="d-flex justify-content-between align-items-center mb-2"><label class="form-label small fw-bold text-muted m-0">SELECT ITEMS TO MOVE</label><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none fw-bold" onclick="toggleTransferSelectAll()">Select All</button></div><div class="list-group mb-3" id="transferItemsContainer" style="max-height: 300px; overflow-y: auto;"></div></div><div class="col-md-6"><label class="form-label small fw-bold text-muted mb-2">DESTINATION TAB</label><div class="list-group mb-3" id="transferTargetContainer" style="max-height: 300px; overflow-y: auto;"><label class="list-group-item tab-radio-label active" onclick="highlightTransferSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label transfer-target-item" data-id="<?= $t['id'] ?>" onclick="highlightTransferSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="transferNewTabInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="new_tab_name" class="form-control mb-2" placeholder="Enter name"><label class="form-label small fw-bold text-muted mb-1 mt-2">ASSIGN TO TABLE (OPTIONAL)</label><select name="target_table_id" class="form-select"><option value="">-- No Table (Bar Tab) --</option><?php foreach($restaurantTables as $zone => $tables): ?><optgroup label="<?= htmlspecialchars($zone) ?>"><?php foreach($tables as $tbl): ?><option value="<?= $tbl['id'] ?>"><?= htmlspecialchars($tbl['table_name']) ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select></div></div></div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-info w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
-
-    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1"><input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
+    
+    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1">
+        <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
         <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;"><label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label><input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username"><input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password"></div>
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= (defined('LICENSE_TIER') && LICENSE_TIER === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-        <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
+        <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><option value="Online">Online Delivery App</option><?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
         <div id="splitSection" style="display:none;" class="p-3 bg-light rounded border border-secondary mb-3">
             <label class="form-label small fw-bold text-dark mb-2"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT DETAILS</label>
             <div class="row g-2 mb-2">
@@ -385,10 +365,7 @@
                     </select>
                 </div>
                 <div class="col-6">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white">ZMW</span>
-                        <input type="number" step="0.01" name="split_amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()">
-                    </div>
+                    <div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" name="split_amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div>
                 </div>
             </div>
             <div class="row g-2">
@@ -401,10 +378,7 @@
                     </select>
                 </div>
                 <div class="col-6">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white">ZMW</span>
-                        <input type="number" step="0.01" name="split_amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()">
-                    </div>
+                    <div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" name="split_amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div>
                 </div>
             </div>
         </div>
@@ -455,184 +429,66 @@
     <script>
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
 
-        function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
+        function openOnlineSettleModal(tabId, total, customerName) {
+            switchModal('onlineTabsModal', '', function() { 
+                initCheckout(true, total, customerName, 0, tabId); 
+                let pmSelect = document.querySelector('select[name="payment_method"]');
+                if(pmSelect) {
+                    let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card');
+                    if(onlineOpt) onlineOpt.selected = true;
+                }
+            }); 
+        }
 
+        function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
         let currentCat = 'all';
         const subCategoriesMap = <?= json_encode($subCatsByParent) ?>;
         const catParents = <?= json_encode($catParents) ?>;
         const catNames = <?= json_encode($catNames) ?>;
         const iconMap = {'whiskey bottles': 'bi-droplet-half', 'whiskey tots': 'bi-cup', 'ciders': 'bi-cup-straw', 'wines and creams': 'bi-cup-fill', 'softies': 'bi-cup-straw', 'lagers': 'bi-cup-straw', 'mixers': 'bi-cup-straw', 'mineral water': 'bi-water'};
 
-        function showMainGrid() {
-            document.getElementById('main-category-grid').style.display = 'block';
-            document.getElementById('sub-category-grid').style.display = 'none';
-            document.getElementById('product-list-wrapper').style.display = 'none';
-            document.getElementById('drilldown-header').style.display = 'none';
-            document.getElementById('search').value = '';
-            currentCat = 'all';
-            applyFilters();
-        }
-
-        function showSubCategories(categoryId, categoryName) {
-            document.getElementById('main-category-grid').style.display = 'none';
-            document.getElementById('product-list-wrapper').style.display = 'none';
-            
-            let container = document.getElementById('subCategoryContainer');
-            
-            let parentOfCurrent = catParents[categoryId] || null;
-            let parentName = parentOfCurrent && catNames[parentOfCurrent] ? escapeJS(catNames[parentOfCurrent]) : '';
-            let safeCatName = escapeJS(categoryName);
-            
-            let backAction = parentOfCurrent ? `showSubCategories('${parentOfCurrent}', '${parentName}')` : `showMainGrid()`;
-
-            container.innerHTML = `
-                <div class="col-4 col-md-3 col-lg-2">
-                    <div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('${categoryId}', 'All ${safeCatName}', true, '${categoryId}', '${safeCatName}')">
-                        <i class="bi bi-grid cat-icon text-secondary"></i>
-                        <span class="small text-uppercase">All ${categoryName}</span>
-                    </div>
-                </div>
-            `;
-            
-            let subs = subCategoriesMap[categoryId] || [];
-            subs.forEach(sub => {
-                let hasSubs = subCategoriesMap[sub.id] && subCategoriesMap[sub.id].length > 0;
-                let safeSubName = escapeJS(sub.name);
-                
-                if (hasSubs) {
-                    container.innerHTML += `
-                        <div class="col-4 col-md-3 col-lg-2">
-                            <div class="cat-card h-100 shadow-sm border-info bg-info bg-opacity-10" onclick="showSubCategories('${sub.id}', '${safeSubName}')">
-                                <i class="bi bi-folder-fill cat-icon text-info"></i>
-                                <span class="small text-uppercase fw-bold text-info">${sub.name}</span>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    let icon = iconMap[sub.name.toLowerCase()] || 'bi-arrow-return-right';
-                    container.innerHTML += `
-                        <div class="col-4 col-md-3 col-lg-2">
-                            <div class="cat-card h-100 shadow-sm border-info" onclick="filterItems('${sub.id}', '${safeSubName}', true, '${categoryId}', '${safeCatName}')">
-                                <i class="bi ${icon} cat-icon text-info"></i>
-                                <span class="small text-uppercase">${sub.name}</span>
-                            </div>
-                        </div>
-                    `;
-                }
-            });
-
-            document.getElementById('sub-category-grid').style.display = 'block';
-            document.getElementById('drilldown-header').style.display = 'flex';
-            document.getElementById('currentCategoryLabel').innerText = categoryName;
-            document.getElementById('backBtn').setAttribute('onclick', backAction);
-        }
-
-        function filterItems(id, name, fromSub = false, parentId = null, parentName = '') {
-            document.getElementById('main-category-grid').style.display = 'none';
-            document.getElementById('sub-category-grid').style.display = 'none';
-            document.getElementById('product-list-wrapper').style.display = 'flex';
-            document.getElementById('drilldown-header').style.display = 'flex';
-            
-            document.getElementById('currentCategoryLabel').innerText = name;
-            
-            if (fromSub && parentId) {
-                document.getElementById('backBtn').setAttribute('onclick', `showSubCategories('${parentId}', '${escapeJS(parentName)}')`);
-            } else {
-                document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()');
-            }
-
-            currentCat = id.toString();
-            document.getElementById('items-grid').style.display = 'flex';
-            document.getElementById('services-grid').style.display = 'none';
-            document.getElementById('paginationBar').style.display = 'flex';
-            applyFilters();
-        }
-
-        function switchTab(tab, name) {
-            document.getElementById('main-category-grid').style.display = 'none';
-            document.getElementById('sub-category-grid').style.display = 'none';
-            document.getElementById('product-list-wrapper').style.display = 'flex';
-            document.getElementById('drilldown-header').style.display = 'flex';
-            document.getElementById('currentCategoryLabel').innerText = name;
-            document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()');
-            
-            document.getElementById('items-grid').style.display = 'none'; 
-            document.getElementById('services-grid').style.display = 'flex'; 
-            document.getElementById('paginationBar').style.display = 'none'; 
-        }
-
+        function showMainGrid() { document.getElementById('main-category-grid').style.display = 'block'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'none'; document.getElementById('drilldown-header').style.display = 'none'; document.getElementById('search').value = ''; currentCat = 'all'; applyFilters(); }
+        function showSubCategories(categoryId, categoryName) { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'none'; let container = document.getElementById('subCategoryContainer'); let parentOfCurrent = catParents[categoryId] || null; let parentName = parentOfCurrent && catNames[parentOfCurrent] ? escapeJS(catNames[parentOfCurrent]) : ''; let safeCatName = escapeJS(categoryName); let backAction = parentOfCurrent ? `showSubCategories('${parentOfCurrent}', '${parentName}')` : `showMainGrid()`; container.innerHTML = `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('${categoryId}', 'All ${safeCatName}', true, '${categoryId}', '${safeCatName}')"><i class="bi bi-grid cat-icon text-secondary"></i><span class="small text-uppercase">All ${categoryName}</span></div></div>`; let subs = subCategoriesMap[categoryId] || []; subs.forEach(sub => { let hasSubs = subCategoriesMap[sub.id] && subCategoriesMap[sub.id].length > 0; let safeSubName = escapeJS(sub.name); if (hasSubs) { container.innerHTML += `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card h-100 shadow-sm border-info bg-info bg-opacity-10" onclick="showSubCategories('${sub.id}', '${safeSubName}')"><i class="bi bi-folder-fill cat-icon text-info"></i><span class="small text-uppercase fw-bold text-info">${sub.name}</span></div></div>`; } else { let icon = iconMap[sub.name.toLowerCase()] || 'bi-arrow-return-right'; container.innerHTML += `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card h-100 shadow-sm border-info" onclick="filterItems('${sub.id}', '${safeSubName}', true, '${categoryId}', '${safeCatName}')"><i class="bi ${icon} cat-icon text-info"></i><span class="small text-uppercase">${sub.name}</span></div></div>`; } }); document.getElementById('sub-category-grid').style.display = 'block'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = categoryName; document.getElementById('backBtn').setAttribute('onclick', backAction); }
+        function filterItems(id, name, fromSub = false, parentId = null, parentName = '') { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = name; if (fromSub && parentId) { document.getElementById('backBtn').setAttribute('onclick', `showSubCategories('${parentId}', '${escapeJS(parentName)}')`); } else { document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); } currentCat = id.toString(); document.getElementById('items-grid').style.display = 'flex'; document.getElementById('services-grid').style.display = 'none'; document.getElementById('paginationBar').style.display = 'flex'; applyFilters(); }
+        function switchTab(tab, name) { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = name; document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); document.getElementById('items-grid').style.display = 'none'; document.getElementById('services-grid').style.display = 'flex'; document.getElementById('paginationBar').style.display = 'none'; }
         function printTabBill(saleId) { document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); }
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
-
-        function toggleRefundMode() {
-            let isRefund = document.getElementById('refundToggle').checked;
-            document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0');
-            let header = document.getElementById('mainHeader');
-            if (isRefund) {
-                header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark');
-                document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger');
-            } else {
-                header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark');
-                document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark');
-            }
-        }
-
-        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') {
-            let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0';
-            if (isRefund === '1' && tabStatus === 'pending') { Swal.fire({ icon: 'error', title: 'Stop!', text: 'This table has not paid yet! Use the red Void button to remove the item.' }); return; }
-            let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${productId}"><input type="hidden" name="custom_price" value="${price}"><input type="hidden" name="is_refund" value="${isRefund}"><input type="hidden" name="refund_sale_item_id" value="${saleItemId}">`; document.body.appendChild(f); f.submit();
-        }
-
+        function toggleRefundMode() { let isRefund = document.getElementById('refundToggle').checked; document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0'); let header = document.getElementById('mainHeader'); if (isRefund) { header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger'); } else { header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark'); } }
+        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isRefund === '1' && tabStatus === 'pending') { Swal.fire({ icon: 'error', title: 'Stop!', text: 'This table has not paid yet! Use the red Void button to remove the item.' }); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${productId}"><input type="hidden" name="custom_price" value="${price}"><input type="hidden" name="is_refund" value="${isRefund}"><input type="hidden" name="refund_sale_item_id" value="${saleItemId}">`; document.body.appendChild(f); f.submit(); }
         function logWasteAuth() { Swal.fire({ title: 'Log Waste', html: '<p class="text-muted small">Enter manager credentials</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize Waste', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
         function safeModalShow(id) { let el = document.getElementById(id); if (!el) return; try { let m = bootstrap.Modal.getInstance(el); if (!m) { m = new bootstrap.Modal(el); } m.show(); } catch(e) { el.classList.add('show'); el.style.display = 'block'; } }
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
         function showPickupModal() { document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; safeModalShow('pickupModal'); }
-        
-        function openTransferModal(tabId) {
-            document.getElementById('transfer_source_id').value = tabId;
-            document.querySelectorAll('.transfer-target-item').forEach(el => {
-                if(el.dataset.id == tabId) el.style.display = 'none';
-                else el.style.display = 'block';
-            });
-            let firstLabel = document.querySelector('#transferTargetContainer .tab-radio-label');
-            if(firstLabel) { highlightTransferSelection(firstLabel); firstLabel.querySelector('input').checked = true; }
-            
-            let itemsHtml = '';
-            document.querySelectorAll(`#tab-data-${tabId} tr[id^="item-row-"]`).forEach(row => {
-                let itemId = row.id.replace('item-row-', '');
-                let itemText = row.cells[0].innerText;
-                itemsHtml += `<label class="list-group-item d-flex align-items-center border-bottom"><input class="form-check-input me-3 transfer-checkbox border-info" type="checkbox" name="transfer_item_ids[]" value="${itemId}"><span class="small fw-bold">${itemText}</span></label>`;
-            });
-            document.getElementById('transferItemsContainer').innerHTML = itemsHtml;
-            switchModal('tabsModal', 'transferModal');
-        }
-        function highlightTransferSelection(selectedLabel) { 
-            document.querySelectorAll('#transferTargetContainer .tab-radio-label').forEach(el => el.classList.remove('active')); 
-            selectedLabel.classList.add('active'); 
-            let radio = selectedLabel.querySelector('input[type="radio"]'); 
-            if (radio && radio.value === 'new') { document.getElementById('transferNewTabInput').style.display = 'block'; } 
-            else { document.getElementById('transferNewTabInput').style.display = 'none'; } 
-        }
-        function toggleTransferSelectAll() {
-            let checkboxes = document.querySelectorAll('.transfer-checkbox');
-            let allChecked = Array.from(checkboxes).every(c => c.checked);
-            checkboxes.forEach(c => c.checked = !allChecked);
-        }
-
+        function openTransferModal(tabId) { document.getElementById('transfer_source_id').value = tabId; document.querySelectorAll('.transfer-target-item').forEach(el => { if(el.dataset.id == tabId) el.style.display = 'none'; else el.style.display = 'block'; }); let firstLabel = document.querySelector('#transferTargetContainer .tab-radio-label'); if(firstLabel) { highlightTransferSelection(firstLabel); firstLabel.querySelector('input').checked = true; } let itemsHtml = ''; document.querySelectorAll(`#tab-data-${tabId} tr[id^="item-row-"]`).forEach(row => { let itemId = row.id.replace('item-row-', ''); let itemText = row.cells[0].innerText; itemsHtml += `<label class="list-group-item d-flex align-items-center border-bottom"><input class="form-check-input me-3 transfer-checkbox border-info" type="checkbox" name="transfer_item_ids[]" value="${itemId}"><span class="small fw-bold">${itemText}</span></label>`; }); document.getElementById('transferItemsContainer').innerHTML = itemsHtml; switchModal('tabsModal', 'transferModal'); }
+        function highlightTransferSelection(selectedLabel) { document.querySelectorAll('#transferTargetContainer .tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio && radio.value === 'new') { document.getElementById('transferNewTabInput').style.display = 'block'; } else { document.getElementById('transferNewTabInput').style.display = 'none'; } }
+        function toggleTransferSelectAll() { let checkboxes = document.querySelectorAll('.transfer-checkbox'); let allChecked = Array.from(checkboxes).every(c => c.checked); checkboxes.forEach(c => c.checked = !allChecked); }
         function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
-
         function voidItem(itemId) { Swal.fire({ title: 'Void Item', html: '<p class="text-muted small">Enter manager credentials</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize Void', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { Swal.fire({ icon: 'success', title: 'Voided', timer: 1200, showConfirmButton: false }).then(() => location.reload()); } else { Swal.fire({ icon: 'error', title: 'Error', text: data.msg }); } }); } }); }
 
         let baseTotal = 0; let currentTotal = 0;
-        function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '', pt = 0) { 
+        
+        // FIX: Added forceTabId to securely bind the Tab ID when opened via Web Orders
+        function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '', pt = 0, forceTabId = 0) { 
             let nameInput = document.querySelector('[name="customer_name"]');
-            if (!isTabMode) { baseTotal = <?= $balance ?? 0 ?>; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; }
+            if (!isTabMode) { 
+                baseTotal = <?= $balance ?? 0 ?>; 
+                document.getElementById('settle_tab_id_input').value = '0'; 
+                nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; 
+                nameInput.readOnly = false; 
+            } else { 
+                baseTotal = parseFloat(tabTotal) - parseFloat(pt); 
+                nameInput.value = tabCustomer; 
+                nameInput.readOnly = true; 
+                if (forceTabId > 0) {
+                    document.getElementById('settle_tab_id_input').value = forceTabId;
+                }
+            }
             currentTotal = baseTotal; document.getElementById('tipInput').value = '';
             if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); document.getElementById('refundAuthSection').style.display = 'block'; document.getElementById('mgrUserRefund').required = true; document.getElementById('mgrPassRefund').required = true; } else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); document.getElementById('refundAuthSection').style.display = 'none'; document.getElementById('mgrUserRefund').required = false; document.getElementById('mgrPassRefund').required = false; }
             if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } safeModalShow('checkoutModal'); 
         }
 
-        function openSettleModal(tabId, total, customerName, pt = 0) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('tabsModal', '', function() { initCheckout(true, total, customerName, pt); }); }
+        function openSettleModal(tabId, total, customerName, pt = 0) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('tabsModal', '', function() { initCheckout(true, total, customerName, pt, tabId); }); }
         function markCollected(itemId, saleId) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id + "&_t=" + new Date().getTime(); safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } }); } else { Swal.fire({ icon: 'error', title: 'Action Blocked', text: data.msg }); } }); }
         function toggleDiscount() { let chk = document.getElementById('discountToggle'); if(chk && chk.checked) { currentTotal = baseTotal * 0.90; document.getElementById('discountLabel').style.display = 'block'; } else { currentTotal = baseTotal; document.getElementById('discountLabel').style.display = 'none'; } updateDisplays(); }
         function updateDisplays() { document.getElementById('displayTotalDue').innerText = currentTotal.toFixed(2); document.getElementById('tenderedInput').value = currentTotal.toFixed(2); calcResult(); }
@@ -641,49 +497,9 @@
         function addTipPercent(percent) { let tip = currentTotal * percent; document.getElementById('tipInput').value = tip.toFixed(2); calcResult(); }
         function calcResult() { let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0; let tip = parseFloat(document.getElementById('tipInput').value) || 0; let diff = tendered - (currentTotal + tip); let label = document.getElementById('resultLabel'); let value = document.getElementById('resultValue'); if (currentTotal < 0) { label.innerText = "CASH OUT OF DRAWER"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(currentTotal).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } else { if(diff >= -0.01) { label.innerText = "CHANGE DUE"; label.className = "small fw-bold text-uppercase text-muted"; value.innerText = "ZMW " + diff.toFixed(2); value.className = "fs-4 fw-bold text-dark"; } else { label.innerText = "BALANCE REMAINING"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(diff).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } } }
 
-        function getAllDescendants(catId) {
-            let desc = [];
-            let subs = subCategoriesMap[catId] || [];
-            subs.forEach(s => {
-                desc.push(s.id.toString());
-                desc = desc.concat(getAllDescendants(s.id)); 
-            });
-            return desc;
-        }
-
-        function filter() { 
-            document.getElementById('main-category-grid').style.display = 'none'; 
-            document.getElementById('sub-category-grid').style.display = 'none'; 
-            document.getElementById('product-list-wrapper').style.display = 'flex'; 
-            document.getElementById('drilldown-header').style.display = 'flex'; 
-            document.getElementById('currentCategoryLabel').innerText = "Search Results"; 
-            document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); 
-            currentCat = 'all'; 
-            applyFilters(); 
-        }
-
-        function applyFilters() { 
-            let v = document.getElementById('search').value.toLowerCase(); 
-            let showInStockOnly = false; 
-            let toggleElement = document.getElementById('inStockToggle'); 
-            if (toggleElement) { showInStockOnly = toggleElement.checked; localStorage.setItem('posInStockToggle', showInStockOnly); } 
-            
-            let allItems = Array.from(document.querySelectorAll('#items-grid .item')); 
-            
-            let validCats = [currentCat];
-            if (currentCat !== 'all') {
-                validCats = validCats.concat(getAllDescendants(currentCat));
-            }
-
-            activeItems = allItems.filter(e => { 
-                let matchCat = (currentCat === 'all' || validCats.includes(e.dataset.cat.toString())); 
-                let matchName = e.dataset.name.includes(v); 
-                let matchStock = true; 
-                if (showInStockOnly) { matchStock = e.dataset.out === "0"; } 
-                return matchCat && matchName && matchStock; 
-            }); 
-            renderPage(1); 
-        }
+        function getAllDescendants(catId) { let desc = []; let subs = subCategoriesMap[catId] || []; subs.forEach(s => { desc.push(s.id.toString()); desc = desc.concat(getAllDescendants(s.id)); }); return desc; }
+        function filter() { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = "Search Results"; document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); currentCat = 'all'; applyFilters(); }
+        function applyFilters() { let v = document.getElementById('search').value.toLowerCase(); let showInStockOnly = false; let toggleElement = document.getElementById('inStockToggle'); if (toggleElement) { showInStockOnly = toggleElement.checked; localStorage.setItem('posInStockToggle', showInStockOnly); } let allItems = Array.from(document.querySelectorAll('#items-grid .item')); let validCats = [currentCat]; if (currentCat !== 'all') { validCats = validCats.concat(getAllDescendants(currentCat)); } activeItems = allItems.filter(e => { let matchCat = (currentCat === 'all' || validCats.includes(e.dataset.cat.toString())); let matchName = e.dataset.name.includes(v); let matchStock = true; if (showInStockOnly) { matchStock = e.dataset.out === "0"; } return matchCat && matchName && matchStock; }); renderPage(1); }
 
         let currentPage = 1; const itemsPerPage = 24; let activeItems = [];
         document.addEventListener('DOMContentLoaded', function() { 
@@ -703,16 +519,8 @@
         <?php if(isset($_SESSION['swal_msg'])): ?> Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
         <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
-
 <script>
-    document.addEventListener('focusin', function(e) {
-        if (typeof Swal !== 'undefined' && Swal.isVisible()) {
-            let swalContainer = document.querySelector('.swal2-container');
-            if (swalContainer && swalContainer.contains(e.target)) {
-                e.stopImmediatePropagation(); 
-            }
-        }
-    }, true);
+    document.addEventListener('focusin', function(e) { if (typeof Swal !== 'undefined' && Swal.isVisible()) { let swalContainer = document.querySelector('.swal2-container'); if (swalContainer && swalContainer.contains(e.target)) { e.stopImmediatePropagation(); } } }, true);
 </script>
 </body>
 </html>
