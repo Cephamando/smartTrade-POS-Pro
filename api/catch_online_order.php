@@ -24,9 +24,32 @@ if (!$orderData || !isset($orderData['items'])) {
 
 try {
     $pdo->beginTransaction();
+
+    // ==========================================
+    // 🛡️ IDEMPOTENCY CHECK (BLOCK DUPLICATES)
+    // ==========================================
+    $extOrderId = $orderData['external_order_id'] ?? null;
+    if ($extOrderId) {
+        $checkDuplicate = $pdo->prepare("SELECT id FROM sales WHERE split_group_id = ? AND payment_method = 'Online' LIMIT 1");
+        $checkDuplicate->execute([$extOrderId]);
+        $existingSaleId = $checkDuplicate->fetchColumn();
+
+        if ($existingSaleId) {
+            $pdo->rollBack();
+            // Tell the external platform 'success' so they stop retrying, but do nothing internally.
+            echo json_encode([
+                "status" => "success", 
+                "message" => "Duplicate webhook ignored. Order already processed.", 
+                "order_id" => $existingSaleId
+            ]);
+            exit;
+        }
+    }
+    // ==========================================
+
     $targetLocation = 1; 
     $validatedItems = [];
-    $calculatedTotal = 0; // We will calculate the REAL total ourselves
+    $calculatedTotal = 0; 
 
     // 1. Stock Validation & Real Price Fetching
     foreach ($orderData['items'] as $item) {
@@ -39,7 +62,7 @@ try {
         }
         
         $item['category_type'] = $product['type'] ?? 'item';
-        $item['verified_price'] = $product['db_price']; // Force our DB price!
+        $item['verified_price'] = $product['db_price']; 
         $calculatedTotal += ((float)$product['db_price'] * (int)$item['quantity']);
         
         $validatedItems[] = $item;
@@ -51,7 +74,7 @@ try {
     $activeShift = $shiftStmt->fetch(PDO::FETCH_ASSOC);
     $shiftId = $activeShift ? $activeShift['id'] : null;
 
-    // 3. Create the Sale Record with GUARANTEED non-zero totals
+    // 3. Create the Sale Record 
     $insertSale = $pdo->prepare("
         INSERT INTO sales 
         (location_id, user_id, shift_id, subtotal, total_amount, final_total, status, payment_status, payment_method, split_group_id, customer_name) 
@@ -66,13 +89,13 @@ try {
         $calculatedTotal, 
         $calculatedTotal, 
         $calculatedTotal, 
-        $orderData['external_order_id'], 
+        $extOrderId, 
         $displayLabel
     ]);
     
     $saleId = $pdo->lastInsertId();
 
-    // 4. Insert Items (Using price AND price_at_sale)
+    // 4. Insert Items
     $insertItem = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, price_at_sale, status) VALUES (?, ?, ?, ?, ?, ?)");
     $deductStock = $pdo->prepare("UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?");
 
