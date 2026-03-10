@@ -41,21 +41,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // EXTERNAL API FEEDBACK (The "Smart" part)
-            // If the sale has a split_group_id (External ID) and was an Online order
-            if (!empty($item['split_group_id']) && $item['payment_method'] === 'Online Delivery') {
+            // FIXED: Changed 'Online Delivery' to 'Online' to match the database insert
+            if (!empty($item['split_group_id']) && $item['payment_method'] === 'Online') {
                 
                 // Check if ALL items in this sale are now 'ready' before notifying
-                $checkAllReady = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status != 'ready'");
+                $checkAllReady = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status != 'ready' AND status NOT IN ('voided', 'refunded')");
                 $checkAllReady->execute([$item['sale_id']]);
                 $remaining = $checkAllReady->fetchColumn();
 
                 if ($remaining == 0) {
                     // Send Webhook to External Platform
-                    $webhookUrl = "https://webhook.site/8f7d9a2b-test-ready-notif"; // REPLACE WITH ACTUAL ENDPOINT
+                    // You can replace this with your unique webhook.site URL to see it live!
+                    $webhookUrl = "https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03"; 
                     $payload = json_encode([
                         "order_id" => $item['split_group_id'],
                         "status" => "ready_for_collection",
-                        "store_id" => "MAIN_BAR_001",
+                        "store_id" => "MAIN_KITCHEN_001",
                         "timestamp" => date('c')
                     ]);
 
