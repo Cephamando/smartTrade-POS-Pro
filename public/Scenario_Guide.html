@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Odelia POS - Scenario Training Guide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .scenario-card { border-left: 5px solid #0d6efd; transition: transform 0.2s; }
+        .scenario-card:hover { transform: translateY(-3px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important; }
+        .step-badge { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background-color: #0d6efd; color: white; font-weight: bold; margin-right: 10px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4 shadow">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1"><i class="bi bi-journal-check text-primary me-2"></i> Odelia POS v2.0 | Staff Training Guide</span>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            
+            <p class="lead text-muted mb-4 text-center">Step-by-step guides for handling real-world operations in Odelia POS.</p>
+
+            <div class="card shadow-sm mb-4 scenario-card">
+                <div class="card-body p-4">
+                    <h4 class="card-title fw-bold text-dark"><i class="bi bi-cash-coin me-2 text-primary"></i> Scenario 1: Processing a Split Payment</h4>
+                    <p class="text-muted">A customer's bill is ZMW 500. They want to pay ZMW 200 in Cash and the remaining ZMW 300 via Mobile Money.</p>
+                    <hr>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge">1</span>
+                        <div>Ring up the items so the total shows ZMW 500. Click the green <strong>PAY</strong> button.</div>
+                    </div>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge">2</span>
+                        <div>In the payment modal, select <strong>Cash</strong>. Change the "Tendered Amount" from 500 to <strong>200</strong>, then click Submit.</div>
+                    </div>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge">3</span>
+                        <div>The POS will remain open, showing a remaining balance of ZMW 300.</div>
+                    </div>
+                    <div class="d-flex align-items-start">
+                        <span class="step-badge">4</span>
+                        <div>Click <strong>PAY</strong> again, select <strong>Mobile Money</strong>, leave the amount at 300, and hit Submit to close the ticket and print the receipt.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4 scenario-card" style="border-left-color: #198754;">
+                <div class="card-body p-4">
+                    <h4 class="card-title fw-bold text-dark"><i class="bi bi-arrow-left-right me-2 text-success"></i> Scenario 2: Transferring a Table</h4>
+                    <p class="text-muted">A group at Table 4 wants to move outside to the Patio (Table 12).</p>
+                    <hr>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge bg-success">1</span>
+                        <div>Select <strong>Table 4</strong> from your active POS tabs to load their order.</div>
+                    </div>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge bg-success">2</span>
+                        <div>Click the <strong>Transfer Table</strong> button located near the order total.</div>
+                    </div>
+                    <div class="d-flex align-items-start">
+                        <span class="step-badge bg-success">3</span>
+                        <div>Select <strong>Table 12</strong> from the dropdown menu and confirm. The tab is instantly relocated without interrupting the kitchen.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4 scenario-card" style="border-left-color: #dc3545;">
+                <div class="card-body p-4">
+                    <h4 class="card-title fw-bold text-dark"><i class="bi bi-moon-stars me-2 text-danger"></i> Scenario 3: End of Day (Z-Read)</h4>
+                    <p class="text-muted">Your shift is over, and you need to close the till and hand over the cash.</p>
+                    <hr>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge bg-danger">1</span>
+                        <div>From the POS screen, click your name in the top right and select <strong>End Shift</strong>.</div>
+                    </div>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge bg-danger">2</span>
+                        <div>Count the physical cash in your drawer (including your starting float) and type that number into the <strong>Actual Cash Declared</strong> box.</div>
+                    </div>
+                    <div class="d-flex align-items-start mb-3">
+                        <span class="step-badge bg-danger">3</span>
+                        <div>Click <strong>Confirm & Close Shift</strong>.</div>
+                    </div>
+                    <div class="d-flex align-items-start">
+                        <span class="step-badge bg-danger">4</span>
+                        <div>The system will generate your Z-Read report, highlighting any overages or shortages, and securely archive it for management.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-5 text-muted small">
+                &copy; 2026 Mando | Odelia Enterprise Zambia<br>
+                Powered by Cyberarena Live Tech.
+            </div>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

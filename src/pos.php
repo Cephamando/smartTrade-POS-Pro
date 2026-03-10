@@ -68,7 +68,6 @@ if (isset($_POST['void_item'])) {
     header('Content-Type: application/json');
     $itemId = (int)$_POST['item_id'];
     
-    // NEW: MANAGER AUTH FOR VOIDING
     $mgrUser = $_POST['mgr_user'] ?? '';
     $mgrPass = $_POST['mgr_pass'] ?? '';
     $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
@@ -135,12 +134,9 @@ if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
 
         if (empty($selectedItems)) throw new Exception("No items selected for transfer.");
 
-        // Resolve Destination
         if ($targetTabId === 'new') {
             $targetTableId = !empty($_POST['target_table_id']) ? (int)$_POST['target_table_id'] : null;
             $name = trim($_POST['new_tab_name'] ?? '');
-            
-            // If no name was typed, try to grab the physical Table Name
             if (empty($name)) {
                 if ($targetTableId) {
                     $stmtTbl = $pdo->prepare("SELECT table_name FROM restaurant_tables WHERE id = ?");
@@ -150,7 +146,6 @@ if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
                     $name = 'Transferred ' . rand(100,999);
                 }
             }
-            
             $stmt = $pdo->prepare("INSERT INTO sales (location_id, table_id, user_id, shift_id, subtotal, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, ?, 0, 0, 'Pending', 'pending', ?)");
             $stmt->execute([$locationId, $targetTableId, $userId, $activeShiftId, $name]);
             $targetTabId = $pdo->lastInsertId();
@@ -159,16 +154,13 @@ if (isset($_POST['transfer_tab_items']) && $activeShiftId) {
             if ($targetTabId === $sourceTabId) throw new Exception("Cannot transfer to the same tab.");
         }
 
-        // Move the physical items
         $inClause = implode(',', array_map('intval', $selectedItems));
         $pdo->prepare("UPDATE sale_items SET sale_id = ? WHERE id IN ($inClause) AND sale_id = ?")->execute([$targetTabId, $sourceTabId]);
 
-        // Recalculate both tabs
         $recalc = $pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?");
         $recalc->execute([$sourceTabId, $sourceTabId, $sourceTabId]);
         $recalc->execute([$targetTabId, $targetTabId, $targetTabId]);
 
-        // Auto-close Source Tab if emptied
         $checkEmpty = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')");
         $checkEmpty->execute([$sourceTabId]);
         if ($checkEmpty->fetchColumn() == 0) {
@@ -200,7 +192,6 @@ if (isset($_POST['add_item']) && $activeShiftId) {
         if ($isRefund) { $price = -abs($price); } 
         
         $refundSaleItemId = isset($_POST['refund_sale_item_id']) && $_POST['refund_sale_item_id'] !== 'undefined' ? (int)$_POST['refund_sale_item_id'] : 0;
-        
         $key = $pid . '_' . md5($price) . ($isRefund ? '_refund' : '');
         $fulfillment = 'collected'; 
         if (!$isRefund && in_array(strtolower($prod['cat_type']), ['food', 'meal']) && in_array($tier, ['pro', 'hospitality'])) { $fulfillment = 'uncollected'; }
@@ -233,7 +224,6 @@ if (isset($_POST['toggle_fulfillment'])) {
 }
 
 if (isset($_POST['log_waste']) && $activeShiftId) {
-    // MANAGER AUTH FOR WASTE
     $mgrUser = $_POST['mgr_user'] ?? '';
     $mgrPass = $_POST['mgr_pass'] ?? '';
     $stmt = $pdo->prepare("SELECT id, password_hash, role FROM users WHERE username = ?");
@@ -265,7 +255,6 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         $sm2 = $_POST['split_method_2'] ?? null;
         $sa2 = (float)($_POST['split_amount_2'] ?? 0);
 
-        // Calculate expected final total early to check if it's a refund
         $checkTotal = 0;
         if ($settleTabId > 0) {
             $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')"); 
@@ -277,7 +266,6 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $checkTotal *= 0.9; }
         $checkTotal += $tip;
 
-        // MANAGER AUTH FOR NEGATIVE/REFUND CARTS
         if ($checkTotal < 0) {
             $mgrUser = $_POST['mgr_username'] ?? '';
             $mgrPass = $_POST['mgr_password'] ?? '';
@@ -415,11 +403,21 @@ if (isset($_POST['log_expense']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
+// --- 🌐 ONLINE ORDER COMPLETION ---
+if (isset($_POST['complete_online_order']) && $activeShiftId) {
+    $saleId = (int)$_POST['complete_online_order'];
+    $pdo->prepare("UPDATE sales SET status = 'completed', payment_status = 'paid' WHERE id = ?")->execute([$saleId]);
+    $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$saleId]);
+    $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Online order marked as collected.";
+    header("Location: index.php?page=pos"); exit;
+}
+
 
 // --- FETCH THEME SETTINGS ---
 $settingsStmt = $pdo->query("SELECT setting_key, setting_value FROM settings");
 $sysSettings = [];
 while ($sRow = $settingsStmt->fetch(PDO::FETCH_ASSOC)) { $sysSettings[$sRow['setting_key']] = $sRow['setting_value']; }
+
 // --- 🖥️ UI DATA FETCHING ---
 $categories = $pdo->query("SELECT * FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 $stmt = $pdo->prepare("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty, (SELECT COUNT(*) FROM product_recipes WHERE parent_product_id = p.id) as is_recipe FROM products p LEFT JOIN inventory i ON p.id = i.product_id AND i.location_id = ? WHERE p.type = 'item' AND p.is_active = 1"); $stmt->execute([$locationId]); $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -436,5 +434,23 @@ foreach($openTabs as $t) {
     $stmt->execute([$t['id']]); 
     $tabItems[$t['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC); 
 }
+
+// FETCH ONLINE TABS
+$onlineTabsStmt = $pdo->prepare("
+    SELECT id, total_amount, customer_name, split_group_id as external_id, created_at 
+    FROM sales 
+    WHERE status = 'pending' AND payment_method = 'Online'
+    ORDER BY created_at DESC
+");
+$onlineTabsStmt->execute();
+$onlineTabs = $onlineTabsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$onlineTabItems = [];
+foreach($onlineTabs as $ot) {
+    $stmt = $pdo->prepare("SELECT si.*, COALESCE(p.name, 'Custom Item') as name, c.type as cat_type FROM sale_items si LEFT JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = ? AND si.status NOT IN ('voided', 'refunded')"); 
+    $stmt->execute([$ot['id']]); 
+    $onlineTabItems[$ot['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC); 
+}
+
 $restaurantTables = []; try { $stmt = $pdo->prepare("SELECT * FROM restaurant_tables WHERE location_id = ? ORDER BY zone_name ASC, table_name ASC"); $stmt->execute([$locationId]); $rawTables = $stmt->fetchAll(PDO::FETCH_ASSOC); foreach($rawTables as $t) { $restaurantTables[$t['zone_name']][] = $t; } } catch (Exception $e) { }
 ?>

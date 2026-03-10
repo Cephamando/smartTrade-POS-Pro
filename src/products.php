@@ -33,6 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $price = !empty($_POST['price']) ? $_POST['price'] : 0;
             $cost = !empty($_POST['cost_price']) ? $_POST['cost_price'] : 0;
             $unit = !empty($_POST['unit']) ? $_POST['unit'] : 'unit';
+            $taxClass = !empty($_POST['tax_class']) ? $_POST['tax_class'] : 'A';
+            $unspscCode = !empty($_POST['unspsc_code']) ? trim($_POST['unspsc_code']) : null;
             
             // Safe SKU handling
             $skuRaw = $_POST['sku'] ?? '';
@@ -48,9 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
 
             // A. Insert Product
-            $sql = "INSERT INTO products (name, category_id, price, cost_price, unit, sku) VALUES (?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO products (name, category_id, price, cost_price, unit, sku, tax_class, unspsc_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$name, $catId, $price, $cost, $unit, $sku]);
+            $stmt->execute([$name, $catId, $price, $cost, $unit, $sku, $taxClass, $unspscCode]);
             
             $newProdId = $pdo->lastInsertId();
 
@@ -91,6 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $unit = trim($data[3] ?? 'unit');
                             $costPrice = (float)($data[4] ?? 0);
                             $price = (float)($data[5] ?? 0);
+                            $taxClass = trim($data[6] ?? 'A');
+                            if (!in_array($taxClass, ['A', 'B', 'C', 'D'])) $taxClass = 'A';
+                            $unspscRaw = trim($data[7] ?? '');
+                            $unspscCode = $unspscRaw === '' ? null : $unspscRaw;
                             
                             // 1. Resolve Category ID (Auto-create if missing)
                             $catId = null;
@@ -121,13 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             // 3. Update or Insert
                             if ($prodId) {
                                 // Exists: Update the details
-                                $updateSql = "UPDATE products SET category_id=?, cost_price=?, price=?, unit=?, sku=? WHERE id=?";
-                                $pdo->prepare($updateSql)->execute([$catId, $costPrice, $price, $unit, $sku, $prodId]);
+                                $updateSql = "UPDATE products SET category_id=?, cost_price=?, price=?, unit=?, sku=?, tax_class=?, unspsc_code=? WHERE id=?";
+                                $pdo->prepare($updateSql)->execute([$catId, $costPrice, $price, $unit, $sku, $taxClass, $unspscCode, $prodId]);
                                 $updated++;
                             } else {
                                 // New: Insert product
-                                $insertSql = "INSERT INTO products (name, category_id, cost_price, price, unit, sku) VALUES (?, ?, ?, ?, ?, ?)";
-                                $pdo->prepare($insertSql)->execute([$name, $catId, $costPrice, $price, $unit, $sku]);
+                                $insertSql = "INSERT INTO products (name, category_id, cost_price, price, unit, sku, tax_class, unspsc_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                                $pdo->prepare($insertSql)->execute([$name, $catId, $costPrice, $price, $unit, $sku, $taxClass, $unspscCode]);
                                 $newProdId = $pdo->lastInsertId();
                                 
                                 // Securely attach it to the current location's stock inventory

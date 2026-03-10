@@ -92,6 +92,12 @@
             <?php endif; ?>
 
             <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                <button type="button" class="btn btn-outline-primary btn-sm fw-bold position-relative" data-bs-toggle="modal" data-bs-target="#onlineTabsModal">
+                    <i class="bi bi-cloud-download"></i> Web Orders 
+                    <?php if (!empty($onlineTabs)): ?>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= count($onlineTabs) ?></span>
+                    <?php endif; ?>
+                </button>
                 <button type="button" class="btn btn-outline-warning btn-sm fw-bold position-relative" onclick="showPickupModal()">
                     <i class="bi bi-bag-check"></i> Pickup <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
                 </button>
@@ -266,6 +272,64 @@
 
     <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Change Workstation</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-4"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div>
 
+    <div class="modal fade" id="onlineTabsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content h-100">
+                <div class="modal-header bg-primary text-white border-info border-bottom border-3">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-cloud-download me-2"></i> Online / Web Orders</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row h-100">
+                        <div class="col-4 border-end overflow-auto">
+                            <div class="list-group">
+                            <?php if(empty($onlineTabs)): ?>
+                                <p class="text-muted text-center mt-4 fw-bold">No pending web orders.</p>
+                            <?php else: ?>
+                                <?php foreach($onlineTabs as $ot): ?>
+                                    <button class="list-group-item list-group-item-action bg-warning-subtle" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
+                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <span class="badge bg-danger">PENDING</span></div>
+                                        <div class="small text-muted">ID: <?= htmlspecialchars($ot['external_id']) ?></div>
+                                        <div class="small fw-bold">ZMW <?= number_format($ot['total_amount'],2) ?></div>
+                                    </button>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="col-8 p-3" id="onlineTabDetailContainer">
+                            <p class="text-center text-muted mt-5"><i class="bi bi-cursor fs-1"></i><br>Select an online order to view details.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="hiddenOnlineTabTemplates" style="display:none;">
+        <?php foreach($onlineTabItems as $tid => $items): ?>
+            <?php $tabCustomerName = ''; $tabTotal = 0; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; break; } } ?>
+            <div id="online-tab-data-<?= $tid ?>">
+                <table class="table align-middle mb-4">
+                <?php foreach($items as $i): $statusBadge = ''; if($i['status']=='pending') $statusBadge = '<span class="badge bg-danger">KITCHEN</span>'; elseif($i['status']=='cooking') $statusBadge = '<span class="badge bg-warning text-dark">COOKING</span>'; elseif($i['status']=='ready') $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; ?>
+                <tr id="online-item-row-<?= $i['id'] ?>">
+                    <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
+                    <td class="text-end fw-bold">ZMW <?= number_format($i['price'] * $i['quantity'], 2) ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </table>
+                <div class="row g-2 mt-3">
+                    <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
+                    <div class="col-6">
+                        <form method="POST" onsubmit="confirmAction(event, 'Order Collected?', 'Are you sure the delivery driver has collected this order?', 'Yes, Collected')">
+                            <input type="hidden" name="complete_online_order" value="<?= $tid ?>">
+                            <button type="submit" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-check-circle"></i> Mark Collected</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
     <div class="modal fade" id="addToTabModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-plus-square text-warning"></i> Add to Tab / Table</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="add_to_tab_action" value="1"><label class="form-label small fw-bold text-muted mb-2">SELECT DESTINATION</label><div class="list-group mb-3" id="tabSelectionGroup"><label class="list-group-item tab-radio-label active" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">Create New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="newTabNameInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="tab_customer_name" class="form-control" placeholder="Enter name or walk-in"></div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
 
     <div class="modal fade" id="floorplanModal"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bg-light"><div class="modal-header bg-dark text-white border-warning border-bottom border-3"><h5 class="modal-title fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2 text-warning"></i> Table Floorplan</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><?php if(empty($restaurantTables)): ?><div class="text-center text-muted my-5"><i class="bi bi-info-circle display-4"></i><p class="mt-3">No tables have been configured for this location yet.</p></div><?php else: ?><?php foreach($restaurantTables as $zoneName => $tables): ?><h5 class="fw-bold text-muted border-bottom pb-2 mb-3 mt-4"><?= htmlspecialchars($zoneName) ?></h5><div class="row g-3"><?php foreach($tables as $table): $activeTab = null; foreach($openTabs as $t) { if ($t['table_id'] == $table['id']) { $activeTab = $t; break; } } $isOccupied = ($activeTab !== null); ?><div class="col-6 col-md-4 col-lg-3"><?php if($isOccupied): ?><div class="table-box table-occupied" onclick="switchModal('floorplanModal', 'tabsModal', () => showTabDetails(<?= $activeTab['id'] ?>))"><span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span><h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5><div class="small fw-bold">ZMW <?= number_format($activeTab['final_total'], 2) ?></div><div class="badge bg-danger mt-2">OCCUPIED</div></div><?php else: ?><form method="POST" class="h-100"><input type="hidden" name="add_to_tab_action" value="1"><input type="hidden" name="target_tab_id" value="new"><input type="hidden" name="target_table_id" value="<?= $table['id'] ?>"><input type="hidden" name="tab_customer_name" value="<?= htmlspecialchars($table['table_name']) ?>"><button type="submit" class="table-box table-available w-100" <?= empty($_SESSION['cart']) ? 'onclick="alert(\'Add items to the cart first to open a table!\'); return false;"' : '' ?>><span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span><h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5><div class="badge bg-success mt-2">AVAILABLE</div></button></form><?php endif; ?></div><?php endforeach; ?></div><?php endforeach; ?><?php endif; ?></div></div></div></div>
@@ -389,6 +453,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
+
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
 
         let currentCat = 'all';
@@ -639,7 +705,6 @@
     </script>
 
 <script>
-    // Intercept Bootstrap's attempt to steal focus away from SweetAlert
     document.addEventListener('focusin', function(e) {
         if (typeof Swal !== 'undefined' && Swal.isVisible()) {
             let swalContainer = document.querySelector('.swal2-container');

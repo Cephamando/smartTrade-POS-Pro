@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>takePOS - Comprehensive User Manual</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .manual-section { background: white; border-radius: 8px; padding: 25px; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid #0d6efd; }
+        .section-icon { font-size: 1.5rem; color: #0d6efd; margin-right: 10px; }
+        h4 { color: #2c3e50; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px; }
+        ul { line-height: 1.8; color: #555; }
+        strong { color: #2c3e50; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-5 shadow">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1"><i class="bi bi-book-half text-primary me-2"></i> takePOS | System User Manual</span>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <div class="manual-section">
+                <h4><i class="bi bi-shield-lock section-icon"></i> 1. System Access & Authentication</h4>
+                <ul>
+                    <li><strong>Login:</strong> Enter your assigned username and password. The system utilizes secure, enterprise-grade encryption for all sessions.</li>
+                    <li><strong>Session Management:</strong> Depending on your assigned role, you will be automatically redirected to the Cashier POS, Kitchen KDS, or Admin Dashboard upon logging in.</li>
+                    <li><strong>Global Location Switcher:</strong> If you have managerial access, click your current location in the top-right navigation bar to instantly switch your active workstation without logging out.</li>
+                </ul>
+            </div>
+
+            <div class="manual-section" style="border-top-color: #198754;">
+                <h4><i class="bi bi-clock-history section-icon" style="color: #198754;"></i> 2. Shift Management</h4>
+                <ul>
+                    <li><strong>Opening a Shift:</strong> Upon accessing the POS screen, cashiers must enter their starting float (Opening Cash) to begin ringing up sales.</li>
+                    <li><strong>Real-Time Shift Status:</strong> Managers can click on any active shift from the Dashboard to see expected cash drawer totals, total revenue, and a drill-down of every transaction.</li>
+                    <li><strong>Closing a Shift (Z-Read):</strong> Cashiers end their shift by declaring their physical cash. The system calculates overages or shortages and permanently archives the Z-Read report.</li>
+                </ul>
+            </div>
+
+            <div class="manual-section" style="border-top-color: #fd7e14;">
+                <h4><i class="bi bi-cart-check section-icon" style="color: #fd7e14;"></i> 3. Point of Sale (POS) Operations</h4>
+                <ul>
+                    <li><strong>Adding Items:</strong> Click products from the menu grid or use an attached barcode scanner to add items to the current tab.</li>
+                    <li><strong>Partial Payments & Split Tenders:</strong> Click "Pay" and enter an amount lower than the total. The system will track the remaining balance. Multiple payment methods (e.g., Cash + Mobile Money) can be used on a single ticket.</li>
+                    <li><strong>Table Management:</strong> Assign orders to specific tables. Use the "Transfer Table" button to move a customer's tab seamlessly to another seating area.</li>
+                    <li><strong>Voids & Refunds:</strong> Only authorized roles can void an item from a pending tab or process a refund for a previously closed sale.</li>
+                </ul>
+            </div>
+
+            <div class="manual-section" style="border-top-color: #dc3545;">
+                <h4><i class="bi bi-boxes section-icon" style="color: #dc3545;"></i> 4. Inventory & Stock Control</h4>
+                <ul>
+                    <li><strong>Receive Stock:</strong> Add new inventory via the Purchase Order screen. The system automatically updates average cost metrics based on the new purchasing price.</li>
+                    <li><strong>Stock Transfers:</strong> Move inventory physically between locations (e.g., from the Main Warehouse to a Branch location).</li>
+                    <li><strong>Recipe Consumption:</strong> Selling a composite item (like a Burger) automatically deducts the exact raw ingredients (buns, beef patties) mapped in the Menu Builder.</li>
+                </ul>
+            </div>
+
+            <div class="text-center mt-5 text-muted small">
+                &copy; 2026 takePOS. All Rights Reserved.<br>
+                Powered by <strong>Cyberarena Live Tech.</strong>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
