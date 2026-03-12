@@ -20,11 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_grv'])) {
     } else {
         $pdo->beginTransaction();
         try {
-            // A. Calculate Total Cost for the GRV Header
+            // A. Calculate Total Cost for the GRV Header (FIXED: Cast to float to prevent string * string error)
             $totalCost = 0;
             foreach ($items as $item) {
-                if (!empty($item['product_id']) && $item['qty'] > 0) {
-                    $totalCost += ($item['qty'] * $item['cost']);
+                $calcQty = isset($item['qty']) ? floatval($item['qty']) : 0;
+                $calcCost = isset($item['cost']) ? floatval($item['cost']) : 0;
+                
+                if (!empty($item['product_id']) && $calcQty > 0) {
+                    $totalCost += ($calcQty * $calcCost);
                 }
             }
 
@@ -43,11 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_grv'])) {
 
             // C. Process Items
             foreach ($items as $item) {
-                if (empty($item['product_id']) || floatval($item['qty']) <= 0) continue;
+                $qty = isset($item['qty']) ? floatval($item['qty']) : 0;
+                $cost = isset($item['cost']) ? floatval($item['cost']) : 0;
+                
+                if (empty($item['product_id']) || $qty <= 0) continue;
 
                 $pid = $item['product_id'];
-                $qty = floatval($item['qty']);
-                $cost = floatval($item['cost']);
 
                 // 1. Link Item to GRV
                 $stmtGrvItem->execute([$grvId, $pid, $qty, $cost]);
