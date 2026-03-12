@@ -24,8 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            // CORRECTED: Using password_hash
-            $stmt = $pdo->prepare("INSERT INTO users (username, full_name, password_hash, role, location_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt = $pdo->prepare("INSERT INTO users (username, full_name, password_hash, role, location_id, is_active) VALUES (?, ?, ?, ?, ?, 1)");
             $stmt->execute([$username, $fullName, $password, $role, $locationId]);
             $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "User created successfully.";
         } catch (Exception $e) {
@@ -61,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if (!empty($_POST['password'])) {
                 $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-                // CORRECTED: Using password_hash
                 $stmt = $pdo->prepare("UPDATE users SET username = ?, full_name = ?, role = ?, location_id = ?, password_hash = ? WHERE id = ?");
                 $stmt->execute([$username, $fullName, $role, $locationId, $password, $userId]);
             } else {
@@ -92,27 +90,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "You cannot delete your active session.";
         } else {
             try {
-            $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
-        } catch (PDOException $e) {
-            if ($e->getCode() == '23000') {
-                $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = ?")->execute([$userId]);
-                $_SESSION['swal_type'] = 'info';
-                $_SESSION['swal_msg'] = 'User has historical data. Account deactivated instead.';
-            } else {
-                throw $e; // Re-throw if it's a different error
+                $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+                // Success message strictly inside the Try block
+                $_SESSION['swal_type'] = 'success'; 
+                $_SESSION['swal_msg'] = "User deleted successfully.";
+            } catch (PDOException $e) {
+                if ($e->getCode() == '23000') {
+                    $pdo->prepare("UPDATE users SET is_active = 0 WHERE id = ?")->execute([$userId]);
+                    $_SESSION['swal_type'] = 'info';
+                    $_SESSION['swal_msg'] = 'User has historical data. Account safely deactivated instead.';
+                } else {
+                    $_SESSION['swal_type'] = 'error';
+                    $_SESSION['swal_msg'] = 'Error deleting user: ' . $e->getMessage();
+                }
             }
-        }
-            $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "User deleted.";
         }
         header("Location: index.php?page=users"); exit;
     }
 }
 
-// Fetch all users and sort them so Devs/Admins show up at the top
+// FIXED: Added WHERE COALESCE(u.is_active, 1) = 1 to hide deactivated users
 $users = $pdo->query("
     SELECT u.id, u.username, u.full_name, u.role, u.location_id, l.name as location_name 
     FROM users u 
     LEFT JOIN locations l ON u.location_id = l.id 
+    WHERE COALESCE(u.is_active, 1) = 1
     ORDER BY FIELD(u.role, 'dev', 'admin', 'manager', 'head_chef', 'chef', 'bartender', 'waiter', 'cashier'), u.full_name ASC
 ")->fetchAll(PDO::FETCH_ASSOC);
 
