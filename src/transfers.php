@@ -6,10 +6,29 @@ $userId = $_SESSION['user_id'];
 $userLoc = $_SESSION['location_id'];
 $userRole = $_SESSION['role'];
 
+// --- 📡 BULLETPROOF AJAX HANDLER FOR REAL-TIME STOCK DETECTION ---
+if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'get_stock_level') {
+    error_reporting(0); // 1. Suppress PHP warnings from corrupting the JSON
+    while (ob_get_level()) ob_end_clean(); // 2. Safely wipe any accidental whitespace
+    
+    header('Content-Type: application/json');
+    $pid = (int)($_GET['product_id'] ?? 0);
+    $locId = (int)($_GET['location_id'] ?? 0);
+    try {
+        $stmt = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
+        $stmt->execute([$pid, $locId]);
+        $qty = $stmt->fetchColumn();
+        echo json_encode(['stock' => $qty !== false ? (float)$qty : 0]);
+    } catch (Exception $e) {
+        echo json_encode(['stock' => 0, 'error' => $e->getMessage()]);
+    }
+    exit; // 3. Kill the script so HTML doesn't get appended
+}
+
 // --- HANDLE POST ACTIONS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // 1. CREATE REQUISITION (Request Stock)
+    // 1. CREATE REQUISITION
     if (isset($_POST['create_request'])) {
         $sourceId = $_POST['source_location_id'];
         $destId = $_POST['dest_location_id'];
@@ -104,62 +123,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // --- DATA FETCHING ---
+// Pending Dispatches (Outgoing)
+$dispatchSql = "SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name FROM inventory_transfers t JOIN products p ON t.product_id = p.id JOIN locations l1 ON t.source_location_id = l1.id JOIN locations l2 ON t.dest_location_id = l2.id WHERE t.status = 'pending'";
+$paramsD = []; if ($userRole !== 'admin' && $userRole !== 'dev') { $dispatchSql .= " AND t.source_location_id = ?"; $paramsD[] = $userLoc; }
+$pendingDispatch = $pdo->prepare($dispatchSql); $pendingDispatch->execute($paramsD); $pendingDispatch = $pendingDispatch->fetchAll();
 
-// 1. Pending Dispatches (Outgoing - Logic: Request from elsewhere to MY location)
-$dispatchSql = "
-    SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name
-    FROM inventory_transfers t
-    JOIN products p ON t.product_id = p.id
-    JOIN locations l1 ON t.source_location_id = l1.id
-    JOIN locations l2 ON t.dest_location_id = l2.id
-    WHERE t.status = 'pending'
-";
-$paramsD = [];
-if ($userRole !== 'admin' && $userRole !== 'dev') {
-    $dispatchSql .= " AND t.source_location_id = ?";
-    $paramsD[] = $userLoc;
-}
-$pendingDispatch = $pdo->prepare($dispatchSql);
-$pendingDispatch->execute($paramsD);
-$pendingDispatch = $pendingDispatch->fetchAll();
+// Incoming Stock (To Receive)
+$receiveSql = "SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name FROM inventory_transfers t JOIN products p ON t.product_id = p.id JOIN locations l1 ON t.source_location_id = l1.id JOIN locations l2 ON t.dest_location_id = l2.id WHERE t.status = 'in_transit'";
+$paramsR = []; if ($userRole !== 'admin' && $userRole !== 'dev') { $receiveSql .= " AND t.dest_location_id = ?"; $paramsR[] = $userLoc; }
+$incomingStock = $pdo->prepare($receiveSql); $incomingStock->execute($paramsR); $incomingStock = $incomingStock->fetchAll();
 
-// 2. Incoming Stock (To Receive - Logic: Sent from source to MY location)
-$receiveSql = "
-    SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name
-    FROM inventory_transfers t
-    JOIN products p ON t.product_id = p.id
-    JOIN locations l1 ON t.source_location_id = l1.id
-    JOIN locations l2 ON t.dest_location_id = l2.id
-    WHERE t.status = 'in_transit'
-";
-$paramsR = [];
-if ($userRole !== 'admin' && $userRole !== 'dev') {
-    $receiveSql .= " AND t.dest_location_id = ?";
-    $paramsR[] = $userLoc;
-}
-$incomingStock = $pdo->prepare($receiveSql);
-$incomingStock->execute($paramsR);
-$incomingStock = $incomingStock->fetchAll();
+// My Requests
+$myRequestsSql = "SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name FROM inventory_transfers t JOIN products p ON t.product_id = p.id JOIN locations l1 ON t.source_location_id = l1.id JOIN locations l2 ON t.dest_location_id = l2.id WHERE t.status = 'pending'";
+$paramsM = []; if ($userRole !== 'admin' && $userRole !== 'dev') { $myRequestsSql .= " AND t.dest_location_id = ?"; $paramsM[] = $userLoc; }
+$myRequests = $pdo->prepare($myRequestsSql); $myRequests->execute($paramsM); $myRequests = $myRequests->fetchAll();
 
-// 3. My Requests (Pending - Logic: I requested these from elsewhere)
-$myRequestsSql = "
-    SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name
-    FROM inventory_transfers t
-    JOIN products p ON t.product_id = p.id
-    JOIN locations l1 ON t.source_location_id = l1.id
-    JOIN locations l2 ON t.dest_location_id = l2.id
-    WHERE t.status = 'pending'
-";
-$paramsM = [];
-if ($userRole !== 'admin' && $userRole !== 'dev') {
-    $myRequestsSql .= " AND t.dest_location_id = ?";
-    $paramsM[] = $userLoc;
-}
-$myRequests = $pdo->prepare($myRequestsSql);
-$myRequests->execute($paramsM);
-$myRequests = $myRequests->fetchAll();
-
-// 4. Dropdown Data
+// Dropdowns
 $locations = $pdo->query("SELECT * FROM locations ORDER BY name ASC")->fetchAll();
-$products = $pdo->query("SELECT * FROM products WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
+$products = $pdo->query("SELECT * FROM products WHERE is_active = 1 AND type = 'item' ORDER BY name ASC")->fetchAll();
 ?>

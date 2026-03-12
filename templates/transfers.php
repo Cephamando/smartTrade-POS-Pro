@@ -160,19 +160,19 @@
 
 <div class="modal fade" id="requestModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">New Stock Requisition</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <div class="modal-content border-top border-primary border-4">
+            <div class="modal-header bg-light text-dark">
+                <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle text-primary"></i> New Stock Requisition</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="index.php?page=transfers">
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <input type="hidden" name="create_request" value="1">
 
                     <div class="mb-4">
-                        <label class="form-label fw-bold">1. Select Product</label>
-                        <select name="product_id" id="req_product_id" class="form-select form-select-lg" required onchange="updateDualStock()">
-                            <option value="">-- Select Product --</option>
+                        <label class="form-label fw-bold small text-muted">1. SELECT PRODUCT</label>
+                        <select name="product_id" id="req_product_id" class="form-select form-select-lg fw-bold border-primary shadow-sm" required>
+                            <option value="">-- Choose an item --</option>
                             <?php if(isset($products)): foreach($products as $p): ?>
                                 <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name'] ?? '') ?></option>
                             <?php endforeach; endif; ?>
@@ -181,47 +181,53 @@
 
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <div class="p-3 bg-light rounded border border-danger">
-                                <label class="form-label fw-bold text-danger"><i class="bi bi-box-arrow-right"></i> Source (From)</label>
-                                <select name="source_location_id" id="source_loc_id" class="form-select mb-2" required onchange="handleLocationChange('source')">
-                                    <option value="">-- Select Source --</option>
+                            <div class="p-3 bg-white rounded border shadow-sm h-100">
+                                <label class="form-label fw-bold text-danger small"><i class="bi bi-box-arrow-right"></i> SOURCE (FROM)</label>
+                                <select name="source_location_id" id="source_loc_id" class="form-select mb-3 border-danger" required>
+                                    <option value="">-- Request From --</option>
                                     <?php if(isset($locations)): foreach($locations as $l): ?>
-                                        <option value="<?= $l['id'] ?>" data-name="<?= htmlspecialchars($l['name']) ?>">
+                                        <option value="<?= $l['id'] ?>">
                                             <?= htmlspecialchars($l['name'] ?? '') ?>
                                         </option>
                                     <?php endforeach; endif; ?>
                                 </select>
-                                <div class="small text-muted">Available Stock: <span id="source_stock_display" class="fw-bold text-dark">0</span></div>
+                                <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded">
+                                    <span class="small text-muted fw-bold">AVAILABLE STOCK</span>
+                                    <span id="source_stock_display" class="fs-5 fw-bold text-dark">0</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="col-md-6">
-                            <div class="p-3 bg-light rounded border border-success">
-                                <label class="form-label fw-bold text-success"><i class="bi bi-box-arrow-in-left"></i> Destination (To)</label>
-                                <select name="dest_location_id" id="dest_loc_id" class="form-select mb-2" required onchange="handleLocationChange('dest')">
-                                    <option value="">-- Select Destination --</option>
+                            <div class="p-3 bg-white rounded border shadow-sm h-100">
+                                <label class="form-label fw-bold text-success small"><i class="bi bi-box-arrow-in-left"></i> DESTINATION (TO)</label>
+                                <select name="dest_location_id" id="dest_loc_id" class="form-select mb-3 border-success" required>
+                                    <option value="">-- Send To --</option>
                                     <?php if(isset($locations)): foreach($locations as $l): ?>
-                                        <option value="<?= $l['id'] ?>" <?= ($l['id'] == ($_SESSION['location_id'] ?? 0)) ? 'selected' : '' ?> data-name="<?= htmlspecialchars($l['name']) ?>">
+                                        <option value="<?= $l['id'] ?>" <?= ($l['id'] == ($_SESSION['location_id'] ?? 0)) ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($l['name'] ?? '') ?>
                                         </option>
                                     <?php endforeach; endif; ?>
                                 </select>
-                                <div class="small text-muted">Current Stock: <span id="dest_stock_display" class="fw-bold text-dark">0</span></div>
+                                <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded">
+                                    <span class="small text-muted fw-bold">CURRENT STOCK</span>
+                                    <span id="dest_stock_display" class="fs-5 fw-bold text-dark">0</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-4">
-                        <label class="form-label fw-bold">Quantity Needed</label>
-                        <div class="input-group input-group-lg">
-                            <input type="number" name="quantity" class="form-control text-center" step="0.01" min="0.01" required placeholder="0.00">
-                            <span class="input-group-text">Units</span>
+                    <div class="mt-4 pt-3 border-top">
+                        <label class="form-label fw-bold small text-muted">REQUEST QUANTITY</label>
+                        <div class="input-group input-group-lg shadow-sm">
+                            <input type="number" name="quantity" class="form-control text-center fw-bold fs-4 text-primary" step="0.01" min="0.01" required placeholder="0.00">
+                            <span class="input-group-text bg-white fw-bold">Units</span>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary px-4">
+                <div class="modal-footer border-0 bg-light">
+                    <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-5 shadow-sm">
                         <i class="bi bi-send"></i> Send Requisition
                     </button>
                 </div>
@@ -231,57 +237,97 @@
 </div>
 
 <script>
-function handleLocationChange(type) {
-    filterLocations();
-    updateDualStock();
-}
-
-function filterLocations() {
+document.addEventListener('DOMContentLoaded', () => {
+    
+    const prodSelect = document.getElementById('req_product_id');
     const sourceSelect = document.getElementById('source_loc_id');
     const destSelect = document.getElementById('dest_loc_id');
-    
-    const sourceVal = sourceSelect.value;
-    const destVal = destSelect.value;
 
-    // Reset source options: disable the one selected in dest
-    Array.from(sourceSelect.options).forEach(opt => {
-        if (opt.value === "") return;
-        opt.disabled = (opt.value === destVal);
-    });
+    prodSelect.addEventListener('change', updateDualStock);
+    sourceSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); });
+    destSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); });
 
-    // Reset dest options: disable the one selected in source
-    Array.from(destSelect.options).forEach(opt => {
-        if (opt.value === "") return;
-        opt.disabled = (opt.value === sourceVal);
-    });
-}
+    filterLocations();
+    updateDualStock();
 
-function updateDualStock() {
-    const pId = document.getElementById('req_product_id').value;
-    const sId = document.getElementById('source_loc_id').value;
-    const dId = document.getElementById('dest_loc_id').value;
+    function filterLocations() {
+        const sourceVal = sourceSelect.value;
+        const destVal = destSelect.value;
 
-    if (!pId) return;
+        Array.from(sourceSelect.options).forEach(opt => {
+            if (opt.value === "") return;
+            opt.disabled = (opt.value === destVal);
+        });
 
-    if (sId) {
-        fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${sId}`)
-            .then(r => r.json()).then(d => {
-                document.getElementById('source_stock_display').innerText = d.stock || 0;
-            });
-    } else {
-        document.getElementById('source_stock_display').innerText = '0';
+        Array.from(destSelect.options).forEach(opt => {
+            if (opt.value === "") return;
+            opt.disabled = (opt.value === sourceVal);
+        });
     }
 
-    if (dId) {
-        fetch(`index.php?action=get_stock_level&product_id=${pId}&location_id=${dId}`)
-            .then(r => r.json()).then(d => {
-                document.getElementById('dest_stock_display').innerText = d.stock || 0;
-            });
-    } else {
-        document.getElementById('dest_stock_display').innerText = '0';
-    }
-}
+    async function updateDualStock() {
+        const pId = prodSelect.value;
+        const sId = sourceSelect.value;
+        const dId = destSelect.value;
 
-// Initial filter on load
-document.addEventListener('DOMContentLoaded', filterLocations);
+        const sDisplay = document.getElementById('source_stock_display');
+        const dDisplay = document.getElementById('dest_stock_display');
+
+        if (!pId) {
+            sDisplay.innerText = '0';
+            dDisplay.innerText = '0';
+            return;
+        }
+
+        // Fetch Source Stock
+        if (sId) {
+            sDisplay.innerHTML = '<span class="spinner-border spinner-border-sm text-danger" role="status"></span>';
+            try {
+                let res = await fetch(`index.php?page=transfers&ajax_action=get_stock_level&product_id=${pId}&location_id=${sId}`);
+                let text = await res.text();
+                // 🔥 JSON SCRUBBER: Cuts off any PHP errors hiding before the bracket
+                if (text.includes('{')) {
+                    text = text.substring(text.indexOf('{')); 
+                }
+                try {
+                    let data = JSON.parse(text);
+                    sDisplay.innerText = data.stock !== undefined ? data.stock : '0';
+                } catch (e) {
+                    console.error("Parse Error (Source):", text);
+                    sDisplay.innerText = 'Err';
+                }
+            } catch (e) {
+                console.error("Network Error (Source):", e);
+                sDisplay.innerText = 'Err';
+            }
+        } else {
+            sDisplay.innerText = '0';
+        }
+
+        // Fetch Destination Stock
+        if (dId) {
+            dDisplay.innerHTML = '<span class="spinner-border spinner-border-sm text-success" role="status"></span>';
+            try {
+                let res = await fetch(`index.php?page=transfers&ajax_action=get_stock_level&product_id=${pId}&location_id=${dId}`);
+                let text = await res.text();
+                // 🔥 JSON SCRUBBER
+                if (text.includes('{')) {
+                    text = text.substring(text.indexOf('{')); 
+                }
+                try {
+                    let data = JSON.parse(text);
+                    dDisplay.innerText = data.stock !== undefined ? data.stock : '0';
+                } catch (e) {
+                    console.error("Parse Error (Dest):", text);
+                    dDisplay.innerText = 'Err';
+                }
+            } catch (e) {
+                console.error("Network Error (Dest):", e);
+                dDisplay.innerText = 'Err';
+            }
+        } else {
+            dDisplay.innerText = '0';
+        }
+    }
+});
 </script>
