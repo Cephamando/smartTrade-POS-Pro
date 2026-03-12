@@ -73,6 +73,17 @@ if (isset($_GET['action'])) {
         } catch (Exception $e) { echo json_encode(['error' => $e->getMessage()]); }
         exit;
     }
+    if ($action === 'get_stock_level') {
+        header('Content-Type: application/json');
+        $product_id = $_GET['product_id'] ?? 0;
+        $location_id = $_GET['location_id'] ?? 0;
+        try {
+            $stmt = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
+            $stmt->execute([$product_id, $location_id]);
+            echo json_encode(['stock' => (int)$stmt->fetchColumn() ?: 0]);
+        } catch (Exception $e) { echo json_encode(['stock' => 0, 'error' => $e->getMessage()]); }
+        exit;
+    }
     if ($action === 'logout') {
         session_destroy();
         header("Location: index.php?page=login");
@@ -104,7 +115,7 @@ if ($page === 'login' && isset($_SESSION['user_id'])) {
     exit;
 }
 
-// STRICT RBAC
+// --- 🛡️ STRICT ROLE-BASED ACCESS CONTROL (RBAC) ---
 if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'dev'])) {
     $allowedCommon = ['receipt', 'logout', 'pickup', 'print_shift', 'end_shift_action'];
     
@@ -121,7 +132,26 @@ if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'de
     }
 }
 
-// SYSTEM LOCKOUT ENFORCEMENT
+// --- 🛡️ STRICT LICENSE TIER ENFORCEMENT ---
+// Prevents forced URL browsing by Admins/Managers into locked tiers
+if (isset($_SESSION['user_id'])) {
+    $proPlusFeatures = ['kds', 'kitchen', 'menu', 'tables'];
+    $proFeatures = ['members', 'audit', 'receive_stock', 'transfers', 'pickup'];
+    
+    if (in_array($page, $proPlusFeatures) && !in_array(LICENSE_TIER, ['pro+', 'enterprise'])) {
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg'] = 'Feature locked. Requires Pro+ or Enterprise tier.';
+        $page = in_array($userRole, ['admin', 'manager', 'dev']) ? 'dashboard' : 'pos';
+    }
+    
+    if (in_array($page, $proFeatures) && LICENSE_TIER === 'lite') {
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg'] = 'Feature locked. Requires at least Pro tier.';
+        $page = in_array($userRole, ['admin', 'manager', 'dev']) ? 'dashboard' : 'pos';
+    }
+}
+
+// --- 🛑 SYSTEM LOCKOUT ENFORCEMENT ---
 if (SYSTEM_LOCKED && isset($_SESSION['role']) && $_SESSION['role'] !== 'dev') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $page !== 'login') {
         die("<div style='padding:20px; color:red; font-family:sans-serif;'><h2>SYSTEM LOCKED</h2><p>Modifications disabled. License expired.</p><a href='index.php'>Go Back</a></div>");
@@ -138,6 +168,7 @@ if (SYSTEM_LOCKED && isset($_SESSION['role']) && $_SESSION['role'] !== 'dev') {
     }
 }
 
+// 6. ROUTING LOGIC
 $controllerPath = BASE_PATH . "/src/{$page}.php";
 $templatePath   = BASE_PATH . "/templates/{$page}.php";
 
