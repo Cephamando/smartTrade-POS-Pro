@@ -303,7 +303,14 @@
             <?php $tabCustomerName = ''; $tabTotal = 0; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; break; } } ?>
             <div id="online-tab-data-<?= $tid ?>">
                 <table class="table align-middle mb-4">
-                <?php foreach($items as $i): $statusBadge = ''; if($i['status']=='pending') $statusBadge = '<span class="badge bg-danger">KITCHEN</span>'; elseif($i['status']=='cooking') $statusBadge = '<span class="badge bg-warning text-dark">COOKING</span>'; elseif($i['status']=='ready') $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; ?>
+                <?php 
+                $allReady = true; // NEW: Track if entire order is finished cooking
+                foreach($items as $i): 
+                    $statusBadge = ''; 
+                    if($i['status']=='pending') { $statusBadge = '<span class="badge bg-danger">KITCHEN</span>'; $allReady = false; } 
+                    elseif($i['status']=='cooking') { $statusBadge = '<span class="badge bg-warning text-dark">COOKING</span>'; $allReady = false; } 
+                    elseif($i['status']=='ready') { $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; } 
+                ?>
                 <tr id="online-item-row-<?= $i['id'] ?>">
                     <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
                     <td class="text-end fw-bold">ZMW <?= number_format($i['price'] * $i['quantity'], 2) ?></td>
@@ -313,9 +320,15 @@
                 <div class="row g-2 mt-3">
                     <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
                     <div class="col-6">
-                        <button type="button" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
-                            <i class="bi bi-cash-coin"></i> Checkout Order
-                        </button>
+                        <?php if ($allReady): ?>
+                            <button type="button" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
+                                <i class="bi bi-cash-coin"></i> Checkout Order
+                            </button>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
+                                <i class="bi bi-hourglass-split"></i> Still Cooking
+                            </button>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -418,7 +431,8 @@
 
     <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
     
-    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1"><input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
+    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1">
+        <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
         <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;"><label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label><input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username"><input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password"></div>

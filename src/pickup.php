@@ -12,7 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $saleId = $_POST['sale_id'];
         
         // Mark items as 'served' and 'collected'
-        // This removes them from the Pickup Screen AND updates the POS status to "Done"
         $pdo->prepare("
             UPDATE sale_items 
             SET fulfillment_status = 'collected', status = 'served' 
@@ -29,9 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- 2. FETCH READY ORDERS (The Fix) ---
-// We fetch items that are 'ready' (cooked) but 'uncollected'.
-// We REMOVED 'payment_status = paid' so Tabs show up here too.
+// --- 2. FETCH READY ORDERS ---
+// FOOLPROOF EXCLUSION: If split_group_id has data, it is a Web Order! Do not show it here.
 $sql = "SELECT 
             s.id as sale_id, 
             s.customer_name, 
@@ -46,6 +44,7 @@ $sql = "SELECT
         LEFT JOIN users u ON s.user_id = u.id
         WHERE si.status = 'ready' 
         AND si.fulfillment_status = 'uncollected'
+        AND (s.split_group_id IS NULL OR s.split_group_id = '') 
         " . ($locId ? "AND s.location_id = $locId" : "") . "
         ORDER BY s.created_at ASC";
 

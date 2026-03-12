@@ -50,7 +50,6 @@ if (isset($_POST['mark_collected'])) {
         $stmt->execute([$itemId]);
         $item = $stmt->fetch();
         if ($item) {
-            // PRO+ & ENTERPRISE RESTRICTION: Meals go to KDS
             if (in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal']) && in_array($tier, ['pro+', 'enterprise'])) {
                 echo json_encode(['status' => 'redirect_pickup', 'msg' => 'Meals must be processed through the Kitchen screen.']);
                 exit;
@@ -252,6 +251,20 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         $sm2 = $_POST['split_method_2'] ?? null;
         $sa2 = (float)($_POST['split_amount_2'] ?? 0);
 
+        // 🛡️ BLOCK CHECKOUT IF WEB ORDER IS COOKING
+        if ($settleTabId > 0) {
+            $stmtCheckOnline = $pdo->prepare("SELECT split_group_id FROM sales WHERE id = ?");
+            $stmtCheckOnline->execute([$settleTabId]);
+            $extIdCheck = $stmtCheckOnline->fetchColumn();
+            if (!empty($extIdCheck)) { 
+                $stmtCheckKds = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status IN ('pending', 'cooking') AND status NOT IN ('voided', 'refunded')");
+                $stmtCheckKds->execute([$settleTabId]);
+                if ($stmtCheckKds->fetchColumn() > 0) {
+                    throw new Exception("Cannot process checkout: The Kitchen is still preparing items for this Web Order.");
+                }
+            }
+        }
+
         $checkTotal = 0;
         if ($settleTabId > 0) {
             $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')"); 
@@ -275,6 +288,12 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         }
 
         if ($settleTabId > 0) {
+            // NEW: Use split_group_id (External ID) to definitively identify Web Orders regardless of Payment Method
+            $stmtOrig = $pdo->prepare("SELECT split_group_id FROM sales WHERE id = ?");
+            $stmtOrig->execute([$settleTabId]);
+            $extOrderId = $stmtOrig->fetchColumn();
+            $wasOnlineOrder = !empty($extOrderId);
+
             $stmt = $pdo->prepare("SELECT SUM(price * quantity) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')"); $stmt->execute([$settleTabId]); $total = (float)$stmt->fetchColumn();
             if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $total *= 0.9; }
             $finalTotal = $total + $tip;
@@ -292,6 +311,36 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             
             if ($saleStatus === 'completed') {
                 $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$settleTabId]);
+
+                // ==========================================
+                // 🔔 WEBHOOK: ORDER COMPLETED & HANDED TO DRIVER
+                // ==========================================
+                if ($wasOnlineOrder && $extOrderId) {
+                    
+                    // ⚠️ IMPORTANT: REPLACE THIS WITH YOUR REAL WEBHOOK URL ⚠️
+                    $webhookUrl = "https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03"; 
+                    
+                    $payload = json_encode([
+                        "order_id" => $extOrderId,
+                        "status" => "completed", 
+                        "store_id" => "MAIN_COUNTER_001",
+                        "timestamp" => date('c')
+                    ]);
+
+                    $ch = curl_init($webhookUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json',
+                        'Content-Length: ' . strlen($payload)
+                    ]);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Prevent SSL block
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 3); 
+                    curl_exec($ch);
+                    curl_close($ch);
+                }
+                // ==========================================
             }
 
             if ($status === 'paid') { $_SESSION['last_sale_id'] = $settleTabId; } $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
@@ -443,7 +492,6 @@ foreach($occupiedTablesData as $ot) {
     $occupiedTables[$ot['table_id']] = $ot;
 }
 
-// ENTERPRISE RESTRICTION: Only fetch Web Orders if tier is Enterprise
 if ($tier === 'enterprise') {
     $onlineTabsStmt = $pdo->prepare("SELECT id, total_amount, customer_name, split_group_id as external_id, created_at FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY created_at DESC");
     $onlineTabsStmt->execute();
