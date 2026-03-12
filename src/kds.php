@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($remaining == 0) {
                     // Send Webhook to External Platform
                     // You can replace this with your unique webhook.site URL to see it live!
-                    $webhookUrl = "https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03"; 
+                    $webhookUrl = "https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03";
                     $payload = json_encode([
                         "order_id" => $item['split_group_id'],
                         "status" => "ready_for_collection",

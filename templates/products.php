@@ -1,3 +1,6 @@
+<?php
+$tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
+?>
 <style>
     @media print {
         body * { visibility: hidden; }
@@ -11,7 +14,11 @@
 
 <div id="printable-catalog">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>📦 Product Catalog <span class="badge bg-primary fs-6 ms-2 shadow-sm"><i class="bi bi-shield-check"></i> ZRA Ready</span></h3>
+        <h3>📦 Product Catalog 
+            <?php if ($tier === 'enterprise'): ?>
+            <span class="badge bg-primary fs-6 ms-2 shadow-sm"><i class="bi bi-shield-check"></i> ZRA Ready</span>
+            <?php endif; ?>
+        </h3>
         <div class="no-print">
             <button class="btn btn-warning fw-bold me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#importModal"><i class="bi bi-upload"></i> Import CSV</button>
             <button onclick="exportToExcel()" class="btn btn-success fw-bold me-2 shadow-sm"><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
@@ -38,6 +45,8 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
+                
+                <?php if ($tier === 'enterprise'): ?>
                 <div class="col-md-2">
                     <select id="filterTax" class="form-select form-select-sm border-secondary">
                         <option value="">All Tax Classes</option>
@@ -50,6 +59,10 @@
                 <div class="col-md-2">
                     <input type="text" id="filterUNSPSC" class="form-control form-control-sm border-secondary" placeholder="UNSPSC Code...">
                 </div>
+                <?php else: ?>
+                <div class="col-md-4"></div>
+                <?php endif; ?>
+
                 <div class="col-md-2">
                     <select id="filterStatus" class="form-select form-select-sm border-secondary">
                         <option value="">All Statuses</option>
@@ -74,8 +87,10 @@
                             <th>Name</th>
                             <th>Category</th>
                             <th>SKU</th>
+                            <?php if ($tier === 'enterprise'): ?>
                             <th>Tax Class</th>
                             <th>UNSPSC</th>
+                            <?php endif; ?>
                             <th class="text-end">Cost (ZMW)</th>
                             <th class="text-end">Price (ZMW)</th>
                             <th>Status</th>
@@ -100,8 +115,12 @@
                                             <span class="text-muted">-</span>
                                         <?php endif; ?>
                                     </td>
+                                    
+                                    <?php if ($tier === 'enterprise'): ?>
                                     <td><span class="badge bg-info text-dark">Class <?= htmlspecialchars($p['tax_class'] ?? 'A') ?></span></td>
                                     <td><small class="text-primary fw-bold"><?= htmlspecialchars($p['unspsc_code'] ?? 'None') ?></small></td>
+                                    <?php endif; ?>
+
                                     <td class="text-end text-muted"><?= number_format((float)$p['cost_price'], 2) ?></td>
                                     <td class="text-end fw-bold text-success"><?= number_format((float)$p['price'], 2) ?></td>
                                     <td>
@@ -126,11 +145,26 @@
 </div>
 
 <div class="modal fade no-print" id="prodModal" tabindex="-1">
-    <div class="modal-dialog modal-lg"><div class="modal-content border-primary border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold">Add Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products"><div class="modal-body"><input type="hidden" name="save_product" value="1"><div class="row mb-3"><div class="col-8"><label class="form-label small fw-bold text-muted">PRODUCT NAME</label><input type="text" name="name" class="form-control fw-bold" required></div><div class="col-4"><label class="form-label small fw-bold text-muted">SKU (Optional)</label><input type="text" name="sku" class="form-control" placeholder="e.g. DRINK-001"></div></div><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">CATEGORY</label><select name="category_id" class="form-select"><option value="">-- None --</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option><?php endforeach; ?></select></div><div class="col-6"><label class="form-label small fw-bold text-muted">UNIT (e.g., kg, bottle)</label><input type="text" name="unit" class="form-control" value="unit"></div></div><hr class="text-muted"><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">ZRA TAX CLASS</label><select name="tax_class" class="form-select border-primary shadow-sm bg-primary bg-opacity-10 fw-bold"><option value="A" selected>Class A - Standard (16%)</option><option value="B">Class B - Zero Rated (0%)</option><option value="C">Class C - Exempt</option><option value="D">Class D - Excise</option></select></div><div class="col-6"><label class="form-label small fw-bold text-muted">UNSPSC CODE (Optional)</label><input type="text" name="unspsc_code" class="form-control border-primary shadow-sm" placeholder="e.g. 50191500"></div></div><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" class="form-control text-danger" placeholder="0.00"></div><div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" class="form-control text-success fw-bold" placeholder="0.00"></div></div></div><div class="modal-footer border-0"><button class="btn btn-primary w-100 fw-bold py-2 shadow-sm"><i class="bi bi-save"></i> Save Product</button></div></form></div></div>
+    <div class="modal-dialog modal-lg"><div class="modal-content border-primary border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold">Add Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products"><div class="modal-body"><input type="hidden" name="save_product" value="1"><div class="row mb-3"><div class="col-8"><label class="form-label small fw-bold text-muted">PRODUCT NAME</label><input type="text" name="name" class="form-control fw-bold" required></div><div class="col-4"><label class="form-label small fw-bold text-muted">SKU (Optional)</label><input type="text" name="sku" class="form-control" placeholder="e.g. DRINK-001"></div></div><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">CATEGORY</label><select name="category_id" class="form-select"><option value="">-- None --</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option><?php endforeach; ?></select></div><div class="col-6"><label class="form-label small fw-bold text-muted">UNIT (e.g., kg, bottle)</label><input type="text" name="unit" class="form-control" value="unit"></div></div>
+        
+        <?php if ($tier === 'enterprise'): ?>
+        <hr class="text-muted"><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">ZRA TAX CLASS</label><select name="tax_class" class="form-select border-primary shadow-sm bg-primary bg-opacity-10 fw-bold"><option value="A" selected>Class A - Standard (16%)</option><option value="B">Class B - Zero Rated (0%)</option><option value="C">Class C - Exempt</option><option value="D">Class D - Excise</option></select></div><div class="col-6"><label class="form-label small fw-bold text-muted">UNSPSC CODE (Optional)</label><input type="text" name="unspsc_code" class="form-control border-primary shadow-sm" placeholder="e.g. 50191500"></div></div>
+        <?php else: ?>
+        <input type="hidden" name="tax_class" value="A">
+        <input type="hidden" name="unspsc_code" value="">
+        <?php endif; ?>
+
+        <div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" class="form-control text-danger" placeholder="0.00"></div><div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" class="form-control text-success fw-bold" placeholder="0.00"></div></div></div><div class="modal-footer border-0"><button class="btn btn-primary w-100 fw-bold py-2 shadow-sm"><i class="bi bi-save"></i> Save Product</button></div></form></div></div>
 </div>
 
 <div class="modal fade no-print" id="importModal" tabindex="-1">
-    <div class="modal-dialog"><div class="modal-content border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold"><i class="bi bi-cloud-upload"></i> Import Products (CSV)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products" enctype="multipart/form-data"><div class="modal-body"><input type="hidden" name="import_csv" value="1"><div class="alert alert-info small"><strong>Expected CSV Columns (in exact order):</strong><br>1. Name<br>2. Category<br>3. SKU<br>4. Unit (e.g., unit, kg, bottle)<br>5. Cost Price<br>6. Selling Price<br><span class="text-primary fw-bold">7. ZRA Tax Class (A, B, C, or D)</span><br><span class="text-primary fw-bold">8. UNSPSC Code (8-digit number)</span><br><br><em>Note: The system will automatically create missing categories and update existing products to avoid duplicates!</em></div><div class="mb-3"><label class="form-label fw-bold text-muted small">SELECT CSV FILE</label><input type="file" name="csv_file" class="form-control" accept=".csv" required></div></div><div class="modal-footer border-0"><button class="btn btn-warning w-100 fw-bold py-2 shadow-sm">Upload & Process Data</button></div></form></div></div>
+    <div class="modal-dialog"><div class="modal-content border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold"><i class="bi bi-cloud-upload"></i> Import Products (CSV)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products" enctype="multipart/form-data"><div class="modal-body"><input type="hidden" name="import_csv" value="1"><div class="alert alert-info small"><strong>Expected CSV Columns (in exact order):</strong><br>1. Name<br>2. Category<br>3. SKU<br>4. Unit (e.g., unit, kg, bottle)<br>5. Cost Price<br>6. Selling Price<br>
+        
+        <?php if ($tier === 'enterprise'): ?>
+        <span class="text-primary fw-bold">7. ZRA Tax Class (A, B, C, or D)</span><br><span class="text-primary fw-bold">8. UNSPSC Code (8-digit number)</span><br>
+        <?php endif; ?>
+
+        <br><em>Note: The system will automatically create missing categories and update existing products to avoid duplicates!</em></div><div class="mb-3"><label class="form-label fw-bold text-muted small">SELECT CSV FILE</label><input type="file" name="csv_file" class="form-control" accept=".csv" required></div></div><div class="modal-footer border-0"><button class="btn btn-warning w-100 fw-bold py-2 shadow-sm">Upload & Process Data</button></div></form></div></div>
 </div>
 
 <link href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
@@ -140,8 +174,6 @@
 
 <script>
     $(document).ready(function() {
-        
-        // Destroy existing instance to prevent lockups
         if ($.fn.DataTable.isDataTable('#catalogTable')) {
             $('#catalogTable').DataTable().destroy();
         }
@@ -157,20 +189,25 @@
         
         $('.dataTables_length select').addClass('form-select form-select-sm d-inline-block w-auto border-secondary shadow-sm');
         
-        // Listeners for Manual Filter 
         $('#applyFilters').on('click', function(e) {
             e.preventDefault();
             var searchVal = $('#customSearch').val();
             var catVal = $('#filterCategory').val();
-            var taxVal = $('#filterTax').val();
-            var unspscVal = $('#filterUNSPSC').val();
             var statusVal = $('#filterStatus').val();
 
             table.search(searchVal);
             table.column(1).search(catVal);
+            
+            // Adjust column indices based on tier
+            <?php if ($tier === 'enterprise'): ?>
+            var taxVal = $('#filterTax').val();
+            var unspscVal = $('#filterUNSPSC').val();
             table.column(3).search(taxVal);
             table.column(4).search(unspscVal);
             table.column(7).search(statusVal);
+            <?php else: ?>
+            table.column(5).search(statusVal);
+            <?php endif; ?>
             
             table.draw();
         });

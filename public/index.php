@@ -33,7 +33,6 @@ define('THEME_COLOR', $appSettings['theme_color']);
 define('RECEIPT_HEADER', $appSettings['receipt_header']);
 define('RECEIPT_FOOTER', $appSettings['receipt_footer']);
 
-// --- 🛑 SYSTEM KILL SWITCH DEFINITION ---
 define('LOCKOUT_DATE', $appSettings['lockout_date']);
 define('SYSTEM_LOCKED', (!empty(LOCKOUT_DATE) && strtotime(LOCKOUT_DATE) <= time()));
 
@@ -74,17 +73,6 @@ if (isset($_GET['action'])) {
         } catch (Exception $e) { echo json_encode(['error' => $e->getMessage()]); }
         exit;
     }
-    if ($action === 'get_stock_level') {
-        header('Content-Type: application/json');
-        $product_id = $_GET['product_id'] ?? 0;
-        $location_id = $_GET['location_id'] ?? 0;
-        try {
-            $stmt = $pdo->prepare("SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?");
-            $stmt->execute([$product_id, $location_id]);
-            echo json_encode(['stock' => (int)$stmt->fetchColumn() ?: 0]);
-        } catch (Exception $e) { echo json_encode(['stock' => 0, 'error' => $e->getMessage()]); }
-        exit;
-    }
     if ($action === 'logout') {
         session_destroy();
         header("Location: index.php?page=login");
@@ -98,7 +86,7 @@ $userRole = $_SESSION['role'] ?? 'cashier';
 if (empty($page)) {
     if (isset($_SESSION['user_id'])) {
         if (in_array($userRole, ['admin', 'manager', 'dev'])) { $page = 'dashboard'; } 
-        elseif (in_array($userRole, ['chef', 'head_chef'])) { $page = 'kitchen'; } 
+        elseif (in_array($userRole, ['chef', 'head_chef']) && in_array(LICENSE_TIER, ['pro+', 'enterprise'])) { $page = 'kitchen'; } 
         else { $page = 'pos'; }
     } else {
         $page = 'login';
@@ -116,11 +104,11 @@ if ($page === 'login' && isset($_SESSION['user_id'])) {
     exit;
 }
 
-// --- 🛡️ STRICT ROLE-BASED ACCESS CONTROL (RBAC) ---
+// STRICT RBAC
 if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'dev'])) {
     $allowedCommon = ['receipt', 'logout', 'pickup', 'print_shift', 'end_shift_action'];
     
-    if (in_array($userRole, ['chef', 'head_chef'])) {
+    if (in_array($userRole, ['chef', 'head_chef']) && in_array(LICENSE_TIER, ['pro+', 'enterprise'])) {
         $allowed = array_merge($allowedCommon, ['kitchen', 'kds', 'menu', 'inventory']);
         if (!in_array($page, $allowed)) {
             $page = 'kitchen';
@@ -133,29 +121,23 @@ if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'de
     }
 }
 
-// --- 🛑 SYSTEM LOCKOUT ENFORCEMENT ---
+// SYSTEM LOCKOUT ENFORCEMENT
 if (SYSTEM_LOCKED && isset($_SESSION['role']) && $_SESSION['role'] !== 'dev') {
-    
-    // Stop all modifying actions
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $page !== 'login') {
         die("<div style='padding:20px; color:red; font-family:sans-serif;'><h2>SYSTEM LOCKED</h2><p>Modifications disabled. License expired.</p><a href='index.php'>Go Back</a></div>");
     }
-    
     if (!in_array($userRole, ['admin', 'manager'])) {
-        // Operational Staff are hard-locked out of the entire platform
         if ($page !== 'logout') {
             die("<div style='text-align:center; padding-top:150px; font-family:sans-serif; background:#111; color:#fff; height:100vh; margin:0;'><h1 style='color:#ff4d4d; font-size: 3rem;'>SYSTEM LOCKED</h1><p style='font-size: 1.2rem; color: #ccc;'>Software license has expired. Please notify management.</p><br><br><a href='index.php?action=logout' style='color:#fff; background: #dc3545; border-radius: 5px; padding:15px 30px; text-decoration:none; font-weight: bold;'>LOGOUT</a></div>");
         }
     } else {
-        // Admins/Managers are isolated to Reports in Read-Only Mode
         $allowedWhenLocked = ['reports', 'z_read', 'logout', 'receipt', 'print_shift'];
         if (!in_array($page, $allowedWhenLocked)) {
-            $page = 'reports'; // Force route to reporting
+            $page = 'reports'; 
         }
     }
 }
 
-// 6. ROUTING LOGIC
 $controllerPath = BASE_PATH . "/src/{$page}.php";
 $templatePath   = BASE_PATH . "/templates/{$page}.php";
 

@@ -1,6 +1,7 @@
 <?php
 // SECURITY: Admins and Managers Only
-if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'manager', 'dev'])) {
+$userRole = strtolower($_SESSION['role'] ?? '');
+if (!in_array($userRole, ['admin', 'manager', 'dev'])) {
     header("Location: index.php?page=dashboard");
     exit;
 }
@@ -13,13 +14,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'receipt_footer' => $_POST['receipt_footer'] ?? '',
         'theme_color' => $_POST['theme_color'] ?? '#2c2c2c',
         'theme_accent' => $_POST['theme_accent'] ?? '#ffc107',
-                'theme_cart' => $_POST['theme_cart'] ?? '#3e2723'
+        'theme_cart' => $_POST['theme_cart'] ?? '#3e2723'
     ];
 
     // SECURE DEV OVERRIDE: Only devs can save license/lockout changes
-    if ($_SESSION['role'] === 'dev') {
-        if (isset($_POST['license_tier'])) $settingsToSave['license_tier'] = $_POST['license_tier'];
-        if (isset($_POST['lockout_date'])) $settingsToSave['lockout_date'] = $_POST['lockout_date'];
+    if ($userRole === 'dev') {
+        if (isset($_POST['license_tier'])) {
+            $tier = strtolower($_POST['license_tier']);
+            // Fallback safety: If an old cached browser sends 'hospitality', force it to 'pro+'
+            if ($tier === 'hospitality') {
+                $tier = 'pro+';
+            }
+            $settingsToSave['license_tier'] = $tier;
+        }
+        if (isset($_POST['lockout_date'])) {
+            $settingsToSave['lockout_date'] = $_POST['lockout_date'];
+        }
     }
 
     try {

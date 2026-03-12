@@ -65,7 +65,7 @@
             <span class="text-light border-start border-secondary ps-3"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
         </div>
         <div class="d-flex gap-2 pe-2">
-            <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev','chef','head_chef']) && defined('LICENSE_TIER') && LICENSE_TIER === 'hospitality'): ?>
+            <?php if($isManager && in_array($tier, ['pro+', 'enterprise'])): ?>
                 <a href="index.php?page=menu" class="btn btn-outline-success btn-sm fw-bold"><i class="bi bi-list-ul"></i> Menu</a>
                 <a href="index.php?page=kitchen" class="btn btn-outline-danger btn-sm fw-bold"><i class="bi bi-fire"></i> Produce</a>
             <?php endif; ?>
@@ -75,17 +75,26 @@
                 <button type="button" onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-light btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
 
-            <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+            <?php if ($tier === 'enterprise'): ?>
                 <button type="button" class="btn btn-outline-primary btn-sm fw-bold position-relative" data-bs-toggle="modal" data-bs-target="#onlineTabsModal">
                     <i class="bi bi-cloud-download"></i> Web Orders 
                     <?php if (!empty($onlineTabs)): ?>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= count($onlineTabs) ?></span>
                     <?php endif; ?>
                 </button>
+            <?php endif; ?>
+
+            <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-warning btn-sm fw-bold position-relative" onclick="showPickupModal()">
                     <i class="bi bi-bag-check"></i> Pickup <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
                 </button>
+            <?php endif; ?>
+
+            <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-info btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#floorplanModal"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button>
+            <?php endif; ?>
+            
+            <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
             <?php endif; ?>
 
@@ -93,7 +102,7 @@
                 <button type="button" class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
             <?php else: ?><span class="badge bg-secondary">LOCKED</span><?php endif; ?>
             
-            <?php if(in_array($_SESSION['role'] ?? '', ['admin','manager','dev'])): ?>
+            <?php if($isManager): ?>
             <a href="index.php?page=dashboard" class="btn btn-outline-light btn-sm" title="Dashboard"><i class="bi bi-house"></i></a>
             <?php else: ?>
             <a href="index.php?action=logout" class="btn btn-outline-danger btn-sm fw-bold" title="Logout"><i class="bi bi-power"></i> Exit</a>
@@ -217,10 +226,10 @@
                         <div class="d-flex align-items-center gap-2 mt-1">
                             <small class="text-muted fw-bold <?= $isRefundItem ? 'text-danger' : '' ?>">@ ZMW <?= number_format($item['price'], 2) ?></small>
                             <?php if (!$isRefundItem): ?>
-                                <?php $isFood = in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal']); if ($isFood && defined('LICENSE_TIER') && LICENSE_TIER === 'hospitality'): ?>
+                                <?php $isFood = in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal']); if ($isFood && in_array($tier, ['pro+', 'enterprise'])): ?>
                                     <span class="badge bg-warning text-dark border shadow-sm" style="font-size:0.7rem;"><i class="bi bi-fire"></i> Kitchen</span>
                                 <?php else: ?>
-                                    <form method="POST" class="d-inline"><input type="hidden" name="toggle_fulfillment" value="1"><input type="hidden" name="cart_key" value="<?= $key ?>"><?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><button class="btn btn-sm btn-fulfillment <?= ($item['fulfillment']??'collected')=='collected'?'btn-outline-success':'btn-warning' ?>"><?= ($item['fulfillment']??'collected')=='collected' ? 'Got It' : 'Later' ?></button><?php else: ?><span class="badge bg-success">Collected</span><?php endif; ?></form>
+                                    <form method="POST" class="d-inline"><input type="hidden" name="toggle_fulfillment" value="1"><input type="hidden" name="cart_key" value="<?= $key ?>"><?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><button class="btn btn-sm btn-fulfillment <?= ($item['fulfillment']??'collected')=='collected'?'btn-outline-success':'btn-warning' ?>"><?= ($item['fulfillment']??'collected')=='collected' ? 'Got It' : 'Later' ?></button><?php else: ?><span class="badge bg-success">Collected</span><?php endif; ?></form>
                                 <?php endif; ?>
                             <?php else: ?><span class="badge bg-danger">RETURN</span><?php endif; ?>
                         </div>
@@ -239,14 +248,14 @@
                 </div>
                 <div class="d-grid gap-2 mb-3">
                     <button type="button" class="btn w-100 py-3 btn-charge shadow <?= $balance < 0 ? 'bg-danger border-danger' : '' ?>" onclick="initCheckout(false)" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>><?= $balance < 0 ? 'REFUND CASH' : 'CHARGE' ?></button>
-                    <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                    <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                     <div class="btn-group w-100">
                         <button type="button" class="btn btn-warning fw-bold py-2" data-bs-toggle="modal" data-bs-target="#addToTabModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>ADD TO TAB</button>
                     </div>
                     <?php endif; ?>
                     <div class="row g-2">
-                        <div class="col-<?= (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])) ? '6' : '12' ?>"><form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'Empty order?')"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
-                        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="col-6"><button type="button" class="btn btn-dark w-100 btn-sm fw-bold text-warning" onclick="logWasteAuth()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></div><?php endif; ?>
+                        <div class="col-<?= (in_array($tier, ['pro', 'pro+', 'enterprise'])) ? '6' : '12' ?>"><form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'Empty order?')"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
+                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="col-6"><button type="button" class="btn btn-dark w-100 btn-sm fw-bold text-warning" onclick="logWasteAuth()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></div><?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -255,6 +264,7 @@
 
     <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Change Workstation</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-4"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div>
 
+    <?php if ($tier === 'enterprise'): ?>
     <div class="modal fade" id="onlineTabsModal" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content h-100">
@@ -311,10 +321,75 @@
             </div>
         <?php endforeach; ?>
     </div>
+    <?php endif; ?>
 
-    <div class="modal fade" id="addToTabModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-plus-square text-warning"></i> Add to Tab / Table</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="add_to_tab_action" value="1"><label class="form-label small fw-bold text-muted mb-2">SELECT DESTINATION</label><div class="list-group mb-3" id="tabSelectionGroup"><label class="list-group-item tab-radio-label active" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">Create New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="newTabNameInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="tab_customer_name" class="form-control" placeholder="Enter name or walk-in"></div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
-    <div class="modal fade" id="floorplanModal"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bg-light"><div class="modal-header bg-dark text-white border-warning border-bottom border-3"><h5 class="modal-title fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2 text-warning"></i> Table Floorplan</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><?php if(empty($restaurantTables)): ?><div class="text-center text-muted my-5"><i class="bi bi-info-circle display-4"></i><p class="mt-3">No tables have been configured for this location yet.</p></div><?php else: ?><?php foreach($restaurantTables as $zoneName => $tables): ?><h5 class="fw-bold text-muted border-bottom pb-2 mb-3 mt-4"><?= htmlspecialchars($zoneName) ?></h5><div class="row g-3"><?php foreach($tables as $table): $activeTab = null; foreach($openTabs as $t) { if ($t['table_id'] == $table['id']) { $activeTab = $t; break; } } $isOccupied = ($activeTab !== null); ?><div class="col-6 col-md-4 col-lg-3"><?php if($isOccupied): ?><div class="table-box table-occupied" onclick="switchModal('floorplanModal', 'tabsModal', () => showTabDetails(<?= $activeTab['id'] ?>))"><span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span><h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5><div class="small fw-bold">ZMW <?= number_format($activeTab['final_total'], 2) ?></div><div class="badge bg-danger mt-2">OCCUPIED</div></div><?php else: ?><form method="POST" class="h-100"><input type="hidden" name="add_to_tab_action" value="1"><input type="hidden" name="target_tab_id" value="new"><input type="hidden" name="target_table_id" value="<?= $table['id'] ?>"><input type="hidden" name="tab_customer_name" value="<?= htmlspecialchars($table['table_name']) ?>"><button type="submit" class="table-box table-available w-100" <?= empty($_SESSION['cart']) ? 'onclick="alert(\'Add items to the cart first to open a table!\'); return false;"' : '' ?>><span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span><h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5><div class="badge bg-success mt-2">AVAILABLE</div></button></form><?php endif; ?></div><?php endforeach; ?></div><?php endforeach; ?><?php endif; ?></div></div></div></div>
-    <div class="modal fade" id="tabsModal"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-header bg-dark text-white border-info border-bottom border-3"><h5 class="modal-title fw-bold"><i class="bi bi-receipt me-2 text-info"></i> Active Tabs</h5><button type="button" class="btn btn-sm btn-outline-info ms-auto me-3 fw-bold" onclick="switchModal('tabsModal', 'floorplanModal')"><i class="bi bi-grid-3x3-gap-fill"></i> View Tables</button><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row h-100"><div class="col-4 border-end overflow-auto"><div class="list-group"><?php foreach($openTabs as $t): $isPaid = $t['payment_status'] === 'paid'; $bg = $isPaid ? 'bg-success-subtle' : ''; $badge = $isPaid ? '<span class="badge bg-success">PAID</span>' : ''; ?><button class="list-group-item list-group-item-action <?= $bg ?>" onclick="showTabDetails(<?= $t['id'] ?>)"><div class="d-flex justify-content-between"><strong><?= htmlspecialchars($t['customer_name']) ?></strong> <?= $badge ?></div><div class="small text-muted">ZMW <?= number_format($t['final_total'],2) ?></div></button><?php endforeach; ?></div></div><div class="col-8 p-3" id="tabDetailContainer"><p class="text-center text-muted mt-5">Select a tab from the list to view details.</p></div></div></div></div></div></div>
+    <div class="modal fade" id="addToTabModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-plus-square text-warning"></i> Add to Tab</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="add_to_tab_action" value="1"><label class="form-label small fw-bold text-muted mb-2">SELECT DESTINATION</label><div class="list-group mb-3" id="tabSelectionGroup"><label class="list-group-item tab-radio-label active" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">Create New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label" onclick="highlightTabSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="newTabNameInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="tab_customer_name" class="form-control mb-2" placeholder="Enter name or walk-in">
+        
+        <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
+        <label class="form-label small fw-bold text-muted mb-1 mt-2">ASSIGN TO TABLE (OPTIONAL)</label><select name="target_table_id" class="form-select"><option value="">-- No Table (Bar Tab) --</option><?php foreach($restaurantTables as $zone => $tables): ?><optgroup label="<?= htmlspecialchars($zone) ?>"><?php foreach($tables as $tbl): ?><option value="<?= $tbl['id'] ?>"><?= htmlspecialchars($tbl['table_name']) ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select>
+        <?php endif; ?>
+
+    </div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
+    
+    <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
+    <div class="modal fade" id="floorplanModal"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content bg-light"><div class="modal-header bg-dark text-white border-warning border-bottom border-3"><h5 class="modal-title fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2 text-warning"></i> Table Floorplan</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><?php if(empty($restaurantTables)): ?><div class="text-center text-muted my-5"><i class="bi bi-info-circle display-4"></i><p class="mt-3">No tables have been configured for this location yet.</p></div><?php else: ?><?php foreach($restaurantTables as $zoneName => $tables): ?><h5 class="fw-bold text-muted border-bottom pb-2 mb-3 mt-4"><?= htmlspecialchars($zoneName) ?></h5><div class="row g-3">
+        <?php foreach($tables as $table): 
+            $occupancy = $occupiedTables[$table['id']] ?? null;
+            $isOccupied = ($occupancy !== null);
+        ?>
+        <div class="col-6 col-md-4 col-lg-3">
+            <?php if($isOccupied): 
+                $canAccess = ($isManager || $occupancy['user_id'] == $userId);
+                if ($canAccess):
+            ?>
+                <div class="table-box table-occupied" onclick="switchModal('floorplanModal', 'tabsModal', () => showTabDetails(<?= $occupancy['sale_id'] ?>))">
+                    <span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span>
+                    <h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5>
+                    <div class="small fw-bold">ZMW <?= number_format($occupancy['final_total'], 2) ?></div>
+                    <div class="badge bg-danger mt-2">OCCUPIED</div>
+                </div>
+            <?php else: ?>
+                <div class="table-box bg-secondary text-white border-secondary" style="cursor: not-allowed; opacity: 0.8;" onclick="Swal.fire({icon: 'error', title: 'Table Locked', text: 'This table is being handled by <?= htmlspecialchars(addslashes($occupancy['username'])) ?>.'})">
+                    <span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span>
+                    <h5 class="fw-bold mb-1 text-white"><?= htmlspecialchars($table['table_name']) ?></h5>
+                    <div class="small"><i class="bi bi-lock-fill"></i> <?= htmlspecialchars($occupancy['username']) ?></div>
+                    <div class="badge bg-dark mt-2">LOCKED</div>
+                </div>
+            <?php endif; ?>
+            <?php else: ?>
+                <form method="POST" class="h-100">
+                    <input type="hidden" name="add_to_tab_action" value="1"><input type="hidden" name="target_tab_id" value="new"><input type="hidden" name="target_table_id" value="<?= $table['id'] ?>"><input type="hidden" name="tab_customer_name" value="<?= htmlspecialchars($table['table_name']) ?>">
+                    <button type="submit" class="table-box table-available w-100" <?= empty($_SESSION['cart']) ? 'onclick="alert(\'Add items to the cart first to open a table!\'); return false;"' : '' ?>>
+                        <span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span>
+                        <h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5>
+                        <div class="badge bg-success mt-2">AVAILABLE</div>
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
+        </div><?php endforeach; ?><?php endif; ?></div></div></div></div>
+    <?php endif; ?>
+    
+    <div class="modal fade" id="tabsModal"><div class="modal-dialog modal-xl"><div class="modal-content h-100">
+        <div class="modal-header bg-dark text-white border-info border-bottom border-3">
+            <h5 class="modal-title fw-bold"><i class="bi bi-receipt me-2 text-info"></i> Active Tabs</h5>
+            
+            <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
+            <button type="button" class="btn btn-sm btn-outline-info ms-auto me-3 fw-bold" onclick="switchModal('tabsModal', 'floorplanModal')"><i class="bi bi-grid-3x3-gap-fill"></i> View Tables</button>
+            <?php endif; ?>
+            
+            <button type="button" class="btn-close btn-close-white <?= (!in_array($tier, ['pro+', 'enterprise'])) ? 'ms-auto' : '' ?>" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body"><div class="row h-100"><div class="col-4 border-end overflow-auto"><div class="list-group"><?php foreach($openTabs as $t): $isPaid = $t['payment_status'] === 'paid'; $bg = $isPaid ? 'bg-success-subtle' : ''; $badge = $isPaid ? '<span class="badge bg-success">PAID</span>' : ''; ?><button class="list-group-item list-group-item-action <?= $bg ?>" onclick="showTabDetails(<?= $t['id'] ?>)"><div class="d-flex justify-content-between"><strong><?= htmlspecialchars($t['customer_name']) ?></strong> <?= $badge ?></div><div class="small text-muted">ZMW <?= number_format($t['final_total'],2) ?></div></button><?php endforeach; ?></div></div><div class="col-8 p-3" id="tabDetailContainer"><p class="text-center text-muted mt-5">Select a tab from the list to view details.</p></div></div></div></div></div></div>
+
+    <div class="modal fade" id="transferModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow-lg border-info border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-arrow-left-right text-info me-2"></i> Transfer / Merge Items</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="transfer_tab_items" value="1"><input type="hidden" name="source_tab_id" id="transfer_source_id" value=""><div class="row"><div class="col-md-6 border-end"><div class="d-flex justify-content-between align-items-center mb-2"><label class="form-label small fw-bold text-muted m-0">SELECT ITEMS TO MOVE</label><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none fw-bold" onclick="toggleTransferSelectAll()">Select All</button></div><div class="list-group mb-3" id="transferItemsContainer" style="max-height: 300px; overflow-y: auto;"></div></div><div class="col-md-6"><label class="form-label small fw-bold text-muted mb-2">DESTINATION TAB</label><div class="list-group mb-3" id="transferTargetContainer" style="max-height: 300px; overflow-y: auto;"><label class="list-group-item tab-radio-label active" onclick="highlightTransferSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label transfer-target-item" data-id="<?= $t['id'] ?>" onclick="highlightTransferSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="transferNewTabInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="new_tab_name" class="form-control mb-2" placeholder="Enter name">
+        
+        <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
+        <label class="form-label small fw-bold text-muted mb-1 mt-2">ASSIGN TO TABLE (OPTIONAL)</label><select name="target_table_id" class="form-select"><option value="">-- No Table (Bar Tab) --</option><?php foreach($restaurantTables as $zone => $tables): ?><optgroup label="<?= htmlspecialchars($zone) ?>"><?php foreach($tables as $tbl): ?><option value="<?= $tbl['id'] ?>"><?= htmlspecialchars($tbl['table_name']) ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select>
+        <?php endif; ?>
+
+    </div></div></div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-info w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
 
     <div id="hiddenTabTemplates" style="display:none;">
         <?php foreach($tabItems as $tid => $items): ?>
@@ -328,7 +403,7 @@
                         <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="pushToCart(<?= $i['product_id'] ?>, <?= $i['price'] ?>, <?= $i['id'] ?>, '<?= $tabPaymentStatus ?>')" title="Refund / Cart"><i class="bi bi-cart-plus"></i></button>
                         <?php if ($tabPaymentStatus === 'pending'): ?><button type="button" class="btn btn-sm btn-outline-danger me-2" onclick="voidItem(<?= $i['id'] ?>)" title="Void this item"><i class="bi bi-trash"></i></button><?php endif; ?>
                         <?php if($i['fulfillment_status'] == 'uncollected'): ?>
-                            <?php if(in_array(strtolower($i['cat_type'] ?? ''), ['food', 'meal']) && defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?>
+                            <?php if(in_array(strtolower($i['cat_type'] ?? ''), ['food', 'meal']) && in_array($tier, ['pro+', 'enterprise'])): ?>
                                 <?php if($i['status'] === 'ready'): ?><span class="badge bg-warning text-dark border shadow-sm px-2 py-1" style="cursor:pointer;" onclick="switchModal('tabsModal', '', showPickupModal)"><i class="bi bi-bag-check"></i> GO TO PICKUP</span><?php else: ?><span class="badge bg-secondary text-white border shadow-sm px-2 py-1" style="cursor:pointer;" onclick="Swal.fire({icon: 'info', title: 'Still Cooking', text: 'Preparing!', timer: 2000, showConfirmButton: false})"><i class="bi bi-hourglass-split"></i> PREPARING</span><?php endif; ?>
                             <?php else: ?><span class="badge badge-uncollected p-2" style="cursor:pointer;" onclick="markCollected(<?= $i['id'] ?>, <?= $tid ?>)">MARK COLLECTED</span><?php endif; ?>
                         <?php else: ?><span class="badge bg-success">COLLECTED</span><?php endif; ?>
@@ -342,17 +417,21 @@
     </div>
 
     <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
-    <div class="modal fade" id="transferModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow-lg border-info border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-arrow-left-right text-info me-2"></i> Transfer / Merge Items</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="transfer_tab_items" value="1"><input type="hidden" name="source_tab_id" id="transfer_source_id" value=""><div class="row"><div class="col-md-6 border-end"><div class="d-flex justify-content-between align-items-center mb-2"><label class="form-label small fw-bold text-muted m-0">SELECT ITEMS TO MOVE</label><button type="button" class="btn btn-sm btn-link p-0 text-decoration-none fw-bold" onclick="toggleTransferSelectAll()">Select All</button></div><div class="list-group mb-3" id="transferItemsContainer" style="max-height: 300px; overflow-y: auto;"></div></div><div class="col-md-6"><label class="form-label small fw-bold text-muted mb-2">DESTINATION TAB</label><div class="list-group mb-3" id="transferTargetContainer" style="max-height: 300px; overflow-y: auto;"><label class="list-group-item tab-radio-label active" onclick="highlightTransferSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="new" checked><span class="fw-bold">New Custom Tab</span></label><?php foreach($openTabs as $t): if($t['payment_status'] !== 'paid'): ?><label class="list-group-item tab-radio-label transfer-target-item" data-id="<?= $t['id'] ?>" onclick="highlightTransferSelection(this)"><input class="form-check-input me-2" type="radio" name="target_tab_id" value="<?= $t['id'] ?>"> <strong>Merge into: <?= htmlspecialchars($t['customer_name']) ?></strong></label><?php endif; endforeach; ?></div><div id="transferNewTabInput"><label class="form-label small fw-bold text-muted mb-1">NEW CUSTOMER NAME</label><input type="text" name="new_tab_name" class="form-control mb-2" placeholder="Enter name"><label class="form-label small fw-bold text-muted mb-1 mt-2">ASSIGN TO TABLE (OPTIONAL)</label><select name="target_table_id" class="form-select"><option value="">-- No Table (Bar Tab) --</option><?php foreach($restaurantTables as $zone => $tables): ?><optgroup label="<?= htmlspecialchars($zone) ?>"><?php foreach($tables as $tbl): ?><option value="<?= $tbl['id'] ?>"><?= htmlspecialchars($tbl['table_name']) ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select></div></div></div></div><div class="modal-footer bg-light border-0"><button type="submit" class="btn btn-info w-100 fw-bold py-3 shadow-sm text-dark">CONFIRM TRANSFER</button></div></form></div></div></div>
     
-    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1">
-        <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
-        <?php if(isset($_SESSION['pos_member']) && defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
+    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1"><input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
+        <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
         <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;"><label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label><input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username"><input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password"></div>
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
-        <div class="btn-group w-100 mb-3 <?= (defined('LICENSE_TIER') && LICENSE_TIER === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-        <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option><option value="Online">Online Delivery App</option><?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
+        <div class="btn-group w-100 mb-3 <?= ($tier === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
+        <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option>
+        
+        <?php if ($tier === 'enterprise'): ?>
+        <option value="Online">Online Delivery App</option>
+        <?php endif; ?>
+
+        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
         <div id="splitSection" style="display:none;" class="p-3 bg-light rounded border border-secondary mb-3">
             <label class="form-label small fw-bold text-dark mb-2"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT DETAILS</label>
             <div class="row g-2 mb-2">
@@ -428,18 +507,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
-
-        function openOnlineSettleModal(tabId, total, customerName) {
-            switchModal('onlineTabsModal', '', function() { 
-                initCheckout(true, total, customerName, 0, tabId); 
-                let pmSelect = document.querySelector('select[name="payment_method"]');
-                if(pmSelect) {
-                    let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card');
-                    if(onlineOpt) onlineOpt.selected = true;
-                }
-            }); 
-        }
-
+        function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) onlineOpt.selected = true; } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
         let currentCat = 'all';
         const subCategoriesMap = <?= json_encode($subCatsByParent) ?>;
@@ -467,22 +535,9 @@
 
         let baseTotal = 0; let currentTotal = 0;
         
-        // FIX: Added forceTabId to securely bind the Tab ID when opened via Web Orders
         function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '', pt = 0, forceTabId = 0) { 
             let nameInput = document.querySelector('[name="customer_name"]');
-            if (!isTabMode) { 
-                baseTotal = <?= $balance ?? 0 ?>; 
-                document.getElementById('settle_tab_id_input').value = '0'; 
-                nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; 
-                nameInput.readOnly = false; 
-            } else { 
-                baseTotal = parseFloat(tabTotal) - parseFloat(pt); 
-                nameInput.value = tabCustomer; 
-                nameInput.readOnly = true; 
-                if (forceTabId > 0) {
-                    document.getElementById('settle_tab_id_input').value = forceTabId;
-                }
-            }
+            if (!isTabMode) { baseTotal = <?= $balance ?? 0 ?>; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
             currentTotal = baseTotal; document.getElementById('tipInput').value = '';
             if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); document.getElementById('refundAuthSection').style.display = 'block'; document.getElementById('mgrUserRefund').required = true; document.getElementById('mgrPassRefund').required = true; } else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); document.getElementById('refundAuthSection').style.display = 'none'; document.getElementById('mgrUserRefund').required = false; document.getElementById('mgrPassRefund').required = false; }
             if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } safeModalShow('checkoutModal'); 
@@ -517,7 +572,7 @@
         function addService(id, name, price, isOpen) { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${id}"><input type="hidden" name="is_refund" value="${isRefund}">`; document.body.appendChild(f); f.submit(); } }
         function confirmAction(event, title, text, confirmBtn='Yes') { event.preventDefault(); Swal.fire({ title: title, text: text, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: confirmBtn }).then((result) => { if (result.isConfirmed) { event.target.submit(); } }); }
         <?php if(isset($_SESSION['swal_msg'])): ?> Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
-        <?php if (defined('LICENSE_TIER') && in_array(LICENSE_TIER, ['pro', 'hospitality'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
+        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
 <script>
     document.addEventListener('focusin', function(e) { if (typeof Swal !== 'undefined' && Swal.isVisible()) { let swalContainer = document.querySelector('.swal2-container'); if (swalContainer && swalContainer.contains(e.target)) { e.stopImmediatePropagation(); } } }, true);

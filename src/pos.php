@@ -8,6 +8,9 @@ $locationName = $_SESSION['location_name'] ?? 'HQ';
 $userId = $_SESSION['user_id'];
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 
+$userRole = strtolower($_SESSION['role'] ?? '');
+$isManager = in_array($userRole, ['admin', 'manager', 'dev']);
+
 function executeDeduction($pdo, $pId, $qty, $locId, $uId, $actionType) {
     $stmt = $pdo->prepare("SELECT id, quantity FROM inventory WHERE product_id = ? AND location_id = ?");
     $stmt->execute([$pId, $locId]);
@@ -47,7 +50,8 @@ if (isset($_POST['mark_collected'])) {
         $stmt->execute([$itemId]);
         $item = $stmt->fetch();
         if ($item) {
-            if (in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal']) && in_array($tier, ['pro', 'hospitality'])) {
+            // PRO+ & ENTERPRISE RESTRICTION: Meals go to KDS
+            if (in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal']) && in_array($tier, ['pro+', 'enterprise'])) {
                 echo json_encode(['status' => 'redirect_pickup', 'msg' => 'Meals must be processed through the Kitchen screen.']);
                 exit;
             }
@@ -188,7 +192,7 @@ if (isset($_POST['add_item']) && $activeShiftId) {
         $refundSaleItemId = isset($_POST['refund_sale_item_id']) && $_POST['refund_sale_item_id'] !== 'undefined' ? (int)$_POST['refund_sale_item_id'] : 0;
         $key = $pid . '_' . md5($price) . ($isRefund ? '_refund' : '');
         $fulfillment = 'collected'; 
-        if (!$isRefund && in_array(strtolower($prod['cat_type']), ['food', 'meal']) && in_array($tier, ['pro', 'hospitality'])) { $fulfillment = 'uncollected'; }
+        if (!$isRefund && in_array(strtolower($prod['cat_type']), ['food', 'meal']) && in_array($tier, ['pro+', 'enterprise'])) { $fulfillment = 'uncollected'; }
         
         if (isset($_SESSION['cart'][$key])) { $_SESSION['cart'][$key]['qty']++; } 
         else { $_SESSION['cart'][$key] = ['product_id' => $pid, 'name' => ($isRefund ? '🔙 [RETURN] ' : '') . $prod['name'], 'price' => $price, 'qty' => 1, 'cat_type' => $prod['cat_type'], 'fulfillment' => $fulfillment, 'type' => $prod['type'], 'is_refund' => $isRefund, 'refund_sale_item_id' => $refundSaleItemId]; }
@@ -233,7 +237,6 @@ if (isset($_POST['log_waste']) && $activeShiftId) {
     header("Location: index.php?page=pos"); exit;
 }
 
-// --- 💳 MASTER CHECKOUT LOGIC ---
 if (isset($_POST['checkout']) && $activeShiftId) {
     try {
         $pdo->beginTransaction();
@@ -280,17 +283,13 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             $prevTendered = (float)$stmtPT->fetchColumn(); 
             $cumulativeTendered = $prevTendered + $amountTendered; 
             
-            // MARK AS COMPLETED IF PAID
             $status = ($cumulativeTendered >= $finalTotal) ? 'paid' : 'pending'; 
             $saleStatus = ($status === 'paid') ? 'completed' : 'pending';
-            
             $changeDue = ($cumulativeTendered > $finalTotal) ? ($cumulativeTendered - $finalTotal) : 0;
             
-            // FIX IS HERE: Enforce the $activeShiftId during the update so the Z-Read sees it!
             $pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ? WHERE id = ?")
                 ->execute([$activeShiftId, $saleStatus, $total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $settleTabId]);
             
-            // Auto-fulfill uncollected items if tab is fully paid
             if ($saleStatus === 'completed') {
                 $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$settleTabId]);
             }
@@ -416,8 +415,17 @@ $stmt = $pdo->prepare("SELECT p.*, COALESCE(i.quantity, 0) as stock_qty, (SELECT
 $services = $pdo->query("SELECT * FROM products WHERE type = 'service' AND is_active = 1")->fetchAll(PDO::FETCH_ASSOC);
 $balance = 0; foreach($_SESSION['cart'] as $i) { $balance += $i['price'] * $i['qty']; }
 
-$stmt = $pdo->prepare("SELECT DISTINCT s.* FROM sales s JOIN sale_items si ON s.id = si.sale_id WHERE s.location_id = ? AND si.status NOT IN ('voided', 'refunded') AND (s.payment_status = 'pending' OR si.fulfillment_status = 'uncollected') ORDER BY s.id DESC");
-$stmt->execute([$locationId]);
+$tabQuery = "SELECT DISTINCT s.* FROM sales s JOIN sale_items si ON s.id = si.sale_id WHERE s.location_id = ? AND si.status NOT IN ('voided', 'refunded') AND (s.payment_status = 'pending' OR si.fulfillment_status = 'uncollected')";
+$tabParams = [$locationId];
+
+if (!$isManager) {
+    $tabQuery .= " AND s.user_id = ?";
+    $tabParams[] = $userId;
+}
+$tabQuery .= " ORDER BY s.id DESC";
+
+$stmt = $pdo->prepare($tabQuery);
+$stmt->execute($tabParams);
 $openTabs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $tabItems = []; 
@@ -427,15 +435,29 @@ foreach($openTabs as $t) {
     $tabItems[$t['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC); 
 }
 
-$onlineTabsStmt = $pdo->prepare("SELECT id, total_amount, customer_name, split_group_id as external_id, created_at FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY created_at DESC");
-$onlineTabsStmt->execute();
-$onlineTabs = $onlineTabsStmt->fetchAll(PDO::FETCH_ASSOC);
+$stmt = $pdo->prepare("SELECT s.table_id, s.id as sale_id, s.final_total, s.user_id, u.username FROM sales s LEFT JOIN users u ON s.user_id = u.id WHERE s.location_id = ? AND s.payment_status = 'pending' AND s.table_id IS NOT NULL");
+$stmt->execute([$locationId]);
+$occupiedTablesData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$occupiedTables = [];
+foreach($occupiedTablesData as $ot) {
+    $occupiedTables[$ot['table_id']] = $ot;
+}
 
-$onlineTabItems = [];
-foreach($onlineTabs as $ot) {
-    $stmt = $pdo->prepare("SELECT si.*, COALESCE(p.name, 'Custom Item') as name, c.type as cat_type FROM sale_items si LEFT JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = ? AND si.status NOT IN ('voided', 'refunded')"); 
-    $stmt->execute([$ot['id']]); 
-    $onlineTabItems[$ot['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC); 
+// ENTERPRISE RESTRICTION: Only fetch Web Orders if tier is Enterprise
+if ($tier === 'enterprise') {
+    $onlineTabsStmt = $pdo->prepare("SELECT id, total_amount, customer_name, split_group_id as external_id, created_at FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY created_at DESC");
+    $onlineTabsStmt->execute();
+    $onlineTabs = $onlineTabsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $onlineTabItems = [];
+    foreach($onlineTabs as $ot) {
+        $stmt = $pdo->prepare("SELECT si.*, COALESCE(p.name, 'Custom Item') as name, c.type as cat_type FROM sale_items si LEFT JOIN products p ON si.product_id = p.id LEFT JOIN categories c ON p.category_id = c.id WHERE si.sale_id = ? AND si.status NOT IN ('voided', 'refunded')"); 
+        $stmt->execute([$ot['id']]); 
+        $onlineTabItems[$ot['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC); 
+    }
+} else {
+    $onlineTabs = [];
+    $onlineTabItems = [];
 }
 
 $restaurantTables = []; try { $stmt = $pdo->prepare("SELECT * FROM restaurant_tables WHERE location_id = ? ORDER BY zone_name ASC, table_name ASC"); $stmt->execute([$locationId]); $rawTables = $stmt->fetchAll(PDO::FETCH_ASSOC); foreach($rawTables as $t) { $restaurantTables[$t['zone_name']][] = $t; } } catch (Exception $e) { }

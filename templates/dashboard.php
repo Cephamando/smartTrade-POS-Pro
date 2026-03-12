@@ -1,8 +1,8 @@
 <?php 
 if (!isset($todaySales)) { include_once 'src/dashboard.php'; } 
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
-$topColSize = in_array($tier, ['pro', 'hospitality']) ? 'col-md-3' : 'col-md-4';
-$midColSize = ($tier === 'hospitality') ? 'col-md-4' : 'col-md-6';
+$topColSize = in_array($tier, ['pro', 'pro+', 'enterprise']) ? 'col-md-3' : 'col-md-4';
+$midColSize = in_array($tier, ['pro+', 'enterprise']) ? 'col-md-4' : 'col-md-6';
 
 global $pdo;
 $activeShiftsStmt = $pdo->query("
@@ -31,7 +31,7 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
         <span class="text-muted small">Overview for <strong class="text-dark"><?= htmlspecialchars($dashLocName ?? 'All') ?></strong></span>
     </div>
     <div class="d-flex gap-2">
-        <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
         <button class="btn btn-warning fw-bold position-relative" onclick="showPickupModal()">
             <i class="bi bi-tv"></i> Pickup Screen
             <span id="readyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">0</span>
@@ -63,7 +63,7 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
         </a>
     </div>
     
-    <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+    <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
     <div class="<?= $topColSize ?> col-6">
         <a href="index.php?page=pos" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
@@ -93,18 +93,18 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-box-seam"></i> Inventory</div>
             <div class="list-group list-group-flush small fw-bold">
-                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+                <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <a href="index.php?page=receive_stock" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Receive Stock <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php endif; ?>
                 <a href="index.php?page=inventory" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Manage Products <i class="bi bi-chevron-right text-muted"></i></a>
-                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+                <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <a href="index.php?page=audit" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Stock Audit <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php endif; ?>
             </div>
         </div>
     </div>
     
-    <?php if ($tier === 'hospitality'): ?>
+    <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
     <div class="<?= $midColSize ?>">
         <div class="card shadow-sm h-100 border-warning">
             <div class="card-header bg-warning text-dark fw-bold py-2"><i class="bi bi-fire"></i> Kitchen & Menu</div>
@@ -123,7 +123,7 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
             <div class="list-group list-group-flush small fw-bold">
                 <a href="index.php?page=users" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Manage Users <i class="bi bi-chevron-right text-muted"></i></a>
                 <a href="index.php?page=shifts" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">View Shifts <i class="bi bi-chevron-right text-muted"></i></a>
-                <?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+                <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <a href="index.php?page=members" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Members <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php endif; ?>
             </div>
@@ -318,7 +318,7 @@ $activeShifts = $activeShiftsStmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
-<?php if (in_array($tier, ['pro', 'hospitality'])): ?>
+<?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
 <div class="modal fade" id="pickupModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content h-100">
@@ -373,7 +373,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const payData = <?= json_encode($pmData) ?>;
     
-    // UPDATED: HORIZONTAL BAR CHART FOR PAYMENT METHODS
     new Chart(document.getElementById('paymentChart').getContext('2d'), {
         type: 'bar',
         data: {
@@ -386,11 +385,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }]
         },
         options: { 
-            indexAxis: 'y', // Flips the bar chart horizontally
+            indexAxis: 'y', 
             responsive: true, 
             maintainAspectRatio: false, 
             plugins: { 
-                legend: { display: false } // Hide legend since labels are on the Y axis
+                legend: { display: false } 
             },
             scales: {
                 x: { beginAtZero: true }
@@ -416,7 +415,6 @@ function showShiftDetails(shift) {
     let cashSales = parseFloat(shift.current_cash_sales) || 0;
     let expenses = parseFloat(shift.expenses) || 0;
     
-    // Use Cash Sales exclusively for Expected Drawer Cash
     let expected = (startCash + cashSales) - expenses;
     
     document.getElementById('sdFloat').innerText = 'ZMW ' + startCash.toFixed(2);
