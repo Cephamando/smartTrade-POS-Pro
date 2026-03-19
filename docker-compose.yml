@@ -1,13 +1,14 @@
 services:
   web:
     container_name: pos_app
-    build: 
+    build:
       context: .
       dockerfile: docker/php/Dockerfile
     ports:
       - "${APP_PORT:-8090}:80"
     volumes:
       - ./:/var/www/html
+    restart: always
     environment:
       APP_ENV: ${APP_ENV}
       DB_HOST: ${DB_HOST}
@@ -23,7 +24,7 @@ services:
   db:
     container_name: pos_db
     image: mysql:8.3
-    restart: unless-stopped
+    restart: always
     environment:
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
@@ -36,7 +37,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:                                          # ✅ Added healthcheck
+    healthcheck:                                          # ✅ Addedhealthcheck
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASS}"]
       interval: 10s
       timeout: 5s
@@ -48,6 +49,7 @@ services:
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: pos_pma
+    restart: always
     ports:
       - "${PHPMYADMIN_PORT:-8092}:80"
     environment:
@@ -63,6 +65,7 @@ services:
   adminer:
     image: adminer
     container_name: pos_adminer
+    restart: always
     ports:
       - "${ADMINER_PORT:-8093}:8080"
     depends_on:

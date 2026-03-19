@@ -12,7 +12,6 @@
     </style>
 
     <style id="force-thermal-bold">
-        /* Force literally everything to be Extra Black */
         body, table, th, td, p, span, div, li, h1, h2, h3, h4, h5, h6, * { 
             font-family: "Courier New", Courier, monospace !important; 
             font-weight: 900 !important; 
@@ -22,7 +21,6 @@
         .border-top { border-top: 2px dashed #000 !important; }
         hr { border-top: 2px dashed #000 !important; border-bottom: none !important; opacity: 1 !important; }
         
-        /* Ensure the printer spooler respects the bolding */
         @media print { 
             * { font-weight: 900 !important; color: #000 !important; } 
         }
@@ -60,7 +58,7 @@
     <div class="flex"><span>Opening Float:</span> <span><?= number_format($shift['starting_cash'], 2) ?></span></div>
     <div class="flex"><span>Cash Sales:</span> <span>+ <?= number_format($cashSales, 2) ?></span></div>
     
-    <?php if(count($expenses) > 0): ?>
+    <?php if(!empty($expenses)): ?>
         <br>
         <div class="bold" style="text-align:center;">PAYOUTS / EXPENSES</div>
         <?php foreach($expenses as $ex): ?>
@@ -68,7 +66,7 @@
         <?php endforeach; ?>
     <?php endif; ?>
     
-    <div class="flex"><span>Total Payouts:</span> <span>- <?= number_format($totalExpenses, 2) ?></span></div>
+    <div class="flex"><span>Total Payouts:</span> <span>- <?= number_format($totalExpenses ?? 0, 2) ?></span></div>
     <div class="line"></div>
     <div class="flex bold"><span>EXPECTED IN TILL:</span> <span>ZMW <?= number_format($expectedCash, 2) ?></span></div>
     
@@ -104,28 +102,3 @@
     <div style="text-align: center; font-size: 0.8em; margin-top: 10px;">End of Report</div>
 </body>
 </html>
-    
-    <style>
-        html, body, div, span, p, table, th, td, h1, h2, h3, h4, h5, h6, strong, b, small {
-            color: #000 !important;
-            font-weight: 900 !important; /* Maximum extra black */
-            font-family: 'Courier New', Courier, monospace !important;
-            text-shadow: 0px 0px 1px #000 !important; /* Forces the browser to render it thicker */
-        }
-        .text-muted, .text-secondary {
-            color: #000 !important;
-        }
-        .border-bottom, .border-top, hr {
-            border-color: #000 !important;
-            border-width: 2px !important;
-            border-style: dashed !important;
-        }
-        
-        @media print {
-            html, body, div, span, p, table, th, td, h1, h2, h3, h4, h5, h6, strong, b, small {
-                color: #000 !important;
-                font-weight: 900 !important;
-                font-family: 'Courier New', Courier, monospace !important;
-            }
-        }
-    </style>

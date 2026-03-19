@@ -6,16 +6,17 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $userId = $_SESSION['user_id'];
-$userRole = $_SESSION['role']; 
+// FIXED: Force lowercase to ensure 'Admin' or 'Manager' matches perfectly
+$userRole = strtolower($_SESSION['role'] ?? ''); 
 $locId  = $_SESSION['location_id'];
 
 // Define roles that handle money
 $moneyRoles = ['cashier', 'manager', 'admin', 'dev', 'bartender'];
 $isMoneyRole = in_array($userRole, $moneyRoles);
+$isManager = in_array($userRole, ['admin', 'manager', 'dev']);
 
 // --- HELPER: Verify Manager Password ---
 function verifyManager($pdo, $password, $locationId, $currentUserId) {
-    // Allow Admins, Devs, or Managers of this location
     $sql = "SELECT id, password_hash FROM users 
             WHERE (role IN ('admin', 'head_chef','dev') OR (role = 'manager' AND location_id = ?))";
     $stmt = $pdo->prepare($sql);
@@ -24,7 +25,6 @@ function verifyManager($pdo, $password, $locationId, $currentUserId) {
 
     foreach ($managers as $mgr) {
         if (password_verify($password, $mgr['password_hash'])) {
-            // Prevent self-verification
             if ($mgr['id'] == $currentUserId) return 'SELF_ERROR';
             return $mgr['id'];
         }
@@ -34,7 +34,6 @@ function verifyManager($pdo, $password, $locationId, $currentUserId) {
 
 // --- HANDLE POST REQUESTS ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
     try {
         // 1. START SHIFT
         if (isset($_POST['start_shift'])) {
@@ -44,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($mgrId === 'SELF_ERROR') throw new Exception("⛔ Security: You cannot verify your own shift.");
             if (!$mgrId) throw new Exception("Incorrect Manager Password.");
 
-            // Check for existing open shift
             $check = $pdo->prepare("SELECT id FROM shifts WHERE user_id = ? AND status = 'open'");
             $check->execute([$userId]);
             if ($check->fetch()) throw new Exception("You already have an open shift.");
@@ -71,15 +69,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($isMoneyRole) {
                 $closingCash = $_POST['end_amount'] ?? 0;
-                $managerCount = $_POST['manager_count'] ?? $closingCash; // Optional double count
+                $managerCount = $_POST['manager_count'] ?? $closingCash; 
                 $varianceReason = $_POST['variance_reason'] ?? null;
             } else {
                 $notes = $_POST['handover_notes'] ?? '';
             }
-
-            // Calculate Expected Cash (for DB record)
-            // Note: In a real app, you might want to fetch sales totals here to save 'expected_cash' accurately.
-            // For now, we trust the view passed or recalculate if needed. We will keep it simple.
 
             $stmt = $pdo->prepare("
                 UPDATE shifts SET 
@@ -98,13 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['swal_type'] = 'success';
             $_SESSION['swal_msg'] = 'Shift Closed Successfully.';
         }
-
     } catch (Exception $e) {
         $_SESSION['swal_type'] = 'error';
         $_SESSION['swal_msg'] = $e->getMessage();
     }
-
-    // REDIRECT (PRG Pattern)
     header("Location: index.php?page=shifts");
     exit;
 }
@@ -115,15 +106,13 @@ $stmt = $pdo->prepare("SELECT * FROM shifts WHERE user_id = ? AND status = 'open
 $stmt->execute([$userId]);
 $currentShift = $stmt->fetch();
 
-// 2. Statistics for Closing (Only if active shift exists)
+// 2. Statistics for Closing
 $calculatedSummary = [];
 if ($currentShift && $isMoneyRole) {
-    // Cash Sales
     $sStmt = $pdo->prepare("SELECT SUM(final_total) FROM sales WHERE shift_id = ? AND payment_method = 'cash' AND status != 'refunded'");
     $sStmt->execute([$currentShift['id']]);
     $cashSales = $sStmt->fetchColumn() ?: 0.00;
 
-    // Expenses paid from till
     $eStmt = $pdo->prepare("SELECT SUM(amount) FROM expenses WHERE user_id = ? AND created_at >= ?");
     $eStmt->execute([$userId, $currentShift['start_time']]);
     $expenses = $eStmt->fetchColumn() ?: 0.00;
@@ -138,7 +127,7 @@ if ($currentShift && $isMoneyRole) {
     ];
 }
 
-// 3. History
+// 3. Personal History
 $histStmt = $pdo->prepare("
     SELECT s.*, u1.username as start_mgr, u2.username as end_mgr 
     FROM shifts s 
@@ -148,4 +137,43 @@ $histStmt = $pdo->prepare("
     ORDER BY s.start_time DESC LIMIT 10");
 $histStmt->execute([$userId]);
 $history = $histStmt->fetchAll();
+
+// 4. ADMIN/MANAGER VIEW: Fetch All Filtered Shifts
+$allShifts = [];
+$staffList = [];
+$filterDate = $_GET['filter_date'] ?? date('Y-m-d');
+$filterUser = $_GET['filter_user'] ?? '';
+
+if ($isManager) {
+    $staffList = $pdo->query("SELECT id, full_name, role FROM users WHERE COALESCE(is_active, 1) = 1 ORDER BY full_name ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+    $query = "
+        SELECT s.*, u.full_name as cashier_name, u.role, l.name as location_name,
+               (SELECT COALESCE(SUM(final_total), 0) FROM sales WHERE shift_id = s.id AND payment_status = 'paid') as total_sales,
+               (SELECT COALESCE(SUM(final_total), 0) FROM sales WHERE shift_id = s.id AND payment_method LIKE '%Cash%' AND payment_status = 'paid') as cash_sales,
+               (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE shift_id = s.id) as total_expenses
+        FROM shifts s
+        JOIN users u ON s.user_id = u.id
+        JOIN locations l ON s.location_id = l.id
+        WHERE DATE(s.start_time) = :date
+    ";
+    
+    $params = [':date' => $filterDate];
+
+    if (!empty($filterUser)) {
+        $query .= " AND s.user_id = :uid";
+        $params[':uid'] = $filterUser;
+    }
+
+    if ($userRole === 'manager') {
+        $query .= " AND s.location_id = :loc";
+        $params[':loc'] = $locId;
+    }
+
+    $query .= " ORDER BY s.start_time DESC";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $allShifts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>

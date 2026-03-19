@@ -27,7 +27,6 @@ foreach($sales as $s) {
         $sa1 = $s['split_amount_1'];
         $sa2 = $s['split_amount_2'];
         
-        // Deduct any physical change given from the Cash portions so X-Read balances perfectly
         if ($s['split_method_1'] === 'Cash' && $change > 0) {
             $deduct = min($sa1, $change);
             $sa1 -= $deduct;
@@ -65,18 +64,21 @@ foreach($sales as $s) {
 $paymentBreakdown = array_values($paymentBreakdownAssoc);
 foreach($paymentBreakdown as &$pb) { $pb['tx_count'] = ceil($pb['tx_count']); }
 
-// Fetch Payouts / Expenses
-$stmt = $pdo->prepare("SELECT * FROM expenses WHERE shift_id = ?");
-$stmt->execute([$shiftId]);
-$expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+// 🛡️ FIX: Initialize variables strictly to avoid Undefined Variable errors
+$expenses = [];
 $totalExpenses = 0;
-foreach($expenses as $ex) { $totalExpenses += $ex['amount']; }
 
-// Calculate expectations
+try {
+    $stmt = $pdo->prepare("SELECT * FROM expenses WHERE shift_id = ?");
+    $stmt->execute([$shiftId]);
+    $expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($expenses) {
+        foreach($expenses as $ex) { $totalExpenses += $ex['amount']; }
+    }
+} catch (Exception $e) {}
+
 $expectedCash = $shift['starting_cash'] + $cashSales - $totalExpenses;
 
-// NEW: Breakdown by Category
 $stmt = $pdo->prepare("
     SELECT c.name as category_name, SUM(si.quantity) as qty, SUM(si.price * si.quantity) as amount
     FROM sale_items si
@@ -90,7 +92,6 @@ $stmt = $pdo->prepare("
 $stmt->execute([$shiftId]);
 $categoriesBreakdown = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// NEW: Breakdown by Product (Itemized)
 $stmt = $pdo->prepare("
     SELECT COALESCE(p.name, 'Custom Item') as name, SUM(si.quantity) as qty, SUM(si.price * si.quantity) as amount
     FROM sale_items si
