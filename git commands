@@ -1,0 +1,24 @@
+git remote remove origin
+
+# Set the base fetch URL to GitHub (using SSH)
+git remote add origin git@github.com:your-username/your-git-repo.git
+
+# Add GitHub as a push destination
+git remote set-url --add --push origin git@github.com:your-username/your-git-repo.git
+
+# Add GitLab as a push destination
+git remote set-url --add --push origin git@gitlab.com:your-username/your-git-repo.git
+
+
+git remote remove origin
+
+# Set the base fetch URL to GitHub (using SSH)
+git remote add origin git@github.com:Cephamando/smartTrade-POS-Pro.git
+
+# Add GitHub as a push destination
+git remote set-url --add --push origin git@github.com:Cephamando/smartTrade-POS-Pro.git
+
+# Add GitLab as a push destination
+git remote set-url --add --push origin git@gitlab.com:Cephamando/smartTrade-POS-Pro.git
+
+git add . && git commit -m "$(cat <<'EOF' [message here] EOF)"

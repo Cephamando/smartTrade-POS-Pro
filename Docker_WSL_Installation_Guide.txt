@@ -1,0 +1,112 @@
+================================================================================
+GUIDE: INSTALLING DOCKER ENGINE ON WINDOWS WSL 2 (WITHOUT DOCKER DESKTOP)
+================================================================================
+
+Since Docker Engine is fundamentally a Linux application, it cannot run natively on Windows. Docker Desktop normally handles this by silently running a Linux virtual machine in the background. However, you can bypass Docker Desktop entirely by manually installing Docker Engine inside Windows Subsystem for Linux (WSL 2).
+
+This approach is ideal for developers who want a lightweight setup, prefer a closer experience to a production Linux environment, or need to avoid Docker Desktop's enterprise licensing fees.
+
+--------------------------------------------------------------------------------
+PART 1: PREPARING WINDOWS AND INSTALLING WSL
+--------------------------------------------------------------------------------
+
+1. Enable Hardware Virtualization in BIOS
+Reboot your PC into your BIOS/UEFI settings (usually by pressing F2, F10, F12, or Del while the computer turns on). Ensure that "Intel Virtualization Technology (VT-x)" or "AMD-V" is enabled, depending on your processor. Save your settings and exit.
+
+2. Enable Required Windows Features
+Open PowerShell as an Administrator and run the following commands to enable the Virtual Machine Platform and WSL:
+
+Enable Virtual Machine Platform:
+> dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+
+Enable Windows Subsystem for Linux:
+> dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+Wait for the progress bar to reach 100% and indicate the operations completed successfully.
+
+3. Restart Your Computer
+These changes require a full system reboot to take effect. Restart your computer now.
+
+4. Install Ubuntu via WSL
+Once rebooted, open PowerShell as an Administrator again and run:
+> wsl --install
+
+This will install the latest WSL 2 components and default to an Ubuntu distribution. Restart your computer one more time if prompted.
+
+--------------------------------------------------------------------------------
+PART 2: INSTALLING DOCKER ENGINE IN UBUNTU
+--------------------------------------------------------------------------------
+
+1. Access Your Ubuntu Environment
+You can access the Linux terminal using one of two methods:
+- Option 1 (Recommended): Open your Windows Start menu, search for "Ubuntu", and launch the app.
+- Option 2: Open PowerShell and type `wsl`, then press Enter. Your prompt will change from Windows to a Linux environment (e.g., username@hostname:~$ ).
+
+*Note: The first time you open Ubuntu, it will initialize and prompt you to create a Linux username and password. This password will be used to authenticate `sudo` commands.*
+
+2. Update Ubuntu Packages
+Inside your Ubuntu terminal, ensure your package lists are up to date:
+> sudo apt-get update
+> sudo apt-get upgrade -y
+
+3. Install Docker Engine Prerequisites
+Install the necessary packages to allow `apt` to use a repository over HTTPS:
+> sudo apt-get install ca-certificates curl gnupg lsb-release -y
+
+4. Add Docker's Official GPG Key and Repository
+Set up the repository so you can download the official Docker Engine packages:
+> sudo mkdir -p /etc/apt/keyrings
+> curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+> echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+5. Install Docker Engine
+Update the package index again to recognize the newly added repository, then install Docker:
+> sudo apt-get update
+> sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin -y
+
+6. Install MySQL
+> sudo apt install mysql-client-core-8.0
+
+--------------------------------------------------------------------------------
+PART 3: CONFIGURATION & USAGE
+--------------------------------------------------------------------------------
+
+1. Start the Docker Service
+WSL 2 doesn't use `systemd` by default in the same way a full Linux installation does. You must start the Docker daemon manually using the standard service command:
+> sudo service docker start
+
+2. Run Docker Without Sudo (Optional but Recommended)
+To avoid typing `sudo` before every Docker command, add your Linux user to the `docker` group:
+> sudo usermod -aG docker $USER
+
+Apply the group changes immediately without having to log out:
+> newgrp docker
+
+Test the installation to ensure it works without sudo:
+> docker ps
+
+(If it still returns a permissions error, simply close and reopen the Ubuntu terminal.)
+
+--------------------------------------------------------------------------------
+BONUS: TROUBLESHOOTING NODE.JS BUILDS
+--------------------------------------------------------------------------------
+
+If you are building Node.js containers and encounter build failures during the dependency installation step (e.g., issues with dealing with a lockfile or failing to resolve dependencies dynamically), you should swap `npm ci` for `npm install` in your Dockerfile.
+
+Open your `Dockerfile` and update the commands. If it is a multi-stage build, be sure to change it in all relevant stages:
+
+Change this:
+RUN npm ci
+# ... later in the file ...
+RUN npm ci --omit=dev
+
+To this:
+RUN npm install
+# ... later in the file ...
+RUN npm install --omit=dev
+
+Once saved, build your container:
+> docker compose up -d --build
+
+Your packages should now pull and install successfully.

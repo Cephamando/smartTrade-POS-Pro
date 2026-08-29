@@ -6,8 +6,11 @@ services:
       dockerfile: docker/php/Dockerfile
     ports:
       - "${APP_PORT:-8090}:80"
+      - "${APP_PORT_HTTPS:-8443}:443"
     volumes:
       - ./:/var/www/html
+      - ./docker/apache/ssl.conf:/etc/apache2/sites-available/ssl.conf
+      - ./odeliazm.com-ssl-bundle:/etc/apache2/ssl:ro
     restart: always
     environment:
       APP_ENV: ${APP_ENV}
@@ -15,11 +18,16 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
+      ZRA_TPIN: ${ZRA_TPIN}
+      ZRA_BHF_ID: ${ZRA_BHF_ID}
+      ZRA_DVC_SRL_NO: ${ZRA_DVC_SRL_NO}
+      ZRA_VSDC_URL: ${ZRA_VSDC_URL}
     depends_on:
       db:
         condition: service_healthy   # ✅ Wait for MySQL to be READY, not just started
     networks:
       - smartTradePOS-net
+    command: sh -c "a2enmod ssl && a2enmod headers && a2enmod rewrite && a2ensite ssl.conf && apache2-foreground"
 
   db:
     container_name: smartTradePOS_db
@@ -43,6 +51,20 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s   # Give MySQL time to initialize on first run
+    networks:
+      - smartTradePOS-net
+
+  vsdc:
+    image: tomcat:8.5-jdk8-openjdk
+    container_name: vsdc
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - "${VSDC_PORT:-8080}:8080"
+    volumes:
+      - ./api/sandboxvsdc/sandboxvsdc1.0.8.0.war:/usr/local/tomcat/webapps/sandboxvsdc.war
+    restart: always
     networks:
       - smartTradePOS-net
 
