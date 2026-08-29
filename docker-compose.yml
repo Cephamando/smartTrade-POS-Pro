@@ -1,6 +1,6 @@
 services:
   web:
-    container_name: pos_app
+    container_name: smartTradePOS-PRO_app
     build:
       context: .
       dockerfile: docker/php/Dockerfile
@@ -13,16 +13,16 @@ services:
       APP_ENV: ${APP_ENV}
       DB_HOST: ${DB_HOST}
       DB_NAME: ${DB_NAME}
-      DB_USER: root
-      DB_PASS: ${DB_ROOT_PASS}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
     depends_on:
       db:
         condition: service_healthy   # ✅ Wait for MySQL to be READY, not just started
     networks:
-      - pos-net
+      - smartTradePOS-net
 
   db:
-    container_name: pos_db
+    container_name: smartTradePOS_db
     image: mysql:8.3
     restart: always
     environment:
@@ -44,11 +44,11 @@ services:
       retries: 5
       start_period: 30s   # Give MySQL time to initialize on first run
     networks:
-      - pos-net
+      - smartTradePOS-net
 
   phpmyadmin:
     image: phpmyadmin:latest
-    container_name: pos_pma
+    container_name: smartTradePOS_pma
     restart: always
     ports:
       - "${PHPMYADMIN_PORT:-8092}:80"
@@ -60,11 +60,11 @@ services:
       db:
         condition: service_healthy   # ✅ Same fix
     networks:
-      - pos-net
+      - smartTradePOS-net
 
   adminer:
     image: adminer
-    container_name: pos_adminer
+    container_name: smartTradePOS_adminer
     restart: always
     ports:
       - "${ADMINER_PORT:-8093}:8080"
@@ -72,11 +72,11 @@ services:
       db:
         condition: service_healthy   # ✅ Same fix
     networks:
-      - pos-net
+      - smartTradePOS-net
 
 volumes:
   db_data:
 
 networks:
-  pos-net:
+  smartTradePOS-net:
     driver: bridge
