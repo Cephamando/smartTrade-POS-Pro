@@ -76,6 +76,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['process_grv'])) {
             $pdo->commit();
             $_SESSION['swal_type'] = 'success';
             $_SESSION['swal_msg'] = "Stock Received Successfully (GRV #$grvId).";
+            try {
+                require_once __DIR__ . '/ZraVsdcClient.php';
+                $zraRes = (new ZraVsdcClient($pdo))->syncGrv((int)$grvId);
+                if (($zraRes['resultCd'] ?? '') === '000') {
+                    $_SESSION['swal_msg'] .= ' Stock posted to ZRA.';
+                } elseif (($zraRes['resultCd'] ?? '') !== 'skipped') {
+                    $_SESSION['swal_msg'] .= ' ZRA stock pending: ' . ($zraRes['resultMsg'] ?? 'VSDC unavailable');
+                }
+            } catch (Throwable $e) {
+                $_SESSION['swal_msg'] .= ' ZRA stock pending: ' . $e->getMessage();
+            }
             
             // Redirect happens in the View via JS to show the alert first
             

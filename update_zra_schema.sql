@@ -1,35 +1,20 @@
 USE `smartTradePOS_db`;
 
--- 1. Ensure settings table can hold arbitrary text configuration
+-- Additive ZRA columns. The live app also applies these automatically via ZraVsdcClient.
+-- Run manually only if you want to prepare the database before the first page load.
+
 ALTER TABLE `settings` MODIFY `setting_value` TEXT NOT NULL;
 
--- 2. Pre-seed settings with VSDC parameters
-INSERT IGNORE INTO `settings` (`setting_key`, `setting_value`) VALUES 
+INSERT IGNORE INTO `settings` (`setting_key`, `setting_value`) VALUES
 ('vsdc_sdcId', ''),
 ('vsdc_mrcNo', ''),
 ('vsdc_taxprNm', ''),
+('vsdc_bhfNm', ''),
 ('vsdc_last_sale_no', '0'),
-('vsdc_last_invc_no', '0');
+('vsdc_last_invc_no', '0'),
+('vsdc_last_sar_no', '0'),
+('vsdc_default_unspsc', '50101500');
 
--- [COMMENTED OUT] Add Sync tracking to products - Column already exists!
-ALTER TABLE `products`
-ADD COLUMN `zra_synced` TINYINT(1) DEFAULT 0 COMMENT '1 if synced to ZRA';
-
--- 3. Enhance sales table with ZRA fiscal response attributes
-ALTER TABLE `sales`
-ADD COLUMN `zra_rcpt_no` INT DEFAULT NULL,
-ADD COLUMN `zra_intrl_data` VARCHAR(255) DEFAULT NULL,
-ADD COLUMN `zra_rcpt_sign` VARCHAR(255) DEFAULT NULL,
-ADD COLUMN `zra_vsdc_rcpt_pbct_date` VARCHAR(20) DEFAULT NULL,
-ADD COLUMN `zra_sdc_id` VARCHAR(50) DEFAULT NULL,
-ADD COLUMN `zra_mrc_no` VARCHAR(50) DEFAULT NULL,
-ADD COLUMN `zra_qr_code_url` TEXT DEFAULT NULL;
-
--- Add ZRA tracking to goods received (for Stock Master sync)
-ALTER TABLE `grvs`
-ADD COLUMN `zra_synced` TINYINT(1) DEFAULT 0 COMMENT '1 if pushed to ZRA stock';
-
--- 4. Create standard code lookup table for classifications/taxes
 CREATE TABLE IF NOT EXISTS `zra_standard_codes` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `code_class` VARCHAR(10) NOT NULL,
@@ -39,4 +24,25 @@ CREATE TABLE IF NOT EXISTS `zra_standard_codes` (
   `user_defined_name` VARCHAR(100) DEFAULT NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `uniq_code` (`code_class`, `code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `zra_item_classes` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `item_cls_cd` VARCHAR(10) NOT NULL,
+  `item_cls_nm` VARCHAR(200) NOT NULL,
+  `item_cls_lvl` INT DEFAULT 0,
+  `tax_ty_cd` VARCHAR(10) DEFAULT NULL,
+  `use_yn` CHAR(1) DEFAULT 'Y',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uniq_cls` (`item_cls_cd`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `zra_sync_log` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `entity_type` VARCHAR(20) NOT NULL,
+  `entity_id` INT NOT NULL,
+  `result_cd` VARCHAR(10) DEFAULT NULL,
+  `result_msg` VARCHAR(500) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_entity` (`entity_type`, `entity_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

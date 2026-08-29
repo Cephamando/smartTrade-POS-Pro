@@ -225,6 +225,31 @@ if ($isIncremental) {
                 </div>
                 <?php endif; ?>
                 
+                <?php if (!$isBill && !empty($sale['zra_rcpt_sign'])): ?>
+                <div class="text-center border-top" style="margin-top: 12px; font-size: 12px;">
+                    <p style="margin: 6px 0; font-weight: 900;">ZRA SMART INVOICE</p>
+                    <div>SDC: <?= htmlspecialchars($sale['zra_sdc_id'] ?? '') ?></div>
+                    <?php if (!empty($sale['zra_mrc_no'])): ?>
+                    <div>MRC: <?= htmlspecialchars($sale['zra_mrc_no']) ?></div>
+                    <?php endif; ?>
+                    <div>Rcpt No: <?= htmlspecialchars((string)($sale['zra_rcpt_no'] ?? '')) ?></div>
+                    <?php if (!empty($sale['zra_vsdc_rcpt_pbct_date'])): ?>
+                    <div><?= htmlspecialchars($sale['zra_vsdc_rcpt_pbct_date']) ?></div>
+                    <?php endif; ?>
+                    <div style="word-break: break-all; margin-top: 6px; font-size: 11px;">
+                        <?= htmlspecialchars($sale['zra_rcpt_sign']) ?>
+                    </div>
+                    <?php if (!empty($sale['zra_qr_code_url'])): ?>
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?= urlencode($sale['zra_qr_code_url']) ?>"
+                         alt="ZRA QR" width="160" height="160" style="margin-top: 8px;">
+                    <?php endif; ?>
+                </div>
+                <?php elseif (!$isBill && empty($sale['zra_rcpt_sign']) && ($sale['payment_status'] ?? '') === 'paid'): ?>
+                <div class="text-center border-top" style="margin-top: 12px; font-size: 12px;">
+                    ZRA: pending sync
+                </div>
+                <?php endif; ?>
+
                 <div class="text-center border-top" style="margin-top: 15px; font-size: 13px;">
                     <p><?= nl2br(htmlspecialchars($receiptFooter)) ?></p>
                 </div>

@@ -4,16 +4,16 @@ header("X-Frame-Options: SAMEORIGIN"); // Prevents Clickjacking
 header("X-Content-Type-Options: nosniff"); // Prevents MIME-sniffing
 header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload"); // Enforces HTTPS
 header("Permissions-Policy: geolocation=(), microphone=(), camera=()"); // Restricts browser hardware access
-header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; img-src 'self' data:;"); // Mitigates XSS
+header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: https://api.qrserver.com;"); // Mitigates XSS
 
 // Prevent direct access
 if (basename($_SERVER['PHP_SELF']) == basename(__FILE__)) { die('Access denied'); }
 
 // DB Settings - Docker Aware
-$host = getenv('DB_HOST') ?: 'pos_db';
-$db   = getenv('DB_NAME') ?: 'pos_db';
-$user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') ?: 'posRoot123!';
+$host = getenv('DB_HOST') ?: 'db';
+$db   = getenv('DB_NAME') ?: 'smartTradePOS_db';
+$user = getenv('DB_USER') ?: 'smartTradePOSUser';
+$pass = getenv('DB_PASS') ?: 'smartTradePOS123!';
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";

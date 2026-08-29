@@ -26,6 +26,27 @@ function executeDeduction($pdo, $pId, $qty, $locId, $uId, $actionType) {
         ->execute([$pId, $locId, $uId, -$qty, $newQty, $actionType]);
 }
 
+function fiscalizePaidSale(PDO $pdo, int $saleId): string
+{
+    if ($saleId <= 0) {
+        return '';
+    }
+    try {
+        require_once __DIR__ . '/ZraVsdcClient.php';
+        $client = new ZraVsdcClient($pdo);
+        $res = $client->fiscalizeSale($saleId);
+        if (($res['resultCd'] ?? '') === '000') {
+            return ' Fiscalized with ZRA.';
+        }
+        if (($res['resultCd'] ?? '') === 'skipped') {
+            return '';
+        }
+        return ' ZRA pending: ' . ($res['resultMsg'] ?? 'VSDC unavailable');
+    } catch (Throwable $e) {
+        return ' ZRA pending: ' . $e->getMessage();
+    }
+}
+
 function deductStock($pdo, $productId, $qty, $locId, $uId, $actionOverride = 'sale') {
     $stmt = $pdo->prepare("SELECT ingredient_product_id, quantity FROM product_recipes WHERE parent_product_id = ?");
     $stmt->execute([$productId]);
@@ -239,6 +260,7 @@ if (isset($_POST['log_waste']) && $activeShiftId) {
 if (isset($_POST['checkout']) && $activeShiftId) {
     try {
         $pdo->beginTransaction();
+        $fiscalizeAfterCommit = 0;
         $settleTabId = (int)($_POST['settle_tab_id'] ?? 0);
         $tip = (float)($_POST['tip_amount'] ?? 0);
         $pm = $_POST['payment_method'] ?? 'Cash';
@@ -343,7 +365,7 @@ if (isset($_POST['checkout']) && $activeShiftId) {
                 // ==========================================
             }
 
-            if ($status === 'paid') { $_SESSION['last_sale_id'] = $settleTabId; } $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
+            if ($status === 'paid') { $_SESSION['last_sale_id'] = $settleTabId; $fiscalizeAfterCommit = (int)$settleTabId; } $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
         } else {
             $total = 0; foreach($_SESSION['cart'] as $item) { $total += $item['price'] * $item['qty']; }
             if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $total *= 0.9; }
@@ -381,10 +403,13 @@ if (isset($_POST['checkout']) && $activeShiftId) {
                 }
             }
             $_SESSION['cart'] = []; $_SESSION['current_customer'] = '';
-            if ($status === 'paid') { $_SESSION['last_sale_id'] = $saleId; }
+            if ($status === 'paid') { $_SESSION['last_sale_id'] = $saleId; $fiscalizeAfterCommit = (int)$saleId; }
             $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Transaction complete.";
         }
         $pdo->commit();
+        if ($fiscalizeAfterCommit > 0) {
+            $_SESSION['swal_msg'] .= fiscalizePaidSale($pdo, $fiscalizeAfterCommit);
+        }
     } catch(Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
     header("Location: index.php?page=pos"); exit;
 }
@@ -394,12 +419,14 @@ if (isset($_POST['finalize_split']) && $activeShiftId) {
     if ($splitData) {
         try {
             $pdo->beginTransaction();
+            $splitSaleIds = [];
             foreach($splitData as $guest) {
                 if ($guest['total'] <= 0) continue;
                 $status = ($guest['method'] === 'Pending') ? 'pending' : 'paid';
                 $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method, payment_status, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$locationId, $userId, $activeShiftId, $guest['total'], $guest['tip'], $guest['total'] + $guest['tip'], $guest['method'], $status, $guest['name']]);
                 $saleId = $pdo->lastInsertId();
+                if ($status === 'paid') { $splitSaleIds[] = (int)$saleId; }
 
                 if ($_POST['split_type'] === 'item') {
                     foreach($guest['items'] as $item) {
@@ -412,6 +439,7 @@ if (isset($_POST['finalize_split']) && $activeShiftId) {
             }
             if ($_POST['split_type'] === 'even') { foreach($_SESSION['cart'] as $item) { deductStock($pdo, $item['product_id'], $item['qty'], $locationId, $userId); } }
             $pdo->commit(); $_SESSION['cart'] = []; $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Split bills processed.";
+            foreach ($splitSaleIds as $fiscalId) { $_SESSION['swal_msg'] .= fiscalizePaidSale($pdo, $fiscalId); }
         } catch (Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
     }
     header("Location: index.php?page=pos"); exit;
