@@ -6,6 +6,7 @@ auth.json
 db_data/
 mysql/init_with_data.sql
 docker/mysql/data/
+docker/storage/
 
 # --- Dependencies ---
 vendor/
