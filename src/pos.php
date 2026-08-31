@@ -263,10 +263,11 @@ if (isset($_POST['log_waste']) && $activeShiftId) {
 
 if (isset($_POST['checkout']) && $activeShiftId) {
     try {
-        $pdo->beginTransaction();
         require_once __DIR__ . '/ZraVsdcClient.php';
         new ZraVsdcClient($pdo);
+        $pdo->beginTransaction();
         $fiscalizeAfterCommit = 0;
+        $clearCartAfterCommit = false;
         $settleTabId = (int)($_POST['settle_tab_id'] ?? 0);
         $tip = (float)($_POST['tip_amount'] ?? 0);
         $pm = $_POST['payment_method'] ?? 'Cash';
@@ -373,6 +374,9 @@ if (isset($_POST['checkout']) && $activeShiftId) {
 
             if ($status === 'paid') { $_SESSION['last_sale_id'] = $settleTabId; $fiscalizeAfterCommit = (int)$settleTabId; } $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Tab settled successfully.";
         } else {
+            if (empty($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
+                throw new Exception("Cart is empty.");
+            }
             $total = 0; foreach($_SESSION['cart'] as $item) { $total += $item['price'] * $item['qty']; }
             if (isset($_POST['apply_discount']) && $_POST['apply_discount'] == '1') { $total *= 0.9; }
             $finalTotal = $total + $tip;
@@ -417,15 +421,25 @@ if (isset($_POST['checkout']) && $activeShiftId) {
                     }
                 }
             }
-            $_SESSION['cart'] = []; $_SESSION['current_customer'] = '';
+            $clearCartAfterCommit = true;
             if ($status === 'paid') { $_SESSION['last_sale_id'] = $saleId; $fiscalizeAfterCommit = (int)$saleId; }
             $_SESSION['swal_type'] = 'success'; $_SESSION['swal_msg'] = "Transaction complete.";
         }
         $pdo->commit();
+        if ($clearCartAfterCommit) {
+            $_SESSION['cart'] = [];
+            $_SESSION['current_customer'] = '';
+        }
         if ($fiscalizeAfterCommit > 0) {
             $_SESSION['swal_msg'] .= fiscalizePaidSale($pdo, $fiscalizeAfterCommit);
         }
-    } catch(Exception $e) { $pdo->rollBack(); $_SESSION['swal_type'] = 'error'; $_SESSION['swal_msg'] = "Error: " . $e->getMessage(); }
+    } catch(Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $_SESSION['swal_type'] = 'error';
+        $_SESSION['swal_msg'] = "Error: " . $e->getMessage();
+    }
     header("Location: index.php?page=pos"); exit;
 }
 

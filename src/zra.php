@@ -61,12 +61,18 @@ $pendingSales = $pdo->query(
      FROM sales
      WHERE payment_status = 'paid'
        AND (zra_rcpt_sign IS NULL OR zra_rcpt_sign = '')
+       AND COALESCE(zra_status, 'pending') IN ('pending', 'failed')
+       AND ABS(final_total) > 0
+       AND EXISTS (
+           SELECT 1 FROM sale_items si
+           WHERE si.sale_id = sales.id AND si.status NOT IN ('voided')
+       )
      ORDER BY id DESC
      LIMIT 15"
 )->fetchAll(PDO::FETCH_ASSOC);
 
 $recentSynced = $pdo->query(
-    "SELECT id, created_at, customer_name, final_total, zra_rcpt_no, zra_sdc_id, zra_qr_code_url
+    "SELECT id, created_at, customer_name, final_total, zra_rcpt_no, zra_sdc_id, zra_qr_code_url, zra_rcpt_sign
      FROM sales
      WHERE zra_rcpt_sign IS NOT NULL AND zra_rcpt_sign <> ''
      ORDER BY id DESC

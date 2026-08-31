@@ -22,6 +22,9 @@ $bizName = !empty($sysSettings['business_name']) ? $sysSettings['business_name']
 $receiptHeader = $sysSettings['receipt_header'] ?? '';
 $receiptFooter = $sysSettings['receipt_footer'] ?? 'Thank you for your business!';
 $zraTpin = getenv('ZRA_TPIN') ?: '';
+require_once BASE_PATH . '/src/ZraVsdcClient.php';
+require_once BASE_PATH . '/src/QrSvg.php';
+$zraClient = new ZraVsdcClient($pdo);
 
 // Fetch Sale
 $stmt = $pdo->prepare("SELECT s.*, u.username, l.name as loc_name FROM sales s JOIN users u ON s.user_id = u.id LEFT JOIN locations l ON s.location_id = l.id WHERE s.id = ?");
@@ -84,7 +87,18 @@ if ($isIncremental) {
         .amount { text-align: right; }
         .cut-line { border-top: 2px dashed #000; margin: 25px 0; position: relative; text-align: center; }
         .cut-line span { background: #fff; padding: 0 10px; position: relative; top: -10px; font-size: 12px; color: #000; font-weight: bold; }
-        @media print { body { font-weight: bold !important; color: #000 !important; } * { font-weight: bold !important; color: #000 !important; } }
+        .zra-qr { margin: 8px auto 0; width: 148px; }
+        .zra-qr svg { width: 148px; height: 148px; display: block; }
+        @media print {
+            body { font-weight: bold !important; color: #000 !important; }
+            * { font-weight: bold !important; color: #000 !important; }
+            .zra-qr, .zra-qr * {
+                color: unset !important;
+                font-weight: normal !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
     </style>
 </head>
 <body>
@@ -243,9 +257,15 @@ if ($isIncremental) {
                     <div style="word-break: break-all; margin-top: 6px; font-size: 11px;">
                         <?= htmlspecialchars($sale['zra_rcpt_sign']) ?>
                     </div>
-                    <?php if (!empty($sale['zra_qr_code_url'])): ?>
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=<?= urlencode($sale['zra_qr_code_url']) ?>"
-                         alt="ZRA QR" width="160" height="160" style="margin-top: 8px;">
+                    <?php
+                    $zraQrUrl = $zraClient->receiptQrUrl(
+                        (string)$sale['zra_rcpt_sign'],
+                        $sale['zra_qr_code_url'] ?? null
+                    );
+                    $zraQrSvg = $zraQrUrl ? QrSvg::render($zraQrUrl, 3) : '';
+                    ?>
+                    <?php if ($zraQrSvg !== ''): ?>
+                    <div class="zra-qr"><?= $zraQrSvg ?></div>
                     <?php endif; ?>
                 </div>
                 <?php elseif (!$isBill && empty($sale['zra_rcpt_sign']) && ($sale['payment_status'] ?? '') === 'paid'): ?>

@@ -206,8 +206,11 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                                 <td class="text-end"><?= number_format((float)$row['final_total'], 2) ?></td>
                                 <td>
                                     <a class="btn btn-sm btn-outline-dark" href="index.php?page=receipt&sale_id=<?= (int)$row['id'] ?>" target="_blank">Receipt</a>
-                                    <?php if (!empty($row['zra_qr_code_url'])): ?>
-                                        <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($row['zra_qr_code_url']) ?>" target="_blank">QR</a>
+                                    <?php
+                                    $rowQr = $zra->receiptQrUrl($row['zra_rcpt_sign'] ?? null, $row['zra_qr_code_url'] ?? null);
+                                    if (!empty($rowQr)):
+                                    ?>
+                                        <a class="btn btn-sm btn-outline-success" href="<?= htmlspecialchars($rowQr) ?>" target="_blank">QR</a>
                                     <?php endif; ?>
                                 </td>
                             </tr>

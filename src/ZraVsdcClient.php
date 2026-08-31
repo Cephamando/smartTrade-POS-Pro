@@ -33,6 +33,43 @@ class ZraVsdcClient
         ];
     }
 
+    /**
+     * VSDC often returns an empty qrCodeUrl or the placeholder "[Link]".
+     * Build the Digitax/ZRA receipt URL: TPIN (10) + branch (3) + rcptSign.
+     */
+    public function receiptQrUrl(?string $rcptSign, ?string $vsdcUrl = null): ?string
+    {
+        $vsdcUrl = trim((string)$vsdcUrl);
+        if ($this->isUsableHttpUrl($vsdcUrl)) {
+            return $vsdcUrl;
+        }
+        $sign = preg_replace('/\s+/', '', (string)$rcptSign);
+        if ($sign === '') {
+            return null;
+        }
+        $tpin = str_pad(preg_replace('/\D+/', '', $this->tpin) ?: $this->tpin, 10, '0', STR_PAD_LEFT);
+        $bhf = str_pad(preg_replace('/\D+/', '', $this->bhfId) ?: $this->bhfId, 3, '0', STR_PAD_LEFT);
+        $portal = rtrim((string)(getenv('ZRA_PORTAL_URL') ?: ''), '/');
+        if ($portal === '') {
+            $haystack = $this->baseUrl . ' ' . (string)getenv('ZRA_VSDC_URL');
+            $portal = (stripos($haystack, 'sandbox') !== false)
+                ? 'https://sandboxportal.zra.org.zm'
+                : 'https://www.zra.org.zm';
+        }
+        return $portal . '/common/link/ebm/receipt/indexEbmReceiptData?Data=' . $tpin . $bhf . $sign;
+    }
+
+    private function isUsableHttpUrl(string $url): bool
+    {
+        if ($url === '' || strlen($url) < 12) {
+            return false;
+        }
+        if (preg_match('/\[Link\]|placeholder|^n\/?a$/i', $url)) {
+            return false;
+        }
+        return (bool)filter_var($url, FILTER_VALIDATE_URL);
+    }
+
     public function getSettings(): array
     {
         $stmt = $this->pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'vsdc_%'");
@@ -445,7 +482,12 @@ class ZraVsdcClient
         $itemsStmt->execute([$saleId]);
         $saleItems = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
         if (!$saleItems) {
+            $this->markSaleSkipped($saleId, 'No line items to send to ZRA');
             return ['resultCd' => 'skipped', 'resultMsg' => 'No fiscalizable line items'];
+        }
+        if (abs((float)$saleData['final_total']) < 0.005 && !$this->linesAreRefund($saleItems)) {
+            $this->markSaleSkipped($saleId, 'Zero-value sale is not sent to ZRA');
+            return ['resultCd' => 'skipped', 'resultMsg' => 'Zero-value sale is not sent to ZRA'];
         }
 
         $isRefund = ((float)$saleData['final_total'] < 0) || $this->linesAreRefund($saleItems);
@@ -504,7 +546,7 @@ class ZraVsdcClient
                 $data['sdcId'] ?? ($this->getSettings()['vsdc_sdcId'] ?? null),
                 $data['mrcNo'] ?? ($this->getSettings()['vsdc_mrcNo'] ?? null),
                 $data['vsdcRcptPbctDate'] ?? null,
-                $data['qrCodeUrl'] ?? null,
+                $this->receiptQrUrl($data['rcptSign'] ?? null, $data['qrCodeUrl'] ?? null),
                 $payload['cisInvcNo'],
                 $payload['orgInvcNo'] ?: null,
                 $saleId,
@@ -523,9 +565,7 @@ class ZraVsdcClient
         $this->ensureSaleColumns();
         $stmt = $this->pdo->query(
             "SELECT id FROM sales
-             WHERE payment_status = 'paid'
-               AND (zra_rcpt_sign IS NULL OR zra_rcpt_sign = '')
-               AND COALESCE(zra_status, 'pending') IN ('pending', 'failed')
+             WHERE " . $this->fiscalizablePendingWhere() . "
              ORDER BY id ASC
              LIMIT " . (int)$limit
         );
@@ -647,10 +687,7 @@ class ZraVsdcClient
         $this->ensureSaleColumns();
         $this->ensureProductColumns();
         $pendingSales = (int)$this->pdo->query(
-            "SELECT COUNT(*) FROM sales
-             WHERE payment_status = 'paid'
-               AND (zra_rcpt_sign IS NULL OR zra_rcpt_sign = '')
-               AND COALESCE(zra_status, 'pending') IN ('pending', 'failed')"
+            "SELECT COUNT(*) FROM sales WHERE " . $this->fiscalizablePendingWhere()
         )->fetchColumn();
         $syncedSales = (int)$this->pdo->query(
             "SELECT COUNT(*) FROM sales WHERE zra_rcpt_sign IS NOT NULL AND zra_rcpt_sign <> ''"
@@ -1192,6 +1229,18 @@ class ZraVsdcClient
         ];
     }
 
+    private function fiscalizablePendingWhere(): string
+    {
+        return "payment_status = 'paid'
+            AND (zra_rcpt_sign IS NULL OR zra_rcpt_sign = '')
+            AND COALESCE(zra_status, 'pending') IN ('pending', 'failed')
+            AND ABS(final_total) > 0
+            AND EXISTS (
+                SELECT 1 FROM sale_items si
+                WHERE si.sale_id = sales.id AND si.status NOT IN ('voided')
+            )";
+    }
+
     private function markSaleFailed(int $saleId, string $message): void
     {
         try {
@@ -1199,6 +1248,16 @@ class ZraVsdcClient
                 ->execute([substr($message, 0, 1000), $saleId]);
         } catch (Throwable $e) {
             // ignore if columns are missing; ensureSchema will add them next request
+        }
+    }
+
+    private function markSaleSkipped(int $saleId, string $message): void
+    {
+        try {
+            $this->pdo->prepare("UPDATE sales SET zra_status = 'skipped', zra_last_error = ? WHERE id = ?")
+                ->execute([substr($message, 0, 1000), $saleId]);
+        } catch (Throwable $e) {
+            // ignore if columns are missing
         }
     }
 
