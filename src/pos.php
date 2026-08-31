@@ -41,7 +41,11 @@ function fiscalizePaidSale(PDO $pdo, int $saleId): string
         if (($res['resultCd'] ?? '') === 'skipped') {
             return '';
         }
-        return ' ZRA pending: ' . ($res['resultMsg'] ?? 'VSDC unavailable');
+        $msg = $res['resultMsg'] ?? 'VSDC unavailable';
+        if (preg_match('/it\s*is\s*succeeded/i', $msg)) {
+            $msg = 'Succeeded.';
+        }
+        return ' ZRA pending: ' . $msg;
     } catch (Throwable $e) {
         return ' ZRA pending: ' . $e->getMessage();
     }
@@ -260,6 +264,8 @@ if (isset($_POST['log_waste']) && $activeShiftId) {
 if (isset($_POST['checkout']) && $activeShiftId) {
     try {
         $pdo->beginTransaction();
+        require_once __DIR__ . '/ZraVsdcClient.php';
+        new ZraVsdcClient($pdo);
         $fiscalizeAfterCommit = 0;
         $settleTabId = (int)($_POST['settle_tab_id'] ?? 0);
         $tip = (float)($_POST['tip_amount'] ?? 0);
@@ -381,7 +387,16 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             foreach($_SESSION['cart'] as $item) {
                 $fulfillment = $item['fulfillment'] ?? 'collected';
                 $itemStatus = ($fulfillment === 'uncollected') ? 'pending' : 'ready';
-                $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, fulfillment_status, status) VALUES (?, ?, ?, ?, ?, ?)")->execute([$saleId, $item['product_id'], $item['qty'], $item['price'], $fulfillment, $itemStatus]);
+                $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, fulfillment_status, status, refund_sale_item_id, is_refund) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")->execute([
+                    $saleId,
+                    $item['product_id'],
+                    $item['qty'],
+                    $item['price'],
+                    $fulfillment,
+                    $itemStatus,
+                    !empty($item['refund_sale_item_id']) ? (int)$item['refund_sale_item_id'] : null,
+                    !empty($item['is_refund']) ? 1 : 0,
+                ]);
                 
                 $isRefund = $item['is_refund'] ?? false;
                 $dbQty = $isRefund ? -$item['qty'] : $item['qty']; 

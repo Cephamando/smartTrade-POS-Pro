@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             default => ['resultCd' => '904', 'resultMsg' => 'Unknown action'],
         };
         $explained = $zra->explainResult($actionResult);
+        $actionResult['resultMsg'] = $zra->friendlyMessage($actionResult);
         $actionResult = $actionResult + $explained;
         $_SESSION['zra_last_result'] = $actionResult;
         if (($actionResult['resultCd'] ?? '') === '000' || ($explained['layer'] ?? '') === 'ok') {

@@ -133,16 +133,62 @@ class ZraVsdcClient
         }
 
         if ($cd === '000' || str_contains($msg, 'succeeded') || str_contains($msg, 'already initialized')) {
+            $hint = 'VSDC accepted the request.';
+            if (isset($res['synced'])) {
+                $ok = (int)($res['synced'] ?? 0);
+                $fail = (int)($res['failed'] ?? 0);
+                if ($ok === 0 && $fail === 0) {
+                    $hint = 'All active products are already registered. Ring a test cash sale and check the receipt for SDC ID, signature, and QR.';
+                } elseif ($fail === 0) {
+                    $hint = 'Those products are on ZRA. Click Register products again until Unsynced products is 0, then ring a test cash sale.';
+                } else {
+                    $hint = 'Some products registered. Fix the listed class codes, then click Register products again.';
+                }
+            } elseif (isset($res['stored'])) {
+                $hint = 'Classification dictionary is stored. Next: Register products.';
+            } elseif (str_contains($msg, 'synced') && str_contains($msg, 'item')) {
+                $hint = 'Products are on ZRA. Ring a test cash sale and check the receipt for SDC ID, signature, and QR.';
+            }
             return [
                 'layer' => 'ok',
-                'hint' => 'VSDC accepted the request. Continue with Sync standard codes if you have not already.',
+                'hint' => $hint,
+            ];
+        }
+
+        if (!empty($res['errors']) && is_array($res['errors'])) {
+            return [
+                'layer' => 'vsdc',
+                'hint' => 'Item registration uses level-4 UNSPSC codes from Sync UNSPSC classes. Empty or class-level codes (for example 50101500) are rejected. Assign a commodity-level code on the product, or let the POS pick the closest synced class.',
+            ];
+        }
+
+        if ($cd === '910' || str_contains($msg, 'parameter')) {
+            $hint = (string)($res['resultMsg'] ?? 'Request parameter error');
+            if (str_contains($msg, 'custtpin')) {
+                $hint = 'Walk-in sales must omit customer TPIN. Retry the sale; empty custTpin is no longer sent.';
+            }
+            return [
+                'layer' => 'vsdc',
+                'hint' => $hint,
             ];
         }
 
         return [
             'layer' => 'vsdc',
-            'hint' => 'VSDC responded with code ' . ($cd !== '' ? $cd : 'unknown') . '. TPIN, branch, and serial must match an Active device on the sandbox portal.',
+            'hint' => 'VSDC responded with code ' . ($cd !== '' ? $cd : 'unknown') . ': ' . (string)($res['resultMsg'] ?? ''),
         ];
+    }
+
+    public function friendlyMessage(array $res): string
+    {
+        $msg = trim((string)($res['resultMsg'] ?? ''));
+        if ($msg === '') {
+            return 'Request completed.';
+        }
+        if (preg_match('/it\s*is\s*succeeded/i', $msg)) {
+            return trim(preg_replace('/it\s*is\s*succeeded/i', 'Succeeded', $msg)) ?: 'Succeeded.';
+        }
+        return $msg;
     }
 
     public function initialize(bool $force = false): array
@@ -238,31 +284,48 @@ class ZraVsdcClient
 
     public function syncItemClasses(string $lastReqDt = '20231215000000'): array
     {
-        $res = $this->post('itemClass/selectItemsClass', [
-            'tpin' => $this->tpin,
-            'bhfId' => $this->bhfId,
-            'lastReqDt' => $lastReqDt,
-        ]);
+        $stored = 0;
+        $pages = 0;
+        $cursor = $lastReqDt;
+        $seen = [];
+        $final = ['resultCd' => '001', 'resultMsg' => 'There is no search result', 'data' => null];
 
-        if (($res['resultCd'] ?? '') === '000' && !empty($res['data']['itemClsList'])) {
-            $stmt = $this->pdo->prepare(
-                "INSERT INTO zra_item_classes (item_cls_cd, item_cls_nm, item_cls_lvl, tax_ty_cd, use_yn)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE item_cls_nm = VALUES(item_cls_nm), tax_ty_cd = VALUES(tax_ty_cd), use_yn = VALUES(use_yn)"
-            );
-            foreach ($res['data']['itemClsList'] as $row) {
-                $stmt->execute([
-                    $row['itemClsCd'] ?? '',
-                    $row['itemClsNm'] ?? '',
-                    (int)($row['itemClsLvl'] ?? 0),
-                    $row['taxTyCd'] ?? null,
-                    $row['useYn'] ?? 'Y',
-                ]);
+        while ($pages < 20 && !isset($seen[$cursor])) {
+            $seen[$cursor] = true;
+            $res = $this->post('itemClass/selectItemsClass', [
+                'tpin' => $this->tpin,
+                'bhfId' => $this->bhfId,
+                'lastReqDt' => $cursor,
+            ]);
+            $pages++;
+            $list = $res['data']['itemClsList'] ?? [];
+            if (($res['resultCd'] ?? '') === '000' && $list) {
+                $final = $res;
+                $stored += $this->storeItemClasses($list);
+                $next = (string)($res['resultDt'] ?? '');
+                if ($next === '' || $next === $cursor) {
+                    break;
+                }
+                $cursor = $next;
+                continue;
             }
-            $this->putSettings(['vsdc_last_class_dt' => date('YmdHis')]);
+            if ($stored > 0) {
+                break;
+            }
+            $final = $res;
+            break;
         }
 
-        return $res;
+        $defaultCls = $this->firstValidItemClass() ?: '50202201';
+        $this->putSettings([
+            'vsdc_last_class_dt' => $cursor,
+            'vsdc_default_unspsc' => $defaultCls,
+        ]);
+        $final['resultCd'] = $stored > 0 ? '000' : (string)($final['resultCd'] ?? '001');
+        $final['resultMsg'] = 'Stored ' . $stored . ' classification(s) across ' . $pages . ' page(s). Default item class is ' . $defaultCls . '.';
+        $final['stored'] = $stored;
+        $final['pages'] = $pages;
+        return $final;
     }
 
     public function saveItem(array $product, string $userId = 'ADMIN', string $userNm = 'ADMIN'): array
@@ -271,26 +334,26 @@ class ZraVsdcClient
         $unspsc = $this->resolveUnspsc($product['unspsc_code'] ?? null);
         $vatCat = $this->mapVatCategory($product['tax_class'] ?? 'A');
         $itemTy = (($product['type'] ?? 'item') === 'service') ? '3' : '2';
+        $name = mb_substr((string)($product['name'] ?? 'Item'), 0, 200);
+        $userId = mb_substr((string)$userId, 0, 20) ?: 'ADMIN';
+        $userNm = mb_substr((string)$userNm, 0, 60) ?: 'ADMIN';
+        $sku = trim((string)($product['sku'] ?? ''));
+        $bcd = $sku !== '' ? mb_substr($sku, 0, 20) : null;
 
-        $payload = [
+        $payload = array_filter([
             'tpin' => $this->tpin,
             'bhfId' => $this->bhfId,
             'itemCd' => $itemCd,
             'itemClsCd' => $unspsc,
             'itemTyCd' => $itemTy,
-            'itemNm' => $product['name'],
-            'itemStdNm' => $product['name'],
+            'itemNm' => $name,
+            'itemStdNm' => $name,
             'orgnNatCd' => 'ZM',
             'pkgUnitCd' => 'NT',
             'qtyUnitCd' => 'U',
             'vatCatCd' => $vatCat,
-            'iplCatCd' => null,
-            'tlCatCd' => null,
-            'exciseTxCatCd' => null,
-            'btchNo' => null,
-            'bcd' => $product['sku'] ?: null,
+            'bcd' => $bcd,
             'dftPrc' => (float)($product['price'] ?? 0),
-            'addInfo' => null,
             'sftyQty' => 0,
             'isrcAplcbYn' => 'N',
             'useYn' => ((int)($product['is_active'] ?? 1) === 1) ? 'Y' : 'N',
@@ -298,14 +361,15 @@ class ZraVsdcClient
             'regrId' => $userId,
             'modrNm' => $userNm,
             'modrId' => $userId,
-        ];
+        ], static fn($v) => $v !== null && $v !== '');
 
         $res = $this->post('items/saveItem', $payload);
+        $this->logSync('item', (int)$product['id'], $res);
         if (($res['resultCd'] ?? '') === '000') {
-            $this->pdo->prepare("UPDATE products SET zra_item_cd = ?, zra_synced = 1 WHERE id = ?")
-                ->execute([$itemCd, (int)$product['id']]);
+            $this->pdo->prepare("UPDATE products SET zra_item_cd = ?, zra_synced = 1, unspsc_code = ? WHERE id = ?")
+                ->execute([$itemCd, $unspsc, (int)$product['id']]);
         }
-        return $res + ['itemCd' => $itemCd];
+        return $res + ['itemCd' => $itemCd, 'itemClsCd' => $unspsc];
     }
 
     public function syncUnsyncedProducts(int $limit = 50): array
@@ -322,6 +386,7 @@ class ZraVsdcClient
         $ok = 0;
         $fail = 0;
         $errors = [];
+        $firstFailCd = '910';
 
         foreach ($products as $product) {
             $res = $this->saveItem($product);
@@ -329,12 +394,18 @@ class ZraVsdcClient
                 $ok++;
             } else {
                 $fail++;
-                $errors[] = ($product['name'] ?? $product['id']) . ': ' . ($res['resultMsg'] ?? 'Unknown error');
+                if ($fail === 1 && !empty($res['resultCd'])) {
+                    $firstFailCd = (string)$res['resultCd'];
+                }
+                $errors[] = ($product['name'] ?? $product['id'])
+                    . ' [class ' . ($res['itemClsCd'] ?? '?') . ']: '
+                    . ($res['resultMsg'] ?? 'Unknown error')
+                    . ' (' . ($res['resultCd'] ?? '?') . ')';
             }
         }
 
         return [
-            'resultCd' => $fail === 0 ? '000' : '901',
+            'resultCd' => $fail === 0 ? '000' : $firstFailCd,
             'resultMsg' => "Synced $ok item(s)" . ($fail ? ", $fail failed" : ''),
             'synced' => $ok,
             'failed' => $fail,
@@ -379,9 +450,19 @@ class ZraVsdcClient
 
         $isRefund = ((float)$saleData['final_total'] < 0) || $this->linesAreRefund($saleItems);
         $user = $this->lookupUser((int)$saleData['user_id']);
-        foreach ($saleItems as $line) {
+        if ($isRefund) {
+            $orig = $this->resolveOriginalInvoice($saleData, $saleItems, $opts);
+            if ($orig['orgInvcNo'] <= 0 || $orig['orgSdcId'] === '') {
+                $msg = 'Refund needs the original ZRA invoice (SDC ID and receipt number). Refund from the fiscalized receipt, not a blank walk-in return.';
+                $this->markSaleFailed($saleId, $msg);
+                return ['resultCd' => '910', 'resultMsg' => $msg];
+            }
+            $opts['orgInvcNo'] = $orig['orgInvcNo'];
+            $opts['orgSdcId'] = $orig['orgSdcId'];
+        }
+        foreach ($saleItems as $i => $line) {
             if (empty($line['zra_synced']) || empty($line['zra_item_cd'])) {
-                $this->saveItem([
+                $itemRes = $this->saveItem([
                     'id' => (int)$line['product_id'],
                     'name' => $line['name'],
                     'sku' => $line['sku'] ?? null,
@@ -392,6 +473,14 @@ class ZraVsdcClient
                     'unspsc_code' => $line['unspsc_code'] ?? null,
                     'zra_item_cd' => $line['zra_item_cd'] ?? null,
                 ], $user['id'], $user['name']);
+                if (($itemRes['resultCd'] ?? '') !== '000') {
+                    $msg = 'Could not register ' . ($line['name'] ?? 'item') . ': ' . ($itemRes['resultMsg'] ?? 'VSDC rejected the item');
+                    $this->markSaleFailed($saleId, $msg);
+                    return $itemRes + ['resultMsg' => $msg];
+                }
+                $saleItems[$i]['zra_item_cd'] = $itemRes['itemCd'] ?? $line['zra_item_cd'];
+                $saleItems[$i]['unspsc_code'] = $itemRes['itemClsCd'] ?? $line['unspsc_code'];
+                $saleItems[$i]['zra_synced'] = 1;
             }
         }
         $payload = $this->buildSalesPayload($saleData, $saleItems, $isRefund, $user, $opts);
@@ -628,7 +717,7 @@ class ZraVsdcClient
                 'itemNm' => $item['name'],
                 'bcd' => $item['sku'] ?: null,
                 'pkgUnitCd' => 'NT',
-                'pkg' => 0,
+                'pkg' => max(1.0, $qty),
                 'qtyUnitCd' => 'U',
                 'qty' => $qty,
                 'prc' => $price,
@@ -656,13 +745,14 @@ class ZraVsdcClient
         }
 
         $orgInvcNo = (int)($opts['orgInvcNo'] ?? ($sale['zra_org_invc_no'] ?? 0));
+        $orgSdcId = trim((string)($opts['orgSdcId'] ?? ''));
+        $custTpin = $this->sanitizeTpin($opts['custTpin'] ?? ($sale['customer_tpin'] ?? null));
         $payload = [
             'tpin' => $this->tpin,
             'bhfId' => $this->bhfId,
             'orgInvcNo' => $orgInvcNo,
             'cisInvcNo' => 'STP-' . str_pad((string)$sale['id'], 8, '0', STR_PAD_LEFT),
-            'custTpin' => $opts['custTpin'] ?? '',
-            'custNm' => $sale['customer_name'] ?: 'Walk-in Customer',
+            'custNm' => mb_substr((string)($sale['customer_name'] ?: 'Walk-in Customer'), 0, 60),
             'salesTyCd' => 'N',
             'rcptTyCd' => $isRefund ? 'R' : 'S',
             'pmtTyCd' => $this->mapPayment($sale['payment_method'] ?? 'Cash'),
@@ -732,22 +822,115 @@ class ZraVsdcClient
             'modrId' => substr($user['id'], 0, 20),
             'modrNm' => substr($user['name'], 0, 60),
             'saleCtyCd' => '1',
-            'lpoNumber' => null,
             'currencyTyCd' => 'ZMW',
             'exchangeRt' => 1,
-            'destnCountryCd' => '',
-            'dbtRsnCd' => '',
-            'invcAdjustReason' => '',
             'itemList' => $itemList,
         ];
-
-        if ($isRefund && $orgInvcNo > 0) {
-            $payload['orgSdcId'] = $settings['vsdc_sdcId'] ?? '';
+        if ($custTpin) {
+            $payload['custTpin'] = $custTpin;
+        }
+        if ($isRefund) {
+            $payload['orgSdcId'] = $orgSdcId;
             $payload['orgInvcNo'] = $orgInvcNo;
+            $payload['rfdDt'] = $cfmDt;
+            $payload['rfdRsnCd'] = $opts['rfdRsnCd'] ?? '06';
         }
 
         unset($nextInvcNo);
-        return $payload;
+        return $this->omitEmptyOptional($payload);
+    }
+
+    /**
+     * Credit notes must cite the original Smart Invoice SDC ID and receipt number.
+     */
+    private function resolveOriginalInvoice(array $sale, array $items, array $opts): array
+    {
+        $orgInvcNo = (int)($opts['orgInvcNo'] ?? ($sale['zra_org_invc_no'] ?? 0));
+        $orgSdcId = trim((string)($opts['orgSdcId'] ?? ''));
+        if ($orgInvcNo > 0 && $orgSdcId !== '') {
+            return ['orgInvcNo' => $orgInvcNo, 'orgSdcId' => $orgSdcId];
+        }
+
+        foreach ($items as $line) {
+            $origItemId = (int)($line['refund_sale_item_id'] ?? 0);
+            if ($origItemId > 0) {
+                $stmt = $this->pdo->prepare(
+                    "SELECT s.zra_rcpt_no, s.zra_sdc_id
+                     FROM sale_items si
+                     JOIN sales s ON s.id = si.sale_id
+                     WHERE si.id = ?
+                     LIMIT 1"
+                );
+                $stmt->execute([$origItemId]);
+                $orig = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($orig && (int)($orig['zra_rcpt_no'] ?? 0) > 0 && trim((string)($orig['zra_sdc_id'] ?? '')) !== '') {
+                    return [
+                        'orgInvcNo' => (int)$orig['zra_rcpt_no'],
+                        'orgSdcId' => trim((string)$orig['zra_sdc_id']),
+                    ];
+                }
+            }
+
+            $productId = (int)($line['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+            $stmt = $this->pdo->prepare(
+                "SELECT s.zra_rcpt_no, s.zra_sdc_id
+                 FROM sale_items si
+                 JOIN sales s ON s.id = si.sale_id
+                 WHERE si.product_id = ?
+                   AND s.id <> ?
+                   AND s.zra_rcpt_no IS NOT NULL AND s.zra_rcpt_no > 0
+                   AND s.zra_sdc_id IS NOT NULL AND s.zra_sdc_id <> ''
+                   AND COALESCE(s.zra_rcpt_sign, '') <> ''
+                 ORDER BY s.id DESC
+                 LIMIT 1"
+            );
+            $stmt->execute([$productId, (int)($sale['id'] ?? 0)]);
+            $orig = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($orig && (int)($orig['zra_rcpt_no'] ?? 0) > 0) {
+                return [
+                    'orgInvcNo' => (int)$orig['zra_rcpt_no'],
+                    'orgSdcId' => trim((string)$orig['zra_sdc_id']),
+                ];
+            }
+        }
+
+        $settingsSdc = trim((string)($this->getSettings()['vsdc_sdcId'] ?? ''));
+        return ['orgInvcNo' => $orgInvcNo, 'orgSdcId' => $orgSdcId !== '' ? $orgSdcId : $settingsSdc];
+    }
+
+    private function sanitizeTpin(mixed $value): ?string
+    {
+        if (is_array($value)) {
+            $value = reset($value);
+        }
+        $digits = preg_replace('/\D/', '', (string)$value) ?? '';
+        return preg_match('/^\d{10}$/', $digits) ? $digits : null;
+    }
+
+    private function omitEmptyOptional(array $payload): array
+    {
+        $out = [];
+        foreach ($payload as $key => $value) {
+            if ($value === null || $value === [] || $value === '') {
+                continue;
+            }
+            if (is_array($value)) {
+                if (array_is_list($value)) {
+                    $out[$key] = array_map(
+                        fn($row) => is_array($row) ? $this->omitEmptyOptional($row) : $row,
+                        $value
+                    );
+                } else {
+                    $out[$key] = $this->omitEmptyOptional($value);
+                }
+                continue;
+            }
+            $out[$key] = $value;
+        }
+        return $out;
     }
 
     private function updateStockMaster(array $items, int $locationId): void
@@ -825,6 +1008,7 @@ class ZraVsdcClient
         if ($code === '' || $code === null) {
             $code = 'STP' . str_pad((string)$productId, 7, '0', STR_PAD_LEFT);
         }
+        $code = substr((string)$code, 0, 100);
         try {
             $this->pdo->prepare("UPDATE products SET zra_item_cd = ? WHERE id = ? AND (zra_item_cd IS NULL OR zra_item_cd = '')")
                 ->execute([$code, $productId]);
@@ -834,15 +1018,111 @@ class ZraVsdcClient
         return $code;
     }
 
+    /**
+     * ZRA requires a commodity-level (level 4+) class from selectItemsClass.
+     * Family codes such as 50101500 are not in the sandbox dictionary.
+     */
     private function resolveUnspsc(?string $code): string
     {
-        $code = trim((string)$code);
-        if ($code !== '' && preg_match('/^\d{8}$/', $code)) {
-            return $code;
+        $digits = preg_replace('/\D/', '', (string)$code) ?? '';
+        $match = $this->lookupValidItemClass($digits);
+        if ($match) {
+            return $match;
         }
-        $settings = $this->getSettings();
-        $fallback = $settings['vsdc_default_unspsc'] ?? '50101500';
-        return preg_match('/^\d{8}$/', (string)$fallback) ? $fallback : '50101500';
+        $fallback = preg_replace('/\D/', '', (string)($this->getSettings()['vsdc_default_unspsc'] ?? '')) ?? '';
+        $fromSettings = $this->lookupValidItemClass($fallback);
+        if ($fromSettings) {
+            return $fromSettings;
+        }
+        return $this->firstValidItemClass() ?: '50202201';
+    }
+
+    private function lookupValidItemClass(string $digits): ?string
+    {
+        if ($digits === '' || !preg_match('/^\d{6,10}$/', $digits)) {
+            return null;
+        }
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT item_cls_cd FROM zra_item_classes
+                 WHERE use_yn = 'Y' AND item_cls_lvl >= 4 AND item_cls_cd = ?
+                 LIMIT 1"
+            );
+            $stmt->execute([$digits]);
+            $hit = $stmt->fetchColumn();
+            if ($hit) {
+                return (string)$hit;
+            }
+            $stem = $digits;
+            while (strlen($stem) >= 4) {
+                $stmt = $this->pdo->prepare(
+                    "SELECT item_cls_cd FROM zra_item_classes
+                     WHERE use_yn = 'Y' AND item_cls_lvl >= 4 AND item_cls_cd LIKE ?
+                     ORDER BY LENGTH(item_cls_cd) DESC, item_cls_cd ASC
+                     LIMIT 1"
+                );
+                $stmt->execute([$stem . '%']);
+                $hit = $stmt->fetchColumn();
+                if ($hit) {
+                    return (string)$hit;
+                }
+                $stem = substr($stem, 0, -2);
+            }
+        } catch (Throwable $e) {
+            return preg_match('/^\d{8,10}$/', $digits) ? $digits : null;
+        }
+        return null;
+    }
+
+    private function firstValidItemClass(): ?string
+    {
+        $preferred = ['50202201', '50201706', '50202301', '50191507', '50102515'];
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT item_cls_cd FROM zra_item_classes
+                 WHERE item_cls_cd = ? AND use_yn = 'Y' LIMIT 1"
+            );
+            foreach ($preferred as $cd) {
+                $stmt->execute([$cd]);
+                $hit = $stmt->fetchColumn();
+                if ($hit) {
+                    return (string)$hit;
+                }
+            }
+            $hit = $this->pdo->query(
+                "SELECT item_cls_cd FROM zra_item_classes
+                 WHERE use_yn = 'Y' AND item_cls_lvl >= 4
+                 ORDER BY item_cls_cd ASC LIMIT 1"
+            )->fetchColumn();
+            return $hit ? (string)$hit : null;
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    private function storeItemClasses(array $list): int
+    {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO zra_item_classes (item_cls_cd, item_cls_nm, item_cls_lvl, tax_ty_cd, use_yn)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE item_cls_nm = VALUES(item_cls_nm), tax_ty_cd = VALUES(tax_ty_cd), use_yn = VALUES(use_yn)"
+        );
+        $n = 0;
+        foreach ($list as $row) {
+            $cd = (string)($row['itemClsCd'] ?? '');
+            if ($cd === '') {
+                continue;
+            }
+            $stmt->execute([
+                $cd,
+                $row['itemClsNm'] ?? '',
+                (int)($row['itemClsLvl'] ?? 0),
+                $row['taxTyCd'] ?? null,
+                $row['useYn'] ?? 'Y',
+            ]);
+            $n++;
+        }
+        return $n;
     }
 
     /**
@@ -947,6 +1227,7 @@ class ZraVsdcClient
         $this->ensureSaleColumns();
         $this->ensureProductColumns();
         $this->ensureGrvColumns();
+        $this->ensureSaleItemColumns();
         $this->pdo->exec(
             "CREATE TABLE IF NOT EXISTS zra_standard_codes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -989,7 +1270,7 @@ class ZraVsdcClient
             'vsdc_last_sale_no' => $this->getSettings()['vsdc_last_sale_no'] ?? '0',
             'vsdc_last_invc_no' => $this->getSettings()['vsdc_last_invc_no'] ?? '0',
             'vsdc_last_sar_no' => $this->getSettings()['vsdc_last_sar_no'] ?? '0',
-            'vsdc_default_unspsc' => $this->getSettings()['vsdc_default_unspsc'] ?? '50101500',
+            'vsdc_default_unspsc' => $this->getSettings()['vsdc_default_unspsc'] ?? '50202201',
         ]);
         self::$schemaReady = true;
     }
@@ -1020,6 +1301,12 @@ class ZraVsdcClient
     private function ensureGrvColumns(): void
     {
         $this->addColumnIfMissing('grvs', 'zra_synced', 'TINYINT(1) DEFAULT 0');
+    }
+
+    private function ensureSaleItemColumns(): void
+    {
+        $this->addColumnIfMissing('sale_items', 'refund_sale_item_id', 'INT DEFAULT NULL');
+        $this->addColumnIfMissing('sale_items', 'is_refund', 'TINYINT(1) DEFAULT 0');
     }
 
     private function addColumnIfMissing(string $table, string $column, string $definition): void

@@ -33,8 +33,15 @@ if [ -z "${WAR}" ]; then
 fi
 
 if [ -n "${WAR}" ]; then
-    echo "[vsdc] Deploying ${WAR} as sandboxvsdc.war"
-    cp -f "${WAR}" "${DEST_WAR}"
+    # Copy only when the WAR is missing or its contents changed.
+    # A copy always updates mtime; Tomcat then deletes the exploded app
+    # and the SQLite keystore from selectInitInfo is lost.
+    if [ ! -f "${DEST_WAR}" ] || ! cmp -s "${WAR}" "${DEST_WAR}"; then
+        echo "[vsdc] Deploying ${WAR} as sandboxvsdc.war"
+        cp -f "${WAR}" "${DEST_WAR}"
+    else
+        echo "[vsdc] WAR unchanged; keeping exploded sandboxvsdc (preserves API keys)."
+    fi
 fi
 
 echo "[vsdc] JAVA_OPTS=${JAVA_OPTS:-}"

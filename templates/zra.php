@@ -23,6 +23,13 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
         <?php if (!empty($zraLastResult['hint'])): ?>
             <div class="small mt-2"><?= htmlspecialchars($zraLastResult['hint']) ?></div>
         <?php endif; ?>
+        <?php if (!empty($zraLastResult['errors']) && is_array($zraLastResult['errors'])): ?>
+            <ul class="small mb-0 mt-2">
+                <?php foreach (array_slice($zraLastResult['errors'], 0, 12) as $err): ?>
+                    <li><?= htmlspecialchars((string)$err) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
     </div>
 <?php endif; ?>
 
@@ -111,12 +118,12 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
             </div>
         </div>
         <div class="alert alert-info small">
-            <strong>Code 902 / “This device is installed”</strong> means ZRA already initialized this serial.
-            <strong>Code 899 / “An error regarding Client occurred”</strong> means this Tomcat copy has no API keys
-            (usually after the WAR was re-expanded). Same serial cannot be initialized twice.
-            Register <code>STPOS001V3</code> on the portal, set <code>ZRA_DVC_SRL_NO</code> in <code>.env</code>,
-            then run <code>docker compose down</code> and <code>docker volume rm smarttrade-pos-pro_vsdc_webapps</code>
-            before starting VSDC and clicking Initialize once.
+            After a successful handshake, click <strong>Sync standard codes</strong>, then
+            <strong>Sync UNSPSC classes</strong>, then <strong>Register products</strong>.
+            Item class must be a <strong>level-4 UNSPSC</strong> from that list (for example
+            <code>50202201</code> Beer). Family codes such as <code>50101500</code> are rejected.
+            Do not click Initialize again, and do not recreate the <code>vsdc</code> container
+            or remove the <code>vsdc_webapps</code> volume — that deletes the API keys.
         </div>
     </div>
 

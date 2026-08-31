@@ -13,7 +13,7 @@ $specificItems = isset($_GET['items']) && !empty($_GET['items']) ? array_filter(
 $isIncremental = (!empty($specificItems) && $isBill);
 
 // Fetch Settings
-$settingsStmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_header', 'receipt_footer')");
+$settingsStmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_header', 'receipt_footer', 'vsdc_sdcId', 'vsdc_mrcNo')");
 $sysSettings = [];
 while ($sRow = $settingsStmt->fetch(PDO::FETCH_ASSOC)) {
     $sysSettings[$sRow['setting_key']] = $sRow['setting_value'];
@@ -21,6 +21,7 @@ while ($sRow = $settingsStmt->fetch(PDO::FETCH_ASSOC)) {
 $bizName = !empty($sysSettings['business_name']) ? $sysSettings['business_name'] : 'OdeliaPOS';
 $receiptHeader = $sysSettings['receipt_header'] ?? '';
 $receiptFooter = $sysSettings['receipt_footer'] ?? 'Thank you for your business!';
+$zraTpin = getenv('ZRA_TPIN') ?: '';
 
 // Fetch Sale
 $stmt = $pdo->prepare("SELECT s.*, u.username, l.name as loc_name FROM sales s JOIN users u ON s.user_id = u.id LEFT JOIN locations l ON s.location_id = l.id WHERE s.id = ?");
@@ -131,6 +132,9 @@ if ($isIncremental) {
                     <div style="font-size: 13px; margin: 5px 0;">
                         <?= nl2br(htmlspecialchars($receiptHeader)) ?>
                     </div>
+                    <?php endif; ?>
+                    <?php if ($zraTpin !== '' && !str_contains((string)$receiptHeader, $zraTpin)): ?>
+                    <div style="font-size: 13px;">TPIN: <?= htmlspecialchars($zraTpin) ?></div>
                     <?php endif; ?>
                     
                     <div style="font-size: 13px; margin: 5px 0;">
@@ -247,6 +251,9 @@ if ($isIncremental) {
                 <?php elseif (!$isBill && empty($sale['zra_rcpt_sign']) && ($sale['payment_status'] ?? '') === 'paid'): ?>
                 <div class="text-center border-top" style="margin-top: 12px; font-size: 12px;">
                     ZRA: pending sync
+                    <?php if (!empty($sale['zra_last_error'])): ?>
+                    <div style="margin-top: 4px; font-size: 11px;"><?= htmlspecialchars($sale['zra_last_error']) ?></div>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
 

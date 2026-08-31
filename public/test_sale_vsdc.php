@@ -53,7 +53,7 @@ foreach ($saleItems as $item) {
     $itemList[] = [
         "itemSeq" => $seq++,
         "itemCd" => (string)$item['product_id'],
-        "itemClsCd" => $item['unspsc_code'] ?: "50101500", // Fallback UNSPSC[cite: 7]
+        "itemClsCd" => $item['unspsc_code'] ?: "50202201",
         "itemNm" => $item['name'],
         "bcd" => null,
         "pkgUnitCd" => "EA",       // Standard packaging code[cite: 7]
@@ -80,7 +80,6 @@ $payload = [
     "bhfId" => $env['ZRA_BHF_ID'],
     "orgInvcNo" => 0,
     "cisInvcNo" => "CIS-INV-" . str_pad($saleId, 6, '0', STR_PAD_LEFT),
-    "custTpin" => "",
     "custNm" => "Walk-in Customer",
     "salesTyCd" => "N",         // Normal Sale[cite: 7]
     "rcptTyCd" => "S",          // Sale Receipt[cite: 7]
