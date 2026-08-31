@@ -23,7 +23,6 @@ $receiptHeader = $sysSettings['receipt_header'] ?? '';
 $receiptFooter = $sysSettings['receipt_footer'] ?? 'Thank you for your business!';
 $zraTpin = getenv('ZRA_TPIN') ?: '';
 require_once BASE_PATH . '/src/ZraVsdcClient.php';
-require_once BASE_PATH . '/src/QrSvg.php';
 $zraClient = new ZraVsdcClient($pdo);
 
 // Fetch Sale
@@ -87,16 +86,21 @@ if ($isIncremental) {
         .amount { text-align: right; }
         .cut-line { border-top: 2px dashed #000; margin: 25px 0; position: relative; text-align: center; }
         .cut-line span { background: #fff; padding: 0 10px; position: relative; top: -10px; font-size: 12px; color: #000; font-weight: bold; }
-        .zra-qr { margin: 8px auto 0; width: 148px; }
-        .zra-qr svg { width: 148px; height: 148px; display: block; }
+        .zra-qr { margin: 8px auto 0; text-align: center; }
+        .zra-qr img {
+            display: block;
+            margin: 0 auto;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
         @media print {
             body { font-weight: bold !important; color: #000 !important; }
             * { font-weight: bold !important; color: #000 !important; }
-            .zra-qr, .zra-qr * {
+            .zra-qr, .zra-qr img {
                 color: unset !important;
                 font-weight: normal !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
     </style>
@@ -262,10 +266,9 @@ if ($isIncremental) {
                         (string)$sale['zra_rcpt_sign'],
                         $sale['zra_qr_code_url'] ?? null
                     );
-                    $zraQrSvg = $zraQrUrl ? QrSvg::render($zraQrUrl, 3) : '';
                     ?>
-                    <?php if ($zraQrSvg !== ''): ?>
-                    <div class="zra-qr"><?= $zraQrSvg ?></div>
+                    <?php if (!empty($zraQrUrl)): ?>
+                    <div class="zra-qr" data-payload="<?= htmlspecialchars($zraQrUrl, ENT_QUOTES) ?>"></div>
                     <?php endif; ?>
                 </div>
                 <?php elseif (!$isBill && empty($sale['zra_rcpt_sign']) && ($sale['payment_status'] ?? '') === 'paid'): ?>
@@ -285,7 +288,23 @@ if ($isIncremental) {
 
     <?php endforeach; ?>
 
+    <script src="js/qrcode.min.js"></script>
     <script>
+        (function () {
+            if (typeof qrcode !== 'function') {
+                return;
+            }
+            document.querySelectorAll('.zra-qr[data-payload]').forEach(function (el) {
+                var data = el.getAttribute('data-payload');
+                if (!data) {
+                    return;
+                }
+                var qr = qrcode(0, 'M');
+                qr.addData(data, 'Byte');
+                qr.make();
+                el.innerHTML = qr.createImgTag(4, 4);
+            });
+        })();
         window.onload = function() { setTimeout(function() { window.print(); }, 500); };
     </script>
 </body>
