@@ -22,6 +22,7 @@ services:
       ZRA_BHF_ID: ${ZRA_BHF_ID}
       ZRA_DVC_SRL_NO: ${ZRA_DVC_SRL_NO}
       ZRA_VSDC_URL: ${ZRA_VSDC_URL}
+      ZRA_PORTAL_URL: ${ZRA_PORTAL_URL:-}
     depends_on:
       db:
         condition: service_healthy   # ✅ Wait for MySQL to be READY, not just started

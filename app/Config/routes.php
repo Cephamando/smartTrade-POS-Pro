@@ -1,0 +1,41 @@
+<?php
+
+/**
+ * Whitelisted MVC routes. Keys match index.php?page=
+ *
+ * auth        — requires a logged-in session (default true)
+ * standalone  — view supplies its own HTML shell (no header/footer)
+ * action_only — controller script only; no view file
+ */
+return [
+    'login' => ['auth' => false, 'standalone' => true],
+    'logout' => ['action_only' => true],
+    'dashboard' => [],
+    'pos' => ['standalone' => true],
+    'products' => [],
+    'categories' => [],
+    'inventory' => [],
+    'locations' => [],
+    'users' => [],
+    'members' => [],
+    'vendors' => [],
+    'settings' => [],
+    'reports' => [],
+    'report_consumption' => [],
+    'shifts' => [],
+    'z_read' => [],
+    'print_shift' => ['standalone' => true],
+    'end_shift_action' => ['action_only' => true],
+    'receipt' => ['standalone' => true],
+    'receive_stock' => [],
+    'transfers' => [],
+    'refund_items' => [],
+    'pickup' => ['standalone' => true],
+    'kitchen' => [],
+    'kds' => ['standalone' => true],
+    'menu' => [],
+    'tables' => [],
+    'audit' => [],
+    'change_password' => [],
+    'zra' => [],
+];
