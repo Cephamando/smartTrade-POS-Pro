@@ -11,8 +11,11 @@ $shift = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$shift) { die("Shift not found."); }
 
+require_once __DIR__ . '/split_payments.php';
+ensureSaleSplitPaymentsColumn($pdo);
+
 // Fetch Sales to manually group and accommodate Splits
-$stmt = $pdo->prepare("SELECT payment_method, final_total, tip_amount, split_method_1, split_amount_1, split_method_2, split_amount_2 FROM sales WHERE shift_id = ? AND payment_status = 'paid'");
+$stmt = $pdo->prepare("SELECT payment_method, final_total, tip_amount, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2, split_payments FROM sales WHERE shift_id = ? AND payment_status = 'paid'");
 $stmt->execute([$shiftId]);
 $sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -23,34 +26,14 @@ $cashSales = 0;
 foreach($sales as $s) {
     $grandTotal += $s['final_total'];
     if ($s['payment_method'] === 'Split') {
-        $change = $s['change_due'] ?? 0;
-        $sa1 = $s['split_amount_1'];
-        $sa2 = $s['split_amount_2'];
-        
-        if ($s['split_method_1'] === 'Cash' && $change > 0) {
-            $deduct = min($sa1, $change);
-            $sa1 -= $deduct;
-            $change -= $deduct;
-        }
-        if ($s['split_method_2'] === 'Cash' && $change > 0) {
-            $deduct = min($sa2, $change);
-            $sa2 -= $deduct;
-            $change -= $deduct;
-        }
-
-        if (!empty($s['split_method_1']) && $s['split_amount_1'] > 0) {
-            $m1 = $s['split_method_1'];
-            if (!isset($paymentBreakdownAssoc[$m1])) $paymentBreakdownAssoc[$m1] = ['payment_method' => $m1, 'tx_count' => 0, 'total' => 0, 'total_tips' => 0];
-            $paymentBreakdownAssoc[$m1]['total'] += $sa1;
-            $paymentBreakdownAssoc[$m1]['tx_count'] += 0.5;
-            if ($m1 === 'Cash') $cashSales += $sa1;
-        }
-        if (!empty($s['split_method_2']) && $s['split_amount_2'] > 0) {
-            $m2 = $s['split_method_2'];
-            if (!isset($paymentBreakdownAssoc[$m2])) $paymentBreakdownAssoc[$m2] = ['payment_method' => $m2, 'tx_count' => 0, 'total' => 0, 'total_tips' => 0];
-            $paymentBreakdownAssoc[$m2]['total'] += $sa2;
-            $paymentBreakdownAssoc[$m2]['tx_count'] += 0.5;
-            if ($m2 === 'Cash') $cashSales += $sa2;
+        $legs = applySplitChangeToCash(saleSplitLegs($s), (float)($s['change_due'] ?? 0));
+        $n = max(1, count($legs));
+        foreach ($legs as $leg) {
+            $m = $leg['method'];
+            if (!isset($paymentBreakdownAssoc[$m])) $paymentBreakdownAssoc[$m] = ['payment_method' => $m, 'tx_count' => 0, 'total' => 0, 'total_tips' => 0];
+            $paymentBreakdownAssoc[$m]['total'] += (float)$leg['amount'];
+            $paymentBreakdownAssoc[$m]['tx_count'] += 1 / $n;
+            if (strcasecmp($m, 'Cash') === 0) $cashSales += (float)$leg['amount'];
         }
     } else {
         $pm = $s['payment_method'];

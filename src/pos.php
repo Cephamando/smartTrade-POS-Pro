@@ -264,7 +264,9 @@ if (isset($_POST['log_waste']) && $activeShiftId) {
 if (isset($_POST['checkout']) && $activeShiftId) {
     try {
         require_once __DIR__ . '/ZraVsdcClient.php';
+        require_once __DIR__ . '/split_payments.php';
         new ZraVsdcClient($pdo);
+        ensureSaleSplitPaymentsColumn($pdo);
         $pdo->beginTransaction();
         $fiscalizeAfterCommit = 0;
         $clearCartAfterCommit = false;
@@ -273,12 +275,14 @@ if (isset($_POST['checkout']) && $activeShiftId) {
         $pm = $_POST['payment_method'] ?? 'Cash';
         $isSplit = $_POST['is_split'] ?? '0';
         $status = ($pm === 'Pending') ? 'pending' : 'paid';
-        if ($isSplit == '1') { $pm = 'Split'; }
+        $splitLegs = [];
+        if ($isSplit == '1') {
+            $pm = 'Split';
+            $splitLegs = collectPostedSplitPayments($_POST);
+        }
+        [$sm1, $sa1, $sm2, $sa2] = splitLegacyPair($splitLegs);
+        $splitJson = $splitLegs ? json_encode($splitLegs) : null;
         $amountTendered = isset($_POST['amount_tendered']) ? (float)$_POST['amount_tendered'] : 0;
-        $sm1 = $_POST['split_method_1'] ?? null;
-        $sa1 = (float)($_POST['split_amount_1'] ?? 0);
-        $sm2 = $_POST['split_method_2'] ?? null;
-        $sa2 = (float)($_POST['split_amount_2'] ?? 0);
 
         // 🛡️ BLOCK CHECKOUT IF WEB ORDER IS COOKING
         if ($settleTabId > 0) {
@@ -335,8 +339,8 @@ if (isset($_POST['checkout']) && $activeShiftId) {
             $saleStatus = ($status === 'paid') ? 'completed' : 'pending';
             $changeDue = ($cumulativeTendered > $finalTotal) ? ($cumulativeTendered - $finalTotal) : 0;
             
-            $pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ? WHERE id = ?")
-                ->execute([$activeShiftId, $saleStatus, $total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $settleTabId]);
+            $pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ?, split_payments = ? WHERE id = ?")
+                ->execute([$activeShiftId, $saleStatus, $total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $splitJson, $settleTabId]);
             
             if ($saleStatus === 'completed') {
                 $pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$settleTabId]);
@@ -384,8 +388,8 @@ if (isset($_POST['checkout']) && $activeShiftId) {
 
             $status = ($amountTendered >= $finalTotal && $pm !== 'Pending') ? 'paid' : 'pending';
             $changeDue = ($amountTendered > $finalTotal) ? ($amountTendered - $finalTotal) : 0;
-            $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$locationId, $userId, $activeShiftId, $total, $tip, $finalTotal, $pm, $status, $customerName, $amountTendered, $changeDue, $sm1, $sa1, $sm2, $sa2]);
+            $stmt = $pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2, split_payments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$locationId, $userId, $activeShiftId, $total, $tip, $finalTotal, $pm, $status, $customerName, $amountTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $splitJson]);
             $saleId = $pdo->lastInsertId();
 
             foreach($_SESSION['cart'] as $item) {

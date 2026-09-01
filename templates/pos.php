@@ -431,12 +431,12 @@
 
     <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
     
-    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1">
+    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1">
         <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
         <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;"><label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label><input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username"><input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password"></div>
-        <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" onkeyup="calcResult()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
+        <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" min="0" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" oninput="onTipChange()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= ($tier === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
         <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option>
@@ -448,34 +448,11 @@
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
         <div id="splitSection" style="display:none;" class="p-3 bg-light rounded border border-secondary mb-3">
             <label class="form-label small fw-bold text-dark mb-2"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT DETAILS</label>
-            <div class="row g-2 mb-2">
-                <div class="col-6">
-                    <select name="split_method_1" class="form-select fw-bold">
-                        <option value="Cash">Cash</option>
-                        <option value="Card" selected>Card</option>
-                        <option value="MTN Money">MTN Money</option>
-                        <option value="Airtel Money">Airtel Money</option>
-                    </select>
-                </div>
-                <div class="col-6">
-                    <div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" name="split_amount_1" id="splitInput1" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div>
-                </div>
-            </div>
-            <div class="row g-2">
-                <div class="col-6">
-                    <select name="split_method_2" class="form-select fw-bold">
-                        <option value="Cash" selected>Cash</option>
-                        <option value="Card">Card</option>
-                        <option value="MTN Money">MTN Money</option>
-                        <option value="Airtel Money">Airtel Money</option>
-                    </select>
-                </div>
-                <div class="col-6">
-                    <div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" name="split_amount_2" id="splitInput2" class="form-control fw-bold" placeholder="0.00" onkeyup="sumSplit()"></div>
-                </div>
-            </div>
+            <div id="splitRows"></div>
+            <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold mt-2" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add payment method</button>
+            <div class="small text-muted mt-2">Choose a method or <strong>Other</strong> and type a custom name (bank transfer, cheque, voucher…).</div>
         </div>
-        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" oninput="calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm" id="btnCheckoutSubmit">COMPLETE TRANSACTION</button></div></form></div></div></div>
+        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" oninput="tenderedTouched = true; calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm" id="btnCheckoutSubmit">COMPLETE TRANSACTION</button></div></form></div></div></div>
 
     <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This instantly deducts cash from Expected Drawer Total.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
     
@@ -547,24 +524,121 @@
         function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
         function voidItem(itemId) { Swal.fire({ title: 'Void Item', html: '<p class="text-muted small">Enter manager credentials</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize Void', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { Swal.fire({ icon: 'success', title: 'Voided', timer: 1200, showConfirmButton: false }).then(() => location.reload()); } else { Swal.fire({ icon: 'error', title: 'Error', text: data.msg }); } }); } }); }
 
-        let baseTotal = 0; let currentTotal = 0;
+        let baseTotal = 0; let currentTotal = 0; let tenderedTouched = false;
         
         function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '', pt = 0, forceTabId = 0) { 
             let nameInput = document.querySelector('[name="customer_name"]');
             if (!isTabMode) { baseTotal = <?= $balance ?? 0 ?>; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
-            currentTotal = baseTotal; document.getElementById('tipInput').value = '';
+            currentTotal = baseTotal; tenderedTouched = false; document.getElementById('tipInput').value = '';
+            resetSplitRows();
             if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); document.getElementById('refundAuthSection').style.display = 'block'; document.getElementById('mgrUserRefund').required = true; document.getElementById('mgrPassRefund').required = true; } else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); document.getElementById('refundAuthSection').style.display = 'none'; document.getElementById('mgrUserRefund').required = false; document.getElementById('mgrPassRefund').required = false; }
             if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } safeModalShow('checkoutModal'); 
         }
 
         function openSettleModal(tabId, total, customerName, pt = 0) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('tabsModal', '', function() { initCheckout(true, total, customerName, pt, tabId); }); }
         function markCollected(itemId, saleId) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id + "&_t=" + new Date().getTime(); safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } }); } else { Swal.fire({ icon: 'error', title: 'Action Blocked', text: data.msg }); } }); }
-        function toggleDiscount() { let chk = document.getElementById('discountToggle'); if(chk && chk.checked) { currentTotal = baseTotal * 0.90; document.getElementById('discountLabel').style.display = 'block'; } else { currentTotal = baseTotal; document.getElementById('discountLabel').style.display = 'none'; } updateDisplays(); }
-        function updateDisplays() { document.getElementById('displayTotalDue').innerText = currentTotal.toFixed(2); document.getElementById('tenderedInput').value = currentTotal.toFixed(2); calcResult(); }
-        function toggleMode() { let isSplit = document.getElementById('modeSplit').checked; document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { document.getElementById('splitInput1').value = ""; document.getElementById('splitInput2').value = ""; document.getElementById('tenderedInput').value = "0.00"; } else { document.getElementById('tenderedInput').value = currentTotal.toFixed(2); } calcResult(); }
-        function sumSplit() { let val1 = parseFloat(document.getElementById('splitInput1').value) || 0; let val2 = parseFloat(document.getElementById('splitInput2').value) || 0; document.getElementById('tenderedInput').value = (val1 + val2).toFixed(2); calcResult(); }
-        function addTipPercent(percent) { let tip = currentTotal * percent; document.getElementById('tipInput').value = tip.toFixed(2); calcResult(); }
-        function calcResult() { let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0; let tip = parseFloat(document.getElementById('tipInput').value) || 0; let diff = tendered - (currentTotal + tip); let label = document.getElementById('resultLabel'); let value = document.getElementById('resultValue'); if (currentTotal < 0) { label.innerText = "CASH OUT OF DRAWER"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(currentTotal).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } else { if(diff >= -0.01) { label.innerText = "CHANGE DUE"; label.className = "small fw-bold text-uppercase text-muted"; value.innerText = "ZMW " + diff.toFixed(2); value.className = "fs-4 fw-bold text-dark"; } else { label.innerText = "BALANCE REMAINING"; label.className = "small fw-bold text-uppercase text-danger"; value.innerText = "ZMW " + Math.abs(diff).toFixed(2); value.className = "fs-4 fw-bold text-danger"; } } }
+        function currentTip() { return parseFloat(document.getElementById('tipInput').value) || 0; }
+        function amountDue() { return currentTotal + currentTip(); }
+        function isSplitPay() { let el = document.getElementById('modeSplit'); return !!(el && el.checked); }
+        function toggleDiscount() { let chk = document.getElementById('discountToggle'); if(chk && chk.checked) { currentTotal = baseTotal * 0.90; document.getElementById('discountLabel').style.display = 'block'; } else { currentTotal = baseTotal; document.getElementById('discountLabel').style.display = 'none'; } tenderedTouched = false; updateDisplays(); }
+        function updateDisplays() {
+            let due = amountDue();
+            document.getElementById('displayTotalDue').innerText = due.toFixed(2);
+            if (!isSplitPay() && !tenderedTouched) {
+                document.getElementById('tenderedInput').value = due.toFixed(2);
+            }
+            calcResult();
+        }
+        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); document.getElementById('tenderedInput').value = "0.00"; tenderedTouched = true; } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); } calcResult(); }
+        function splitMethodOptions(selected) {
+            const opts = ['Cash', 'Card', 'MTN Money', 'Airtel Money', 'Zamtel Money', 'Online'];
+            return opts.map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v}</option>`).join('')
+                + `<option value="__custom__">Other (custom name)</option>`;
+        }
+        function addSplitRow(method, amount, custom) {
+            const wrap = document.getElementById('splitRows');
+            if (!wrap || wrap.children.length >= 8) return;
+            method = method || (wrap.children.length === 0 ? 'Card' : 'Cash');
+            const row = document.createElement('div');
+            row.className = 'split-pay-row mb-2';
+            row.innerHTML = `<div class="row g-2 align-items-center">
+                <div class="col-5"><select name="split_method[]" class="form-select fw-bold split-method" onchange="onSplitMethodChange(this)">${splitMethodOptions(method)}</select></div>
+                <div class="col-5"><div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" min="0" name="split_amount[]" class="form-control fw-bold split-amount" placeholder="0.00" value="${amount ? Number(amount).toFixed(2) : ''}" oninput="sumSplit()"></div></div>
+                <div class="col-2"><button type="button" class="btn btn-outline-danger w-100 split-remove" onclick="removeSplitRow(this)" title="Remove">&times;</button></div>
+                <div class="col-12 split-custom-wrap" style="display:none;"><input type="text" name="split_custom[]" class="form-control split-custom" maxlength="50" placeholder="Custom method name"></div>
+            </div>`;
+            wrap.appendChild(row);
+            const sel = row.querySelector('.split-method');
+            const known = ['Cash','Card','MTN Money','Airtel Money','Zamtel Money','Online'];
+            if (method === '__custom__' || (custom && !known.includes(method)) || (method && !known.includes(method))) {
+                sel.value = '__custom__';
+                row.querySelector('.split-custom').value = custom || method;
+            }
+            onSplitMethodChange(sel);
+            refreshSplitRemoveButtons();
+        }
+        function resetSplitRows() {
+            const wrap = document.getElementById('splitRows');
+            if (!wrap) return;
+            wrap.innerHTML = '';
+            addSplitRow('Card');
+            addSplitRow('Cash');
+        }
+        function removeSplitRow(btn) {
+            const wrap = document.getElementById('splitRows');
+            if (!wrap || wrap.children.length <= 1) return;
+            btn.closest('.split-pay-row').remove();
+            refreshSplitRemoveButtons();
+            sumSplit();
+        }
+        function refreshSplitRemoveButtons() {
+            const rows = document.querySelectorAll('#splitRows .split-pay-row');
+            rows.forEach(row => {
+                const b = row.querySelector('.split-remove');
+                if (b) b.disabled = rows.length <= 1;
+            });
+        }
+        function onSplitMethodChange(sel) {
+            const wrap = sel.closest('.split-pay-row').querySelector('.split-custom-wrap');
+            const input = wrap.querySelector('.split-custom');
+            const isCustom = sel.value === '__custom__';
+            wrap.style.display = isCustom ? 'block' : 'none';
+            input.required = isCustom;
+            if (!isCustom) input.value = '';
+        }
+        function sumSplit() {
+            let total = 0;
+            document.querySelectorAll('#splitRows .split-amount').forEach(el => { total += parseFloat(el.value) || 0; });
+            document.getElementById('tenderedInput').value = total.toFixed(2);
+            tenderedTouched = true;
+            calcResult();
+        }
+        function addTipPercent(percent) { document.getElementById('tipInput').value = (Math.max(0, currentTotal) * percent).toFixed(2); if (!isSplitPay()) tenderedTouched = false; updateDisplays(); }
+        function onTipChange() { updateDisplays(); }
+        function calcResult() {
+            let due = amountDue();
+            document.getElementById('displayTotalDue').innerText = due.toFixed(2);
+            let tendered = parseFloat(document.getElementById('tenderedInput').value) || 0;
+            let diff = tendered - due;
+            let label = document.getElementById('resultLabel');
+            let value = document.getElementById('resultValue');
+            if (currentTotal < 0) {
+                label.innerText = "CASH OUT OF DRAWER";
+                label.className = "small fw-bold text-uppercase text-danger";
+                value.innerText = "ZMW " + Math.abs(currentTotal).toFixed(2);
+                value.className = "fs-4 fw-bold text-danger";
+            } else if (diff >= -0.01) {
+                label.innerText = "CHANGE DUE";
+                label.className = "small fw-bold text-uppercase text-muted";
+                value.innerText = "ZMW " + diff.toFixed(2);
+                value.className = "fs-4 fw-bold text-dark";
+            } else {
+                label.innerText = "BALANCE REMAINING";
+                label.className = "small fw-bold text-uppercase text-danger";
+                value.innerText = "ZMW " + Math.abs(diff).toFixed(2);
+                value.className = "fs-4 fw-bold text-danger";
+            }
+        }
 
         function getAllDescendants(catId) { let desc = []; let subs = subCategoriesMap[catId] || []; subs.forEach(s => { desc.push(s.id.toString()); desc = desc.concat(getAllDescendants(s.id)); }); return desc; }
         function filter() { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = "Search Results"; document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); currentCat = 'all'; applyFilters(); }

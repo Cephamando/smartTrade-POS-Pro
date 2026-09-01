@@ -4,6 +4,9 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['admin', 'mana
     header("Location: index.php?page=dashboard"); exit;
 }
 
+require_once __DIR__ . '/split_payments.php';
+ensureSaleSplitPaymentsColumn($pdo);
+
 $date = $_GET['date'] ?? date('Y-m-d');
 $timeFrom = $_GET['time_from'] ?? '00:00';
 $timeTo = $_GET['time_to'] ?? '23:59';
@@ -56,7 +59,7 @@ $totalDiscounts = max(0, $grossItemSales - (float)($metrics['net_sales'] ?? 0));
 
 // 4. Payment Methods
 $stmt = $pdo->prepare("
-    SELECT payment_method, final_total, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2
+    SELECT payment_method, final_total, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2, split_payments
     FROM sales
     WHERE created_at >= ? AND created_at <= ? AND location_id = ? AND payment_status = 'paid'
 ");
@@ -66,13 +69,13 @@ $salesData = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $pmAssoc = [];
 foreach($salesData as $s) {
     if ($s['payment_method'] === 'Split') {
-        $change = (float)($s['change_due'] ?? 0);
-        $sa1 = (float)$s['split_amount_1'];
-        $sa2 = (float)$s['split_amount_2'];
-        if ($s['split_method_1'] === 'Cash' && $change > 0) { $deduct = min($sa1, $change); $sa1 -= $deduct; $change -= $deduct; }
-        if ($s['split_method_2'] === 'Cash' && $change > 0) { $deduct = min($sa2, $change); $sa2 -= $deduct; $change -= $deduct; }
-        if (!empty($s['split_method_1']) && $sa1 > 0) { $m1 = $s['split_method_1']; if (!isset($pmAssoc[$m1])) $pmAssoc[$m1] = ['payment_method' => $m1, 'amount' => 0, 'count' => 0]; $pmAssoc[$m1]['amount'] += $sa1; $pmAssoc[$m1]['count'] += 0.5; }
-        if (!empty($s['split_method_2']) && $sa2 > 0) { $m2 = $s['split_method_2']; if (!isset($pmAssoc[$m2])) $pmAssoc[$m2] = ['payment_method' => $m2, 'amount' => 0, 'count' => 0]; $pmAssoc[$m2]['amount'] += $sa2; $pmAssoc[$m2]['count'] += 0.5; }
+        $legs = applySplitChangeToCash(saleSplitLegs($s), (float)($s['change_due'] ?? 0));
+        foreach ($legs as $leg) {
+            $m = $leg['method'];
+            if (!isset($pmAssoc[$m])) $pmAssoc[$m] = ['payment_method' => $m, 'amount' => 0, 'count' => 0];
+            $pmAssoc[$m]['amount'] += (float)$leg['amount'];
+            $pmAssoc[$m]['count'] += 1 / max(1, count($legs));
+        }
     } else {
         $pm = $s['payment_method'];
         if (!isset($pmAssoc[$pm])) $pmAssoc[$pm] = ['payment_method' => $pm, 'amount' => 0, 'count' => 0];

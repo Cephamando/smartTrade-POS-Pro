@@ -23,6 +23,7 @@ $receiptHeader = $sysSettings['receipt_header'] ?? '';
 $receiptFooter = $sysSettings['receipt_footer'] ?? 'Thank you for your business!';
 $zraTpin = getenv('ZRA_TPIN') ?: '';
 require_once BASE_PATH . '/src/ZraVsdcClient.php';
+require_once BASE_PATH . '/src/split_payments.php';
 $zraClient = new ZraVsdcClient($pdo);
 
 // Fetch Sale
@@ -35,20 +36,22 @@ if (!$sale) die("Sale not found.");
 if ($isIncremental) {
     $inClause = implode(',', $specificItems);
     $stmt = $pdo->prepare("
-        SELECT COALESCE(p.name, 'Custom Item') as name, si.price, SUM(si.quantity) as quantity 
+        SELECT COALESCE(p.name, 'Custom Item') as name, si.price, SUM(si.quantity) as quantity,
+               COALESCE(p.tax_class, 'A') as tax_class
         FROM sale_items si 
         LEFT JOIN products p ON si.product_id = p.id 
         WHERE si.sale_id = ? AND si.status != 'voided' AND si.id IN ($inClause) 
-        GROUP BY p.name, si.price
+        GROUP BY p.name, si.price, p.tax_class
     ");
     $stmt->execute([$saleId]);
 } else {
     $stmt = $pdo->prepare("
-        SELECT COALESCE(p.name, 'Custom Item') as name, si.price, SUM(si.quantity) as quantity 
+        SELECT COALESCE(p.name, 'Custom Item') as name, si.price, SUM(si.quantity) as quantity,
+               COALESCE(p.tax_class, 'A') as tax_class
         FROM sale_items si 
         LEFT JOIN products p ON si.product_id = p.id 
         WHERE si.sale_id = ? AND si.status != 'voided' 
-        GROUP BY p.name, si.price
+        GROUP BY p.name, si.price, p.tax_class
     ");
     $stmt->execute([$saleId]);
 }
@@ -57,6 +60,37 @@ $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $displayTotal = 0;
 foreach($items as $i) { $displayTotal += ($i['price'] * $i['quantity']); }
 $previousBalance = $sale['final_total'] - $displayTotal;
+$tipAmt = (float)($sale['tip_amount'] ?? 0);
+$calcDisc = ($displayTotal + $tipAmt) - (float)$sale['final_total'];
+if ($calcDisc < 0.01) {
+    $calcDisc = 0;
+}
+$vatSplit = [
+    'excl' => 0.0,
+    'vat' => 0.0,
+    'zero' => 0.0,
+    'exempt' => 0.0,
+];
+$itemIncl = max(0.0, (float)$displayTotal);
+$scale = ($calcDisc > 0.01 && $itemIncl > 0) ? max(0.0, ($itemIncl - $calcDisc) / $itemIncl) : 1.0;
+$stdIncl = 0.0;
+foreach ($items as $i) {
+    $incl = ((float)$i['price'] * (float)$i['quantity']) * $scale;
+    $cls = strtoupper((string)($i['tax_class'] ?? 'A'));
+    if ($cls === 'D' || $cls === '' || $cls === 'A') {
+        $stdIncl += $incl;
+    } elseif ($cls === 'B' || $cls === 'C3') {
+        $vatSplit['zero'] += $incl;
+    } else {
+        $vatSplit['exempt'] += $incl;
+    }
+}
+$stdIncl += $tipAmt;
+$vatSplit['vat'] = round($stdIncl - ($stdIncl / 1.16), 2);
+$vatSplit['excl'] = round($stdIncl - $vatSplit['vat'] + $vatSplit['zero'] + $vatSplit['exempt'], 2);
+$vatSplit['zero'] = round($vatSplit['zero'], 2);
+$vatSplit['exempt'] = round($vatSplit['exempt'], 2);
+$splitLegs = saleSplitLegs($sale);
 
 // --- FINAL PERFECTED PRINTING LOGIC ---
 if ($isIncremental) {
@@ -199,19 +233,20 @@ if ($isIncremental) {
                             <td>NEW BALANCE:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td>
                         </tr>
                     <?php else: ?>
-                        <tr><td>Subtotal:</td><td class="amount"><?= number_format($displayTotal, 2) ?></td></tr>
-                        
-                        <?php if($sale['tip_amount'] > 0): ?>
-                        <tr><td>Tip/Service:</td><td class="amount"><?= number_format($sale['tip_amount'], 2) ?></td></tr>
+                        <tr><td>Amount excl. VAT:</td><td class="amount"><?= number_format($vatSplit['excl'], 2) ?></td></tr>
+                        <tr><td>VAT 16%:</td><td class="amount"><?= number_format($vatSplit['vat'], 2) ?></td></tr>
+                        <?php if ($vatSplit['zero'] > 0.004): ?>
+                        <tr><td class="small">Incl. zero-rated:</td><td class="amount"><?= number_format($vatSplit['zero'], 2) ?></td></tr>
                         <?php endif; ?>
-                        
-                        <?php 
-                            $calcDisc = ($displayTotal + $sale['tip_amount']) - $sale['final_total'];
-                            if($calcDisc > 0.01):
-                        ?>
-                        <tr><td>Discount:</td><td class="amount">-ZMW <?= number_format($calcDisc, 2) ?></td></tr>
+                        <?php if ($vatSplit['exempt'] > 0.004): ?>
+                        <tr><td class="small">Incl. exempt:</td><td class="amount"><?= number_format($vatSplit['exempt'], 2) ?></td></tr>
                         <?php endif; ?>
-
+                        <?php if($tipAmt > 0): ?>
+                        <tr><td>Incl. tip/service:</td><td class="amount"><?= number_format($tipAmt, 2) ?></td></tr>
+                        <?php endif; ?>
+                        <?php if($calcDisc > 0.01): ?>
+                        <tr><td>Incl. discount:</td><td class="amount">-ZMW <?= number_format($calcDisc, 2) ?></td></tr>
+                        <?php endif; ?>
                         <tr class="fw-bold" style="font-size: 17px;">
                             <td><?= $isBill ? 'TAB BALANCE' : 'TOTAL PAID' ?>:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td>
                         </tr>
@@ -220,14 +255,11 @@ if ($isIncremental) {
                 
                 <?php if(!$isBill): ?>
                 <table>
-                    <?php if($sale['payment_method'] === 'Split'): ?>
+                    <?php if($sale['payment_method'] === 'Split' || $splitLegs): ?>
                     <tr><td colspan="2" class="fw-bold">Paid Via Split:</td></tr>
-                    <?php if(!empty($sale['split_method_1']) && $sale['split_amount_1'] > 0): ?>
-                    <tr><td>- <?= htmlspecialchars($sale['split_method_1']) ?></td><td class="amount fw-bold">ZMW <?= number_format($sale['split_amount_1'], 2) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if(!empty($sale['split_method_2']) && $sale['split_amount_2'] > 0): ?>
-                    <tr><td>- <?= htmlspecialchars($sale['split_method_2']) ?></td><td class="amount fw-bold">ZMW <?= number_format($sale['split_amount_2'], 2) ?></td></tr>
-                    <?php endif; ?>
+                    <?php foreach ($splitLegs as $leg): ?>
+                    <tr><td>- <?= htmlspecialchars($leg['method']) ?></td><td class="amount fw-bold">ZMW <?= number_format($leg['amount'], 2) ?></td></tr>
+                    <?php endforeach; ?>
                     <?php else: ?>
                     <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
                     <?php endif; ?>

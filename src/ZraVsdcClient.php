@@ -485,6 +485,7 @@ class ZraVsdcClient
             $this->markSaleSkipped($saleId, 'No line items to send to ZRA');
             return ['resultCd' => 'skipped', 'resultMsg' => 'No fiscalizable line items'];
         }
+        $saleItems = $this->appendTipLine($saleData, $saleItems);
         if (abs((float)$saleData['final_total']) < 0.005 && !$this->linesAreRefund($saleItems)) {
             $this->markSaleSkipped($saleId, 'Zero-value sale is not sent to ZRA');
             return ['resultCd' => 'skipped', 'resultMsg' => 'Zero-value sale is not sent to ZRA'];
@@ -851,7 +852,9 @@ class ZraVsdcClient
             'totTaxAmt' => round($totTax, 4),
             'cashDcRt' => 0,
             'cashDcAmt' => 0,
-            'totAmt' => round(abs((float)$sale['final_total'] ?: $totAmt), 2),
+            // totAmt must equal the sum of item totAmt. final_total includes tip, which
+            // is not a sale_items row unless we add it as a fiscal line.
+            'totAmt' => round($totAmt, 2),
             'prchrAcptcYn' => 'N',
             'remark' => $isRefund ? 'POS refund' : '',
             'regrId' => substr($user['id'], 0, 20),
@@ -1160,6 +1163,72 @@ class ZraVsdcClient
             $n++;
         }
         return $n;
+    }
+
+    /**
+     * Tips live on sales.tip_amount, not sale_items. VSDC still requires totAmt =
+     * sum(item totAmt), so the tip is sent as a registered service line.
+     */
+    private function appendTipLine(array $sale, array $items): array
+    {
+        $tip = round(abs((float)($sale['tip_amount'] ?? 0)), 2);
+        if ($tip < 0.01) {
+            return $items;
+        }
+        foreach ($items as $line) {
+            $sku = strtoupper((string)($line['sku'] ?? ''));
+            $code = strtoupper((string)($line['zra_item_cd'] ?? ''));
+            if ($sku === 'ZRA-TIP' || $code === 'ZRA-TIP') {
+                return $items;
+            }
+        }
+        $product = $this->ensureTipProduct();
+        $items[] = [
+            'product_id' => (int)$product['id'],
+            'name' => $product['name'] ?: 'Tip / Service charge',
+            'sku' => $product['sku'] ?: 'ZRA-TIP',
+            'tax_class' => $product['tax_class'] ?? 'A',
+            'unspsc_code' => $product['unspsc_code'] ?? null,
+            'zra_item_cd' => $product['zra_item_cd'] ?: 'ZRA-TIP',
+            'zra_synced' => $product['zra_synced'] ?? 0,
+            'type' => 'service',
+            'is_active' => 1,
+            'catalog_price' => $tip,
+            'quantity' => 1,
+            'price' => $tip,
+            'status' => 'completed',
+        ];
+        return $items;
+    }
+
+    private function ensureTipProduct(): array
+    {
+        $this->ensureProductColumns();
+        $stmt = $this->pdo->prepare("SELECT * FROM products WHERE sku = 'ZRA-TIP' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            return $row;
+        }
+        $this->pdo->prepare(
+            "INSERT INTO products (name, sku, price, cost_price, unit, type, is_open_price, is_active, tax_class)
+             VALUES ('Tip / Service charge', 'ZRA-TIP', 0, 0, 'unit', 'service', 1, 0, 'A')"
+        )->execute();
+        $id = (int)$this->pdo->lastInsertId();
+        $stmt = $this->pdo->prepare("SELECT * FROM products WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
+            'id' => $id,
+            'name' => 'Tip / Service charge',
+            'sku' => 'ZRA-TIP',
+            'tax_class' => 'A',
+            'type' => 'service',
+            'is_active' => 0,
+            'zra_synced' => 0,
+            'zra_item_cd' => 'ZRA-TIP',
+            'unspsc_code' => null,
+            'price' => 0,
+        ];
     }
 
     /**
