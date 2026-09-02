@@ -21,11 +21,11 @@ final class EndShiftActionController extends Controller
         try {
             $mgr = User::verifyManager($mgrUsername, $mgrPassword);
             if (!$mgr) {
-                throw new \Exception('Invalid Manager Credentials. Shift closure denied.');
+                throw new \Exception('Manager credentials are invalid. The shift was not closed.');
             }
             $shift = Shift::openForUser($this->userId(), $this->locationId());
             if (!$shift) {
-                throw new \Exception('No open shift found.');
+                throw new \Exception('No open shift was found.');
             }
             $shiftId = (int)$shift['id'];
             $expectedCash = Shift::expectedCash($shiftId, (float)$shift['starting_cash']);
@@ -40,7 +40,7 @@ final class EndShiftActionController extends Controller
                 header('Location: index.php?action=logout');
                 exit;
             }
-            $this->flash('success', 'Shift closed successfully. Variance: ZMW ' . number_format($variance, 2));
+            $this->flash('success', 'Shift closed. Variance: ZMW ' . number_format($variance, 2));
             $this->redirect('dashboard');
         } catch (\Throwable $e) {
             $this->flash('error', $e->getMessage());

@@ -23,7 +23,12 @@
                         <td class="py-3 fw-bold fs-5 text-dark"><?= htmlspecialchars($t['table_name']) ?></td>
                         <td class="py-3 text-center"><i class="bi bi-people-fill text-info me-1"></i> <?= $t['capacity'] ?> Seats</td>
                         <td class="py-3 text-end">
-                            <form method="POST" onsubmit="return confirm('Are you sure you want to delete this table?');">
+                            <form method="POST" class="js-confirm-form"
+                                data-swal-title="Delete this table?"
+                                data-swal-text="This cannot be undone."
+                                data-swal-confirm="Delete"
+                                data-swal-cancel="Cancel"
+                                data-swal-icon="warning">
                                 <input type="hidden" name="delete_table" value="1">
                                 <input type="hidden" name="table_id" value="<?= $t['id'] ?>">
                                 <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
@@ -35,7 +40,7 @@
                     <tr>
                         <td colspan="5" class="text-center text-muted py-5">
                             <i class="bi bi-info-circle display-4 d-block mb-3"></i>
-                            No tables configured yet. Click "Add New Table" to build your floorplan!
+                            No tables configured. Add a table to build the floor plan.
                         </td>
                     </tr>
                     <?php endif; ?>
@@ -89,8 +94,3 @@
         </div>
     </div>
 </div>
-<script>
-    <?php if(isset($_SESSION['swal_msg'])): ?>
-    Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false });
-    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
-</script>

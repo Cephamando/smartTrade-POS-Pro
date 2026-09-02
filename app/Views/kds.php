@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kitchen Display System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+    <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="js/app-alerts.js"></script>
     <style>
         body { background-color: #212529; color: #fff; padding: 20px; }
         .kds-header { display: flex; justify-content: space-between; align-items: center; mb-4; border-bottom: 2px solid #444; padding-bottom: 10px; }
@@ -31,7 +33,7 @@
         <div class="row g-3" id="ordersContainer">
             <div class="col-12 text-center mt-5 text-muted">
                 <div class="spinner-border text-light" role="status"></div>
-                <p class="mt-2">Connecting to Kitchen Server...</p>
+                <p class="mt-2">Connecting to kitchen…</p>
             </div>
         </div>
     </div>
@@ -112,7 +114,7 @@
 
             fetch('index.php?page=kds', { method: 'POST', body: formData })
                 .then(() => fetchOrders()) // Refresh immediately
-                .catch(err => alert("Error updating order"));
+                .catch(() => AppAlert.notify({ icon: 'error', title: 'Update failed', text: 'Unable to update this ticket. Try again.', confirmText: 'OK' }));
         }
 
         // Initial Load & Loop

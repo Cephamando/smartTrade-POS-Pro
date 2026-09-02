@@ -2,14 +2,22 @@
 
 namespace App\Models;
 
+use App\Helpers\Movement;
+
 final class Inventory extends Model
 {
     public static function ensureReasonColumn(): void
     {
+        $pdo = self::db();
         try {
-            self::db()->exec("ALTER TABLE inventory_logs ADD COLUMN reason VARCHAR(255) DEFAULT NULL");
+            $pdo->exec("ALTER TABLE inventory_logs ADD COLUMN reason VARCHAR(255) DEFAULT NULL");
         } catch (\Throwable $e) {
             // Column already exists.
+        }
+        try {
+            $pdo->exec('ALTER TABLE inventory MODIFY quantity DECIMAL(12,4) NOT NULL DEFAULT 0');
+        } catch (\Throwable $e) {
+            // Column already decimal or locked.
         }
     }
 
@@ -18,7 +26,7 @@ final class Inventory extends Model
         $stmt = self::db()->prepare('SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?');
         $stmt->execute([$productId, $locationId]);
         $qty = $stmt->fetchColumn();
-        return $qty !== false ? (float)$qty : 0.0;
+        return $qty !== false ? max(0.0, (float)$qty) : 0.0;
     }
 
     public static function filtered(string $locFilter, string $catFilter, string $search): array
@@ -26,7 +34,7 @@ final class Inventory extends Model
         $sql = "
             SELECT
                 i.location_id, i.id AS inventory_id, p.id AS product_id, p.name AS product_name, p.sku, p.price, p.cost_price, p.category_id,
-                c.name AS category_name, l.name AS location_name, i.quantity, (i.quantity * p.price) AS stock_value
+                c.name AS category_name, l.name AS location_name, GREATEST(i.quantity, 0) AS quantity, (GREATEST(i.quantity, 0) * p.price) AS stock_value
             FROM inventory i
             JOIN products p ON p.id = i.product_id
             JOIN locations l ON l.id = i.location_id
@@ -70,16 +78,31 @@ final class Inventory extends Model
                     continue;
                 }
                 $physQty = (float)$physQtys[$i];
+                if ($physQty < 0) {
+                    throw new \Exception('Physical count cannot be negative.');
+                }
                 $sysQty = (float)$sysQtys[$i];
                 $variance = $physQty - $sysQty;
                 if ($variance == 0) {
                     continue;
                 }
-                $pdo->prepare('UPDATE inventory SET quantity = ? WHERE id = ?')->execute([$physQty, (int)$invIds[$i]]);
+                $invId = (int)$invIds[$i];
+                $lock = $pdo->prepare('SELECT quantity FROM inventory WHERE id = ? FOR UPDATE');
+                $lock->execute([$invId]);
+                $live = max(0.0, (float)$lock->fetchColumn());
+                $newQty = max(0.0, $live + $variance);
+                $pdo->prepare('UPDATE inventory SET quantity = ? WHERE id = ?')->execute([$newQty, $invId]);
                 $pdo->prepare(
                     "INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reason, created_at)
                      VALUES (?, ?, ?, ?, ?, 'stock_take', ?, NOW())"
-                )->execute([(int)$prodIds[$i], (int)$locIds[$i], $userId, $variance, $physQty, trim($reasons[$i] ?? 'Physical Count Adjustment')]);
+                )->execute([
+                    (int)$prodIds[$i],
+                    (int)$locIds[$i],
+                    $userId,
+                    $newQty - $live,
+                    $newQty,
+                    trim($reasons[$i] ?? 'Physical Count Adjustment'),
+                ]);
                 $processedCount++;
             }
             $pdo->commit();
@@ -94,10 +117,41 @@ final class Inventory extends Model
 
     public static function updateQtyAndPrice(int $inventoryId, float $qty, float $price): void
     {
+        if ($qty < 0) {
+            throw new \Exception('Stock cannot be negative.');
+        }
         $pdo = self::db();
-        $pdo->prepare('UPDATE inventory SET quantity = ? WHERE id = ?')->execute([$qty, $inventoryId]);
+        $pdo->prepare('UPDATE inventory SET quantity = GREATEST(0, ?) WHERE id = ?')->execute([$qty, $inventoryId]);
         $pdo->prepare('UPDATE products p JOIN inventory i ON i.product_id = p.id SET p.price = ? WHERE i.id = ?')
             ->execute([$price, $inventoryId]);
+    }
+
+    public static function clampNegatives(int $userId): int
+    {
+        $pdo = self::db();
+        $rows = $pdo->query('SELECT id, product_id, location_id, quantity FROM inventory WHERE quantity < 0')->fetchAll();
+        if (!$rows) {
+            return 0;
+        }
+        $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare('UPDATE inventory SET quantity = 0 WHERE id = ?');
+            $log = $pdo->prepare(
+                "INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reason, created_at)
+                 VALUES (?, ?, ?, ?, 0, 'adjustment', 'Cleared negative stock', NOW())"
+            );
+            foreach ($rows as $row) {
+                $update->execute([$row['id']]);
+                $log->execute([$row['product_id'], $row['location_id'], $userId, -(float)$row['quantity']]);
+            }
+            $pdo->commit();
+            return count($rows);
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     public static function logs(string $startDate, string $endDate, string $actionFilter = ''): array
@@ -134,17 +188,35 @@ final class Inventory extends Model
         return ['sale', 'grv', 'transfer_in', 'transfer_out', 'adjustment'];
     }
 
-    public static function produce(int $productId, float $qty, int $targetLocId, int $userId): void
+    public static function produce(int $productId, float $qty, int $targetLocId, int $userId, ?int $sourceLocId = null): void
     {
+        $check = Movement::produceTo(Product::movementContext($productId), Location::find($targetLocId));
+        if (!$check['ok']) {
+            throw new \Exception($check['reason'] ?? 'This production move is not allowed.');
+        }
         $pdo = self::db();
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare('SELECT id, quantity FROM inventory WHERE product_id = ? AND location_id = ?');
+            $sourceLocId = Location::productionSource($sourceLocId);
+            $recipe = recipeLines($pdo, $productId);
+            if ($recipe && $sourceLocId > 0) {
+                foreach ($recipe as $ing) {
+                    consumeProduct(
+                        $pdo,
+                        (int)$ing['ingredient_product_id'],
+                        (float)$ing['quantity'] * $qty,
+                        $sourceLocId,
+                        $userId,
+                        'recipe_deduction'
+                    );
+                }
+            }
+            $stmt = $pdo->prepare('SELECT id, quantity FROM inventory WHERE product_id = ? AND location_id = ? FOR UPDATE');
             $stmt->execute([$productId, $targetLocId]);
             $inv = $stmt->fetch();
             if ($inv) {
-                $pdo->prepare('UPDATE inventory SET quantity = quantity + ? WHERE id = ?')->execute([$qty, $inv['id']]);
-                $newQty = $inv['quantity'] + $qty;
+                $newQty = max(0.0, (float)$inv['quantity']) + $qty;
+                $pdo->prepare('UPDATE inventory SET quantity = ? WHERE id = ?')->execute([$newQty, $inv['id']]);
             } else {
                 $pdo->prepare('INSERT INTO inventory (product_id, location_id, quantity) VALUES (?, ?, ?)')
                     ->execute([$productId, $targetLocId, $qty]);

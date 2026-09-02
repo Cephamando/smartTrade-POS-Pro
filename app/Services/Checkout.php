@@ -152,7 +152,7 @@ final class Checkout
             $fiscalizeAfterCommit = $settleTabId;
         }
         $session['swal_type'] = 'success';
-        $session['swal_msg'] = "Tab settled successfully.";
+        $session['swal_msg'] = 'Tab settled.';
     }
 
     private function newSale(
@@ -173,7 +173,7 @@ final class Checkout
         bool &$clearCartAfterCommit
     ): void {
         if (empty($session['cart']) || !is_array($session['cart'])) {
-            throw new \Exception("Cart is empty.");
+            throw new \Exception("The cart is empty.");
         }
         $total = 0;
         foreach ($session['cart'] as $item) {

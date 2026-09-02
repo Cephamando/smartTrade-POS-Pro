@@ -5,15 +5,20 @@ namespace App\Controllers;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Recipe;
+use App\Models\Unspsc;
 
 final class MenuController extends Controller
 {
     public function index(): void
     {
-        $role = $this->role();
-        if (!in_array($role, ['admin', 'manager', 'dev', 'head_chef', 'chef'], true)) {
-            die('<h1>Access Denied</h1><p>Only Chefs and Management can edit the Menu.</p>');
+        $this->requireRole(['admin', 'manager', 'dev', 'head_chef', 'chef']);
+        Unspsc::ensureTable();
+
+        if (isset($_GET['ajax']) && $_GET['ajax'] === 'unspsc_search') {
+            $this->jsonExit(['results' => Unspsc::search((string)($_GET['q'] ?? ''))]);
         }
+
+        $role = $this->role();
 
         $types = ($role === 'chef')
             ? ['food', 'meal']
@@ -22,26 +27,34 @@ final class MenuController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_menu_item'])) {
             try {
                 $id = $_POST['item_id'] ?? '';
-                Product::saveMenuItem(
+                $productId = Product::saveMenuItem(
                     $id ? (int)$id : null,
                     trim((string)$_POST['name']),
                     (float)$_POST['price'],
                     (float)($_POST['cost_price'] ?? 0),
-                    (int)$_POST['category_id']
+                    (int)$_POST['category_id'],
+                    (string)($_POST['unspsc_code'] ?? '')
                 );
                 $this->flash('success', $id ? 'Menu item updated.' : 'Menu item created.');
+                $this->maybeRegisterZra($productId);
             } catch (\Throwable $e) {
-                $this->flash('error', 'Error: ' . $e->getMessage());
+                $this->flash('error', $e->getMessage() ?: 'Unable to save the menu item.');
             }
             $this->redirect('menu');
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_recipe'])) {
             try {
-                Recipe::save((int)$_POST['parent_product_id'], $_POST['ingredient_id'] ?? [], $_POST['ingredient_qty'] ?? []);
-                $this->flash('success', 'Recipe saved successfully.');
+                $parentId = (int)$_POST['parent_product_id'];
+                Recipe::save($parentId, $_POST['ingredient_id'] ?? [], $_POST['ingredient_qty'] ?? []);
+                $code = trim((string)($_POST['unspsc_code'] ?? ''));
+                if ($code !== '') {
+                    Unspsc::assignToProduct($parentId, $code);
+                }
+                $this->flash('success', 'Recipe saved.');
+                $this->maybeRegisterZra($parentId);
             } catch (\Throwable $e) {
-                $this->flash('error', 'Database Error: ' . $e->getMessage());
+                $this->flash('error', $e->getMessage() ?: 'Unable to save the recipe.');
             }
             $this->redirect('menu');
         }
@@ -58,5 +71,34 @@ final class MenuController extends Controller
             'allIngredients' => Product::allIngredients(),
             'recipesGrouped' => Recipe::grouped(),
         ]);
+    }
+
+    private function maybeRegisterZra(int $productId): void
+    {
+        if (empty($_POST['register_zra']) || $productId <= 0) {
+            return;
+        }
+        $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
+        if (!in_array($tier, ['enterprise'], true) && $this->role() !== 'dev') {
+            return;
+        }
+        try {
+            $product = Product::movementContext($productId);
+            if (!$product) {
+                return;
+            }
+            if (empty($product['unspsc_code'])) {
+                $this->flash('error', 'Assign a UNSPSC code before registering the item with ZRA.');
+                return;
+            }
+            $res = (new \ZraVsdcClient($this->pdo()))->saveItem($product);
+            if (($res['resultCd'] ?? '') === '000') {
+                $this->flash('success', 'Saved and registered with ZRA Smart Invoice.');
+            } else {
+                $this->flash('error', $res['resultMsg'] ?? 'ZRA registration did not complete.');
+            }
+        } catch (\Throwable $e) {
+            $this->flash('error', 'Saved locally, but ZRA registration failed: ' . $e->getMessage());
+        }
     }
 }

@@ -9,7 +9,8 @@ final class KdsController extends Controller
     public function index(): void
     {
         if (!in_array($this->role(), ['chef', 'head_chef', 'kitchen', 'admin', 'dev', 'manager'], true)) {
-            die('Access Denied: Kitchen Staff Only.');
+            $this->flash('error', 'Only kitchen staff can open the kitchen display.');
+            $this->redirect('dashboard');
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {

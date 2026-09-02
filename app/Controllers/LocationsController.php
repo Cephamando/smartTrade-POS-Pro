@@ -15,14 +15,14 @@ final class LocationsController extends Controller
                 $name = trim((string)$_POST['name']);
                 if ($name !== '') {
                     Location::create($name, (string)$_POST['type'], trim((string)$_POST['address']));
-                    $this->flash('success', "Location '$name' created successfully.");
+                    $this->flash('success', "Location '$name' created.");
                 }
             } elseif (isset($_POST['delete_location'])) {
                 $result = Location::delete((int)$_POST['location_id']);
                 if ($result === 'stock') {
-                    $this->flash('error', 'Cannot delete: This location still has stock.');
+                    $this->flash('error', 'This location still has stock and cannot be deleted.');
                 } elseif ($result === 'sales') {
-                    $this->flash('error', 'Cannot delete: Historical sales data exists for this location.');
+                    $this->flash('error', 'This location has sales history and cannot be deleted.');
                 } else {
                     $this->flash('success', 'Location deleted.');
                 }

@@ -133,7 +133,7 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
                                     </div>
                                 <?php else: ?>
                                      <div class="alert alert-info border-info">
-                                        <i class="bi bi-info-circle"></i> Please ensure your station is clean before clocking in.
+                                        <i class="bi bi-info-circle"></i> Confirm the station is ready before clocking in.
                                      </div>
                                 <?php endif; ?>
 

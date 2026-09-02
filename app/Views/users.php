@@ -38,7 +38,12 @@
                         <?php else: ?>
                             <button class="btn btn-sm btn-outline-primary" onclick='editUser(<?= json_encode($u) ?>)'><i class="bi bi-pencil"></i></button>
                             <?php if ($u['id'] !== $_SESSION['user_id']): ?>
-                            <form method="POST" class="d-inline" onsubmit="return confirm('WARNING: Are you sure you want to permanently delete this user?');">
+                            <form method="POST" class="d-inline js-confirm-form"
+                                data-swal-title="Delete this user?"
+                                data-swal-text="The account will be removed. Users with history are deactivated instead."
+                                data-swal-confirm="Delete"
+                                data-swal-cancel="Cancel"
+                                data-swal-icon="warning">
                                 <input type="hidden" name="delete_user" value="1">
                                 <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
@@ -151,14 +156,4 @@ function editUser(user) {
     
     new bootstrap.Modal(document.getElementById('userModal')).show();
 }
-
-<?php if(isset($_SESSION['swal_msg'])): ?>
-Swal.fire({
-    icon: '<?= $_SESSION['swal_type'] ?>',
-    title: '<?= $_SESSION['swal_msg'] ?>',
-    timer: 2000,
-    showConfirmButton: false
-});
-<?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-<?php endif; ?>
 </script>

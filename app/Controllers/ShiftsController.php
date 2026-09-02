@@ -21,25 +21,25 @@ final class ShiftsController extends Controller
                 if (isset($_POST['start_shift'])) {
                     $mgrId = User::verifyShiftManager((string)($_POST['manager_password'] ?? ''), $locId, $userId);
                     if ($mgrId === 'SELF_ERROR') {
-                        throw new \Exception('⛔ Security: You cannot verify your own shift.');
+                        throw new \Exception('You cannot authorize your own shift.');
                     }
                     if (!$mgrId) {
-                        throw new \Exception('Incorrect Manager Password.');
+                        throw new \Exception('Manager password is incorrect.');
                     }
                     if (Shift::userHasOpen($userId)) {
                         throw new \Exception('You already have an open shift.');
                     }
                     $startingCash = $isMoneyRole ? ($_POST['start_amount'] ?? 0) : 0;
                     Shift::start($userId, $locId, (float)$startingCash, (int)$mgrId);
-                    $this->flash('success', 'Clock-In Successful!');
+                    $this->flash('success', 'Shift started.');
                 }
                 if (isset($_POST['end_shift'])) {
                     $mgrId = User::verifyShiftManager((string)($_POST['manager_password'] ?? ''), $locId, $userId);
                     if ($mgrId === 'SELF_ERROR') {
-                        throw new \Exception('⛔ Security: You cannot verify your own shift close.');
+                        throw new \Exception('You cannot authorize your own shift close.');
                     }
                     if (!$mgrId) {
-                        throw new \Exception('Incorrect Manager Password.');
+                        throw new \Exception('Manager password is incorrect.');
                     }
                     $closingCash = 0;
                     $notes = null;
@@ -53,7 +53,7 @@ final class ShiftsController extends Controller
                         $notes = $_POST['handover_notes'] ?? '';
                     }
                     Shift::close((int)$_POST['shift_id'], (float)$closingCash, (float)$managerCount, $varianceReason, $notes, (int)$mgrId);
-                    $this->flash('success', 'Shift Closed Successfully.');
+                    $this->flash('success', 'Shift closed.');
                 }
             } catch (\Throwable $e) {
                 $this->flash('error', $e->getMessage());

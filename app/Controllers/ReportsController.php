@@ -20,7 +20,7 @@ final class ReportsController extends Controller
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['refund_sale'])) {
             if (!$this->isManager()) {
-                $this->flash('error', 'Permission Denied.');
+                $this->flash('error', 'You do not have permission to process refunds.');
                 $this->redirect('reports');
             }
             $saleId = (int)$_POST['sale_id'];
@@ -28,9 +28,9 @@ final class ReportsController extends Controller
             if (!$sale) {
                 $this->flash('error', 'Sale not found.');
             } elseif (strtolower($sale['payment_status']) === 'refunded') {
-                $this->flash('warning', 'Already refunded.');
+                $this->flash('warning', 'This sale has already been refunded.');
             } elseif (strtolower($sale['payment_status']) !== 'paid') {
-                $this->flash('error', 'Cannot refund unpaid sales.');
+                $this->flash('error', 'Unpaid sales cannot be refunded.');
             } else {
                 $pdo = $this->pdo();
                 $pdo->beginTransaction();
@@ -55,10 +55,10 @@ final class ReportsController extends Controller
                         )->execute([$item['product_id'], $sale['location_id'], $this->userId(), $item['quantity'], $newQty, $saleId]);
                     }
                     $pdo->commit();
-                    $this->flash('success', 'Refund Processed & Stock Restored.');
+                    $this->flash('success', 'Refund processed and stock restored.');
                 } catch (\Throwable $e) {
                     $pdo->rollBack();
-                    $this->flash('error', 'DB Error: ' . $e->getMessage());
+                    $this->flash('error', 'Unable to process the refund.');
                 }
             }
             $this->redirect('reports');

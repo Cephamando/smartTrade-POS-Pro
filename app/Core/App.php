@@ -34,7 +34,7 @@ final class App
         header('X-Content-Type-Options: nosniff');
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
         header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
-        header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: https://api.qrserver.com;");
+        header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: https://api.qrserver.com; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval';");
     }
 
     private function bootSession(): void
@@ -189,28 +189,28 @@ final class App
 
         if (isset($_SESSION['user_id'])) {
             $proPlusFeatures = ['kds', 'kitchen', 'menu', 'tables'];
-            $proFeatures = ['members', 'audit', 'receive_stock', 'transfers', 'pickup'];
+            $proFeatures = ['members', 'audit', 'receive_stock', 'purchasing', 'transfers', 'pickup'];
 
             if (in_array($page, $proPlusFeatures, true) && !in_array(LICENSE_TIER, ['pro+', 'enterprise'], true)) {
                 $_SESSION['swal_type'] = 'error';
-                $_SESSION['swal_msg'] = 'Feature locked. Requires Pro+ or Enterprise tier.';
+                $_SESSION['swal_msg'] = 'This feature requires Pro+ or Enterprise.';
                 $page = in_array($userRole, ['admin', 'manager', 'dev'], true) ? 'dashboard' : 'pos';
             }
 
             if (in_array($page, $proFeatures, true) && LICENSE_TIER === 'lite') {
                 $_SESSION['swal_type'] = 'error';
-                $_SESSION['swal_msg'] = 'Feature locked. Requires at least Pro tier.';
+                $_SESSION['swal_msg'] = 'This feature requires Pro or higher.';
                 $page = in_array($userRole, ['admin', 'manager', 'dev'], true) ? 'dashboard' : 'pos';
             }
         }
 
         if (SYSTEM_LOCKED && isset($_SESSION['role']) && $_SESSION['role'] !== 'dev') {
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && $page !== 'login') {
-                die("<div style='padding:20px; color:red; font-family:sans-serif;'><h2>SYSTEM LOCKED</h2><p>Modifications disabled. License expired.</p><a href='index.php'>Go Back</a></div>");
+                die("<div style='padding:20px; font-family:sans-serif;'><h2>License expired</h2><p>Changes are disabled until the license is renewed.</p><a href='index.php'>Return</a></div>");
             }
             if (!in_array($userRole, ['admin', 'manager'], true)) {
                 if ($page !== 'logout') {
-                    die("<div style='text-align:center; padding-top:150px; font-family:sans-serif; background:#111; color:#fff; height:100vh; margin:0;'><h1 style='color:#ff4d4d; font-size: 3rem;'>SYSTEM LOCKED</h1><p style='font-size: 1.2rem; color: #ccc;'>Software license has expired. Please notify management.</p><br><br><a href='index.php?action=logout' style='color:#fff; background: #dc3545; border-radius: 5px; padding:15px 30px; text-decoration:none; font-weight: bold;'>LOGOUT</a></div>");
+                    die("<div style='text-align:center; padding-top:150px; font-family:sans-serif; background:#111; color:#fff; height:100vh; margin:0;'><h1 style='color:#ff4d4d; font-size: 3rem;'>License expired</h1><p style='font-size: 1.2rem; color: #ccc;'>Notify management to restore access.</p><br><br><a href='index.php?action=logout' style='color:#fff; background: #dc3545; border-radius: 5px; padding:15px 30px; text-decoration:none; font-weight: bold;'>Sign out</a></div>");
                 }
             } else {
                 $allowedWhenLocked = ['reports', 'z_read', 'logout', 'receipt', 'print_shift'];

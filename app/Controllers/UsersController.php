@@ -10,7 +10,8 @@ final class UsersController extends Controller
     public function index(): void
     {
         if (!in_array($this->role(), ['admin', 'dev'], true)) {
-            die('<h1>Access Denied</h1><p>You do not have permission to manage users.</p>');
+            $this->flash('error', 'You do not have permission to manage users.');
+            $this->redirect('dashboard');
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -27,9 +28,9 @@ final class UsersController extends Controller
                         $role,
                         (int)$_POST['location_id']
                     );
-                    $this->flash('success', 'User created successfully.');
+                    $this->flash('success', 'User created.');
                 } catch (\Throwable $e) {
-                    $this->flash('error', 'Error: Username might already be taken.');
+                    $this->flash('error', 'That username is already in use.');
                 }
                 $this->redirect('users');
             }
@@ -39,7 +40,7 @@ final class UsersController extends Controller
                 $target = User::findById($userId);
                 $targetRole = $target['role'] ?? '';
                 if ($targetRole === 'dev' && $this->role() !== 'dev') {
-                    $this->flash('error', 'Access Denied: You cannot modify the Developer account.');
+                    $this->flash('error', 'The developer account cannot be modified.');
                     $this->redirect('users');
                 }
                 $role = (string)$_POST['role'];
@@ -49,9 +50,9 @@ final class UsersController extends Controller
                 try {
                     $hash = !empty($_POST['password']) ? password_hash((string)$_POST['password'], PASSWORD_DEFAULT) : null;
                     User::update($userId, trim((string)$_POST['username']), trim((string)$_POST['full_name']), $role, (int)$_POST['location_id'], $hash);
-                    $this->flash('success', 'User updated successfully.');
+                    $this->flash('success', 'User updated.');
                 } catch (\Throwable $e) {
-                    $this->flash('error', 'Error updating user.');
+                    $this->flash('error', 'Unable to update this user.');
                 }
                 $this->redirect('users');
             }
@@ -61,19 +62,19 @@ final class UsersController extends Controller
                 $target = User::findById($userId);
                 $targetRole = $target['role'] ?? '';
                 if ($targetRole === 'dev') {
-                    $this->flash('error', 'Critical: The Developer account is protected and cannot be deleted.');
+                    $this->flash('error', 'The developer account cannot be deleted.');
                 } elseif ($userId === $this->userId()) {
-                    $this->flash('error', 'You cannot delete your active session.');
+                    $this->flash('error', 'You cannot delete the signed-in account.');
                 } else {
                     try {
                         $result = User::deleteOrDeactivate($userId);
                         if ($result === 'deactivated') {
-                            $this->flash('info', 'User has historical data. Account safely deactivated instead.');
+                            $this->flash('info', 'This user has history, so the account was deactivated.');
                         } else {
-                            $this->flash('success', 'User deleted successfully.');
+                            $this->flash('success', 'User deleted.');
                         }
                     } catch (\Throwable $e) {
-                        $this->flash('error', 'Error deleting user: ' . $e->getMessage());
+                        $this->flash('error', 'Unable to delete this user.');
                     }
                 }
                 $this->redirect('users');

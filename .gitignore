@@ -9,7 +9,7 @@ docker/mysql/data/
 docker/storage/
 
 # --- Dependencies ---
-vendor/
+/vendor/
 node_modules/
 
 # --- OS & IDE Junk ---

@@ -119,7 +119,8 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
         </div>
         <div class="alert alert-info small">
             After a successful handshake, click <strong>Sync standard codes</strong>, then
-            <strong>Sync UNSPSC classes</strong>, then <strong>Register products</strong>.
+            <strong>Sync UNSPSC classes</strong> (or <a href="index.php?page=unspsc">import UNSPSC-Classification-Codes.xlsx</a>), then
+            <strong>Register products</strong>.
             Item class must be a <strong>level-4 UNSPSC</strong> from that list (for example
             <code>50202201</code> Beer). Family codes such as <code>50101500</code> are rejected.
             Do not click Initialize again, and do not recreate the <code>vsdc</code> container

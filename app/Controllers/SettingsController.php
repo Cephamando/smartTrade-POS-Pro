@@ -33,9 +33,9 @@ final class SettingsController extends Controller
             }
             try {
                 Setting::save($settingsToSave);
-                $this->flash('success', 'Settings saved successfully.');
+                $this->flash('success', 'Settings saved.');
             } catch (\Throwable $e) {
-                $this->flash('error', 'Error saving settings: ' . $e->getMessage());
+                $this->flash('error', 'Unable to save settings.');
             }
             $this->redirect('settings');
         }

@@ -90,13 +90,19 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (isset($pendingDispatch)): foreach ($pendingDispatch as $t): ?>
-                        <tr>
+                        <?php if (isset($pendingDispatch)): foreach ($pendingDispatch as $t):
+                            $ctx = \App\Models\Product::movementContext((int)$t['product_id']);
+                            $src = \App\Models\Location::find((int)$t['source_location_id']);
+                            $dst = \App\Models\Location::find((int)$t['dest_location_id']);
+                            $move = \App\Helpers\Movement::transfer($ctx, $src, $dst);
+                        ?>
+                        <tr class="<?= $move['ok'] ? '' : 'table-secondary' ?>">
                             <td><?= htmlspecialchars($t['dest_name'] ?? '') ?></td>
                             <td class="fw-bold"><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['created_at'])) ?></td>
                             <td class="text-end">
+                                <?php if ($move['ok']): ?>
                                 <form method="POST" action="index.php?page=transfers" class="d-inline">
                                     <input type="hidden" name="dispatch_transfer" value="1">
                                     <input type="hidden" name="transfer_id" value="<?= $t['id'] ?>">
@@ -104,6 +110,12 @@
                                         <i class="bi bi-box-seam"></i> Dispatch
                                     </button>
                                 </form>
+                                <?php else: ?>
+                                    <span class="text-muted small d-inline-flex align-items-center gap-1" title="<?= htmlspecialchars($move['reason']) ?>" data-bs-toggle="tooltip">
+                                        <i class="bi bi-info-circle text-info"></i> Blocked
+                                    </span>
+                                    <div class="small text-muted mt-1"><?= htmlspecialchars($move['reason']) ?></div>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; endif; ?>
@@ -140,7 +152,12 @@
                             <td><?= $t['quantity'] ?></td>
                             <td><span class="badge bg-secondary">Pending Approval</span></td>
                             <td>
-                                <form method="POST" action="index.php?page=transfers" onsubmit="return confirm('Cancel this request?');">
+                                <form method="POST" action="index.php?page=transfers" class="js-confirm-form"
+                                    data-swal-title="Cancel this request?"
+                                    data-swal-text="The requisition will be withdrawn."
+                                    data-swal-confirm="Cancel request"
+                                    data-swal-cancel="Keep"
+                                    data-swal-icon="warning">
                                     <input type="hidden" name="cancel_transfer" value="1">
                                     <input type="hidden" name="transfer_id" value="<?= $t['id'] ?>">
                                     <button class="btn btn-sm btn-outline-danger">Cancel</button>
@@ -173,8 +190,13 @@
                         <label class="form-label fw-bold small text-muted">1. SELECT PRODUCT</label>
                         <select name="product_id" id="req_product_id" class="form-select form-select-lg fw-bold border-primary shadow-sm" required>
                             <option value="">-- Choose an item --</option>
-                            <?php if(isset($products)): foreach($products as $p): ?>
-                                <option value="<?= $p['id'] ?>"><?= htmlspecialchars($p['name'] ?? '') ?></option>
+                            <?php if(isset($products)): foreach($products as $p):
+                                $raw = \App\Helpers\Movement::isRawProduct($p);
+                                $reason = $raw ? 'Raw food cannot be transferred to a POS. Keep it in kitchen or warehouse, then produce the finished dish.' : '';
+                            ?>
+                                <option value="<?= $p['id'] ?>" data-raw="<?= $raw ? '1' : '0' ?>" data-reason="<?= htmlspecialchars($reason) ?>">
+                                    <?= htmlspecialchars($p['name'] ?? '') ?><?= $raw ? ' — RAW' : '' ?>
+                                </option>
                             <?php endforeach; endif; ?>
                         </select>
                     </div>
@@ -185,11 +207,11 @@
                                 <label class="form-label fw-bold text-danger small"><i class="bi bi-box-arrow-right"></i> SOURCE (FROM)</label>
                                 <select name="source_location_id" id="source_loc_id" class="form-select mb-3 border-danger" required>
                                     <option value="">-- Request From --</option>
-                                    <?php if(isset($locations)): foreach($locations as $l): ?>
-                                        <option value="<?= $l['id'] ?>">
+                                    <?php foreach ($locations as $l): ?>
+                                        <option value="<?= $l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" data-pos="<?= \App\Helpers\Movement::isFrontOfHouse($l) ? '1' : '0' ?>">
                                             <?= htmlspecialchars($l['name'] ?? '') ?>
                                         </option>
-                                    <?php endforeach; endif; ?>
+                                    <?php endforeach; ?>
                                 </select>
                                 <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded">
                                     <span class="small text-muted fw-bold">AVAILABLE STOCK</span>
@@ -203,11 +225,11 @@
                                 <label class="form-label fw-bold text-success small"><i class="bi bi-box-arrow-in-left"></i> DESTINATION (TO)</label>
                                 <select name="dest_location_id" id="dest_loc_id" class="form-select mb-3 border-success" required>
                                     <option value="">-- Send To --</option>
-                                    <?php if(isset($locations)): foreach($locations as $l): ?>
-                                        <option value="<?= $l['id'] ?>" <?= ($l['id'] == ($_SESSION['location_id'] ?? 0)) ? 'selected' : '' ?>>
+                                    <?php foreach ($locations as $l): ?>
+                                        <option value="<?= $l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" data-pos="<?= \App\Helpers\Movement::isFrontOfHouse($l) ? '1' : '0' ?>" <?= ($l['id'] == ($_SESSION['location_id'] ?? 0)) ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($l['name'] ?? '') ?>
                                         </option>
-                                    <?php endforeach; endif; ?>
+                                    <?php endforeach; ?>
                                 </select>
                                 <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded">
                                     <span class="small text-muted fw-bold">CURRENT STOCK</span>
@@ -217,6 +239,7 @@
                         </div>
                     </div>
 
+                    <div id="moveHint" class="alert alert-info py-2 small d-none mt-3 mb-0"></div>
                     <div class="mt-4 pt-3 border-top">
                         <label class="form-label fw-bold small text-muted">REQUEST QUANTITY</label>
                         <div class="input-group input-group-lg shadow-sm">
@@ -227,7 +250,7 @@
                 </div>
                 <div class="modal-footer border-0 bg-light">
                     <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary fw-bold px-5 shadow-sm">
+                    <button type="submit" class="btn btn-primary fw-bold px-5 shadow-sm" id="reqSubmitBtn">
                         <i class="bi bi-send"></i> Send Requisition
                     </button>
                 </div>
@@ -243,12 +266,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const sourceSelect = document.getElementById('source_loc_id');
     const destSelect = document.getElementById('dest_loc_id');
 
-    prodSelect.addEventListener('change', updateDualStock);
-    sourceSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); });
-    destSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); });
+    prodSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); refreshMoveRules(); });
+    sourceSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); refreshMoveRules(); });
+    destSelect.addEventListener('change', () => { filterLocations(); updateDualStock(); refreshMoveRules(); });
 
     filterLocations();
     updateDualStock();
+    refreshMoveRules();
+
+    function refreshMoveRules() {
+        const opt = prodSelect.options[prodSelect.selectedIndex];
+        const raw = opt && opt.dataset.raw === '1';
+        const reason = (opt && opt.dataset.reason) || '';
+        const hint = document.getElementById('moveHint');
+        const submit = document.getElementById('reqSubmitBtn');
+        Array.from(destSelect.options).forEach(o => {
+            if (!o.value) return;
+            const blocked = raw && o.dataset.pos === '1';
+            o.disabled = blocked || o.value === sourceSelect.value;
+            o.style.color = blocked ? '#aaa' : '';
+        });
+        const destOpt = destSelect.options[destSelect.selectedIndex];
+        const destBlocked = raw && destOpt && destOpt.dataset.pos === '1';
+        if (hint) {
+            if (raw) {
+                hint.classList.remove('d-none');
+                hint.innerHTML = '<i class="bi bi-info-circle"></i> ' + (reason || 'Raw food cannot be sent to a POS location.');
+            } else {
+                hint.classList.add('d-none');
+                hint.innerHTML = '';
+            }
+        }
+        if (destBlocked) {
+            destSelect.value = '';
+        }
+        if (submit) {
+            submit.disabled = destBlocked;
+            submit.classList.toggle('disabled', destBlocked);
+        }
+    }
 
     function filterLocations() {
         const sourceVal = sourceSelect.value;

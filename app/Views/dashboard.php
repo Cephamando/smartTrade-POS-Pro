@@ -7,7 +7,7 @@ $dates = $dates ?? [];
 $salesData = $salesData ?? [];
 $pmData = $pmData ?? [];
 ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="vendor/chartjs/chart.umd.min.js"></script>
 
 <style>
     .hover-card-zoom { transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; }

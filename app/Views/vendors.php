@@ -23,7 +23,12 @@
                     <td><?= htmlspecialchars($v['contact_person'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($v['phone'] ?? '-') ?></td>
                     <td class="text-end">
-                        <form method="POST" action="index.php?page=vendors" class="d-inline" onsubmit="return confirm('Delete this vendor?');">
+                        <form method="POST" action="index.php?page=vendors" class="d-inline js-confirm-form"
+                            data-swal-title="Delete this vendor?"
+                            data-swal-text="This cannot be undone."
+                            data-swal-confirm="Delete"
+                            data-swal-cancel="Cancel"
+                            data-swal-icon="warning">
                             <input type="hidden" name="delete_vendor" value="1">
                             <input type="hidden" name="vendor_id" value="<?= $v['id'] ?>">
                             <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>

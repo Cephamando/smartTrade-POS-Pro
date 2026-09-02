@@ -8,9 +8,9 @@
                 
                 <?php if (!empty($_SESSION['force_change'])): ?>
                     <div class="alert alert-warning border-warning">
-                        <i class="bi bi-exclamation-triangle-fill"></i> 
-                        <strong>Security Notice:</strong><br>
-                        You must change your password before continuing.
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Password update required.</strong><br>
+                        Change your password before continuing.
                     </div>
                 <?php endif; ?>
 

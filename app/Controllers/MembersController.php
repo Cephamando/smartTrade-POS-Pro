@@ -19,14 +19,14 @@ final class MembersController extends Controller
             try {
                 if (isset($_POST['save_member'])) {
                     Member::create((string)$_POST['name'], (string)$_POST['phone'], (string)$_POST['email']);
-                    $this->flash('success', 'Member Registered Successfully!');
+                    $this->flash('success', 'Member registered.');
                 }
                 if (isset($_POST['update_member'])) {
                     Member::update((int)$_POST['member_id'], (string)$_POST['name'], (string)$_POST['phone'], (string)$_POST['email']);
-                    $this->flash('success', 'Member Updated!');
+                    $this->flash('success', 'Member updated.');
                 }
             } catch (\PDOException $e) {
-                $this->flash('error', isset($_POST['save_member']) ? 'Error: Phone number may already exist.' : 'Error updating member.');
+                $this->flash('error', isset($_POST['save_member']) ? 'That phone number is already registered.' : 'Unable to update this member.');
             }
             $this->redirect('members');
         }

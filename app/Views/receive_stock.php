@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <title>Receive Stock (GRV)</title>
     <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+    <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <style>
         body { background-color: #f8f9fa; }
         .header-bar { background-color: #3e2723; color: white; padding: 15px; border-bottom: 4px solid #ffc107; }
@@ -158,62 +158,8 @@
             }
         }
     });
-
-    // --- ALERT HANDLING FIX ---
-    <?php if(isset($_SESSION['swal_msg'])): ?>
-        const type = <?= json_encode($_SESSION['swal_type']) ?>;
-        const msg = <?= json_encode($_SESSION['swal_msg']) ?>;
-        
-        Swal.fire({
-            icon: type,
-            title: type === 'success' ? 'Success' : 'Error',
-            text: msg,
-            timer: type === 'success' ? 2000 : undefined,
-            showConfirmButton: type !== 'success'
-        }).then(() => {
-            if (type === 'success') {
-                window.location.href = 'index.php?page=inventory';
-            }
-        });
-    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-    <?php endif; ?>
 </script>
 
 </body>
 </html>
 
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script>
-    $(document).ready(function() {
-        // 1. Instantly upgrade all existing dropdowns on the page (Vendors, Products, Locations)
-        $('select').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Type to search...'
-        });
-
-        // 2. Failsafe: If you click "Add Item" to spawn a new row dynamically, 
-        // this observer watches the DOM and instantly upgrades the new dropdowns!
-        const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                if (mutation.addedNodes && mutation.addedNodes.length > 0) {
-                    // Find any newly added <select> tags that haven't been upgraded yet
-                    $(mutation.addedNodes).find('select').not('.select2-hidden-accessible').select2({
-                        theme: 'bootstrap-5',
-                        width: '100%',
-                        placeholder: 'Type to search...'
-                    });
-                }
-            });
-        });
-        
-        // Start watching the table body (or form) for newly added rows
-        const grvContainer = document.querySelector('form') || document.querySelector('tbody');
-        if(grvContainer) {
-            observer.observe(grvContainer, { childList: true, subtree: true });
-        }
-    });
-</script>

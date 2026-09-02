@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pickup Screen</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+    <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="js/app-alerts.js"></script>
     <style>
         body { background-color: #2c3e50; color: #ecf0f1; font-family: sans-serif; }
         .pickup-header { background: #34495e; padding: 20px; border-bottom: 4px solid #27ae60; margin-bottom: 30px; }
@@ -78,7 +80,7 @@
 
     <iframe id="receiptFrame" style="display:none;"></iframe>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script>
         setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
         
@@ -88,35 +90,48 @@
         function confirmCollection(event, saleId) {
             event.preventDefault();
             const form = event.target;
-            const btn = form.querySelector('button');
-            const originalText = btn.innerHTML;
-            
-            btn.disabled = true;
-            btn.innerHTML = 'Processing...';
+            const collectedBy = form.querySelector('[name="collected_by"]');
+            if (!collectedBy || !collectedBy.value) {
+                AppAlert.notify({ icon: 'warning', title: 'Staff required', text: 'Select who collected this order.', confirmText: 'OK' });
+                return;
+            }
 
-            const formData = new FormData(form);
+            AppAlert.confirm({
+                title: 'Confirm collection?',
+                text: 'This order will be marked collected and a receipt will print.',
+                confirmText: 'Collect',
+                cancelText: 'Cancel',
+                icon: 'question',
+                confirmColor: '#198754'
+            }).then(function (ok) {
+                if (!ok) {
+                    return;
+                }
+                const btn = form.querySelector('button');
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = 'Processing...';
 
-            fetch('index.php?page=pickup', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    // Print Receipt
-                    const frame = document.getElementById('receiptFrame');
-                    frame.src = 'index.php?page=receipt&sale_id=' + saleId;
-                    frame.onload = function() { frame.contentWindow.print(); };
-                    
-                    // Remove Card
-                    document.getElementById('order-card-' + saleId).remove();
-                } else {
-                    alert("Error processing collection");
+                fetch('index.php?page=pickup', { method: 'POST', body: new FormData(form) })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const frame = document.getElementById('receiptFrame');
+                        frame.src = 'index.php?page=receipt&sale_id=' + saleId;
+                        frame.onload = function() { frame.contentWindow.print(); };
+                        document.getElementById('order-card-' + saleId).remove();
+                    } else {
+                        AppAlert.notify({ icon: 'error', title: 'Collection failed', text: 'Unable to complete collection. Try again.', confirmText: 'OK' });
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    AppAlert.notify({ icon: 'error', title: 'Collection failed', text: 'Unable to complete collection. Try again.', confirmText: 'OK' });
                     btn.disabled = false;
                     btn.innerHTML = originalText;
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                });
             });
         }
     </script>

@@ -31,9 +31,10 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.
 RUN echo "ServerTokens Prod\nServerSignature Off" >> /etc/apache2/apache2.conf
 
 # 6. PHP Custom Config
-RUN echo "memory_limit = 256M\n\
+RUN echo "memory_limit = 512M\n\
 upload_max_filesize = 64M\n\
 post_max_size = 64M\n\
+max_execution_time = 300\n\
 display_errors = Off\n\
 log_errors = On" > /usr/local/etc/php/conf.d/app.ini
 

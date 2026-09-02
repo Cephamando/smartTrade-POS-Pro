@@ -17,7 +17,7 @@ final class CategoriesController extends Controller
                 $parentId = !empty($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
                 if ($name !== '') {
                     if (Category::nameTaken($name)) {
-                        $this->flash('error', "Category '$name' already exists.");
+                        $this->flash('error', "A category named '$name' already exists.");
                     } else {
                         Category::create($name, $type, $parentId);
                         $this->flash('success', "Category '$name' created.");
@@ -30,7 +30,7 @@ final class CategoriesController extends Controller
                 $parentId = !empty($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
                 if ($name !== '') {
                     if (Category::nameTaken($name, $id)) {
-                        $this->flash('error', "Category name '$name' already in use.");
+                        $this->flash('error', "A category named '$name' already exists.");
                     } else {
                         Category::update($id, $name, $type, $parentId);
                         $this->flash('success', 'Category updated.');
@@ -39,9 +39,9 @@ final class CategoriesController extends Controller
             } elseif (isset($_POST['delete_category'])) {
                 $result = Category::delete((int)$_POST['category_id']);
                 if ($result === 'products') {
-                    $this->flash('error', 'Cannot delete: Products are linked to this category.');
+                    $this->flash('error', 'This category has products and cannot be deleted.');
                 } elseif ($result === 'children') {
-                    $this->flash('error', 'Cannot delete: This category contains subcategories.');
+                    $this->flash('error', 'Remove subcategories before deleting this category.');
                 } else {
                     $this->flash('success', 'Category deleted.');
                 }

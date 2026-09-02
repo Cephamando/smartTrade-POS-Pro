@@ -38,7 +38,12 @@
                                     onclick="editCategory(<?= $c['id'] ?>, '<?= htmlspecialchars(addslashes($c['name'])) ?>', '<?= $c['type'] ?>', '<?= $c['parent_id'] ?>')">
                                     <i class="bi bi-pencil"></i> Edit
                                 </button>
-                                <form method="POST" action="index.php?page=categories" class="d-inline ms-1" onsubmit="return confirm('Delete <?= htmlspecialchars(addslashes($c['name'])) ?>?');">
+                                <form method="POST" action="index.php?page=categories" class="d-inline ms-1 js-confirm-form"
+                                    data-swal-title="Delete this category?"
+                                    data-swal-text="<?= htmlspecialchars($c['name'], ENT_QUOTES) ?> will be removed if it has no products or subcategories."
+                                    data-swal-confirm="Delete"
+                                    data-swal-cancel="Cancel"
+                                    data-swal-icon="warning">
                                     <input type="hidden" name="delete_category" value="1">
                                     <input type="hidden" name="category_id" value="<?= $c['id'] ?>">
                                     <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
@@ -57,8 +62,8 @@
     
     <div class="col-md-3">
         <div class="alert alert-info shadow-sm border-info">
-            <i class="bi bi-info-circle-fill"></i> <strong>Hierarchy Tip:</strong>
-            <p class="mb-0 mt-2 small">You can nest categories by assigning a "Parent Folder". For example, nest "Lagers" under the Master "Beverages" category to create the Drill-Down menu on the POS!</p>
+            <i class="bi bi-info-circle-fill"></i> <strong>Category hierarchy</strong>
+            <p class="mb-0 mt-2 small">Nest a subcategory under a parent to build the POS drill-down menu. Example: Lagers under Beverages.</p>
         </div>
     </div>
 </div>

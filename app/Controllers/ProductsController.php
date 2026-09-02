@@ -12,7 +12,12 @@ final class ProductsController extends Controller
         $this->requireRole(['admin', 'manager', 'dev']);
         $userLocId = (int)($_SESSION['location_id'] ?? 0);
         if (!$userLocId) {
-            die('Error: User location not set.');
+            $this->flash('error', 'No location is assigned to this account.');
+            $this->redirect('dashboard');
+        }
+
+        if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+            Product::exportCsv();
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -20,10 +25,10 @@ final class ProductsController extends Controller
                 if (isset($_POST['add_category'])) {
                     $name = trim((string)$_POST['category_name']);
                     if ($name === '') {
-                        throw new \Exception('Category Name is required');
+                        throw new \Exception('Category name is required.');
                     }
                     Category::create($name);
-                    $this->flash('success', "Category '$name' created!");
+                    $this->flash('success', "Category '$name' created.");
                 }
                 if (isset($_POST['save_product'])) {
                     $name = trim((string)$_POST['name']);
@@ -42,16 +47,21 @@ final class ProductsController extends Controller
                         $sku,
                         !empty($_POST['tax_class']) ? (string)$_POST['tax_class'] : 'A',
                         !empty($_POST['unspsc_code']) ? trim((string)$_POST['unspsc_code']) : null,
-                        $userLocId
+                        $userLocId,
+                        (string)($_POST['type'] ?? 'item')
                     );
-                    $this->flash('success', "Product '$name' saved successfully.");
+                    $this->flash('success', "Product '$name' saved.");
                 }
                 if (isset($_POST['import_csv']) && isset($_FILES['csv_file'])) {
                     if (($_FILES['csv_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-                        throw new \Exception('Upload error. Please check your file and try again.');
+                        throw new \Exception('Upload failed. Check the file and try again.');
                     }
-                    $result = Product::importCsv($_FILES['csv_file']['tmp_name'], $userLocId);
-                    $this->flash('success', "Import complete! Added: {$result['added']}, Updated: {$result['updated']}.");
+                    $result = Product::importCsv(
+                        $_FILES['csv_file']['tmp_name'],
+                        $userLocId,
+                        (string)($_FILES['csv_file']['name'] ?? '')
+                    );
+                    $this->flash('success', "Import complete. Added {$result['added']}, updated {$result['updated']}.");
                 }
             } catch (\Throwable $e) {
                 $this->flash('error', $e->getMessage());

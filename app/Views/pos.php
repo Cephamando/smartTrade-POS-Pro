@@ -4,9 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS - <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+    <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
+    <link rel="stylesheet" href="css/pos-keyboard.css?v=5">
+    <script src="js/app-alerts.js"></script>
     <style>
         :root { --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>; --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>; --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>; }
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; }
@@ -29,7 +31,8 @@
         .bg-low { background-color: #dc3545; color: white; }
         .bg-ok { background-color: #198754; color: white; }
         .bg-recipe { background-color: #0dcaf0; color: #000; }
-        .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1000; height: 100%; }
+        .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1020; height: 100%; min-height: 0; }
+        .cart-compact { display: none; }
         .cart-header { padding: 15px; background-color: var(--pos-cart-color) !important; color: white; flex: 0 0 auto; }
         .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #f8f9fa; min-height: 0; }
         .cart-footer { padding: 20px; background: #fff; border-top: 2px solid #eee; flex: 0 0 auto; }
@@ -48,55 +51,154 @@
         .tab-radio-label { cursor: pointer; transition: 0.2s; }
         .tab-radio-label:hover { background-color: #f8f9fa; }
         .tab-radio-label.active { background-color: var(--pos-accent-color) !important; color: #000 !important; border-color: var(--pos-accent-color) !important; font-weight: bold; }
-        @media (max-width: 991px) { .cart-panel { flex: 0 0 340px; width: 340px; } }
-        @media (max-width: 768px) { .workspace { flex-direction: column; } .cart-panel { position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 70px; max-height: 70px; transition: height 0.3s, max-height 0.3s; border-top: 4px solid var(--pos-cart-color) !important; flex: 0 0 auto; } .cart-panel.expanded { height: 85vh; max-height: 85vh; } }
+        .pos-sticky-tools { flex: 0 0 auto; z-index: 20; }
+        .pos-filter-bar { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; flex: 0 0 auto; }
+        .pos-search { flex: 1 1 220px; min-width: 0; height: 48px; }
+        .pos-mode-toggles { display: flex; gap: 6px; flex: 0 0 auto; align-items: stretch; }
+        .pos-mode-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0; height: 48px; padding: 0 14px; font-weight: 800; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+        .pos-cat-grid { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+        .cart-scrim { display: none; }
+        @media (max-width: 991px) { .cart-panel { flex: 0 0 300px; width: 300px; } .pos-header-actions .btn { font-size: 0.8rem; } }
+        @media (max-width: 768px) {
+            .workspace { flex-direction: column; overflow: hidden; }
+            .product-section {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 120px;
+            }
+            .pos-sticky-tools { position: sticky; top: 0; z-index: 20; }
+            .pos-filter-bar { position: static; flex-direction: column; flex-wrap: nowrap; gap: 8px; }
+            .pos-search { flex: 1 1 auto; width: 100%; font-size: 1rem; height: 44px; }
+            .pos-mode-toggles { width: 100%; }
+            .pos-mode-btn { flex: 1 1 0; height: 44px; padding: 0 10px; font-size: 0.75rem; }
+            .pos-cat-grid { flex: 0 0 auto !important; overflow: visible !important; }
+            .product-list-wrapper { flex: 0 0 auto !important; overflow: visible !important; min-height: auto; }
+            .product-list { overflow: visible !important; flex: none !important; }
+            .cat-card { padding: 16px 8px; }
+            .cat-icon { font-size: 1.65rem; }
+            .cart-scrim {
+                display: none;
+                position: absolute;
+                inset: 0;
+                background: rgba(17, 17, 17, 0.4);
+                z-index: 1025;
+            }
+            .workspace.cart-open .cart-scrim { display: block; }
+            .cart-panel {
+                position: absolute;
+                left: 0; right: 0; bottom: 0;
+                width: 100%;
+                flex: none;
+                height: auto;
+                max-height: none;
+                min-height: 0;
+                border-left: 0;
+                border-top: 4px solid var(--pos-cart-color) !important;
+                z-index: 1030;
+                box-shadow: 0 -10px 28px rgba(0,0,0,0.2);
+            }
+            .cart-panel.expanded { max-height: min(68vh, 560px); }
+            .cart-panel:not(.expanded) .cart-items { display: none; }
+            .cart-panel:not(.expanded) .cart-footer .btn-group,
+            .cart-panel:not(.expanded) .cart-footer .row,
+            .cart-panel:not(.expanded) .cart-total-row { display: none; }
+            .cart-panel:not(.expanded) .cart-footer { padding: 8px 12px; }
+            .cart-panel:not(.expanded) .cart-footer .d-grid { margin-bottom: 0 !important; }
+            .cart-panel:not(.expanded) .btn-charge { padding: 0.55rem !important; font-size: 1rem; }
+            .cart-header { padding: 8px 12px; }
+            .cart-compact { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+            .cart-compact-title { display: none; }
+            .header-custom { padding: 6px 8px !important; }
+            #drilldown-header { padding: 8px 12px !important; }
+            #drilldown-header h4 { font-size: 1rem; }
+            #backBtn { padding: 0.35rem 1rem; }
+        }
+        #checkoutModal .modal-dialog { max-height: calc(100dvh - 0.75rem); margin: 0.4rem auto; }
+        #checkoutModal .modal-content { max-height: calc(100dvh - 0.75rem); display: flex; flex-direction: column; }
+        #checkoutModal .modal-body { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+        #checkoutModal .modal-footer { flex: 0 0 auto; }
+        @media (max-width: 576px) {
+            #checkoutModal .modal-dialog { max-width: 100%; width: 100%; height: 100%; max-height: 100dvh; margin: 0; }
+            #checkoutModal .modal-content { height: 100%; max-height: 100dvh; border-radius: 0; }
+            #checkoutModal .display-4 { font-size: 2rem; }
+        }
+        .item-card.is-blocked { opacity: 0.55; filter: grayscale(40%); cursor: not-allowed; pointer-events: none; }
     </style>
 </head>
 <body>
     <?php if ($locationId == 0): ?><div class="modal fade show" id="compulsoryLocationModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.9); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Select Workstation</h5></div><div class="modal-body bg-light p-4"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div><?php endif; ?>
     <?php if ($locationId > 0 && $pendingShift): ?><div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Manager Password" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div></div><?php endif; ?>
-    <?php if ($locationId > 0 && !$activeShiftId && !$pendingShift): ?><div class="modal fade show" id="startShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-primary"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">Start New Shift</h5></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="request_start_shift" value="1"><label class="fw-bold small text-muted">OPENING FLOAT</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00"></div><button type="submit" class="btn btn-primary w-100 fw-bold py-3 mb-2">REQUEST APPROVAL</button><a href="index.php?page=dashboard" class="btn btn-outline-secondary w-100 fw-bold">GO TO DASHBOARD</a></div></form></div></div></div><?php endif; ?>
+    <?php if ($locationId > 0 && !$activeShiftId && !$pendingShift): ?><div class="modal fade show" id="startShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-primary"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">Start New Shift</h5><button type="button" class="btn btn-sm btn-warning text-dark fw-bold ms-auto" data-pos-vk-toggle="1" title="On-screen keyboard"><i class="bi bi-keyboard-fill"></i> Keyboard</button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="request_start_shift" value="1"><label class="fw-bold small text-muted">OPENING FLOAT</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00" inputmode="decimal"></div><button type="submit" class="btn btn-primary w-100 fw-bold py-3 mb-2">REQUEST APPROVAL</button><a href="index.php?page=dashboard" class="btn btn-outline-secondary w-100 fw-bold">GO TO DASHBOARD</a></div></form></div></div></div><?php endif; ?>
 
     <div class="header-custom p-2 d-flex justify-content-between align-items-center" id="mainHeader">
-        <div class="d-flex align-items-center ps-2">
+        <div class="d-flex align-items-center ps-2 flex-wrap">
             <span class="fs-5 fw-bold text-warning me-3" id="headerPosLabel">POS</span>
             <span class="text-light ms-2"><i class="bi bi-geo-alt-fill text-warning" id="headerLocIcon"></i> <?= htmlspecialchars($locationName) ?></span>
             <button type="button" class="btn btn-sm btn-link text-warning ms-1 me-2" data-bs-toggle="modal" data-bs-target="#locationModal" title="Change Location"><i class="bi bi-pencil-square"></i></button>
-            <span class="text-light border-start border-secondary ps-3"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
+            <span class="text-light border-start border-secondary ps-3 d-none d-md-inline"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
         </div>
-        <div class="d-flex gap-2 pe-2">
+        <div class="d-flex gap-2 pe-2 flex-wrap align-items-center pos-header-actions">
+            <button type="button" class="btn btn-warning text-dark btn-sm fw-bold" id="posKeyboardToggle" aria-pressed="false" title="Show on-screen keyboard"><i class="bi bi-keyboard-fill"></i> <span class="d-none d-sm-inline">Keyboard</span></button>
+
+            <div class="d-none d-xl-flex gap-2 flex-wrap">
             <?php if($isManager && in_array($tier, ['pro+', 'enterprise'])): ?>
                 <a href="index.php?page=menu" class="btn btn-outline-success btn-sm fw-bold"><i class="bi bi-list-ul"></i> Menu</a>
                 <a href="index.php?page=kitchen" class="btn btn-outline-danger btn-sm fw-bold"><i class="bi bi-fire"></i> Produce</a>
             <?php endif; ?>
-            
             <?php if ($activeShiftId): ?>
                 <button type="button" class="btn btn-warning text-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="bi bi-cash-stack"></i> Payout</button>
                 <button type="button" onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-light btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
-
             <?php if ($tier === 'enterprise'): ?>
                 <button type="button" class="btn btn-outline-primary btn-sm fw-bold position-relative" data-bs-toggle="modal" data-bs-target="#onlineTabsModal">
-                    <i class="bi bi-cloud-download"></i> Web Orders 
+                    <i class="bi bi-cloud-download"></i> Web Orders
                     <?php if (!empty($onlineTabs)): ?>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= count($onlineTabs) ?></span>
                     <?php endif; ?>
                 </button>
             <?php endif; ?>
-
             <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-warning btn-sm fw-bold position-relative" onclick="showPickupModal()">
                     <i class="bi bi-bag-check"></i> Pickup <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
                 </button>
             <?php endif; ?>
-
             <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-info btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#floorplanModal"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button>
             <?php endif; ?>
-            
             <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
             <?php endif; ?>
+            </div>
+
+            <div class="dropdown d-xl-none">
+                <button class="btn btn-outline-light btn-sm fw-bold dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-list"></i> Menu
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <?php if($isManager && in_array($tier, ['pro+', 'enterprise'])): ?>
+                    <li><a class="dropdown-item" href="index.php?page=menu"><i class="bi bi-list-ul"></i> Menu</a></li>
+                    <li><a class="dropdown-item" href="index.php?page=kitchen"><i class="bi bi-fire"></i> Produce</a></li>
+                    <?php endif; ?>
+                    <?php if ($activeShiftId): ?>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="bi bi-cash-stack"></i> Payout</button></li>
+                    <li><button type="button" class="dropdown-item" onclick="showShiftReport(<?= $activeShiftId ?>)"><i class="bi bi-printer"></i> X-Read</button></li>
+                    <?php endif; ?>
+                    <?php if ($tier === 'enterprise'): ?>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#onlineTabsModal"><i class="bi bi-cloud-download"></i> Web Orders</button></li>
+                    <?php endif; ?>
+                    <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
+                    <li><button type="button" class="dropdown-item" onclick="showPickupModal()"><i class="bi bi-bag-check"></i> Pickup</button></li>
+                    <?php endif; ?>
+                    <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#floorplanModal"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button></li>
+                    <?php endif; ?>
+                    <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button></li>
+                    <?php endif; ?>
+                </ul>
+            </div>
 
             <?php if ($activeShiftId): ?>
                 <button type="button" class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
@@ -112,16 +214,20 @@
 
     <div class="workspace" style="<?= (!$activeShiftId) ? 'filter: blur(5px); pointer-events: none;' : '' ?>">
         <div class="product-section">
-            <div class="bg-white p-2 border-bottom d-flex align-items-center gap-3">
-                <input type="text" id="search" class="form-control form-control-lg flex-grow-1 border-dark shadow-sm" placeholder="Search product..." onkeyup="filter()">
-                <div class="form-check form-switch fs-5 bg-danger-subtle border border-danger rounded px-3 py-1 ms-2" id="refundToggleContainer" style="display: flex; align-items: center; justify-content: center; height: 100%; transition: 0.3s;">
-                    <input class="form-check-input border-danger me-2" type="checkbox" id="refundToggle" onchange="toggleRefundMode()" style="cursor:pointer; transform: scale(1.2);">
-                    <label class="form-check-label fw-bold text-danger small text-uppercase" for="refundToggle" style="cursor:pointer; letter-spacing: 0.5px;">Return Mode</label>
+            <div class="pos-sticky-tools">
+            <div class="pos-filter-bar bg-white p-2 border-bottom">
+                <input type="text" id="search" class="form-control form-control-lg pos-search border-dark shadow-sm" placeholder="Search product..." onkeyup="filter()">
+                <div class="pos-mode-toggles" role="group" aria-label="POS modes">
+                    <input type="checkbox" class="btn-check" id="refundToggle" autocomplete="off" onchange="toggleRefundMode()">
+                    <label class="btn btn-outline-danger pos-mode-btn" for="refundToggle" id="refundToggleContainer"><i class="bi bi-arrow-return-left"></i> Return</label>
+                    <input type="checkbox" class="btn-check" id="inStockToggle" autocomplete="off" onchange="applyFilters()">
+                    <label class="btn btn-outline-dark pos-mode-btn" for="inStockToggle"><i class="bi bi-box-seam"></i> In-stock</label>
                 </div>
-                <div class="form-check form-switch fs-5 ms-3">
-                    <input class="form-check-input border-dark" type="checkbox" id="inStockToggle" onchange="applyFilters()">
-                    <label class="form-check-label fw-bold text-dark small mt-1" for="inStockToggle">In-Stock Only</label>
-                </div>
+            </div>
+            <div id="drilldown-header" class="bg-white p-3 border-bottom d-flex align-items-center justify-content-between shadow-sm" style="display:none; flex: 0 0 auto; position: relative; z-index: 10;">
+                <button id="backBtn" class="btn btn-dark fw-bold px-4 rounded-pill shadow-sm"><i class="bi bi-arrow-left me-2"></i> BACK</button>
+                <h4 class="m-0 fw-bold text-dark text-uppercase" id="currentCategoryLabel">All Items</h4>
+            </div>
             </div>
             
             <?php
@@ -140,7 +246,7 @@
             }
             ?>
 
-            <div id="main-category-grid" class="p-3 bg-white" style="flex: 1 1 auto; overflow-y: auto;">
+            <div id="main-category-grid" class="p-3 bg-white pos-cat-grid">
                 <div class="row g-3">
                     <div class="col-4 col-md-3 col-lg-2">
                         <div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('all', 'All Items')">
@@ -167,30 +273,38 @@
                 </div>
             </div>
 
-            <div id="sub-category-grid" class="p-3 bg-white" style="display:none; flex: 1 1 auto; overflow-y: auto;">
+            <div id="sub-category-grid" class="p-3 bg-white pos-cat-grid" style="display:none;">
                 <div class="row g-3" id="subCategoryContainer"></div>
             </div>
 
-            <div id="drilldown-header" class="bg-white p-3 border-bottom d-flex align-items-center justify-content-between shadow-sm" style="display:none; flex: 0 0 auto; position: relative; z-index: 10;">
-                <button id="backBtn" class="btn btn-dark fw-bold px-4 rounded-pill shadow-sm"><i class="bi bi-arrow-left me-2"></i> BACK</button>
-                <h4 class="m-0 fw-bold text-dark text-uppercase" id="currentCategoryLabel">All Items</h4>
-            </div>
-            
             <div class="product-list-wrapper" id="product-list-wrapper" style="display:none;">
                 <div class="product-list">
                     <div id="items-grid" class="row g-2">
-                        <?php foreach($products as $p): $hasRecipe = ($p['is_recipe'] > 0); $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe); ?>
-                        <div class="col-6 col-md-4 col-lg-3 col-xl-2 item" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= $isOut ? '1' : '0' ?>">
+                        <?php foreach($products as $p):
+                            $hasRecipe = ($p['is_recipe'] > 0);
+                            $rawBlock = \App\Helpers\Movement::sellOnPos($p);
+                            $isRaw = !$rawBlock['ok'];
+                            $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe && !$isRaw);
+                            $blocked = $isOut || $isRaw;
+                        ?>
+                        <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= $blocked ? '1' : '0' ?>">
                             <form method="POST" class="h-100 add-item-form">
                                 <input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="<?= $p['id'] ?>"><input type="hidden" name="is_refund" class="refund-input" value="0">
-                                <button type="submit" class="item-card d-flex flex-column text-start p-2" <?= $isOut ? 'disabled="disabled"' : '' ?>>
+                                <button type="submit" class="item-card d-flex flex-column text-start p-2 <?= $isRaw ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
                                     <div style="height: 38px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm w-100"><?= htmlspecialchars($p['name']) ?></div>
                                     <div class="mb-1 w-100">
-                                        <?php if($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?> in stock</span><?php endif; ?>
+                                        <?php if ($isRaw): ?>
+                                            <span class="stock-badge bg-secondary">Raw</span>
+                                        <?php elseif($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?> in stock</span><?php endif; ?>
                                     </div>
                                     <div class="text-primary fw-bold w-100 mt-auto fs-6">ZMW <?= number_format($p['price'], 2) ?></div>
                                 </button>
                             </form>
+                            <?php if ($isRaw): ?>
+                            <button type="button" class="btn btn-link p-0 position-absolute text-info" style="top:6px;right:10px;z-index:3;" title="<?= htmlspecialchars($rawBlock['reason']) ?>" data-bs-toggle="tooltip" onclick="event.preventDefault(); event.stopPropagation(); AppAlert.notify({icon:'info', title:'Not sold on POS', text: <?= json_encode($rawBlock['reason']) ?>});">
+                                <i class="bi bi-info-circle fs-5"></i>
+                            </button>
+                            <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
                     </div>
@@ -213,10 +327,15 @@
             </div>
         </div>
 
+        <div class="cart-scrim" id="cartScrim" onclick="setCartExpanded(false)"></div>
         <div class="cart-panel" id="cartPanel">
             <div class="cart-header d-flex justify-content-between align-items-center" id="cartHeader">
-                <h5 class="m-0 fw-bold"><i class="bi bi-basket3-fill me-2"></i> Order</h5>
-                <button class="btn btn-sm btn-outline-light d-md-none" onclick="toggleCart()">Toggle</button>
+                <h5 class="m-0 fw-bold cart-compact-title"><i class="bi bi-basket3-fill me-2"></i> Order</h5>
+                <button type="button" class="btn btn-sm btn-outline-light cart-compact" onclick="toggleCart()" aria-expanded="false">
+                    <span class="fw-bold"><i class="bi bi-basket3-fill me-1"></i> <?= !empty($_SESSION['cart']) ? count($_SESSION['cart']) : 0 ?> items</span>
+                    <span class="fw-bold">ZMW <?= number_format($balance ?? 0, 2) ?></span>
+                    <span class="cart-toggle-label"><i class="bi bi-chevron-up"></i> Basket</span>
+                </button>
             </div>
             <div class="cart-items">
                 <?php if (empty($_SESSION['cart'])): ?><div class="text-center mt-5 text-muted"><p>Cart is empty</p></div><?php else: foreach ($_SESSION['cart'] as $key => $item): $isRefundItem = $item['is_refund'] ?? false; ?>
@@ -242,7 +361,7 @@
                 <?php endforeach; endif; ?>
             </div>
             <div class="cart-footer">
-                <div class="d-flex justify-content-between align-items-end mb-3">
+                <div class="cart-total-row d-flex justify-content-between align-items-end mb-3">
                     <span class="text-muted small fw-bold">TOTAL</span>
                     <span class="fs-2 fw-bold <?= $balance < 0 ? 'text-danger' : 'text-dark' ?> lh-1">ZMW <?= number_format($balance, 2) ?></span>
                 </div>
@@ -254,7 +373,7 @@
                     </div>
                     <?php endif; ?>
                     <div class="row g-2">
-                        <div class="col-<?= (in_array($tier, ['pro', 'pro+', 'enterprise'])) ? '6' : '12' ?>"><form method="POST" onsubmit="confirmAction(event, 'Clear Cart?', 'Empty order?')"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
+                        <div class="col-<?= (in_array($tier, ['pro', 'pro+', 'enterprise'])) ? '6' : '12' ?>"><form method="POST" class="js-confirm-form" data-swal-title="Clear the cart?" data-swal-text="All items on this order will be removed." data-swal-confirm="Clear" data-swal-cancel="Keep" data-swal-icon="warning"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
                         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="col-6"><button type="button" class="btn btn-dark w-100 btn-sm fw-bold text-warning" onclick="logWasteAuth()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></div><?php endif; ?>
                     </div>
                 </div>
@@ -362,7 +481,7 @@
                     <div class="badge bg-danger mt-2">OCCUPIED</div>
                 </div>
             <?php else: ?>
-                <div class="table-box bg-secondary text-white border-secondary" style="cursor: not-allowed; opacity: 0.8;" onclick="Swal.fire({icon: 'error', title: 'Table Locked', text: 'This table is being handled by <?= htmlspecialchars(addslashes($occupancy['username'])) ?>.'})">
+                <div class="table-box bg-secondary text-white border-secondary" style="cursor: not-allowed; opacity: 0.8;" onclick="AppAlert.notify({icon: 'error', title: 'Table in use', text: 'This table is assigned to <?= htmlspecialchars(addslashes($occupancy['username'])) ?>.'})">
                     <span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span>
                     <h5 class="fw-bold mb-1 text-white"><?= htmlspecialchars($table['table_name']) ?></h5>
                     <div class="small"><i class="bi bi-lock-fill"></i> <?= htmlspecialchars($occupancy['username']) ?></div>
@@ -372,7 +491,7 @@
             <?php else: ?>
                 <form method="POST" class="h-100">
                     <input type="hidden" name="add_to_tab_action" value="1"><input type="hidden" name="target_tab_id" value="new"><input type="hidden" name="target_table_id" value="<?= $table['id'] ?>"><input type="hidden" name="tab_customer_name" value="<?= htmlspecialchars($table['table_name']) ?>">
-                    <button type="submit" class="table-box table-available w-100" <?= empty($_SESSION['cart']) ? 'onclick="alert(\'Add items to the cart first to open a table!\'); return false;"' : '' ?>>
+                    <button type="submit" class="table-box table-available w-100" <?= empty($_SESSION['cart']) ? 'onclick="event.preventDefault(); AppAlert.notify({icon:\'warning\', title:\'Cart is empty\', text:\'Add items before opening a table.\', confirmText:\'OK\'}); return false;"' : '' ?>>
                         <span class="table-capacity"><i class="bi bi-people-fill"></i> <?= $table['capacity'] ?></span>
                         <h5 class="fw-bold mb-1"><?= htmlspecialchars($table['table_name']) ?></h5>
                         <div class="badge bg-success mt-2">AVAILABLE</div>
@@ -417,7 +536,7 @@
                         <?php if ($tabPaymentStatus === 'pending'): ?><button type="button" class="btn btn-sm btn-outline-danger me-2" onclick="voidItem(<?= $i['id'] ?>)" title="Void this item"><i class="bi bi-trash"></i></button><?php endif; ?>
                         <?php if($i['fulfillment_status'] == 'uncollected'): ?>
                             <?php if(in_array(strtolower($i['cat_type'] ?? ''), ['food', 'meal']) && in_array($tier, ['pro+', 'enterprise'])): ?>
-                                <?php if($i['status'] === 'ready'): ?><span class="badge bg-warning text-dark border shadow-sm px-2 py-1" style="cursor:pointer;" onclick="switchModal('tabsModal', '', showPickupModal)"><i class="bi bi-bag-check"></i> GO TO PICKUP</span><?php else: ?><span class="badge bg-secondary text-white border shadow-sm px-2 py-1" style="cursor:pointer;" onclick="Swal.fire({icon: 'info', title: 'Still Cooking', text: 'Preparing!', timer: 2000, showConfirmButton: false})"><i class="bi bi-hourglass-split"></i> PREPARING</span><?php endif; ?>
+                                <?php if($i['status'] === 'ready'): ?><span class="badge bg-warning text-dark border shadow-sm px-2 py-1" style="cursor:pointer;" onclick="switchModal('tabsModal', '', showPickupModal)"><i class="bi bi-bag-check"></i> GO TO PICKUP</span><?php else: ?><span class="badge bg-secondary text-white border shadow-sm px-2 py-1" style="cursor:pointer;" onclick="AppAlert.notify({icon: 'info', title: 'Still preparing', text: 'This item is not ready for collection yet.'})"><i class="bi bi-hourglass-split"></i> PREPARING</span><?php endif; ?>
                             <?php else: ?><span class="badge badge-uncollected p-2" style="cursor:pointer;" onclick="markCollected(<?= $i['id'] ?>, <?= $tid ?>)">MARK COLLECTED</span><?php endif; ?>
                         <?php else: ?><span class="badge bg-success">COLLECTED</span><?php endif; ?>
                     </td>
@@ -431,7 +550,15 @@
 
     <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
     
-    <div class="modal fade" id="checkoutModal"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content border-0"><div class="modal-header bg-warning text-dark" id="checkoutHeader"><h5 class="modal-title fw-bold">Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body"><input type="hidden" name="checkout" value="1">
+    <div class="modal fade" id="checkoutModal">
+        <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+            <form method="POST" class="modal-content border-0">
+                <div class="modal-header bg-warning text-dark" id="checkoutHeader">
+                    <h5 class="modal-title fw-bold">Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="checkout" value="1">
         <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
@@ -452,9 +579,17 @@
             <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold mt-2" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add payment method</button>
             <div class="small text-muted mt-2">Choose a method or <strong>Other</strong> and type a custom name (bank transfer, cheque, voucher…).</div>
         </div>
-        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" oninput="tenderedTouched = true; calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm" id="btnCheckoutSubmit">COMPLETE TRANSACTION</button></div></form></div></div></div>
+        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" inputmode="decimal" oninput="tenderedTouched = true; calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold py-3 shadow-sm" id="btnCheckoutSubmit">COMPLETE TRANSACTION</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This instantly deducts cash from Expected Drawer Total.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
+    <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This amount is deducted from the expected drawer total immediately.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
     
     <div class="modal fade" id="endShiftModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
@@ -495,7 +630,8 @@
     <div class="modal fade" id="pickupModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-body p-0"><iframe id="pickupFrame" src="" style="width:100%; height:80vh; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
     <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-success text-white"><h5>Receipt</h5></div><div class="modal-body p-0" style="height:400px;"><iframe id="receiptFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-primary" onclick="document.getElementById('receiptFrame').contentWindow.print()">PRINT</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="js/pos-keyboard.js?v=4"></script>
     <script>
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
         function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) onlineOpt.selected = true; } }); }
@@ -513,8 +649,8 @@
         function printTabBill(saleId) { document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); }
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
         function toggleRefundMode() { let isRefund = document.getElementById('refundToggle').checked; document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0'); let header = document.getElementById('mainHeader'); if (isRefund) { header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger'); } else { header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark'); } }
-        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isRefund === '1' && tabStatus === 'pending') { Swal.fire({ icon: 'error', title: 'Stop!', text: 'This table has not paid yet! Use the red Void button to remove the item.' }); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${productId}"><input type="hidden" name="custom_price" value="${price}"><input type="hidden" name="is_refund" value="${isRefund}"><input type="hidden" name="refund_sale_item_id" value="${saleItemId}">`; document.body.appendChild(f); f.submit(); }
-        function logWasteAuth() { Swal.fire({ title: 'Log Waste', html: '<p class="text-muted small">Enter manager credentials</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize Waste', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
+        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isRefund === '1' && tabStatus === 'pending') { AppAlert.notify({ icon: 'error', title: 'Payment required', text: 'This table has not been paid. Use Void to remove items.' }); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${productId}"><input type="hidden" name="custom_price" value="${price}"><input type="hidden" name="is_refund" value="${isRefund}"><input type="hidden" name="refund_sale_item_id" value="${saleItemId}">`; document.body.appendChild(f); f.submit(); }
+        function logWasteAuth() { Swal.fire({ title: 'Log waste', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a manager username and password.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
         function safeModalShow(id) { let el = document.getElementById(id); if (!el) return; try { let m = bootstrap.Modal.getInstance(el); if (!m) { m = new bootstrap.Modal(el); } m.show(); } catch(e) { el.classList.add('show'); el.style.display = 'block'; } }
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
         function showPickupModal() { document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; safeModalShow('pickupModal'); }
@@ -522,7 +658,7 @@
         function highlightTransferSelection(selectedLabel) { document.querySelectorAll('#transferTargetContainer .tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio && radio.value === 'new') { document.getElementById('transferNewTabInput').style.display = 'block'; } else { document.getElementById('transferNewTabInput').style.display = 'none'; } }
         function toggleTransferSelectAll() { let checkboxes = document.querySelectorAll('.transfer-checkbox'); let allChecked = Array.from(checkboxes).every(c => c.checked); checkboxes.forEach(c => c.checked = !allChecked); }
         function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
-        function voidItem(itemId) { Swal.fire({ title: 'Void Item', html: '<p class="text-muted small">Enter manager credentials</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize Void', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { Swal.fire({icon:'error', title:'Required', text:'Credentials cannot be empty.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { Swal.fire({ icon: 'success', title: 'Voided', timer: 1200, showConfirmButton: false }).then(() => location.reload()); } else { Swal.fire({ icon: 'error', title: 'Error', text: data.msg }); } }); } }); }
+        function voidItem(itemId) { Swal.fire({ title: 'Void item', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a manager username and password.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { AppAlert.notify({ icon: 'success', title: 'Item voided', text: '', confirmText: 'OK' }).then(() => location.reload()); } else { AppAlert.notify({ icon: 'error', title: 'Unable to void', text: data.msg || 'The item could not be voided.' }); } }); } }); }
 
         let baseTotal = 0; let currentTotal = 0; let tenderedTouched = false;
         
@@ -536,7 +672,7 @@
         }
 
         function openSettleModal(tabId, total, customerName, pt = 0) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('tabsModal', '', function() { initCheckout(true, total, customerName, pt, tabId); }); }
-        function markCollected(itemId, saleId) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id + "&_t=" + new Date().getTime(); safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { Swal.fire({ icon: 'info', title: 'Collect at Pickup', text: data.msg, showCancelButton: true, confirmButtonText: 'Open Pickup Screen' }).then((result) => { if (result.isConfirmed) { switchModal('tabsModal', '', showPickupModal); } }); } else { Swal.fire({ icon: 'error', title: 'Action Blocked', text: data.msg }); } }); }
+        function markCollected(itemId, saleId) { fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id + "&_t=" + new Date().getTime(); safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { AppAlert.confirm({ icon: 'info', title: 'Collect at pickup', text: data.msg || 'This order is ready on the pickup screen.', confirmText: 'Open pickup', cancelText: 'Close' }).then((ok) => { if (ok) { switchModal('tabsModal', '', showPickupModal); } }); } else { AppAlert.notify({ icon: 'error', title: 'Unable to collect', text: data.msg || 'This action could not be completed.' }); } }); }
         function currentTip() { return parseFloat(document.getElementById('tipInput').value) || 0; }
         function amountDue() { return currentTotal + currentTip(); }
         function isSplitPay() { let el = document.getElementById('modeSplit'); return !!(el && el.checked); }
@@ -646,20 +782,45 @@
 
         let currentPage = 1; const itemsPerPage = 24; let activeItems = [];
         document.addEventListener('DOMContentLoaded', function() { 
-            if (localStorage.getItem('posInStockToggle') === 'true') { let toggle = document.getElementById('inStockToggle'); if(toggle) toggle.checked = true; } 
+            if (window.bootstrap && bootstrap.Tooltip) {
+                document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) { new bootstrap.Tooltip(el); });
+            }
+            if (localStorage.getItem('posInStockToggle') === 'true') { let toggle = document.getElementById('inStockToggle'); if(toggle) toggle.checked = true; }
+            if (isMobilePos()) { setCartExpanded(sessionStorage.getItem('posCartExpanded') === '1'); }
+            window.addEventListener('resize', function () {
+                const panel = document.getElementById('cartPanel');
+                const open = !!(panel && panel.classList.contains('expanded'));
+                document.querySelector('.workspace')?.classList.toggle('cart-open', open && isMobilePos());
+            });
             initPagination(); 
             <?php if(isset($_SESSION["last_sale_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_sale_id"] ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_sale_id"]); endif; ?> 
             <?php if(isset($_SESSION["last_bill_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_bill_id"] ?>&is_bill=1&items=<?= $_SESSION["last_added_item_ids"] ?? "" ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_bill_id"], $_SESSION["last_added_item_ids"]); endif; ?>
-            let pickupMod = document.getElementById('pickupModal'); if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Syncing Tabs...', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); } 
+            let pickupMod = document.getElementById('pickupModal'); if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Refreshing tabs…', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); } 
         });
         function showShiftReport(shiftId) { document.getElementById("reportTitle").innerText = "X-Read (Open Shift)"; document.getElementById("reportFrame").src = "about:blank"; setTimeout(() => { document.getElementById("reportFrame").src = "index.php?page=print_shift&shift_id=" + shiftId + "&_cb=" + new Date().getTime(); }, 100); safeModalShow("reportModal"); }
         function initPagination() { applyFilters(); }
         function renderPage(page) { currentPage = page; const totalPages = Math.ceil(activeItems.length / itemsPerPage) || 1; if (currentPage > totalPages) currentPage = totalPages; if (currentPage < 1) currentPage = 1; const startIndex = (currentPage - 1) * itemsPerPage; const endIndex = startIndex + itemsPerPage; document.querySelectorAll('#items-grid .item').forEach(el => el.style.display = 'none'); activeItems.slice(startIndex, endIndex).forEach(el => { el.style.display = 'block'; }); document.getElementById('pageInfo').innerText = `Page ${currentPage} of ${totalPages}`; }
         function prevPage() { if(currentPage > 1) renderPage(currentPage - 1); } function nextPage() { const totalPages = Math.ceil(activeItems.length / itemsPerPage); if(currentPage < totalPages) renderPage(currentPage + 1); }
-        function toggleCart() { document.getElementById('cartPanel').classList.toggle('expanded'); }
+        function isMobilePos() { return window.matchMedia('(max-width: 768px)').matches; }
+        function setCartExpanded(open) {
+            const panel = document.getElementById('cartPanel');
+            if (!panel) return;
+            panel.classList.toggle('expanded', !!open);
+            document.querySelector('.workspace')?.classList.toggle('cart-open', !!open && isMobilePos());
+            if (isMobilePos()) sessionStorage.setItem('posCartExpanded', open ? '1' : '0');
+            const btn = panel.querySelector('.cart-compact');
+            if (btn) {
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                const label = btn.querySelector('.cart-toggle-label');
+                if (label) label.innerHTML = open ? '<i class="bi bi-chevron-down"></i> Hide' : '<i class="bi bi-chevron-up"></i> Basket';
+            }
+        }
+        function toggleCart() {
+            const panel = document.getElementById('cartPanel');
+            setCartExpanded(!(panel && panel.classList.contains('expanded')));
+        }
         function addService(id, name, price, isOpen) { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${id}"><input type="hidden" name="is_refund" value="${isRefund}">`; document.body.appendChild(f); f.submit(); } }
-        function confirmAction(event, title, text, confirmBtn='Yes') { event.preventDefault(); Swal.fire({ title: title, text: text, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: confirmBtn }).then((result) => { if (result.isConfirmed) { event.target.submit(); } }); }
-        <?php if(isset($_SESSION['swal_msg'])): ?> Swal.fire({ icon: '<?= addslashes($_SESSION['swal_type']) ?>', title: '<?= addslashes($_SESSION['swal_msg']) ?>', timer: 1500, showConfirmButton: false }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
+        <?php if(isset($_SESSION['swal_msg'])): ?> AppAlert.notify({ icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>, text: <?= json_encode((string)$_SESSION['swal_msg']) ?> }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
 <script>

@@ -1,3 +1,7 @@
+<?php
+$canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
+    || (($_SESSION['role'] ?? '') === 'dev');
+?>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="bi bi-book-half text-success"></i> Menu & Recipe Builder</h3>
     <div>
@@ -28,7 +32,7 @@
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="row g-2 mb-4">
+                    <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-bold text-muted">Selling Price (ZMW)</label>
                             <input type="number" step="0.01" name="price" id="itemPrice" class="form-control text-success fw-bold" required>
@@ -38,6 +42,19 @@
                             <input type="number" step="0.01" name="cost_price" id="itemCost" class="form-control text-danger fw-bold">
                         </div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">UNSPSC CODE</label>
+                        <input type="hidden" name="unspsc_code" id="menuUnspscCode" value="">
+                        <input type="search" class="form-control" id="menuUnspscSearch" placeholder="Search commodity title or 8-digit code…" autocomplete="off">
+                        <div id="menuUnspscResults" class="list-group mt-2" style="max-height: 180px; overflow-y: auto;"></div>
+                        <div class="small text-muted mt-1" id="menuUnspscChosen">Optional — required for ZRA registration.</div>
+                    </div>
+                    <?php if ($canRegisterZra): ?>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="register_zra" value="1" id="menuRegisterZra">
+                        <label class="form-check-label small" for="menuRegisterZra">Register this item with ZRA Smart Invoice</label>
+                    </div>
+                    <?php endif; ?>
                     <button type="submit" class="btn btn-success w-100 fw-bold" id="btnSubmit">Save Item</button>
                     <button type="button" class="btn btn-outline-secondary w-100 mt-2 d-none" id="btnCancel" onclick="resetForm()">Cancel Edit</button>
                 </form>
@@ -83,15 +100,23 @@
                             <td class="ps-3 fw-bold">
                                 <?= htmlspecialchars($m['name']) ?>
                                 <?php if($hasRecipe): ?><span class="badge bg-info text-dark ms-2" style="font-size:0.6rem;"><i class="bi bi-diagram-3"></i> RECIPE</span><?php endif; ?>
+                                <?php if (!empty($m['unspsc_code'])): ?>
+                                    <div class="small text-muted font-monospace"><?= htmlspecialchars($m['unspsc_code']) ?><?= !empty($m['unspsc_name']) ? ' · ' . htmlspecialchars($m['unspsc_name']) : '' ?></div>
+                                <?php endif; ?>
                             </td>
                             <td><span class="badge bg-secondary"><?= htmlspecialchars($m['cat_name']) ?></span></td>
                             <td class="text-end text-success fw-bold">ZMW <?= number_format($m['price'], 2) ?></td>
                             <td class="text-end pe-3">
-                                <button class="btn btn-sm btn-outline-info fw-bold me-1" onclick="openRecipeBuilder(<?= $m['id'] ?>, '<?= htmlspecialchars(addslashes($m['name'])) ?>')" title="Manage Recipe">
+                                <button class="btn btn-sm btn-outline-info fw-bold me-1" onclick="openRecipeBuilder(<?= (int)$m['id'] ?>, '<?= htmlspecialchars(addslashes($m['name'])) ?>', '<?= htmlspecialchars(addslashes((string)($m['unspsc_code'] ?? ''))) ?>', '<?= htmlspecialchars(addslashes((string)($m['unspsc_name'] ?? ''))) ?>')" title="Manage Recipe">
                                     <i class="bi bi-cup-straw"></i> Recipe
                                 </button>
                                 <button class="btn btn-sm btn-outline-primary" onclick='editItem(<?= json_encode($m) ?>)'><i class="bi bi-pencil"></i></button>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Remove from menu?');">
+                                <form method="POST" class="d-inline js-confirm-form"
+                                    data-swal-title="Remove from menu?"
+                                    data-swal-text="This item will no longer appear on the POS."
+                                    data-swal-confirm="Remove"
+                                    data-swal-cancel="Cancel"
+                                    data-swal-icon="warning">
                                     <input type="hidden" name="delete_item" value="1">
                                     <input type="hidden" name="item_id" value="<?= $m['id'] ?>">
                                     <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
@@ -122,7 +147,20 @@
                     <input type="hidden" name="parent_product_id" id="recipeParentId">
                     
                     <div class="alert alert-info py-2 small">
-                        <strong><i class="bi bi-info-circle"></i> How it works:</strong> Add raw ingredients here (e.g., White Rum). When a bartender sells this cocktail, the system will automatically deduct these exact quantities from inventory.
+                        <strong><i class="bi bi-info-circle"></i> Recipe:</strong> Add ingredients and quantities. Each sale deducts those amounts from inventory.
+                    </div>
+                    <div class="mb-3 p-3 bg-light rounded border">
+                        <label class="form-label small fw-bold text-muted">UNSPSC CODE FOR THIS MENU ITEM</label>
+                        <input type="hidden" name="unspsc_code" id="recipeUnspscCode" value="">
+                        <input type="search" class="form-control" id="recipeUnspscSearch" placeholder="Search commodity title or 8-digit code…" autocomplete="off">
+                        <div id="recipeUnspscResults" class="list-group mt-2" style="max-height: 180px; overflow-y: auto;"></div>
+                        <div class="small text-muted mt-1" id="recipeUnspscChosen">Search and select a commodity code, then optionally register it.</div>
+                        <?php if ($canRegisterZra): ?>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="register_zra" value="1" id="recipeRegisterZra">
+                            <label class="form-check-label small" for="recipeRegisterZra">Register this item with ZRA Smart Invoice</label>
+                        </div>
+                        <?php endif; ?>
                     </div>
 
                     <div id="recipeRowsContainer">
@@ -160,6 +198,7 @@
     </div>
 </template>
 
+<script src="js/unspsc-picker.js"></script>
 <script>
 // Load grouped recipes from PHP into Javascript
 const existingRecipes = <?= json_encode($recipesGrouped) ?>;
@@ -194,6 +233,13 @@ function editItem(m) {
     document.getElementById('itemCat').value = m.category_id;
     document.getElementById('itemPrice').value = m.price;
     document.getElementById('itemCost').value = m.cost_price;
+    document.getElementById('menuUnspscCode').value = m.unspsc_code || '';
+    document.getElementById('menuUnspscSearch').value = m.unspsc_code
+        ? (m.unspsc_code + (m.unspsc_name ? ' ' + m.unspsc_name : ''))
+        : '';
+    document.getElementById('menuUnspscChosen').textContent = m.unspsc_code
+        ? ('Selected: ' + m.unspsc_code + (m.unspsc_name ? ' — ' + m.unspsc_name : ''))
+        : 'Optional — required for ZRA registration.';
     
     document.getElementById('formTitle').innerText = "Edit Menu Item";
     document.getElementById('btnSubmit').innerText = "Update Item";
@@ -206,6 +252,9 @@ function resetForm() {
     document.getElementById('itemName').value = '';
     document.getElementById('itemPrice').value = '';
     document.getElementById('itemCost').value = '';
+    document.getElementById('menuUnspscCode').value = '';
+    document.getElementById('menuUnspscSearch').value = '';
+    document.getElementById('menuUnspscChosen').textContent = 'Optional — required for ZRA registration.';
     
     document.getElementById('formTitle').innerText = "Add Menu Item";
     document.getElementById('btnSubmit').innerText = "Save Item";
@@ -213,9 +262,16 @@ function resetForm() {
     document.getElementById('btnCancel').classList.add('d-none');
 }
 
-function openRecipeBuilder(productId, productName) {
+function openRecipeBuilder(productId, productName, unspscCode = '', unspscName = '') {
     document.getElementById('recipeParentId').value = productId;
     document.getElementById('recipeItemName').innerText = productName;
+    document.getElementById('recipeUnspscCode').value = unspscCode || '';
+    document.getElementById('recipeUnspscSearch').value = unspscCode
+        ? (unspscCode + (unspscName ? ' ' + unspscName : ''))
+        : '';
+    document.getElementById('recipeUnspscChosen').textContent = unspscCode
+        ? ('Selected: ' + unspscCode + (unspscName ? ' — ' + unspscName : ''))
+        : 'Search and select a commodity code, then optionally register it.';
     
     const container = document.getElementById('recipeRowsContainer');
     container.innerHTML = ''; 
@@ -240,8 +296,18 @@ function addRecipeRow(ingId = '', qty = '') {
     document.getElementById('recipeRowsContainer').appendChild(template);
 }
 
-<?php if(isset($_SESSION['swal_msg'])): ?>
-Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 2000, showConfirmButton: false });
-<?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-<?php endif; ?>
+bindUnspscPicker(
+    document.getElementById('menuUnspscSearch'),
+    document.getElementById('menuUnspscResults'),
+    document.getElementById('menuUnspscCode'),
+    document.getElementById('menuUnspscChosen'),
+    'index.php?page=menu&ajax=unspsc_search'
+);
+bindUnspscPicker(
+    document.getElementById('recipeUnspscSearch'),
+    document.getElementById('recipeUnspscResults'),
+    document.getElementById('recipeUnspscCode'),
+    document.getElementById('recipeUnspscChosen'),
+    'index.php?page=menu&ajax=unspsc_search'
+);
 </script>

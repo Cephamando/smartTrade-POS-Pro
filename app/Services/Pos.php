@@ -46,7 +46,7 @@ final class Pos
                 $session['swal_msg'] = 'Shift started.';
             } else {
                 $session['swal_type'] = 'error';
-                $session['swal_msg'] = 'Invalid credentials.';
+                $session['swal_msg'] = 'Manager credentials are incorrect.';
             }
             return ['redirect' => true];
         }
@@ -106,7 +106,7 @@ final class Pos
                 $session['swal_msg'] = 'Waste logged.';
             } else {
                 $session['swal_type'] = 'error';
-                $session['swal_msg'] = 'Manager Authorization Failed.';
+                $session['swal_msg'] = 'Manager authorization failed.';
             }
             return ['redirect' => true];
         }
@@ -246,10 +246,10 @@ final class Pos
                 return ['json' => ['status' => 'error', 'msg' => 'Item not found.']];
             }
             if (in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal'], true) && in_array($tier, ['pro+', 'enterprise'], true)) {
-                return ['json' => ['status' => 'redirect_pickup', 'msg' => 'Meals must be processed through the Kitchen screen.']];
+                return ['json' => ['status' => 'redirect_pickup', 'msg' => 'Collect this meal from the pickup screen.']];
             }
             if ($item['fulfillment_status'] === 'collected') {
-                return ['json' => ['status' => 'error', 'msg' => 'Item already collected.']];
+                return ['json' => ['status' => 'error', 'msg' => 'This item has already been collected.']];
             }
             $this->pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE id = ?")->execute([$itemId]);
             $stmtCheck = $this->pdo->prepare(
@@ -259,7 +259,7 @@ final class Pos
             $done = $stmtCheck->fetchColumn() == 0;
             return ['json' => ['status' => 'success', 'sale_id' => $item['sale_id'], 'tab_completed' => $done, 'print_receipt' => $done]];
         } catch (\Throwable $e) {
-            return ['json' => ['status' => 'error', 'msg' => $e->getMessage()]];
+            return ['json' => ['status' => 'error', 'msg' => 'Unable to update collection status.']];
         }
     }
 
@@ -267,7 +267,7 @@ final class Pos
     {
         $mgr = User::verifyManager((string)($post['mgr_user'] ?? ''), (string)($post['mgr_pass'] ?? ''));
         if (!$mgr) {
-            return ['json' => ['status' => 'error', 'msg' => 'Manager Authorization Failed.']];
+            return ['json' => ['status' => 'error', 'msg' => 'Manager authorization failed.']];
         }
         try {
             $this->pdo->beginTransaction();
@@ -288,7 +288,7 @@ final class Pos
                 $this->pdo->commit();
                 return ['json' => ['status' => 'success']];
             }
-            throw new \Exception('Cannot void this item. Table might already be paid.');
+            throw new \Exception('This item cannot be voided. The table may already be paid.');
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -303,9 +303,17 @@ final class Pos
         if (!$prod) {
             return;
         }
+        $isRefund = isset($post['is_refund']) && $post['is_refund'] === '1';
+        if (!$isRefund) {
+            $sell = \App\Helpers\Movement::sellOnPos($prod);
+            if (!$sell['ok']) {
+                $session['swal_type'] = 'info';
+                $session['swal_msg'] = $sell['reason'];
+                return;
+            }
+        }
         $pid = (int)$post['product_id'];
         $price = isset($post['custom_price']) ? (float)$post['custom_price'] : (float)$prod['price'];
-        $isRefund = isset($post['is_refund']) && $post['is_refund'] === '1';
         if ($isRefund) {
             $price = -abs($price);
         }
@@ -313,7 +321,7 @@ final class Pos
             ? (int)$post['refund_sale_item_id'] : 0;
         $key = $pid . '_' . md5((string)$price) . ($isRefund ? '_refund' : '');
         $fulfillment = 'collected';
-        if (!$isRefund && in_array(strtolower($prod['cat_type']), ['food', 'meal'], true) && in_array($tier, ['pro+', 'enterprise'], true)) {
+        if (!$isRefund && in_array(strtolower((string)($prod['cat_type'] ?? '')), ['food', 'meal'], true) && in_array($tier, ['pro+', 'enterprise'], true)) {
             $fulfillment = 'uncollected';
         }
         if (isset($session['cart'][$key])) {
@@ -381,13 +389,13 @@ final class Pos
             }
             $this->pdo->commit();
             $session['swal_type'] = 'success';
-            $session['swal_msg'] = 'Items transferred successfully.';
+            $session['swal_msg'] = 'Items transferred.';
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Transfer Error: ' . $e->getMessage();
+            $session['swal_msg'] = 'Unable to transfer items.';
         }
     }
 
@@ -441,7 +449,7 @@ final class Pos
                 $this->pdo->rollBack();
             }
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Error: ' . $e->getMessage();
+            $session['swal_msg'] = 'Unable to process split bills.';
         }
     }
 
@@ -478,7 +486,7 @@ final class Pos
             $this->pdo->commit();
             $session['cart'] = [];
             $session['swal_type'] = 'success';
-            $session['swal_msg'] = 'Added to tab/table.';
+            $session['swal_msg'] = 'Items added to the tab.';
             $session['last_bill_id'] = $targetId;
             $session['last_added_item_ids'] = implode(',', $new_item_ids);
         } catch (\Throwable $e) {
@@ -486,7 +494,7 @@ final class Pos
                 $this->pdo->rollBack();
             }
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Error: ' . $e->getMessage();
+            $session['swal_msg'] = 'Unable to add items to the tab.';
         }
     }
 
@@ -500,7 +508,7 @@ final class Pos
         $mgr = User::verifyManager((string)($post['mgr_username'] ?? ''), (string)($post['mgr_password'] ?? ''));
         if (!$mgr) {
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Invalid manager credentials.';
+            $session['swal_msg'] = 'Manager credentials are incorrect.';
             return;
         }
         try {
@@ -510,7 +518,7 @@ final class Pos
             $session['swal_msg'] = 'Payout logged.';
         } catch (\Throwable $e) {
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Error: ' . $e->getMessage();
+            $session['swal_msg'] = 'Unable to log the payout.';
         }
     }
 }

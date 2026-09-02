@@ -4,18 +4,30 @@
 </div>
 
 <div class="alert alert-info border-info shadow-sm mb-4">
-    <strong><i class="bi bi-info-circle-fill"></i> Batch Production:</strong> Record prepared batches here. Select the POS Workstation below to instantly make the food available for cashiers to sell.
+    <strong><i class="bi bi-info-circle-fill"></i> Meal production:</strong> Recording a batch deducts recipe ingredients from kitchen stock and sends finished portions to the selected POS workstation.
 </div>
 
 <div class="row g-3">
-    <?php foreach($meals as $meal): ?>
+    <?php foreach($meals as $meal):
+        $mealCtx = \App\Models\Product::movementContext((int)$meal['id']);
+        $isRawMeal = \App\Helpers\Movement::isRawProduct($mealCtx);
+    ?>
     <div class="col-md-4 col-lg-3 col-xl-2">
-        <div class="card shadow-sm h-100 border-0 border-bottom border-4 border-danger">
-            <div class="card-body text-center d-flex flex-column p-3">
+        <div class="card shadow-sm h-100 border-0 border-bottom border-4 <?= $isRawMeal ? 'border-secondary' : 'border-danger' ?>">
+            <div class="card-body text-center d-flex flex-column p-3 <?= $isRawMeal ? 'opacity-50' : '' ?>">
                 <h6 class="card-title fw-bold text-dark mb-1" style="height: 40px; overflow: hidden;"><?= htmlspecialchars($meal['name']) ?></h6>
                 <div class="mb-3"><span class="badge bg-secondary" style="font-size: 0.65rem;"><?= htmlspecialchars($meal['cat_name']) ?></span></div>
 
-                <form method="POST" onsubmit="return confirm('Send this batch to the POS?');" class="mt-auto">
+                <?php if ($isRawMeal): ?>
+                    <div class="small text-muted mt-auto"><i class="bi bi-info-circle text-info"></i> Raw food cannot be sent to POS. Use it in a recipe, then produce the finished dish.</div>
+                <?php else: ?>
+                <form method="POST" class="mt-auto js-confirm-form"
+                    data-swal-title="Send batch to POS?"
+                    data-swal-text="Recipe ingredients will be deducted from kitchen stock. Finished portions will be added at the selected workstation."
+                    data-swal-confirm="Send"
+                    data-swal-cancel="Cancel"
+                    data-swal-icon="question"
+                    data-swal-confirm-color="#198754">
                     <input type="hidden" name="produce_item" value="1">
                     <input type="hidden" name="product_id" value="<?= $meal['id'] ?>">
                     
@@ -32,15 +44,9 @@
                     </div>
                     <button type="submit" class="btn btn-danger w-100 fw-bold btn-sm"><i class="bi bi-send-check"></i> PRODUCE & SEND</button>
                 </form>
+                <?php endif; ?>
             </div>
         </div>
     </div>
     <?php endforeach; ?>
 </div>
-
-<script>
-    <?php if(isset($_SESSION['swal_msg'])): ?>
-    Swal.fire({ icon: '<?= $_SESSION['swal_type'] ?>', title: '<?= $_SESSION['swal_msg'] ?>', timer: 1500, showConfirmButton: false });
-    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-    <?php endif; ?>
-</script>

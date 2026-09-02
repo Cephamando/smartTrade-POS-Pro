@@ -29,7 +29,12 @@
                     </td>
                     <td class="text-muted small"><?= htmlspecialchars($l['address'] ?? '-') ?></td>
                     <td class="text-end">
-                        <form method="POST" action="index.php?page=locations" class="d-inline" onsubmit="return confirm('Delete <?= $l['name'] ?>?');">
+                        <form method="POST" action="index.php?page=locations" class="d-inline js-confirm-form"
+                            data-swal-title="Delete this location?"
+                            data-swal-text="<?= htmlspecialchars($l['name'], ENT_QUOTES) ?> will be removed if it has no stock or sales history."
+                            data-swal-confirm="Delete"
+                            data-swal-cancel="Cancel"
+                            data-swal-icon="warning">
                             <input type="hidden" name="delete_location" value="1">
                             <input type="hidden" name="location_id" value="<?= $l['id'] ?>">
                             <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>

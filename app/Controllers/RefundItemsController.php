@@ -28,7 +28,7 @@ final class RefundItemsController extends Controller
                     $stmt->execute([$itemId]);
                     $item = $stmt->fetch();
                     if ($qty > $item['quantity']) {
-                        throw new \Exception('Cannot refund more than sold qty for ' . $item['name']);
+                        throw new \Exception('Refund quantity exceeds sold quantity for ' . $item['name'] . '.');
                     }
                     if ($qty == $item['quantity']) {
                         $pdo->prepare("UPDATE sale_items SET status = 'refunded' WHERE id = ?")->execute([$itemId]);
@@ -48,11 +48,11 @@ final class RefundItemsController extends Controller
                 $pdo->prepare("INSERT INTO refunds (sale_id, manager_id, amount_refunded, reason, created_at) VALUES (?, ?, ?, 'Partial Refund', NOW())")
                     ->execute([$saleId, $this->userId(), $totalRefunded]);
                 $pdo->commit();
-                $this->flash('success', 'Refund processed successfully.');
+                $this->flash('success', 'Refund processed.');
                 $this->redirect('reports');
             } catch (\Throwable $e) {
                 $pdo->rollBack();
-                $error = 'Error: ' . $e->getMessage();
+                $error = $e->getMessage();
             }
         }
 

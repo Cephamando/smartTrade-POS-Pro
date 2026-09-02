@@ -31,9 +31,9 @@ final class ZraController extends Controller
                 if (($actionResult['resultCd'] ?? '') === '000' || ($explained['layer'] ?? '') === 'ok') {
                     $this->flash('success', $actionResult['resultMsg'] ?? 'VSDC action completed.');
                 } elseif (($explained['layer'] ?? '') === 'client') {
-                    $this->flash('error', ($actionResult['resultMsg'] ?? 'Client error') . ' (code ' . ($actionResult['resultCd'] ?? '?') . ')');
+                    $this->flash('error', $actionResult['resultMsg'] ?? 'Unable to complete this VSDC request.');
                 } elseif (($actionResult['resultCd'] ?? '') === 'skipped') {
-                    $this->flash('info', $actionResult['resultMsg'] ?? 'Skipped.');
+                    $this->flash('info', $actionResult['resultMsg'] ?? 'No action was required.');
                 } else {
                     $this->flash('error', $actionResult['resultMsg'] ?? 'VSDC action failed.');
                 }

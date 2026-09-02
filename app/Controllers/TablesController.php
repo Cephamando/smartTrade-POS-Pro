@@ -18,7 +18,7 @@ final class TablesController extends Controller
                 trim((string)$_POST['table_name']),
                 (int)$_POST['capacity']
             );
-            $this->flash('success', 'Table added successfully!');
+            $this->flash('success', 'Table added.');
             $this->redirect('tables');
         }
         if (isset($_POST['delete_table'])) {

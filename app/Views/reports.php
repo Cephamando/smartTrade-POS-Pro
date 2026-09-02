@@ -4,54 +4,11 @@
     <meta charset="UTF-8">
     <title>Reports & Analytics</title>
     <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    
-    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11">
-// --- SMART PRINT FUNCTION ---
-function printMasterReport() {
-    if ($.fn.DataTable.isDataTable('#reportsTable')) {
-        let table = $('#reportsTable').DataTable();
-        let currentLen = table.page.len();
-        
-        // Expand the table to show ALL rows before printing
-        table.page.len(-1).draw(); 
-        
-        // Wait a split second for the browser to render the long table, then print
-        setTimeout(() => {
-            window.print();
-            // Restore the pagination back to normal after printing is done
-            table.page.len(currentLen).draw(); 
-        }, 500);
-    } else {
-        window.print();
-    }
-}
-</script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr">
-// --- SMART PRINT FUNCTION ---
-function printMasterReport() {
-    if ($.fn.DataTable.isDataTable('#reportsTable')) {
-        let table = $('#reportsTable').DataTable();
-        let currentLen = table.page.len();
-        
-        // Expand the table to show ALL rows before printing
-        table.page.len(-1).draw(); 
-        
-        // Wait a split second for the browser to render the long table, then print
-        setTimeout(() => {
-            window.print();
-            // Restore the pagination back to normal after printing is done
-            table.page.len(currentLen).draw(); 
-        }, 500);
-    } else {
-        window.print();
-    }
-}
-</script>
+    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+    <link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
+    <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
     
     <style>
         body { background-color: #f8f9fa; }
@@ -346,84 +303,20 @@ function printMasterReport() {
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.7.0.min.js">
-// --- SMART PRINT FUNCTION ---
+<script src="vendor/jquery/jquery.min.js"></script>
+<script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="vendor/datatables/jquery.dataTables.min.js"></script>
+<script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
+<script src="vendor/flatpickr/flatpickr.min.js"></script>
+<script>
 function printMasterReport() {
     if ($.fn.DataTable.isDataTable('#reportsTable')) {
         let table = $('#reportsTable').DataTable();
         let currentLen = table.page.len();
-        
-        // Expand the table to show ALL rows before printing
-        table.page.len(-1).draw(); 
-        
-        // Wait a split second for the browser to render the long table, then print
+        table.page.len(-1).draw();
         setTimeout(() => {
             window.print();
-            // Restore the pagination back to normal after printing is done
-            table.page.len(currentLen).draw(); 
-        }, 500);
-    } else {
-        window.print();
-    }
-}
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
-// --- SMART PRINT FUNCTION ---
-function printMasterReport() {
-    if ($.fn.DataTable.isDataTable('#reportsTable')) {
-        let table = $('#reportsTable').DataTable();
-        let currentLen = table.page.len();
-        
-        // Expand the table to show ALL rows before printing
-        table.page.len(-1).draw(); 
-        
-        // Wait a split second for the browser to render the long table, then print
-        setTimeout(() => {
-            window.print();
-            // Restore the pagination back to normal after printing is done
-            table.page.len(currentLen).draw(); 
-        }, 500);
-    } else {
-        window.print();
-    }
-}
-</script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js">
-// --- SMART PRINT FUNCTION ---
-function printMasterReport() {
-    if ($.fn.DataTable.isDataTable('#reportsTable')) {
-        let table = $('#reportsTable').DataTable();
-        let currentLen = table.page.len();
-        
-        // Expand the table to show ALL rows before printing
-        table.page.len(-1).draw(); 
-        
-        // Wait a split second for the browser to render the long table, then print
-        setTimeout(() => {
-            window.print();
-            // Restore the pagination back to normal after printing is done
-            table.page.len(currentLen).draw(); 
-        }, 500);
-    } else {
-        window.print();
-    }
-}
-</script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js">
-// --- SMART PRINT FUNCTION ---
-function printMasterReport() {
-    if ($.fn.DataTable.isDataTable('#reportsTable')) {
-        let table = $('#reportsTable').DataTable();
-        let currentLen = table.page.len();
-        
-        // Expand the table to show ALL rows before printing
-        table.page.len(-1).draw(); 
-        
-        // Wait a split second for the browser to render the long table, then print
-        setTimeout(() => {
-            window.print();
-            // Restore the pagination back to normal after printing is done
-            table.page.len(currentLen).draw(); 
+            table.page.len(currentLen).draw();
         }, 500);
     } else {
         window.print();
@@ -488,22 +381,12 @@ function printMasterReport() {
                     `;
                 });
             } else {
-                tbody.innerHTML = `<tr><td colspan="3" class="text-danger text-center py-3">Error: ${data.msg}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-center py-3">Unable to load items.</td></tr>`;
             }
         }).catch(err => {
-            document.getElementById('saleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-danger text-center py-3">Network error loading details.</td></tr>';
+            document.getElementById('saleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-center py-3 text-muted">Unable to load sale details.</td></tr>';
         });
     }
-
-    <?php if(isset($_SESSION['swal_msg'])): ?>
-    Swal.fire({
-        icon: <?= json_encode($_SESSION['swal_type']) ?>,
-        title: <?= json_encode($_SESSION['swal_msg']) ?>,
-        showConfirmButton: false,
-        timer: 2000
-    });
-    <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); ?>
-    <?php endif; ?>
 
 // --- SMART PRINT FUNCTION ---
 function printMasterReport() {

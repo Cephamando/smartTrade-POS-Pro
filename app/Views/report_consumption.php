@@ -39,6 +39,9 @@
 
 <div class="card shadow-sm border-0">
     <div class="card-body p-4">
+        <div class="alert alert-info small border-0 mb-3">
+            Ingredient usage is recorded at the location that holds the stock (usually Kitchen), even when the meal is sold at a bar or outlet.
+        </div>
         <div class="table-responsive">
             <table id="consumptionTable" class="table table-hover table-striped align-middle border">
                 <thead class="table-dark">
@@ -64,20 +67,20 @@
     </div>
 </div>
 
-<link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-<link href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css" rel="stylesheet">
+<link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
+<link href="vendor/datatables/buttons.bootstrap5.min.css" rel="stylesheet">
 
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="vendor/jquery/jquery.min.js"></script>
+<script src="vendor/datatables/jquery.dataTables.min.js"></script>
+<script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
 
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+<script src="vendor/datatables/dataTables.buttons.min.js"></script>
+<script src="vendor/datatables/buttons.bootstrap5.min.js"></script>
+<script src="vendor/jszip/jszip.min.js"></script>
+<script src="vendor/pdfmake/pdfmake.min.js"></script>
+<script src="vendor/pdfmake/vfs_fonts.js"></script>
+<script src="vendor/datatables/buttons.html5.min.js"></script>
+<script src="vendor/datatables/buttons.print.min.js"></script>
 
 <script>
     $(document).ready(function() {

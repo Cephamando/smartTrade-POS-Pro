@@ -28,6 +28,7 @@ return [
     'end_shift_action' => ['action_only' => true],
     'receipt' => ['standalone' => true],
     'receive_stock' => [],
+    'purchasing' => [],
     'transfers' => [],
     'refund_items' => [],
     'pickup' => ['standalone' => true],
@@ -38,4 +39,5 @@ return [
     'audit' => [],
     'change_password' => [],
     'zra' => [],
+    'unspsc' => [],
 ];

@@ -1,5 +1,6 @@
 <?php
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
+$isEnt = $tier === 'enterprise';
 ?>
 <style>
     @media print {
@@ -14,21 +15,22 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 
 <div id="printable-catalog">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>📦 Product Catalog 
-            <?php if ($tier === 'enterprise'): ?>
+        <h3>📦 Product Catalog
+            <?php if ($isEnt): ?>
             <span class="badge bg-primary fs-6 ms-2 shadow-sm"><i class="bi bi-shield-check"></i> ZRA Ready</span>
             <?php endif; ?>
         </h3>
         <div class="no-print">
-            <button class="btn btn-warning fw-bold me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#importModal"><i class="bi bi-upload"></i> Import CSV</button>
-            <button onclick="exportToExcel()" class="btn btn-success fw-bold me-2 shadow-sm"><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
+            <a href="index.php?page=unspsc" class="btn btn-outline-primary fw-bold me-2 shadow-sm"><i class="bi bi-upc-scan"></i> UNSPSC Codes</a>
+            <button class="btn btn-warning fw-bold me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#importModal"><i class="bi bi-upload"></i> Import CSV / Excel</button>
+            <a href="index.php?page=products&export=csv" class="btn btn-success fw-bold me-2 shadow-sm"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
             <button onclick="printCatalog()" class="btn btn-dark fw-bold me-2 shadow-sm"><i class="bi bi-printer"></i> Print Catalog</button>
             <button class="btn btn-outline-primary fw-bold me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#catModal"><i class="bi bi-folder-plus"></i> New Category</button>
             <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#prodModal"><i class="bi bi-plus-circle"></i> New Product</button>
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 mb-3 bg-white custom-filters">
+    <div class="card shadow-sm border-0 mb-3 bg-white custom-filters no-print">
         <div class="card-body py-3">
             <div class="row g-2">
                 <div class="col-md-2">
@@ -45,8 +47,14 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
                         <?php endforeach; ?>
                     </select>
                 </div>
-                
-                <?php if ($tier === 'enterprise'): ?>
+                <div class="col-md-2">
+                    <select id="filterType" class="form-select form-select-sm border-secondary">
+                        <option value="">All Types</option>
+                        <option value="item">Item</option>
+                        <option value="service">Service</option>
+                    </select>
+                </div>
+                <?php if ($isEnt): ?>
                 <div class="col-md-2">
                     <select id="filterTax" class="form-select form-select-sm border-secondary">
                         <option value="">All Tax Classes</option>
@@ -56,23 +64,18 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
                         <option value="Class D">Class D (Excise)</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <input type="text" id="filterUNSPSC" class="form-control form-control-sm border-secondary" placeholder="UNSPSC Code...">
-                </div>
-                <?php else: ?>
-                <div class="col-md-4"></div>
                 <?php endif; ?>
-
                 <div class="col-md-2">
+                    <input type="text" id="filterUNSPSC" class="form-control form-control-sm border-secondary" placeholder="UNSPSC...">
+                </div>
+                <div class="col-md-2 d-flex gap-2">
                     <select id="filterStatus" class="form-select form-select-sm border-secondary">
                         <option value="">All Statuses</option>
                         <option value="Active">Active</option>
                         <option value="Disabled">Disabled</option>
                     </select>
-                </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button id="applyFilters" class="btn btn-sm btn-primary flex-grow-1 fw-bold"><i class="bi bi-funnel"></i> Filter</button>
-                    <button id="clearFilters" class="btn btn-sm btn-outline-danger flex-grow-1 fw-bold"><i class="bi bi-x-circle"></i> Clear</button>
+                    <button id="applyFilters" class="btn btn-sm btn-primary fw-bold"><i class="bi bi-funnel"></i></button>
+                    <button id="clearFilters" class="btn btn-sm btn-outline-danger fw-bold"><i class="bi bi-x"></i></button>
                 </div>
             </div>
         </div>
@@ -87,10 +90,10 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
                             <th>Name</th>
                             <th>Category</th>
                             <th>SKU</th>
-                            <?php if ($tier === 'enterprise'): ?>
-                            <th>Tax Class</th>
+                            <th>Unit</th>
+                            <th>Type</th>
+                            <?php if ($isEnt): ?><th>Tax Class</th><?php endif; ?>
                             <th>UNSPSC</th>
-                            <?php endif; ?>
                             <th class="text-end">Cost (ZMW)</th>
                             <th class="text-end">Price (ZMW)</th>
                             <th>Status</th>
@@ -108,19 +111,26 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
                                             <span class="text-muted">-</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
-                                        <?php if (!empty($p['sku'])): ?>
-                                            <small class="text-muted"><?= htmlspecialchars($p['sku']) ?></small>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    
-                                    <?php if ($tier === 'enterprise'): ?>
+                                    <td><small class="text-muted"><?= htmlspecialchars($p['sku'] ?? '-') ?></small></td>
+                                    <td><?= htmlspecialchars($p['unit'] ?: 'unit') ?></td>
+                                    <td><?= htmlspecialchars($p['type'] ?? 'item') ?></td>
+                                    <?php if ($isEnt): ?>
                                     <td><span class="badge bg-info text-dark">Class <?= htmlspecialchars($p['tax_class'] ?? 'A') ?></span></td>
-                                    <td><small class="text-primary fw-bold"><?= htmlspecialchars($p['unspsc_code'] ?? 'None') ?></small></td>
                                     <?php endif; ?>
-
+                                    <td>
+                                        <button type="button" class="btn btn-link btn-sm p-0 text-start unspsc-pick no-print"
+                                            data-product-id="<?= (int)$p['id'] ?>"
+                                            data-product-name="<?= htmlspecialchars($p['name'], ENT_QUOTES) ?>">
+                                            <?php if (!empty($p['unspsc_code'])): ?>
+                                                <span class="fw-bold"><?= htmlspecialchars($p['unspsc_code']) ?></span>
+                                                <?php if (!empty($p['unspsc_name'])): ?>
+                                                    <div class="small text-muted"><?= htmlspecialchars($p['unspsc_name']) ?></div>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span class="text-muted">Assign code</span>
+                                            <?php endif; ?>
+                                        </button>
+                                    </td>
                                     <td class="text-end text-muted"><?= number_format((float)$p['cost_price'], 2) ?></td>
                                     <td class="text-end fw-bold text-success"><?= number_format((float)$p['price'], 2) ?></td>
                                     <td>
@@ -145,125 +155,255 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 </div>
 
 <div class="modal fade no-print" id="prodModal" tabindex="-1">
-    <div class="modal-dialog modal-lg"><div class="modal-content border-primary border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold">Add Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products"><div class="modal-body"><input type="hidden" name="save_product" value="1"><div class="row mb-3"><div class="col-8"><label class="form-label small fw-bold text-muted">PRODUCT NAME</label><input type="text" name="name" class="form-control fw-bold" required></div><div class="col-4"><label class="form-label small fw-bold text-muted">SKU (Optional)</label><input type="text" name="sku" class="form-control" placeholder="e.g. DRINK-001"></div></div><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">CATEGORY</label><select name="category_id" class="form-select"><option value="">-- None --</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option><?php endforeach; ?></select></div><div class="col-6"><label class="form-label small fw-bold text-muted">UNIT (e.g., kg, bottle)</label><input type="text" name="unit" class="form-control" value="unit"></div></div>
-        
-        <?php if ($tier === 'enterprise'): ?>
-        <hr class="text-muted"><div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">ZRA TAX CLASS</label><select name="tax_class" class="form-select border-primary shadow-sm bg-primary bg-opacity-10 fw-bold"><option value="A" selected>Class A - Standard (16%)</option><option value="B">Class B - Zero Rated (0%)</option><option value="C">Class C - Exempt</option><option value="D">Class D - Excise</option></select></div><div class="col-6"><label class="form-label small fw-bold text-muted">UNSPSC CODE (Optional)</label><input type="text" name="unspsc_code" class="form-control border-primary shadow-sm" placeholder="e.g. 50202201"></div></div>
-        <?php else: ?>
-        <input type="hidden" name="tax_class" value="A">
-        <input type="hidden" name="unspsc_code" value="">
-        <?php endif; ?>
-
-        <div class="row mb-3"><div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" class="form-control text-danger" placeholder="0.00"></div><div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" class="form-control text-success fw-bold" placeholder="0.00"></div></div></div><div class="modal-footer border-0"><button class="btn btn-primary w-100 fw-bold py-2 shadow-sm"><i class="bi bi-save"></i> Save Product</button></div></form></div></div>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-primary border-top border-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold">Add Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=products">
+                <div class="modal-body">
+                    <input type="hidden" name="save_product" value="1">
+                    <div class="row mb-3">
+                        <div class="col-8"><label class="form-label small fw-bold text-muted">PRODUCT NAME</label><input type="text" name="name" class="form-control fw-bold" required></div>
+                        <div class="col-4"><label class="form-label small fw-bold text-muted">SKU (Optional)</label><input type="text" name="sku" class="form-control" placeholder="e.g. DRINK-001"></div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-4">
+                            <label class="form-label small fw-bold text-muted">CATEGORY</label>
+                            <select name="category_id" class="form-select"><option value="">-- None --</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option><?php endforeach; ?></select>
+                        </div>
+                        <div class="col-4"><label class="form-label small fw-bold text-muted">UNIT</label><input type="text" name="unit" class="form-control" value="unit"></div>
+                        <div class="col-4">
+                            <label class="form-label small fw-bold text-muted">TYPE</label>
+                            <select name="type" class="form-select">
+                                <option value="item">Item</option>
+                                <option value="service">Service</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <?php if ($isEnt): ?>
+                        <div class="col-4">
+                            <label class="form-label small fw-bold text-muted">ZRA TAX CLASS</label>
+                            <select name="tax_class" class="form-select">
+                                <option value="A" selected>Class A - Standard (16%)</option>
+                                <option value="B">Class B - Zero Rated (0%)</option>
+                                <option value="C">Class C - Exempt</option>
+                                <option value="D">Class D - Excise</option>
+                            </select>
+                        </div>
+                        <?php else: ?>
+                        <input type="hidden" name="tax_class" value="A">
+                        <?php endif; ?>
+                        <div class="<?= $isEnt ? 'col-8' : 'col-12' ?>">
+                            <label class="form-label small fw-bold text-muted">UNSPSC CODE</label>
+                            <input type="hidden" name="unspsc_code" id="newUnspscCode" value="">
+                            <input type="search" class="form-control" id="newUnspscSearch" placeholder="Search title, class, or 8-digit code…" autocomplete="off">
+                            <div id="newUnspscResults" class="list-group mt-2" style="max-height: 180px; overflow-y: auto;"></div>
+                            <div class="small text-muted mt-1" id="newUnspscChosen">Optional — search and select a code.</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" class="form-control text-danger" placeholder="0.00"></div>
+                        <div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" class="form-control text-success fw-bold" placeholder="0.00"></div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm"><i class="bi bi-save"></i> Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade no-print" id="importModal" tabindex="-1">
-    <div class="modal-dialog"><div class="modal-content border-warning border-top border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold"><i class="bi bi-cloud-upload"></i> Import Products (CSV)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products" enctype="multipart/form-data"><div class="modal-body"><input type="hidden" name="import_csv" value="1"><div class="alert alert-info small"><strong>Expected CSV Columns (in exact order):</strong><br>1. Name<br>2. Category<br>3. SKU<br>4. Unit (e.g., unit, kg, bottle)<br>5. Cost Price<br>6. Selling Price<br>
-        
-        <?php if ($tier === 'enterprise'): ?>
-        <span class="text-primary fw-bold">7. ZRA Tax Class (A, B, C, or D)</span><br><span class="text-primary fw-bold">8. UNSPSC Code (8-digit number)</span><br>
-        <?php endif; ?>
-
-        <br><em>Note: The system will automatically create missing categories and update existing products to avoid duplicates!</em></div><div class="mb-3"><label class="form-label fw-bold text-muted small">SELECT CSV FILE</label><input type="file" name="csv_file" class="form-control" accept=".csv" required></div></div><div class="modal-footer border-0"><button class="btn btn-warning w-100 fw-bold py-2 shadow-sm">Upload & Process Data</button></div></form></div></div>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-warning border-top border-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold"><i class="bi bi-cloud-upload"></i> Import Products</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=products" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="import_csv" value="1">
+                    <div class="alert alert-info small">
+                        Use the same columns as <strong>Export Excel</strong>. Header row required:
+                        <div class="font-monospace mt-2">Name, Category, SKU, Unit, Type, Cost Price, Selling Price, Tax Class, UNSPSC, Status</div>
+                        Type is <code>item</code> or <code>service</code>. Status is <code>Active</code> or <code>Disabled</code>.
+                        Existing SKU or name rows are updated. Missing categories are created.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">SELECT CSV OR EXCEL FILE</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv,.xlsx,.xls" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button class="btn btn-warning w-100 fw-bold py-2 shadow-sm">Upload &amp; process</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
-<link href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<div class="modal fade no-print" id="unspscAssignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-primary border-top border-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold">Assign UNSPSC</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">Linking code for <strong id="assignProductName"></strong></p>
+                <input type="hidden" id="assignProductId">
+                <input type="search" class="form-control" id="assignUnspscSearch" placeholder="Search title, class, or 8-digit code…" autocomplete="off">
+                <div id="assignUnspscResults" class="list-group mt-2" style="max-height: 260px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
+<script src="vendor/jquery/jquery.min.js"></script>
+<script src="vendor/datatables/jquery.dataTables.min.js"></script>
+<script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
 
 <script>
     $(document).ready(function() {
         if ($.fn.DataTable.isDataTable('#catalogTable')) {
             $('#catalogTable').DataTable().destroy();
         }
-
         var table = $('#catalogTable').DataTable({
             "pageLength": 25,
             "lengthMenu": [[25, 50, 100, 250, 500, -1], [25, 50, 100, 250, 500, "All"]],
             "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6">>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
-            "language": {
-                "emptyTable": "No products found. Add your first product or use the Import CSV button."
-            }
+            "language": { "emptyTable": "No products found. Add a product or import a CSV/Excel file." }
         });
-        
         $('.dataTables_length select').addClass('form-select form-select-sm d-inline-block w-auto border-secondary shadow-sm');
-        
+
         $('#applyFilters').on('click', function(e) {
             e.preventDefault();
-            var searchVal = $('#customSearch').val();
-            var catVal = $('#filterCategory').val();
-            var statusVal = $('#filterStatus').val();
-
-            table.search(searchVal);
-            table.column(1).search(catVal);
-            
-            // Adjust column indices based on tier
-            <?php if ($tier === 'enterprise'): ?>
-            var taxVal = $('#filterTax').val();
-            var unspscVal = $('#filterUNSPSC').val();
-            table.column(3).search(taxVal);
-            table.column(4).search(unspscVal);
-            table.column(7).search(statusVal);
+            table.search($('#customSearch').val());
+            table.column(1).search($('#filterCategory').val());
+            table.column(4).search($('#filterType').val());
+            <?php if ($isEnt): ?>
+            table.column(5).search($('#filterTax').val());
+            table.column(6).search($('#filterUNSPSC').val());
+            table.column(9).search($('#filterStatus').val());
             <?php else: ?>
-            table.column(5).search(statusVal);
+            table.column(5).search($('#filterUNSPSC').val());
+            table.column(8).search($('#filterStatus').val());
             <?php endif; ?>
-            
             table.draw();
         });
-
         $('.custom-filters input').on('keypress', function(e) {
-            if (e.which === 13) { 
-                e.preventDefault();
-                $('#applyFilters').click();
-            }
+            if (e.which === 13) { e.preventDefault(); $('#applyFilters').click(); }
         });
-
         $('#clearFilters').on('click', function(e) {
             e.preventDefault();
             $('#customSearch, #filterUNSPSC').val('');
-            $('#filterCategory, #filterTax, #filterStatus').val('');
-            table.search('').columns().search('').draw(); 
+            $('#filterCategory, #filterTax, #filterStatus, #filterType').val('');
+            table.search('').columns().search('').draw();
         });
     });
 
     function printCatalog() {
         var table = $('#catalogTable').DataTable();
-        var currentPageLength = table.page.len(); 
-        table.page.len(-1).draw(); 
+        var currentPageLength = table.page.len();
+        table.page.len(-1).draw();
         setTimeout(function() {
             window.print();
-            table.page.len(currentPageLength).draw(); 
+            table.page.len(currentPageLength).draw();
         }, 300);
     }
 
-    function exportToExcel() {
-        let table = $('#catalogTable').DataTable();
-        let headers = [];
-        $('#catalogTable thead th').each(function() {
-            headers.push('"' + $(this).text().trim() + '"');
-        });
-        let csv = [headers.join(',')];
-        
-        table.rows({ search: 'applied' }).every(function() {
-            let rowData = [];
-            let node = this.node(); 
-            $(node).find('td').each(function() {
-                let text = $(this).text().trim().replace(/"/g, '""'); 
-                rowData.push('"' + text + '"');
-            });
-            csv.push(rowData.join(','));
-        });
-        
-        let csvContent = csv.join('\n');
-        let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        let url = URL.createObjectURL(blob);
-        let link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", "Product_Catalog_" + new Date().toISOString().slice(0,10) + ".csv");
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    function escapeUnspsc(value) {
+        const d = document.createElement('div');
+        d.textContent = value == null ? '' : String(value);
+        return d.innerHTML;
     }
+
+    function bindUnspscSearch(inputEl, resultsEl, onPick) {
+        let timer = null;
+        inputEl.addEventListener('input', function () {
+            clearTimeout(timer);
+            const q = inputEl.value.trim();
+            if (!q) {
+                resultsEl.innerHTML = '';
+                return;
+            }
+            timer = setTimeout(function () {
+                fetch('index.php?page=unspsc&ajax=search&q=' + encodeURIComponent(q))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        resultsEl.innerHTML = '';
+                        (data.results || []).forEach(function (item) {
+                            const btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.className = 'list-group-item list-group-item-action';
+                            const path = item.item_cls_path
+                                ? '<div class="small text-muted">' + escapeUnspsc(item.item_cls_path) + '</div>'
+                                : '';
+                            const badge = item.item_cls_lvl_label
+                                ? '<span class="badge ' + (item.item_cls_lvl >= 4 ? 'bg-primary' : 'bg-secondary') + '">' + escapeUnspsc(item.item_cls_lvl_label) + '</span>'
+                                : '';
+                            btn.innerHTML = '<div class="d-flex justify-content-between gap-2 align-items-start"><div><strong class="font-monospace">'
+                                + escapeUnspsc(item.item_cls_cd) + '</strong><div>' + escapeUnspsc(item.item_cls_nm || '') + '</div>'
+                                + path + '</div>' + badge + '</div>';
+                            btn.addEventListener('click', function () { onPick(item); });
+                            resultsEl.appendChild(btn);
+                        });
+                        if (!(data.results || []).length) {
+                            resultsEl.innerHTML = '<div class="list-group-item small text-muted">No matching codes. Import the UNSPSC Excel file first.</div>';
+                        }
+                    });
+            }, 250);
+        });
+    }
+
+    bindUnspscSearch(
+        document.getElementById('newUnspscSearch'),
+        document.getElementById('newUnspscResults'),
+        function (item) {
+            document.getElementById('newUnspscCode').value = item.item_cls_cd;
+            document.getElementById('newUnspscChosen').textContent = 'Selected: ' + item.item_cls_cd + ' — ' + (item.item_cls_nm || '');
+            document.getElementById('newUnspscResults').innerHTML = '';
+            document.getElementById('newUnspscSearch').value = item.item_cls_cd + ' ' + (item.item_cls_nm || '');
+        }
+    );
+
+    const assignModal = document.getElementById('unspscAssignModal');
+    document.querySelectorAll('.unspsc-pick').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('assignProductId').value = btn.dataset.productId;
+            document.getElementById('assignProductName').textContent = btn.dataset.productName;
+            document.getElementById('assignUnspscSearch').value = '';
+            document.getElementById('assignUnspscResults').innerHTML = '';
+            bootstrap.Modal.getOrCreateInstance(assignModal).show();
+            document.getElementById('assignUnspscSearch').focus();
+        });
+    });
+    bindUnspscSearch(
+        document.getElementById('assignUnspscSearch'),
+        document.getElementById('assignUnspscResults'),
+        function (item) {
+            const body = new URLSearchParams();
+            body.set('assign_unspsc', '1');
+            body.set('ajax', '1');
+            body.set('product_id', document.getElementById('assignProductId').value);
+            body.set('unspsc_code', item.item_cls_cd);
+            fetch('index.php?page=unspsc', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.status === 'success') {
+                        location.reload();
+                    } else {
+                        AppAlert.notify({ icon: 'error', text: data.msg || 'Unable to assign the code.', confirmText: 'OK' });
+                    }
+                })
+                .catch(function () {
+                    AppAlert.notify({ icon: 'error', text: 'Unable to assign the code.', confirmText: 'OK' });
+                });
+        }
+    );
 </script>

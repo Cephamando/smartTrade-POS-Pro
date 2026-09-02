@@ -49,7 +49,7 @@ class Controller
     {
         $roles = array_map('strtolower', $roles);
         if (!in_array($this->role(), $roles, true)) {
-            $this->flash('error', 'Access Denied.');
+            $this->flash('error', 'You do not have permission to open this page.');
             $this->redirect($fallback);
         }
     }

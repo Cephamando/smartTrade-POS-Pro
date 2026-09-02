@@ -36,7 +36,7 @@ final class Transfer extends Model
                 $pdo->rollBack();
                 return 'stock';
             }
-            $pdo->prepare('UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND location_id = ?')
+            $pdo->prepare('UPDATE inventory SET quantity = GREATEST(0, quantity - ?) WHERE product_id = ? AND location_id = ?')
                 ->execute([$transfer['quantity'], $transfer['product_id'], $transfer['source_location_id']]);
             $newQty = $currentQty - $transfer['quantity'];
             $pdo->prepare(

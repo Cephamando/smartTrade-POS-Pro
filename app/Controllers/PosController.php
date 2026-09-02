@@ -15,6 +15,7 @@ final class PosController extends Controller
         $locationId = $this->locationId();
         $role = $this->role();
         $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
+        \App\Models\Inventory::ensureReasonColumn();
         $pos = new Pos($pdo);
 
         if (isset($_POST['checkout'])) {
@@ -28,7 +29,7 @@ final class PosController extends Controller
                     if ($pdo->inTransaction()) {
                         $pdo->rollBack();
                     }
-                    $this->flash('error', 'Error: ' . $e->getMessage());
+                    $this->flash('error', 'Unable to complete checkout.');
                 }
             } else {
                 $this->flash('error', 'Open a shift before checkout.');

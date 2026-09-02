@@ -40,7 +40,7 @@
                         <span class="badge bg-danger position-absolute top-0 start-50 translate-middle px-3 py-2 fs-6 shadow-sm"><i class="bi bi-shield-lock-fill"></i> DEVELOPER CONTROLS</span>
                         <h5 class="fw-bold text-danger mb-3 border-bottom border-danger pb-2"><i class="bi bi-key-fill"></i> License & Trial Management</h5>
                         <div class="alert alert-danger small fw-bold mb-4">
-                            <i class="bi bi-exclamation-triangle-fill"></i> WARNING: Setting a Lockout Date in the past will instantly trigger the System Kill Switch.
+                            <i class="bi bi-exclamation-triangle-fill"></i> A lockout date in the past immediately enables read-only mode.
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6">

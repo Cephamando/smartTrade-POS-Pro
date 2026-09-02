@@ -9,9 +9,37 @@ final class Location extends Model
         return self::db()->query('SELECT * FROM locations ORDER BY name ASC')->fetchAll();
     }
 
+    public static function find(int $id): ?array
+    {
+        $stmt = self::db()->prepare('SELECT * FROM locations WHERE id = ?');
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public static function names(): array
     {
         return self::db()->query('SELECT id, name FROM locations ORDER BY name ASC')->fetchAll();
+    }
+
+    public static function productionSource(?int $preferredId = null): int
+    {
+        $pdo = self::db();
+        if ($preferredId) {
+            $stmt = $pdo->prepare("SELECT id, type FROM locations WHERE id = ?");
+            $stmt->execute([$preferredId]);
+            $row = $stmt->fetch();
+            if ($row && in_array($row['type'], ['kitchen', 'warehouse'], true)) {
+                return (int)$row['id'];
+            }
+        }
+        $id = $pdo->query(
+            "SELECT id FROM locations WHERE type IN ('kitchen', 'warehouse') ORDER BY FIELD(type, 'kitchen', 'warehouse'), id ASC LIMIT 1"
+        )->fetchColumn();
+        if ($id) {
+            return (int)$id;
+        }
+        return (int)($preferredId ?: 0);
     }
 
     public static function sellable(): array

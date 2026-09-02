@@ -9,15 +9,17 @@
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script>
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+            if (window.bootstrap && bootstrap.Tooltip) {
+                new bootstrap.Tooltip(el);
+            }
+        });
         <?php if (isset($_SESSION['swal_msg'])): ?>
-            Swal.fire({
-                icon: '<?= $_SESSION['swal_type'] ?>',
-                title: '<?= $_SESSION['swal_msg'] ?>',
-                timer: 3000,
-                showConfirmButton: false
+            AppAlert.notify({
+                icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>,
+                text: <?= json_encode((string)$_SESSION['swal_msg']) ?>
             });
             <?php unset($_SESSION['swal_msg'], $_SESSION['swal_type']); ?>
         <?php endif; ?>

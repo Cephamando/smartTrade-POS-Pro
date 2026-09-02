@@ -57,6 +57,13 @@
         </div>
     </div>
 
+    <div class="alert alert-info border-0 shadow-sm no-print">
+        <div class="fw-bold mb-1"><i class="bi bi-info-circle-fill me-1"></i> Count while the till stays open</div>
+        <div class="small mb-0">
+            Enter the <strong>physical count</strong> and submit. Variances are applied to live stock so sales during the count are kept. Quantities never go below zero.
+        </div>
+    </div>
+
     <div class="card shadow-sm border-0 mb-4 no-print">
         <div class="card-body bg-light">
             <form method="GET" class="row g-2 align-items-end">
@@ -130,7 +137,7 @@
                                         <input type="hidden" name="location_id[]" value="<?= $item['location_id'] ?? 0 ?>">
                                         <input type="hidden" name="sys_qty[]" value="<?= $item['quantity'] ?>">
                                         
-                                        <input type="number" step="0.01" class="form-control text-center fw-bold border-dark phys-input" name="physical_qty[]" data-sys="<?= $item['quantity'] ?>" placeholder="Count">
+                                        <input type="number" min="0" step="0.01" class="form-control text-center fw-bold border-dark phys-input" name="physical_qty[]" data-sys="<?= $item['quantity'] ?>" placeholder="Count">
                                     </td>
                                     
                                     <td class="text-center fw-bold fs-5 variance-cell text-muted">--</td>
@@ -174,7 +181,7 @@
                     <div class="row g-3">
                         <div class="col-6">
                             <label class="form-label fw-bold">System Stock</label>
-                            <input type="number" step="0.01" name="quantity" id="edit_qty" class="form-control" required>
+                            <input type="number" min="0" step="0.01" name="quantity" id="edit_qty" class="form-control" required>
                         </div>
                         <div class="col-6">
                             <label class="form-label fw-bold">Selling Price (ZMW)</label>
@@ -209,6 +216,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 reasonInput.required = false;
                 reasonInput.value = '';
             } else {
+                if (physQty < 0) {
+                    this.value = '0';
+                    physQty = 0;
+                }
                 let variance = physQty - sysQty;
                 let sign = variance > 0 ? '+' : '';
                 varCell.innerText = sign + variance.toFixed(2);

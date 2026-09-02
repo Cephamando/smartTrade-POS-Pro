@@ -16,12 +16,12 @@ final class LoginController extends Controller
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!isset($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$_POST['csrf_token'])) {
-                $error = "Security token mismatch. Please refresh the page and try again.";
+                $error = "Your session expired. Refresh the page and try again.";
             } else {
                 $username = trim((string)($_POST['username'] ?? ''));
                 $password = (string)($_POST['password'] ?? '');
                 if ($username === '' || $password === '') {
-                    $error = "Please fill in all fields.";
+                    $error = "Enter your username and password.";
                 } else {
                     $user = User::findActiveByUsername($username);
                     if ($user && password_verify($password, $user['password_hash'])) {
@@ -44,7 +44,7 @@ final class LoginController extends Controller
                         }
                         $this->redirect('pos');
                     }
-                    $error = "Invalid credentials.";
+                    $error = "Username or password is incorrect.";
                 }
             }
         }
