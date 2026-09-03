@@ -192,10 +192,13 @@
                             <option value="">-- Choose an item --</option>
                             <?php if(isset($products)): foreach($products as $p):
                                 $raw = \App\Helpers\Movement::isRawProduct($p);
-                                $reason = $raw ? 'Raw food cannot be transferred to a POS. Keep it in kitchen or warehouse, then produce the finished dish.' : '';
+                                $zraBlocked = \App\Helpers\Movement::requiresZra() && !\App\Helpers\Movement::isZraReady($p);
+                                $reason = $zraBlocked
+                                    ? 'Not registered with ZRA yet. Keep it in warehouse until ZRA registration completes.'
+                                    : ($raw ? 'Raw food cannot be transferred to a POS. Keep it in kitchen or warehouse, then produce the finished dish.' : '');
                             ?>
-                                <option value="<?= $p['id'] ?>" data-raw="<?= $raw ? '1' : '0' ?>" data-reason="<?= htmlspecialchars($reason) ?>">
-                                    <?= htmlspecialchars($p['name'] ?? '') ?><?= $raw ? ' — RAW' : '' ?>
+                                <option value="<?= $p['id'] ?>" data-raw="<?= $raw ? '1' : '0' ?>" data-zra="<?= $zraBlocked ? '1' : '0' ?>" data-reason="<?= htmlspecialchars($reason) ?>">
+                                    <?= htmlspecialchars($p['name'] ?? '') ?><?= $zraBlocked ? ' — PENDING ZRA' : ($raw ? ' — RAW' : '') ?>
                                 </option>
                             <?php endforeach; endif; ?>
                         </select>
@@ -277,21 +280,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function refreshMoveRules() {
         const opt = prodSelect.options[prodSelect.selectedIndex];
         const raw = opt && opt.dataset.raw === '1';
+        const zraBlocked = opt && opt.dataset.zra === '1';
+        const foBlocked = raw || zraBlocked;
         const reason = (opt && opt.dataset.reason) || '';
         const hint = document.getElementById('moveHint');
         const submit = document.getElementById('reqSubmitBtn');
         Array.from(destSelect.options).forEach(o => {
             if (!o.value) return;
-            const blocked = raw && o.dataset.pos === '1';
+            const blocked = foBlocked && o.dataset.pos === '1';
             o.disabled = blocked || o.value === sourceSelect.value;
             o.style.color = blocked ? '#aaa' : '';
         });
         const destOpt = destSelect.options[destSelect.selectedIndex];
-        const destBlocked = raw && destOpt && destOpt.dataset.pos === '1';
+        const destBlocked = foBlocked && destOpt && destOpt.dataset.pos === '1';
         if (hint) {
-            if (raw) {
+            if (foBlocked) {
                 hint.classList.remove('d-none');
-                hint.innerHTML = '<i class="bi bi-info-circle"></i> ' + (reason || 'Raw food cannot be sent to a POS location.');
+                hint.innerHTML = '<i class="bi bi-info-circle"></i> ' + (reason || 'This item cannot be sent to a POS location.');
             } else {
                 hint.classList.add('d-none');
                 hint.innerHTML = '';

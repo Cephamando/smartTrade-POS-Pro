@@ -12,6 +12,51 @@ final class Transfer extends Model
         )->execute([$sourceId, $destId, $productId, $qty, $userId]);
     }
 
+    public static function executeImmediate(int $sourceId, int $destId, int $productId, float $qty, int $userId): int
+    {
+        $pdo = self::db();
+        $pdo->beginTransaction();
+        try {
+            $check = $pdo->prepare('SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?');
+            $check->execute([$productId, $sourceId]);
+            $currentQty = (float)($check->fetchColumn() ?: 0);
+            if ($currentQty < $qty) {
+                throw new \Exception('Insufficient stock at the source location.');
+            }
+            $pdo->prepare(
+                "INSERT INTO inventory_transfers
+                    (source_location_id, dest_location_id, product_id, quantity, user_id, status, created_at, dispatched_at, received_at)
+                 VALUES (?, ?, ?, ?, ?, 'completed', NOW(), NOW(), NOW())"
+            )->execute([$sourceId, $destId, $productId, $qty, $userId]);
+            $id = (int)$pdo->lastInsertId();
+
+            $pdo->prepare('UPDATE inventory SET quantity = GREATEST(0, quantity - ?) WHERE product_id = ? AND location_id = ?')
+                ->execute([$qty, $productId, $sourceId]);
+            $pdo->prepare(
+                "INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id)
+                 VALUES (?, ?, ?, ?, ?, 'transfer_out', ?)"
+            )->execute([$productId, $sourceId, $userId, -$qty, $currentQty - $qty, $id]);
+
+            $pdo->prepare(
+                'INSERT INTO inventory (product_id, location_id, quantity) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)'
+            )->execute([$productId, $destId, $qty]);
+            $destQty = $pdo->prepare('SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?');
+            $destQty->execute([$productId, $destId]);
+            $pdo->prepare(
+                "INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id)
+                 VALUES (?, ?, ?, ?, ?, 'transfer_in', ?)"
+            )->execute([$productId, $destId, $userId, $qty, $destQty->fetchColumn(), $id]);
+
+            $pdo->commit();
+            return $id;
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     public static function find(int $id): ?array
     {
         $stmt = self::db()->prepare('SELECT * FROM inventory_transfers WHERE id = ?');

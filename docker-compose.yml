@@ -23,6 +23,8 @@ services:
       ZRA_DVC_SRL_NO: ${ZRA_DVC_SRL_NO}
       ZRA_VSDC_URL: ${ZRA_VSDC_URL}
       ZRA_PORTAL_URL: ${ZRA_PORTAL_URL:-}
+      VSIAS_URL: ${VSIAS_URL:-http://localhost:8095}
+      VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-vsias_pro_bridge_change_me}
     depends_on:
       db:
         condition: service_healthy   # ✅ Wait for MySQL to be READY, not just started

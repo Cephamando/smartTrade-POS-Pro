@@ -47,6 +47,14 @@ final class Location extends Model
         return self::db()->query('SELECT id, name FROM locations WHERE can_sell = 1 ORDER BY name ASC')->fetchAll();
     }
 
+    /** Warehouse and kitchen — the only sites that receive vendor stock. */
+    public static function vendorReceiveSites(): array
+    {
+        return self::db()->query(
+            "SELECT * FROM locations WHERE type IN ('warehouse', 'kitchen') ORDER BY name ASC"
+        )->fetchAll() ?: [];
+    }
+
     public static function nameById(int $id): string
     {
         $stmt = self::db()->prepare('SELECT name FROM locations WHERE id = ?');

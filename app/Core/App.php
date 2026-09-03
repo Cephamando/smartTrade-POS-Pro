@@ -189,7 +189,7 @@ final class App
 
         if (isset($_SESSION['user_id'])) {
             $proPlusFeatures = ['kds', 'kitchen', 'menu', 'tables'];
-            $proFeatures = ['members', 'audit', 'receive_stock', 'purchasing', 'transfers', 'pickup'];
+            $proFeatures = ['members', 'audit', 'receive_stock', 'receiving_bay', 'purchasing', 'transfers', 'pickup'];
 
             if (in_array($page, $proPlusFeatures, true) && !in_array(LICENSE_TIER, ['pro+', 'enterprise'], true)) {
                 $_SESSION['swal_type'] = 'error';

@@ -35,6 +35,19 @@ final class Movement
         return $used > 0 && $hasRecipe === 0 && $price <= 0;
     }
 
+    public static function requiresZra(): bool
+    {
+        return defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise';
+    }
+
+    public static function isZraReady(?array $product): bool
+    {
+        if (!$product || !array_key_exists('zra_synced', $product)) {
+            return true;
+        }
+        return !empty($product['zra_synced']) && !empty($product['zra_item_cd']);
+    }
+
     /**
      * @return array{ok:bool, reason:?string}
      */
@@ -55,6 +68,12 @@ final class Movement
                 'reason' => 'Raw food cannot be transferred to a POS. Keep it in kitchen or warehouse, then produce the finished dish.',
             ];
         }
+        if (self::requiresZra() && !self::isZraReady($product) && self::isFrontOfHouse($dest)) {
+            return [
+                'ok' => false,
+                'reason' => 'Not registered with ZRA yet. Keep it in warehouse until ZRA registration completes.',
+            ];
+        }
         return ['ok' => true, 'reason' => null];
     }
 
@@ -70,6 +89,12 @@ final class Movement
             return [
                 'ok' => false,
                 'reason' => 'Raw food must be received into kitchen or warehouse, not a POS bar or store.',
+            ];
+        }
+        if (self::requiresZra() && !self::isZraReady($product) && self::isFrontOfHouse($location)) {
+            return [
+                'ok' => false,
+                'reason' => 'Not registered with ZRA yet. Receive into warehouse until ZRA registration completes.',
             ];
         }
         return ['ok' => true, 'reason' => null];
@@ -100,6 +125,12 @@ final class Movement
      */
     public static function sellOnPos(?array $product): array
     {
+        if (self::requiresZra() && !self::isZraReady($product)) {
+            return [
+                'ok' => false,
+                'reason' => 'Not registered with ZRA yet.',
+            ];
+        }
         if (self::isRawProduct($product)) {
             return [
                 'ok' => false,

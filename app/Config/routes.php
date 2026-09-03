@@ -28,6 +28,7 @@ return [
     'end_shift_action' => ['action_only' => true],
     'receipt' => ['standalone' => true],
     'receive_stock' => [],
+    'receiving_bay' => [],
     'purchasing' => [],
     'transfers' => [],
     'refund_items' => [],

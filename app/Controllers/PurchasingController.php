@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\ReceivingBay;
 use App\Models\Vendor;
 
 final class PurchasingController extends Controller
@@ -77,6 +78,10 @@ final class PurchasingController extends Controller
                         $items,
                         $orderId
                     );
+                    $dockId = (int)($_POST['dock_id'] ?? 0);
+                    if ($dockId > 0) {
+                        ReceivingBay::markReceived($dockId, $grvId, $this->userId(), $locId);
+                    }
                     $msg = 'Goods received (GRV #' . $grvId . ').';
                     try {
                         $zraRes = (new \ZraVsdcClient($this->pdo()))->syncGrv($grvId);
@@ -91,12 +96,36 @@ final class PurchasingController extends Controller
             } catch (\Throwable $e) {
                 $this->flash('error', $e->getMessage());
             }
-            $this->redirect('purchasing', ['tab' => $tab]);
+            $q = ['tab' => $tab];
+            if (isset($_POST['process_grv']) && !empty($_POST['dock_id'])) {
+                $q['dock_id'] = (int)$_POST['dock_id'];
+                if (!empty($_POST['location_id'])) {
+                    $q['location_id'] = (int)$_POST['location_id'];
+                }
+            }
+            $this->redirect('purchasing', $q);
         }
 
         $editInquiry = !empty($_GET['inquiry_id']) ? Purchase::inquiry((int)$_GET['inquiry_id']) : null;
         $editOrder = !empty($_GET['order_id']) ? Purchase::order((int)$_GET['order_id']) : null;
         $receiveOrder = !empty($_GET['receive_order']) ? Purchase::order((int)$_GET['receive_order']) : $editOrder;
+
+        $bayPrefill = null;
+        $dockId = (int)($_GET['dock_id'] ?? 0);
+        if ($tab === 'received' && $dockId > 0) {
+            $dock = ReceivingBay::find($dockId);
+            if ($dock && ($dock['status'] ?? '') === 'docked') {
+                $locId = (int)($_GET['location_id'] ?? $dock['intended_location_id'] ?? 0);
+                try {
+                    if ($locId > 0) {
+                        ReceivingBay::registerCustomItems($dockId, $locId);
+                    }
+                    $bayPrefill = ReceivingBay::grvPrefill($dockId, $locId ?: null);
+                } catch (\Throwable $e) {
+                    $this->flash('error', $e->getMessage());
+                }
+            }
+        }
 
         $this->render([
             'tab' => $tab,
@@ -106,6 +135,7 @@ final class PurchasingController extends Controller
             'editInquiry' => $editInquiry,
             'editOrder' => $editOrder,
             'receiveOrder' => $receiveOrder,
+            'bayPrefill' => $bayPrefill,
             'vendors' => Vendor::active(),
             'locations' => Location::all(),
             'products' => Product::activeItems(),

@@ -14,6 +14,17 @@ final class Vendor extends Model
         return self::db()->query('SELECT * FROM vendors WHERE is_active = 1 ORDER BY name ASC')->fetchAll();
     }
 
+    public static function findIdByName(string $name): int
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return 0;
+        }
+        $stmt = self::db()->prepare('SELECT id FROM vendors WHERE LOWER(name) = LOWER(?) LIMIT 1');
+        $stmt->execute([$name]);
+        return (int)($stmt->fetchColumn() ?: 0);
+    }
+
     public static function create(string $name, string $contact, string $phone): void
     {
         self::db()->prepare('INSERT INTO vendors (name, contact_person, phone) VALUES (?, ?, ?)')

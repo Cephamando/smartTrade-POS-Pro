@@ -1,5 +1,9 @@
 <?php
 $tab = $tab ?? 'inquiry';
+$bayPrefill = is_array($bayPrefill ?? null) ? $bayPrefill : [];
+$grvVendorId = (int)($bayPrefill['vendor_id'] ?? $receiveOrder['vendor_id'] ?? 0);
+$grvLocationId = (int)($bayPrefill['location_id'] ?? $receiveOrder['location_id'] ?? $currentLocId ?? 0);
+$grvRef = (string)($bayPrefill['ref'] ?? $receiveOrder['reference_no'] ?? '');
 $productsJson = [];
 foreach ($products as $p) {
     $raw = \App\Helpers\Movement::isRawProduct($p);
@@ -222,12 +226,24 @@ foreach ($locations as $l) {
 <div class="card shadow-sm border-0 border-top border-warning border-4">
     <div class="card-body">
         <h5 class="fw-bold mb-3">Goods received from vendor</h5>
+        <?php if (!empty($bayPrefill['tracking_code'])): ?>
+        <div class="alert alert-warning small">
+            From receiving bay <strong><?= htmlspecialchars((string)$bayPrefill['tracking_code']) ?></strong>
+            <?php if (!empty($bayPrefill['source_name'])): ?>
+                · <?= htmlspecialchars((string)$bayPrefill['source_name']) ?>
+            <?php endif; ?>
+            . Review the lines, then Process GRV to book stock.
+        </div>
+        <?php endif; ?>
         <div class="alert alert-info small">
             Raw food can only be received into kitchen or warehouse. POS bars/stores are blocked for those items.
             <i class="bi bi-info-circle" title="Finished goods may still go to a POS location."></i>
         </div>
         <form method="POST" id="grvForm">
             <input type="hidden" name="process_grv" value="1">
+            <?php if (!empty($bayPrefill['tracking_code'])): ?>
+            <input type="hidden" name="dock_id" value="<?= (int)($_GET['dock_id'] ?? 0) ?>">
+            <?php endif; ?>
             <div class="row g-3 mb-3">
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">PURCHASE ORDER</label>
@@ -245,7 +261,7 @@ foreach ($locations as $l) {
                     <select name="vendor_id" id="grvVendor" class="form-select" required>
                         <option value="">Select vendor…</option>
                         <?php foreach ($vendors as $v): ?>
-                            <option value="<?= (int)$v['id'] ?>" <?= ((int)($receiveOrder['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
+                            <option value="<?= (int)$v['id'] ?>" <?= ($grvVendorId === (int)$v['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($v['name']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -255,7 +271,7 @@ foreach ($locations as $l) {
                     <label class="form-label small fw-bold text-muted">RECEIVE INTO</label>
                     <select name="location_id" id="grvLocation" class="form-select" required>
                         <?php foreach ($locations as $l): ?>
-                            <option value="<?= (int)$l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" <?= ((int)($receiveOrder['location_id'] ?? $currentLocId) === (int)$l['id']) ? 'selected' : '' ?>>
+                            <option value="<?= (int)$l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" <?= ($grvLocationId === (int)$l['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($l['name']) ?> (<?= htmlspecialchars($l['type'] ?? '') ?>)
                             </option>
                         <?php endforeach; ?>
@@ -263,7 +279,7 @@ foreach ($locations as $l) {
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">INVOICE / REF</label>
-                    <input type="text" name="ref_number" class="form-control" value="<?= htmlspecialchars($receiveOrder['reference_no'] ?? '') ?>">
+                    <input type="text" name="ref_number" class="form-control" value="<?= htmlspecialchars($grvRef) ?>">
                 </div>
             </div>
             <div id="moveWarn" class="alert alert-warning d-none py-2 small"></div>
@@ -285,6 +301,7 @@ const catalog = <?= json_encode($productsJson) ?>;
 const locationsMeta = <?= json_encode($locationsJson) ?>;
 const inquiryPrefill = <?= json_encode($editInquiry['items'] ?? []) ?>;
 const orderPrefill = <?= json_encode($editOrder['items'] ?? $receiveOrder['items'] ?? []) ?>;
+const bayPrefillItems = <?= json_encode(($bayPrefill ?? [])['items'] ?? []) ?>;
 
 function productOptions(selected, withCost) {
     return catalog.map(function (p) {
@@ -304,7 +321,7 @@ function addLine(containerId, withCost, preset) {
     row.className = 'row g-2 mb-2 align-items-center purchase-line';
     const pid = preset ? (preset.product_id || '') : '';
     const qty = preset ? (preset.quantity || preset.qty || '') : '';
-    const cost = preset ? (preset.unit_cost || preset.cost_price || '') : '';
+    const cost = preset ? (preset.unit_cost || preset.cost_price || preset.cost || '') : '';
     let html = '<div class="' + (withCost ? 'col-6' : 'col-8') + '"><select name="items[' + idx + '][product_id]" class="form-select form-select-sm js-prod" required><option value="">Select…</option>'
         + productOptions(pid, withCost) + '</select></div>';
     html += '<div class="col-3"><input type="number" step="0.01" min="0.01" name="items[' + idx + '][qty]" class="form-control form-control-sm" required placeholder="Qty" value="' + qty + '"></div>';
@@ -376,7 +393,11 @@ document.addEventListener('DOMContentLoaded', function () {
         else if (<?= json_encode($tab === 'orders') ?>) addLine('orderLines', true);
     }
     if (grvBox) {
-        if (orderPrefill.length && <?= json_encode($tab === 'received') ?>) {
+        if (bayPrefillItems.length) {
+            bayPrefillItems.forEach(function (r) {
+                addLine('grvLines', true, { product_id: r.product_id, quantity: r.qty, unit_cost: r.cost });
+            });
+        } else if (orderPrefill.length && <?= json_encode($tab === 'received') ?>) {
             orderPrefill.forEach(function (r) {
                 const remain = Math.max(0, parseFloat(r.quantity || 0) - parseFloat(r.received_qty || 0));
                 if (remain > 0) addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost });

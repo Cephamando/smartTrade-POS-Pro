@@ -83,7 +83,8 @@ $pmData = $pmData ?? [];
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-box-seam"></i> Inventory</div>
             <div class="list-group list-group-flush small fw-bold">
                 <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
-                <a href="index.php?page=receive_stock" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Receive Stock <i class="bi bi-chevron-right text-muted"></i></a>
+                <a href="index.php?page=receiving_bay" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Receiving Bay <i class="bi bi-chevron-right text-muted"></i></a>
+                <a href="index.php?page=purchasing&tab=received" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Goods Received <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php endif; ?>
                 <a href="index.php?page=inventory" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">Manage Products <i class="bi bi-chevron-right text-muted"></i></a>
                 <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>

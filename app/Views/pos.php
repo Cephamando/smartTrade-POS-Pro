@@ -282,26 +282,30 @@
                     <div id="items-grid" class="row g-2">
                         <?php foreach($products as $p):
                             $hasRecipe = ($p['is_recipe'] > 0);
-                            $rawBlock = \App\Helpers\Movement::sellOnPos($p);
-                            $isRaw = !$rawBlock['ok'];
-                            $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe && !$isRaw);
-                            $blocked = $isOut || $isRaw;
+                            $sellBlock = \App\Helpers\Movement::sellOnPos($p);
+                            $notSellable = !$sellBlock['ok'];
+                            $pendingZra = \App\Helpers\Movement::requiresZra() && !\App\Helpers\Movement::isZraReady($p);
+                            $isRaw = \App\Helpers\Movement::isRawProduct($p);
+                            $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe && !$notSellable);
+                            $blocked = $isOut || $notSellable;
                         ?>
                         <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= $blocked ? '1' : '0' ?>">
                             <form method="POST" class="h-100 add-item-form">
                                 <input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="<?= $p['id'] ?>"><input type="hidden" name="is_refund" class="refund-input" value="0">
-                                <button type="submit" class="item-card d-flex flex-column text-start p-2 <?= $isRaw ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
+                                <button type="submit" class="item-card d-flex flex-column text-start p-2 <?= $notSellable ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
                                     <div style="height: 38px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm w-100"><?= htmlspecialchars($p['name']) ?></div>
                                     <div class="mb-1 w-100">
-                                        <?php if ($isRaw): ?>
+                                        <?php if ($pendingZra): ?>
+                                            <span class="stock-badge bg-secondary">Pending ZRA</span>
+                                        <?php elseif ($isRaw): ?>
                                             <span class="stock-badge bg-secondary">Raw</span>
                                         <?php elseif($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?> in stock</span><?php endif; ?>
                                     </div>
                                     <div class="text-primary fw-bold w-100 mt-auto fs-6">ZMW <?= number_format($p['price'], 2) ?></div>
                                 </button>
                             </form>
-                            <?php if ($isRaw): ?>
-                            <button type="button" class="btn btn-link p-0 position-absolute text-info" style="top:6px;right:10px;z-index:3;" title="<?= htmlspecialchars($rawBlock['reason']) ?>" data-bs-toggle="tooltip" onclick="event.preventDefault(); event.stopPropagation(); AppAlert.notify({icon:'info', title:'Not sold on POS', text: <?= json_encode($rawBlock['reason']) ?>});">
+                            <?php if ($notSellable): ?>
+                            <button type="button" class="btn btn-link p-0 position-absolute text-info" style="top:6px;right:10px;z-index:3;" title="<?= htmlspecialchars($sellBlock['reason']) ?>" data-bs-toggle="tooltip" onclick="event.preventDefault(); event.stopPropagation(); AppAlert.notify({icon:'info', title:'Not sold on POS', text: <?= json_encode($sellBlock['reason']) ?>});">
                                 <i class="bi bi-info-circle fs-5"></i>
                             </button>
                             <?php endif; ?>

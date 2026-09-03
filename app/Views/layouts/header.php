@@ -14,8 +14,14 @@ if (isset($_POST['change_global_location']) && isset($_SESSION['user_id']) && is
 }
 
 $allGlobalLocations = [];
+$bayWaiting = 0;
 if (isset($pdo)) {
     $allGlobalLocations = $pdo->query("SELECT id, name FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    try {
+        $bayWaiting = \App\Models\ReceivingBay::dockedCount();
+    } catch (\Throwable $e) {
+        $bayWaiting = 0;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -30,23 +36,88 @@ if (isset($pdo)) {
     <script src="js/app-alerts.js"></script>
     <style>
         body { background-color: #f4f6f9; }
-        @media (min-width: 768px) { .navbar .dropdown:hover .dropdown-menu { display: block; margin-top: 0; } }
-        .hover-location:hover { background-color: rgba(255, 193, 7, 0.1); border-radius: 5px; }
+        .app-navbar {
+            background: linear-gradient(180deg, #1c2128 0%, #161a20 100%);
+            border-bottom: 3px solid #ffc107;
+            padding-top: 0.4rem;
+            padding-bottom: 0.4rem;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.28);
+        }
+        .app-navbar .navbar-brand {
+            letter-spacing: 0.03em;
+            font-size: 1.08rem;
+            padding-right: 0.85rem;
+            margin-right: 0.35rem;
+            border-right: 1px solid rgba(255,193,7,0.28);
+        }
+        .app-navbar .nav-link {
+            color: rgba(255,255,255,0.82) !important;
+            font-weight: 600;
+            font-size: 0.92rem;
+            padding: 0.45rem 0.75rem !important;
+            border-radius: 0.45rem;
+            margin-right: 0.15rem;
+        }
+        .app-navbar .nav-link:hover,
+        .app-navbar .nav-link:focus,
+        .app-navbar .nav-link.show {
+            color: #fff !important;
+            background: rgba(255,255,255,0.08);
+        }
+        .app-navbar .dropdown-menu {
+            border: 0;
+            border-radius: 0.65rem;
+            padding: 0.45rem;
+            margin-top: 0.35rem;
+        }
+        .app-navbar .dropdown-item {
+            border-radius: 0.4rem;
+            padding: 0.45rem 0.75rem;
+            font-weight: 600;
+        }
+        .app-navbar .dropdown-item:hover { background: #fff8e1; }
+        @media (min-width: 768px) {
+            .navbar .dropdown:hover .dropdown-menu { display: block; margin-top: 0; }
+            .app-navbar .navbar-nav { flex-wrap: nowrap; align-items: center; }
+        }
+        .hover-location:hover { background-color: rgba(255, 193, 7, 0.12); }
         .navbar-toggler { border: 2px solid #ffc107; color: #ffc107; font-weight: 700; }
         .navbar-toggler:focus { box-shadow: 0 0 0 0.2rem rgba(255,193,7,0.35); }
-        .navbar-nav { flex-wrap: wrap; }
+        .nav-pos-btn {
+            background: #198754;
+            color: #fff !important;
+            border-radius: 2rem !important;
+            padding: 0.4rem 1rem !important;
+            border: 0 !important;
+            margin-left: 0.35rem;
+        }
+        .nav-pos-btn:hover { background: #157347 !important; color: #fff !important; }
+        .nav-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 2rem;
+            padding: 0.28rem 0.75rem;
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .nav-chip:hover { background: rgba(255, 193, 7, 0.15); border-color: rgba(255,193,7,0.45); color: #fff; }
         @media (max-width: 767.98px) {
             .navbar .container-fluid { padding-left: 0.75rem; padding-right: 0.75rem; }
             .navbar-collapse { padding-top: 0.5rem; }
             .navbar-nav .dropdown-menu { position: static; float: none; width: 100%; box-shadow: none; border: 0; background: #2b3035; }
             .navbar-nav .dropdown-item { color: #fff; }
             .navbar-nav .dropdown-item:hover { background: #ffc107; color: #000; }
-            .navbar .d-flex.align-items-center { flex-wrap: wrap; gap: 0.5rem !important; padding: 0.75rem 0 0.25rem; }
-            .navbar .d-flex.align-items-center .me-4 { margin-right: 0.5rem !important; }
+            .app-navbar .nav-toolbar { flex-wrap: wrap; gap: 0.5rem !important; padding: 0.75rem 0 0.25rem; }
             .container-fluid.px-4 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+            .nav-pos-btn { margin-left: 0; margin-top: 0.35rem; }
         }
         @media (min-width: 768px) and (max-width: 1199.98px) {
-            .navbar-nav .nav-link { padding-left: 0.5rem; padding-right: 0.5rem; }
+            .navbar-nav .nav-link { padding-left: 0.45rem; padding-right: 0.45rem; }
             .navbar-brand { font-size: 1rem; }
         }
     </style>
@@ -87,7 +158,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
     </div>
 </div>
 
-<nav class="navbar navbar-expand-md navbar-dark bg-dark border-bottom border-warning border-3 shadow-sm mb-4">
+<nav class="navbar navbar-expand-md navbar-dark app-navbar shadow-sm mb-4 sticky-top">
     <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold text-warning d-flex align-items-center" href="index.php">
             <i class="bi bi-box-seam me-2"></i> <?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?>
@@ -115,7 +186,8 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                         <li><a class="dropdown-item" href="index.php?page=categories"><i class="bi bi-folder"></i> Categories</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock Levels</a></li>
-                        <li><a class="dropdown-item fw-bold text-primary" href="index.php?page=purchasing&tab=received"><i class="bi bi-box-arrow-in-down"></i> Goods Received</a></li>
+                        <li><a class="dropdown-item fw-bold text-warning" href="index.php?page=receiving_bay"><i class="bi bi-box-arrow-in-down"></i> Receiving Bay<?php if ($bayWaiting > 0): ?> <span class="badge bg-warning text-dark ms-1"><?= (int)$bayWaiting ?></span><?php endif; ?></a></li>
+                        <li><a class="dropdown-item fw-bold text-primary" href="index.php?page=purchasing&tab=received"><i class="bi bi-box-seam"></i> Goods Received</a></li>
                         <li><a class="dropdown-item fw-bold text-info" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Transfer Stock</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="index.php?page=purchasing&tab=inquiry"><i class="bi bi-question-circle"></i> Purchase Inquiry</a></li>
@@ -136,6 +208,8 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                         <?php if (in_array($tier, ['enterprise']) || in_array($role, ['admin', 'dev'])): ?>
                         <li><a class="dropdown-item fw-bold text-success" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA Smart Invoice</a></li>
                         <?php endif; ?>
+                        <?php $vsiasUrl = rtrim((string)(getenv('VSIAS_URL') ?: 'http://localhost:8095'), '/'); ?>
+                        <li><a class="dropdown-item fw-bold text-info" href="<?= htmlspecialchars($vsiasUrl) ?>" target="_blank" rel="noopener"><i class="bi bi-clipboard-check"></i> Site inspection (V-SIAS Pro)</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts & X-Reads</a></li>
                         <li><a class="dropdown-item" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
@@ -158,7 +232,7 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                 </li>
                 <?php endif; ?>
                 <li class="nav-item">
-                    <a class="nav-link fw-bold text-success border border-success rounded px-3 my-1" href="index.php?page=pos"><i class="bi bi-cart-check"></i> LAUNCH POS</a>
+                    <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check"></i> Launch POS</a>
                 </li>
             </ul>
         
@@ -181,15 +255,17 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
             </ul>
         <?php endif; ?>
 
-            <div class="d-flex align-items-center ms-auto">
-                <span class="text-light me-4 fw-bold p-2 hover-location" style="cursor:pointer; transition:0.2s;" data-bs-toggle="modal" data-bs-target="#globalLocationModal" title="Change Workstation">
-                    <i class="bi bi-geo-alt-fill text-warning me-1"></i> <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
-                    <i class="bi bi-pencil-square text-secondary ms-1" style="font-size:0.8em;"></i>
+            <div class="d-flex align-items-center ms-auto gap-2 nav-toolbar">
+                <button type="button" class="nav-chip btn hover-location" data-bs-toggle="modal" data-bs-target="#globalLocationModal" title="Change workstation">
+                    <i class="bi bi-geo-alt-fill text-warning"></i>
+                    <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
+                </button>
+                <span class="nav-chip d-none d-lg-inline-flex">
+                    <i class="bi bi-person-badge text-info"></i>
+                    <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
+                    <span class="text-white-50">· <?= htmlspecialchars(strtoupper($role)) ?></span>
                 </span>
-                <span class="text-light me-4 fw-bold border-start border-secondary ps-4">
-                    <i class="bi bi-person-badge text-info me-1"></i> <?= htmlspecialchars(strtoupper($role)) ?>: <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
-                </span>
-                <a href="index.php?action=logout" class="btn btn-outline-danger btn-sm fw-bold"><i class="bi bi-power"></i> Logout</a>
+                <a href="index.php?action=logout" class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold">Logout</a>
             </div>
         </div>
     </div>
