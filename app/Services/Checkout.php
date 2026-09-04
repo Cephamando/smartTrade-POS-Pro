@@ -61,10 +61,17 @@ final class Checkout
         }
         $checkTotal += $tip;
 
+        $rfdRsnCd = $checkTotal < 0
+            ? \ZraVsdcClient::normalizeRefundReasonCode((string)($post['rfd_rsn_cd'] ?? '07'))
+            : '';
+
         if ($checkTotal < 0) {
             $mgr = User::verifyManager((string)($post['mgr_username'] ?? ''), (string)($post['mgr_password'] ?? ''));
             if (!$mgr) {
                 throw new \Exception("Manager Authorization required for Cash Refunds.");
+            }
+            if ($settleTabId <= 0) {
+                $this->prepareOriginalInvoicesForRefund($session);
             }
         }
 
@@ -78,13 +85,23 @@ final class Checkout
             $this->newSale($post, $session, $shiftId, $locationId, $userId, $tip, $pm, $amountTendered, $sm1, $sa1, $sm2, $sa2, $splitJson, $fiscalizeAfterCommit, $clearCartAfterCommit);
         }
 
+        if ($rfdRsnCd !== '' && $fiscalizeAfterCommit > 0) {
+            try {
+                $this->pdo->prepare('UPDATE sales SET zra_rfd_rsn_cd = ? WHERE id = ?')
+                    ->execute([$rfdRsnCd, $fiscalizeAfterCommit]);
+            } catch (\Throwable $e) {
+                // column added by ZraVsdcClient
+            }
+        }
+
         $this->pdo->commit();
         if ($clearCartAfterCommit) {
             $session['cart'] = [];
             $session['current_customer'] = '';
         }
         if ($fiscalizeAfterCommit > 0) {
-            $session['swal_msg'] .= fiscalizePaidSale($this->pdo, $fiscalizeAfterCommit);
+            $opts = $rfdRsnCd !== '' ? ['rfdRsnCd' => $rfdRsnCd] : [];
+            $session['swal_msg'] .= fiscalizePaidSale($this->pdo, $fiscalizeAfterCommit, $opts);
         }
     }
 
@@ -216,15 +233,44 @@ final class Checkout
             deductStock($this->pdo, $item['product_id'], $dbQty, $locationId, $userId, $stockAction);
 
             if ($isRefund && !empty($item['refund_sale_item_id'])) {
+                $origItemId = (int)$item['refund_sale_item_id'];
+                $leftStmt = $this->pdo->prepare(
+                    "SELECT GREATEST(
+                        0,
+                        si.quantity - COALESCE((
+                            SELECT SUM(r.quantity)
+                            FROM sale_items r
+                            WHERE r.refund_sale_item_id = si.id
+                              AND r.is_refund = 1
+                              AND r.status <> 'voided'
+                        ), 0)
+                    )
+                     FROM sale_items si WHERE si.id = ?"
+                );
+                $leftStmt->execute([$origItemId]);
+                $left = (float)$leftStmt->fetchColumn();
+                if ($left <= 0.0001) {
+                    $this->pdo->prepare("UPDATE sale_items SET status = 'refunded', fulfillment_status = 'refunded' WHERE id = ?")->execute([$origItemId]);
+                }
                 $stmt = $this->pdo->prepare("SELECT sale_id FROM sale_items WHERE id = ?");
-                $stmt->execute([$item['refund_sale_item_id']]);
+                $stmt->execute([$origItemId]);
                 $origSaleId = $stmt->fetchColumn();
                 if ($origSaleId) {
-                    $this->pdo->prepare("UPDATE sale_items SET status = 'refunded', fulfillment_status = 'refunded' WHERE id = ?")->execute([$item['refund_sale_item_id']]);
                     $stmt2 = $this->pdo->prepare("SELECT payment_status FROM sales WHERE id = ?");
                     $stmt2->execute([$origSaleId]);
                     if ($stmt2->fetchColumn() === 'pending') {
                         $this->pdo->prepare("UPDATE sales SET subtotal = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')), final_total = (SELECT COALESCE(SUM(price*quantity), 0) FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')) WHERE id = ?")->execute([$origSaleId, $origSaleId, $origSaleId]);
+                    }
+                    try {
+                        $rcpt = $this->pdo->prepare('SELECT zra_rcpt_no FROM sales WHERE id = ?');
+                        $rcpt->execute([$origSaleId]);
+                        $orgInvc = (int)$rcpt->fetchColumn();
+                        if ($orgInvc > 0) {
+                            $this->pdo->prepare('UPDATE sales SET zra_org_invc_no = ? WHERE id = ?')
+                                ->execute([$orgInvc, $saleId]);
+                        }
+                    } catch (\Throwable $e) {
+                        // column added by ZraVsdcClient
                     }
                 }
             }
@@ -236,5 +282,51 @@ final class Checkout
         }
         $session['swal_type'] = 'success';
         $session['swal_msg'] = "Transaction complete.";
+    }
+
+    /**
+     * Credit notes must cite a real Smart Invoice. Fiscalize those originals first
+     * so ZRA is not pointed at an unrelated later sale of the same product.
+     */
+    private function prepareOriginalInvoicesForRefund(array $session): void
+    {
+        $origSaleIds = [];
+        foreach ($session['cart'] ?? [] as $item) {
+            if (empty($item['is_refund'])) {
+                continue;
+            }
+            $lineId = (int)($item['refund_sale_item_id'] ?? 0);
+            if ($lineId <= 0) {
+                throw new \Exception('Choose the original sale to refund before issuing the credit note.');
+            }
+            $line = \App\Models\Sale::refundableLine($lineId);
+            if (!$line) {
+                throw new \Exception('That ticket line is no longer refundable.');
+            }
+            $saleId = (int)($line['sale_id'] ?? 0);
+            if ($saleId > 0) {
+                $origSaleIds[$saleId] = $saleId;
+            }
+        }
+        if ($origSaleIds === []) {
+            throw new \Exception('Choose the original sale to refund before issuing the credit note.');
+        }
+        $zraMsg = '';
+        foreach ($origSaleIds as $saleId) {
+            $sale = \App\Models\Sale::find($saleId);
+            if (!$sale) {
+                throw new \Exception('Original sale #' . $saleId . ' was not found.');
+            }
+            if (empty($sale['zra_rcpt_sign'])) {
+                $zraMsg .= fiscalizePaidSale($this->pdo, $saleId);
+                $sale = \App\Models\Sale::find($saleId) ?: $sale;
+            }
+            if (Movement::requiresZra() && empty($sale['zra_rcpt_sign'])) {
+                throw new \Exception(
+                    'Sale #' . $saleId . ' is not on ZRA yet. Fiscalize it from the ZRA page, then refund.'
+                    . ($zraMsg !== '' ? ' ' . trim($zraMsg) : '')
+                );
+            }
+        }
     }
 }

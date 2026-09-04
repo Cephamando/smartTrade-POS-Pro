@@ -6,6 +6,11 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
     .metric-card { border: none; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
     .metric-card:hover { transform: translateY(-3px); }
     .table-responsive { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 15px; }
+    #reportLocation {
+        color: #212529 !important;
+        background-color: #fff !important;
+        min-height: 38px;
+    }
     @media print {
         @page { margin: 10mm; size: portrait; }
         body { background-color: #fff !important; }
@@ -53,11 +58,11 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
                 <input type="text" name="end" class="form-control datepicker" value="<?= $endDate ?>" autocomplete="off">
         </div>
         <div class="col-md-3">
-            <label class="form-label small fw-bold">Location</label>
-            <select name="location" class="form-select">
-                <option value="">All Locations</option>
-                <?php foreach($locations as $l): ?>
-                    <option value="<?= $l['id'] ?>" <?= ($locationId == $l['id']) ? 'selected' : '' ?>><?= htmlspecialchars($l['name']) ?></option>
+            <label class="form-label small fw-bold text-dark" for="reportLocation">Location</label>
+            <select name="location" id="reportLocation" class="form-select bg-white text-dark border">
+                <option value="" <?= ($locationId === '' || $locationId === null) ? 'selected' : '' ?>>All Locations</option>
+                <?php foreach (($locations ?? []) as $l): ?>
+                    <option value="<?= (int)$l['id'] ?>" <?= ((string)$locationId === (string)$l['id']) ? 'selected' : '' ?>><?= htmlspecialchars((string)($l['name'] ?? 'Location #' . $l['id'])) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -157,7 +162,7 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
                 <td class="text-end no-print">
                     <button onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= $row['id'] ?>')" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer"></i></button>
                     
-                    <?php if(strtolower($row['payment_status']) == 'paid' && in_array($_SESSION['role'], ['admin', 'manager', 'dev'])): ?>
+                    <?php if(strtolower($row['payment_status']) == 'paid' && (float)$row['final_total'] > 0 && in_array($_SESSION['role'], ['admin', 'manager', 'dev'])): ?>
                     <a href="index.php?page=refund_items&sale_id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></a>
                     <?php endif; ?>
                 </td>

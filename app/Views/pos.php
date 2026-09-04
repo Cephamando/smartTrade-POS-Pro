@@ -291,7 +291,7 @@
                             $isOut = ($available <= 0 && !$hasRecipe && !$notSellable);
                             $blocked = $notSellable;
                         ?>
-                        <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= ($isOut || $blocked) ? '1' : '0' ?>" data-product-id="<?= (int)$p['id'] ?>" data-on-hand="<?= htmlspecialchars((string)(float)$p['stock_qty']) ?>" data-tracks-stock="<?= ($hasRecipe || $notSellable || $pendingZra || $isRaw) ? '0' : '1' ?>">
+                        <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-label="<?= htmlspecialchars($p['name']) ?>" data-out="<?= ($isOut || $blocked) ? '1' : '0' ?>" data-product-id="<?= (int)$p['id'] ?>" data-on-hand="<?= htmlspecialchars((string)(float)$p['stock_qty']) ?>" data-tracks-stock="<?= ($hasRecipe || $notSellable || $pendingZra || $isRaw) ? '0' : '1' ?>">
                             <form method="POST" class="h-100 add-item-form js-pos-cart">
                                 <input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="<?= $p['id'] ?>"><input type="hidden" name="is_refund" class="refund-input" value="0">
                                 <button type="submit" class="item-card d-flex flex-column text-start p-2 <?= $notSellable ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
@@ -551,7 +551,17 @@
         <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
         <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
-        <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;"><label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label><input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username"><input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password"></div>
+        <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;">
+            <label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label>
+            <label class="form-label small fw-bold text-white" for="rfdRsnCd">ZRA refund reason</label>
+            <select name="rfd_rsn_cd" id="rfdRsnCd" class="form-select mb-3">
+                <?php foreach (\ZraVsdcClient::refundReasonCodes() as $code => $label): ?>
+                <option value="<?= htmlspecialchars((string)$code) ?>" <?= $code === '07' ? 'selected' : '' ?>><?= htmlspecialchars((string)$label) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username">
+            <input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password">
+        </div>
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" min="0" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" oninput="onTipChange()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= ($tier === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
@@ -617,6 +627,25 @@
 
     <div class="modal fade" id="reportModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content border-0 shadow-lg"><div class="modal-header bg-info text-dark"><h5 class="modal-title fw-bold" id="reportTitle"><i class="bi bi-file-earmark-text"></i> X-Read</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-0" style="height: 65vh;"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer bg-light"><button type="button" class="btn btn-info fw-bold px-4" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer"></i> PRINT X-READ</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
     <div class="modal fade" id="pickupModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content h-100"><div class="modal-body p-0"><iframe id="pickupFrame" src="" style="width:100%; height:80vh; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+    <div class="modal fade" id="refundInvoiceModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-danger shadow-lg">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-receipt-cutoff me-2"></i>Select original invoice</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2" id="refundInvoiceProduct">Choose the sale this return belongs to. ZRA will credit that Smart Invoice.</p>
+                    <input type="search" id="refundInvoiceSearch" class="form-control mb-3" placeholder="Filter by sale # or ZRA receipt…">
+                    <div id="refundInvoiceList" class="list-group"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-success text-white"><h5>Receipt</h5></div><div class="modal-body p-0" style="height:400px;"><iframe id="receiptFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-primary" onclick="document.getElementById('receiptFrame').contentWindow.print()">PRINT</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
 
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
@@ -731,10 +760,118 @@
             if (form.classList.contains('js-confirm-form') && form.dataset.swalConfirmed !== '1') {
                 return;
             }
+            if (needsRefundInvoicePick(form)) {
+                e.preventDefault();
+                e.stopPropagation();
+                const pid = (form.querySelector('[name="product_id"]') || {}).value || '';
+                const card = form.closest('.item');
+                const name = (card && card.getAttribute('data-label')) || (document.getElementById('op_name') ? document.getElementById('op_name').innerText : '');
+                openRefundInvoicePicker(pid, name);
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             posCartSubmit(form, e.submitter);
         }, true);
+        function isPosRefundMode() {
+            const toggle = document.getElementById('refundToggle');
+            return !!(toggle && toggle.checked);
+        }
+        function needsRefundInvoicePick(form) {
+            if (!isPosRefundMode()) {
+                return false;
+            }
+            if (!form.classList.contains('add-item-form') && form.id !== 'openPriceForm') {
+                return false;
+            }
+            const orig = form.querySelector('[name="refund_sale_item_id"]');
+            return !orig || !parseInt(orig.value, 10);
+        }
+        let refundInvoiceState = { productId: '', productName: '', invoices: [] };
+        function openRefundInvoicePicker(productId, productName) {
+            refundInvoiceState = { productId: String(productId || ''), productName: productName || '', invoices: [] };
+            const list = document.getElementById('refundInvoiceList');
+            const label = document.getElementById('refundInvoiceProduct');
+            const search = document.getElementById('refundInvoiceSearch');
+            if (label) {
+                label.textContent = (productName ? productName + ' — ' : '') + 'Choose the sale this return belongs to. ZRA will credit that Smart Invoice.';
+            }
+            if (search) search.value = '';
+            if (list) list.innerHTML = '<div class="text-muted py-3 text-center">Looking up invoices…</div>';
+            safeModalShow('refundInvoiceModal');
+            const body = new FormData();
+            body.set('ajax', '1');
+            body.set('lookup_refund_invoices', '1');
+            body.set('product_id', String(productId || ''));
+            fetch('index.php?page=pos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                body: body
+            }).then(posCartParse).then(function (data) {
+                refundInvoiceState.invoices = (data && data.invoices) || [];
+                renderRefundInvoiceList();
+            }).catch(function () {
+                if (list) list.innerHTML = '<div class="alert alert-danger mb-0">Unable to load invoices.</div>';
+            });
+        }
+        function renderRefundInvoiceList() {
+            const list = document.getElementById('refundInvoiceList');
+            const search = document.getElementById('refundInvoiceSearch');
+            if (!list) return;
+            const q = ((search && search.value) || '').trim().toLowerCase();
+            const rows = refundInvoiceState.invoices.filter(function (inv) {
+                if (!q) return true;
+                const hay = ['#' + inv.sale_id, String(inv.zra_rcpt_no || ''), inv.customer_name || '', inv.location_name || ''].join(' ').toLowerCase();
+                return hay.indexOf(q) !== -1;
+            });
+            if (!refundInvoiceState.invoices.length) {
+                list.innerHTML = '<div class="alert alert-warning mb-0">No paid sale of this item is left to refund at any station. Open <strong>Reports</strong> and refund the original ticket.</div>';
+                return;
+            }
+            if (!rows.length) {
+                list.innerHTML = '<div class="text-muted py-3 text-center">No invoice matches that search.</div>';
+                return;
+            }
+            list.innerHTML = rows.map(function (inv) {
+                const when = inv.created_at ? String(inv.created_at).replace('T', ' ').slice(0, 16) : '';
+                const zra = inv.zra_rcpt_no ? ('ZRA #' + inv.zra_rcpt_no) : 'Not on ZRA yet';
+                const station = inv.same_station ? 'This station' : (inv.location_name || 'Other station');
+                const left = inv.remaining != null ? inv.remaining : '';
+                return '<button type="button" class="list-group-item list-group-item-action refund-invoice-pick" data-sale-item-id="' + inv.sale_item_id + '">'
+                    + '<div class="d-flex justify-content-between align-items-center">'
+                    + '<span class="fw-bold">Sale #' + inv.sale_id + '</span>'
+                    + '<span class="badge ' + (inv.same_station ? 'bg-dark' : 'bg-secondary') + '">' + station + '</span>'
+                    + '</div>'
+                    + '<div class="small text-muted">' + when + ' · ' + (inv.customer_name || 'Walk-in') + ' · ' + zra + '</div>'
+                    + '<div class="small">ZMW ' + Number(inv.price || 0).toFixed(2) + ' · ' + left + ' left</div>'
+                    + '</button>';
+            }).join('');
+        }
+        document.addEventListener('input', function (e) {
+            if (e.target && e.target.id === 'refundInvoiceSearch') {
+                renderRefundInvoiceList();
+            }
+        });
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.refund-invoice-pick');
+            if (!btn) return;
+            const saleItemId = parseInt(btn.getAttribute('data-sale-item-id') || '0', 10);
+            const inv = refundInvoiceState.invoices.find(function (row) { return parseInt(row.sale_item_id, 10) === saleItemId; });
+            if (!inv) return;
+            const modalEl = document.getElementById('refundInvoiceModal');
+            if (modalEl && window.bootstrap) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+            posCartAdd({
+                add_item: '1',
+                product_id: String(inv.product_id || refundInvoiceState.productId),
+                custom_price: String(inv.price || ''),
+                is_refund: '1',
+                refund_sale_item_id: String(inv.sale_item_id)
+            });
+        });
         function posCartAdd(fields) {
             const body = new FormData();
             body.set('ajax', '1');
@@ -763,8 +900,8 @@
         function switchTab(tab, name) { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = name; document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); document.getElementById('items-grid').style.display = 'none'; document.getElementById('services-grid').style.display = 'flex'; document.getElementById('paginationBar').style.display = 'none'; }
         function printTabBill(saleId) { document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); }
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
-        function toggleRefundMode() { let isRefund = document.getElementById('refundToggle').checked; document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0'); let header = document.getElementById('mainHeader'); if (isRefund) { header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger'); } else { header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark'); } }
-        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isRefund === '1' && tabStatus === 'pending') { AppAlert.notify({ icon: 'error', title: 'Payment required', text: 'This table has not been paid. Use Void to remove items.' }); return; } posCartAdd({ add_item: '1', product_id: productId, custom_price: price, is_refund: isRefund, refund_sale_item_id: saleItemId }); }
+        function toggleRefundMode() { let isRefund = document.getElementById('refundToggle').checked; document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0'); let header = document.getElementById('mainHeader'); if (isRefund) { header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger'); AppAlert.notify({ icon: 'info', title: 'Refund mode', text: 'Tap a product, then choose the original invoice. Do not refund from the grid alone.' }); } else { header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark'); } }
+        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = isPosRefundMode(); if (isRefund && tabStatus === 'pending') { AppAlert.notify({ icon: 'error', title: 'Payment required', text: 'This table has not been paid. Use Void to remove items.' }); return; } if (isRefund && !(parseInt(saleItemId, 10) > 0)) { openRefundInvoicePicker(productId, ''); return; } posCartAdd({ add_item: '1', product_id: productId, custom_price: price, is_refund: isRefund ? '1' : '0', refund_sale_item_id: saleItemId }); }
         function logWasteAuth() { Swal.fire({ title: 'Log waste', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a manager username and password.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
         function safeModalShow(id) { let el = document.getElementById(id); if (!el) return; try { let m = bootstrap.Modal.getInstance(el); if (!m) { m = new bootstrap.Modal(el); } m.show(); } catch(e) { el.classList.add('show'); el.style.display = 'block'; } }
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
@@ -782,7 +919,7 @@
             if (!isTabMode) { baseTotal = window.posCartBalance || 0; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = <?= json_encode((string)($_SESSION['current_customer'] ?? 'Walk-in')) ?>; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
             currentTotal = baseTotal; tenderedTouched = false; document.getElementById('tipInput').value = '';
             resetSplitRows();
-            if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); document.getElementById('refundAuthSection').style.display = 'block'; document.getElementById('mgrUserRefund').required = true; document.getElementById('mgrPassRefund').required = true; } else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); document.getElementById('refundAuthSection').style.display = 'none'; document.getElementById('mgrUserRefund').required = false; document.getElementById('mgrPassRefund').required = false; }
+            if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); document.getElementById('refundAuthSection').style.display = 'block'; document.getElementById('mgrUserRefund').required = true; document.getElementById('mgrPassRefund').required = true; let rfdOn = document.getElementById('rfdRsnCd'); if (rfdOn) rfdOn.required = true; } else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); document.getElementById('refundAuthSection').style.display = 'none'; document.getElementById('mgrUserRefund').required = false; document.getElementById('mgrPassRefund').required = false; let rfdOff = document.getElementById('rfdRsnCd'); if (rfdOff) rfdOff.required = false; }
             if(document.getElementById('discountToggle')) { document.getElementById('discountToggle').checked = false; toggleDiscount(); } else { updateDisplays(); } safeModalShow('checkoutModal'); 
         }
 
@@ -934,7 +1071,7 @@
             const panel = document.getElementById('cartPanel');
             setCartExpanded(!(panel && panel.classList.contains('expanded')));
         }
-        function addService(id, name, price, isOpen) { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { posCartAdd({ add_item: '1', product_id: id, is_refund: isRefund }); } }
+        function addService(id, name, price, isOpen) { if (isPosRefundMode()) { openRefundInvoicePicker(id, name); return; } let isRefund = '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { posCartAdd({ add_item: '1', product_id: id, is_refund: isRefund }); } }
         <?php if(isset($_SESSION['swal_msg']) || isset($_SESSION['swal_html'])): ?> AppAlert.notify({ icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>, title: <?= json_encode($_SESSION['swal_title'] ?? '') ?>, text: <?= json_encode((string)($_SESSION['swal_msg'] ?? '')) ?>, html: <?= json_encode((string)($_SESSION['swal_html'] ?? '')) ?>, confirmText: <?= json_encode($_SESSION['swal_confirm'] ?? '') ?>, cancelText: <?= json_encode($_SESSION['swal_cancel'] ?? '') ?>, url: <?= json_encode($_SESSION['swal_url'] ?? '') ?> }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg'], $_SESSION['swal_title'], $_SESSION['swal_confirm'], $_SESSION['swal_cancel'], $_SESSION['swal_url'], $_SESSION['swal_html']); endif; ?>
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>

@@ -34,6 +34,31 @@ class ZraVsdcClient
     }
 
     /**
+     * ZRA credit-note reason codes (rfdRsnCd).
+     *
+     * @return array<string, string>
+     */
+    public static function refundReasonCodes(): array
+    {
+        return [
+            '01' => 'Wrong product',
+            '02' => 'Wrong price',
+            '03' => 'Damaged goods',
+            '04' => 'Wrong customer invoiced',
+            '05' => 'Duplicated invoice',
+            '06' => 'Excess supplies',
+            '07' => 'Other',
+        ];
+    }
+
+    public static function normalizeRefundReasonCode(?string $code): string
+    {
+        $digits = preg_replace('/\D+/', '', (string)$code) ?? '';
+        $code = str_pad(substr($digits, -2), 2, '0', STR_PAD_LEFT);
+        return array_key_exists($code, self::refundReasonCodes()) ? $code : '07';
+    }
+
+    /**
      * VSDC often returns an empty qrCodeUrl or the placeholder "[Link]".
      * Build the Digitax/ZRA receipt URL: TPIN (10) + branch (3) + rcptSign.
      */
@@ -494,6 +519,9 @@ class ZraVsdcClient
         $isRefund = ((float)$saleData['final_total'] < 0) || $this->linesAreRefund($saleItems);
         $user = $this->lookupUser((int)$saleData['user_id']);
         if ($isRefund) {
+            $opts['rfdRsnCd'] = self::normalizeRefundReasonCode(
+                (string)($opts['rfdRsnCd'] ?? ($saleData['zra_rfd_rsn_cd'] ?? '07'))
+            );
             $orig = $this->resolveOriginalInvoice($saleData, $saleItems, $opts);
             if ($orig['orgInvcNo'] <= 0 || $orig['orgSdcId'] === '') {
                 $msg = 'Refund needs the original ZRA invoice (SDC ID and receipt number). Refund from the fiscalized receipt, not a blank walk-in return.';
@@ -801,7 +829,7 @@ class ZraVsdcClient
             'cnclReqDt' => null,
             'cnclDt' => null,
             'rfdDt' => $isRefund ? $cfmDt : null,
-            'rfdRsnCd' => $isRefund ? ($opts['rfdRsnCd'] ?? '06') : null,
+            'rfdRsnCd' => $isRefund ? ($opts['rfdRsnCd'] ?? '07') : null,
             'totItemCnt' => count($itemList),
             'taxblAmtA' => round($buckets['A'], 4),
             'taxblAmtB' => round($buckets['B'], 4),
@@ -873,7 +901,7 @@ class ZraVsdcClient
             $payload['orgSdcId'] = $orgSdcId;
             $payload['orgInvcNo'] = $orgInvcNo;
             $payload['rfdDt'] = $cfmDt;
-            $payload['rfdRsnCd'] = $opts['rfdRsnCd'] ?? '06';
+            $payload['rfdRsnCd'] = $opts['rfdRsnCd'] ?? '07';
         }
 
         unset($nextInvcNo);
@@ -893,43 +921,19 @@ class ZraVsdcClient
 
         foreach ($items as $line) {
             $origItemId = (int)($line['refund_sale_item_id'] ?? 0);
-            if ($origItemId > 0) {
-                $stmt = $this->pdo->prepare(
-                    "SELECT s.zra_rcpt_no, s.zra_sdc_id
-                     FROM sale_items si
-                     JOIN sales s ON s.id = si.sale_id
-                     WHERE si.id = ?
-                     LIMIT 1"
-                );
-                $stmt->execute([$origItemId]);
-                $orig = $stmt->fetch(PDO::FETCH_ASSOC);
-                if ($orig && (int)($orig['zra_rcpt_no'] ?? 0) > 0 && trim((string)($orig['zra_sdc_id'] ?? '')) !== '') {
-                    return [
-                        'orgInvcNo' => (int)$orig['zra_rcpt_no'],
-                        'orgSdcId' => trim((string)$orig['zra_sdc_id']),
-                    ];
-                }
-            }
-
-            $productId = (int)($line['product_id'] ?? 0);
-            if ($productId <= 0) {
+            if ($origItemId <= 0) {
                 continue;
             }
             $stmt = $this->pdo->prepare(
                 "SELECT s.zra_rcpt_no, s.zra_sdc_id
                  FROM sale_items si
                  JOIN sales s ON s.id = si.sale_id
-                 WHERE si.product_id = ?
-                   AND s.id <> ?
-                   AND s.zra_rcpt_no IS NOT NULL AND s.zra_rcpt_no > 0
-                   AND s.zra_sdc_id IS NOT NULL AND s.zra_sdc_id <> ''
-                   AND COALESCE(s.zra_rcpt_sign, '') <> ''
-                 ORDER BY s.id DESC
+                 WHERE si.id = ?
                  LIMIT 1"
             );
-            $stmt->execute([$productId, (int)($sale['id'] ?? 0)]);
+            $stmt->execute([$origItemId]);
             $orig = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($orig && (int)($orig['zra_rcpt_no'] ?? 0) > 0) {
+            if ($orig && (int)($orig['zra_rcpt_no'] ?? 0) > 0 && trim((string)($orig['zra_sdc_id'] ?? '')) !== '') {
                 return [
                     'orgInvcNo' => (int)$orig['zra_rcpt_no'],
                     'orgSdcId' => trim((string)$orig['zra_sdc_id']),
@@ -1416,6 +1420,7 @@ class ZraVsdcClient
         $this->addColumnIfMissing('sales', 'zra_sdc_id', 'VARCHAR(50) DEFAULT NULL');
         $this->addColumnIfMissing('sales', 'zra_mrc_no', 'VARCHAR(50) DEFAULT NULL');
         $this->addColumnIfMissing('sales', 'zra_qr_code_url', 'TEXT DEFAULT NULL');
+        $this->addColumnIfMissing('sales', 'zra_rfd_rsn_cd', "VARCHAR(2) DEFAULT NULL");
     }
 
     private function ensureProductColumns(): void

@@ -23,43 +23,20 @@ final class ReportsController extends Controller
                 $this->flash('error', 'You do not have permission to process refunds.');
                 $this->redirect('reports');
             }
-            $saleId = (int)$_POST['sale_id'];
-            $sale = Sale::find($saleId);
-            if (!$sale) {
-                $this->flash('error', 'Sale not found.');
-            } elseif (strtolower($sale['payment_status']) === 'refunded') {
-                $this->flash('warning', 'This sale has already been refunded.');
-            } elseif (strtolower($sale['payment_status']) !== 'paid') {
-                $this->flash('error', 'Unpaid sales cannot be refunded.');
-            } else {
-                $pdo = $this->pdo();
-                $pdo->beginTransaction();
-                try {
-                    $pdo->prepare("UPDATE sales SET payment_status = 'refunded' WHERE id = ?")->execute([$saleId]);
-                    $itemsStmt = $pdo->prepare('SELECT * FROM sale_items WHERE sale_id = ?');
-                    $itemsStmt->execute([$saleId]);
-                    foreach ($itemsStmt->fetchAll() as $item) {
-                        $typeStmt = $pdo->prepare('SELECT type FROM products WHERE id = ?');
-                        $typeStmt->execute([$item['product_id']]);
-                        if ($typeStmt->fetchColumn() === 'service') {
-                            continue;
-                        }
-                        $pdo->prepare('UPDATE inventory SET quantity = quantity + ? WHERE product_id = ? AND location_id = ?')
-                            ->execute([$item['quantity'], $item['product_id'], $sale['location_id']]);
-                        $qtyStmt = $pdo->prepare('SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?');
-                        $qtyStmt->execute([$item['product_id'], $sale['location_id']]);
-                        $newQty = $qtyStmt->fetchColumn();
-                        $pdo->prepare(
-                            "INSERT INTO inventory_logs (product_id, location_id, user_id, change_qty, after_qty, action_type, reference_id, created_at)
-                             VALUES (?, ?, ?, ?, ?, 'refund', ?, NOW())"
-                        )->execute([$item['product_id'], $sale['location_id'], $this->userId(), $item['quantity'], $newQty, $saleId]);
-                    }
-                    $pdo->commit();
-                    $this->flash('success', 'Refund processed and stock restored.');
-                } catch (\Throwable $e) {
-                    $pdo->rollBack();
-                    $this->flash('error', 'Unable to process the refund.');
+            try {
+                $result = (new \App\Services\Refund($this->pdo()))->refundAll(
+                    (int)$_POST['sale_id'],
+                    $this->userId(),
+                    'Full refund',
+                    (string)($_POST['rfd_rsn_cd'] ?? '07')
+                );
+                $msg = 'Refund processed and stock restored.';
+                if ($result['zra_msg'] !== '') {
+                    $msg .= ' ' . $result['zra_msg'];
                 }
+                $this->flash('success', $msg);
+            } catch (\Throwable $e) {
+                $this->flash('error', $e->getMessage() ?: 'Unable to process the refund.');
             }
             $this->redirect('reports');
         }

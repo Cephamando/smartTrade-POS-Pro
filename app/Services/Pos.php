@@ -62,6 +62,15 @@ final class Pos
         $ajax = !empty($post['ajax'])
             || strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
 
+        if (!empty($post['lookup_refund_invoices'])) {
+            $productId = (int)($post['product_id'] ?? 0);
+            return ['json' => [
+                'status' => 'ok',
+                'product_id' => $productId,
+                'invoices' => \App\Models\Sale::refundableInvoicesForProduct($productId, $locationId),
+            ]];
+        }
+
         if (isset($post['add_item'])) {
             if (!$activeShiftId) {
                 return $ajax
@@ -338,18 +347,36 @@ final class Pos
         }
         $pid = (int)$post['product_id'];
         $price = isset($post['custom_price']) ? (float)$post['custom_price'] : (float)$prod['price'];
-        if ($isRefund) {
-            $price = -abs($price);
-        }
         $refundSaleItemId = isset($post['refund_sale_item_id']) && $post['refund_sale_item_id'] !== 'undefined'
             ? (int)$post['refund_sale_item_id'] : 0;
-        $key = $pid . '_' . md5((string)$price) . ($isRefund ? '_refund' : '');
+        $origSaleId = 0;
+        if ($isRefund) {
+            if ($refundSaleItemId <= 0) {
+                return ['kind' => 'info', 'text' => 'Choose the original sale to refund. Do not tap the product from the grid without picking the ticket.'];
+            }
+            $origLine = \App\Models\Sale::refundableLine($refundSaleItemId);
+            if (!$origLine || (int)($origLine['product_id'] ?? 0) !== $pid) {
+                return ['kind' => 'info', 'text' => 'That ticket line cannot be refunded for this item.'];
+            }
+            $origSaleId = (int)($origLine['sale_id'] ?? 0);
+            $mixed = $this->refundCartOriginalSaleId($session);
+            if ($mixed > 0 && $origSaleId > 0 && $mixed !== $origSaleId) {
+                return ['kind' => 'info', 'text' => 'This refund cart is for sale #' . $mixed . '. Charge it first, then refund another ticket.'];
+            }
+            $price = -abs((float)$origLine['price']);
+        }
+        $key = $pid . '_' . md5((string)$price) . ($isRefund ? '_refund_' . $refundSaleItemId : '');
         $fulfillment = 'collected';
         if (!$isRefund && in_array(strtolower((string)($prod['cat_type'] ?? '')), ['food', 'meal'], true) && in_array($tier, ['pro+', 'enterprise'], true)) {
             $fulfillment = 'uncollected';
         }
         $nextQty = (isset($session['cart'][$key]) ? (float)$session['cart'][$key]['qty'] : 0) + 1;
-        if (!$isRefund) {
+        if ($isRefund) {
+            $blocked = $this->refundQtyBlocked($session, $refundSaleItemId, $nextQty, $key);
+            if ($blocked) {
+                return $blocked;
+            }
+        } else {
             $shortage = $this->saleShortage($session, $prod, $locationId, $nextQty, $key);
             if ($shortage) {
                 return $shortage;
@@ -358,9 +385,13 @@ final class Pos
         if (isset($session['cart'][$key])) {
             $session['cart'][$key]['qty']++;
         } else {
+            $label = $prod['name'];
+            if ($isRefund) {
+                $label = '🔙 [RETURN] ' . $prod['name'] . ($origSaleId > 0 ? ' · #' . $origSaleId : '');
+            }
             $session['cart'][$key] = [
                 'product_id' => $pid,
-                'name' => ($isRefund ? '🔙 [RETURN] ' : '') . $prod['name'],
+                'name' => $label,
                 'price' => $price,
                 'qty' => 1,
                 'cat_type' => $prod['cat_type'],
@@ -369,6 +400,7 @@ final class Pos
                 'is_refund' => $isRefund,
                 'tracks_stock' => \App\Helpers\Movement::tracksOnHandStock($prod),
                 'refund_sale_item_id' => $refundSaleItemId,
+                'refund_sale_id' => $origSaleId,
             ];
         }
         return null;
@@ -422,14 +454,61 @@ final class Pos
     private function increaseCartItem(array $session, string $key, int $locationId): ?array
     {
         $item = $session['cart'][$key] ?? null;
-        if (!$item || !empty($item['is_refund'])) {
-            return null;
+        if (!$item) {
+            return ['kind' => 'info', 'text' => 'That cart line is gone.'];
+        }
+        if (!empty($item['is_refund'])) {
+            $origId = (int)($item['refund_sale_item_id'] ?? 0);
+            if ($origId <= 0) {
+                return ['kind' => 'info', 'text' => 'This return is not linked to a sale. Remove it and pick the original ticket.'];
+            }
+            return $this->refundQtyBlocked($session, $origId, (float)$item['qty'] + 1, $key);
         }
         $prod = Product::findWithCategory((int)$item['product_id']);
         if (!$prod) {
             return null;
         }
         return $this->saleShortage($session, $prod, $locationId, (float)$item['qty'] + 1, $key);
+    }
+
+    private function refundCartOriginalSaleId(array $session): int
+    {
+        foreach ($session['cart'] ?? [] as $item) {
+            if (empty($item['is_refund'])) {
+                continue;
+            }
+            $saleId = (int)($item['refund_sale_id'] ?? 0);
+            if ($saleId > 0) {
+                return $saleId;
+            }
+        }
+        return 0;
+    }
+
+    private function refundQtyBlocked(array $session, int $refundSaleItemId, float $nextQty, ?string $exceptKey = null): ?array
+    {
+        $orig = \App\Models\Sale::refundableLine($refundSaleItemId);
+        $remaining = $orig ? (float)$orig['remaining'] : 0.0;
+        $inCart = 0.0;
+        foreach ($session['cart'] ?? [] as $key => $item) {
+            if ($exceptKey !== null && (string)$key === $exceptKey) {
+                continue;
+            }
+            if ((int)($item['refund_sale_item_id'] ?? 0) !== $refundSaleItemId) {
+                continue;
+            }
+            $inCart += (float)($item['qty'] ?? 0);
+        }
+        if ($inCart + $nextQty > $remaining + 0.0001) {
+            $left = max(0, $remaining - $inCart);
+            return [
+                'kind' => 'info',
+                'text' => $left <= 0.0001
+                    ? 'Nothing is left to refund on that ticket line.'
+                    : 'Only ' . \App\Helpers\Movement::formatQty($left) . ' left to refund on that ticket.',
+            ];
+        }
+        return null;
     }
 
     private function flashNotice(array &$session, ?array $notice): void

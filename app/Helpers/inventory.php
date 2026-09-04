@@ -159,25 +159,25 @@ function deductStock($pdo, $productId, $qty, $locId, $uId, $actionOverride = 'sa
     consumeProduct($pdo, (int)$productId, (float)$qty, (int)$locId, (int)$uId, (string)$actionOverride);
 }
 
-function fiscalizePaidSale(PDO $pdo, int $saleId): string
+function fiscalizePaidSale(PDO $pdo, int $saleId, array $opts = []): string
 {
     if ($saleId <= 0) {
         return '';
     }
     try {
         $client = new ZraVsdcClient($pdo);
-        $res = $client->fiscalizeSale($saleId);
+        $res = $client->fiscalizeSale($saleId, $opts);
         if (($res['resultCd'] ?? '') === '000') {
             return ' Posted to ZRA.';
         }
         if (($res['resultCd'] ?? '') === 'skipped') {
             return '';
         }
-        $msg = $res['resultMsg'] ?? 'VSDC unavailable';
+        $msg = trim((string)($res['resultMsg'] ?? 'VSDC unavailable'));
         if (preg_match('/it\s*is\s*succeeded/i', $msg)) {
             $msg = 'Succeeded.';
         }
-        return ' ZRA posting is pending.';
+        return ' ZRA posting is pending' . ($msg !== '' ? ': ' . $msg : '.');
     } catch (Throwable $e) {
         return ' ZRA posting is pending.';
     }

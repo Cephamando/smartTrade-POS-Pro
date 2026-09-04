@@ -142,11 +142,90 @@ final class Sale extends Model
 
     public static function refundableItems(int $saleId): array
     {
+        return array_values((new \App\Services\Refund(self::db()))->remainingByItem($saleId));
+    }
+
+    /**
+     * Paid original lines of a product that still have quantity left to credit.
+     * This station's tickets are listed first so cashiers pick a real invoice
+     * instead of returning against whatever ZRA last signed for the SKU.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function refundableInvoicesForProduct(int $productId, int $locationId): array
+    {
+        if ($productId <= 0) {
+            return [];
+        }
         $stmt = self::db()->prepare(
-            "SELECT si.*, p.name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = ? AND si.status != 'refunded'"
+            "SELECT *
+             FROM (
+                SELECT si.id AS sale_item_id, si.quantity, si.price, si.product_id,
+                        s.id AS sale_id, s.created_at, s.customer_name, s.location_id,
+                        s.zra_rcpt_no, s.zra_sdc_id, s.zra_rcpt_sign, s.payment_method,
+                        l.name AS location_name,
+                        GREATEST(
+                            0,
+                            si.quantity - COALESCE((
+                                SELECT SUM(r.quantity)
+                                FROM sale_items r
+                                WHERE r.refund_sale_item_id = si.id
+                                  AND r.is_refund = 1
+                                  AND r.status <> 'voided'
+                            ), 0)
+                        ) AS remaining
+                 FROM sale_items si
+                 JOIN sales s ON s.id = si.sale_id
+                 LEFT JOIN locations l ON l.id = s.location_id
+                 WHERE si.product_id = ?
+                   AND s.payment_status = 'paid'
+                   AND s.final_total > 0
+                   AND COALESCE(si.is_refund, 0) = 0
+                   AND si.status <> 'voided'
+                   AND si.price >= 0
+             ) refundable
+             WHERE remaining > 0.0001
+             ORDER BY (location_id = ?) DESC, sale_id DESC
+             LIMIT 40"
         );
-        $stmt->execute([$saleId]);
-        return $stmt->fetchAll();
+        $stmt->execute([$productId, $locationId]);
+        $out = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $out[] = [
+                'sale_item_id' => (int)$row['sale_item_id'],
+                'sale_id' => (int)$row['sale_id'],
+                'product_id' => (int)$row['product_id'],
+                'created_at' => (string)$row['created_at'],
+                'customer_name' => trim((string)($row['customer_name'] ?? '')) ?: 'Walk-in',
+                'location_id' => (int)$row['location_id'],
+                'location_name' => (string)($row['location_name'] ?? ''),
+                'price' => abs((float)$row['price']),
+                'remaining' => (float)$row['remaining'],
+                'payment_method' => (string)($row['payment_method'] ?? ''),
+                'zra_rcpt_no' => (int)($row['zra_rcpt_no'] ?? 0),
+                'zra_signed' => trim((string)($row['zra_rcpt_sign'] ?? '')) !== '',
+                'same_station' => (int)$row['location_id'] === $locationId,
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function refundableLine(int $saleItemId): ?array
+    {
+        if ($saleItemId <= 0) {
+            return null;
+        }
+        $stmt = self::db()->prepare('SELECT sale_id, product_id FROM sale_items WHERE id = ? LIMIT 1');
+        $stmt->execute([$saleItemId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+        $available = (new \App\Services\Refund(self::db()))->remainingByItem((int)$row['sale_id']);
+        return $available[$saleItemId] ?? null;
     }
 
     public static function saleItemsForModal(int $saleId): array
