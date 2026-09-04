@@ -46,29 +46,8 @@ final class TransfersController extends Controller
                     $this->flash('success', 'Requisition sent. Awaiting dispatch.');
                 }
             }
-            if (isset($_POST['dispatch_transfer'])) {
-                $pending = Transfer::find((int)$_POST['transfer_id']);
-                if ($pending) {
-                    $check = Movement::transfer(
-                        Product::movementContext((int)$pending['product_id']),
-                        Location::find((int)$pending['source_location_id']),
-                        Location::find((int)$pending['dest_location_id'])
-                    );
-                    if (!$check['ok']) {
-                        $this->flash('error', $check['reason']);
-                        $this->redirect('transfers');
-                    }
-                }
-                $result = Transfer::dispatch((int)$_POST['transfer_id'], $userId);
-                if ($result === 'stock') {
-                    $this->flash('error', 'Insufficient stock at the source location.');
-                } elseif ($result === 'ok') {
-                    $this->flash('success', 'Stock dispatched.');
-                }
-            }
-            if (isset($_POST['receive_transfer'])) {
-                Transfer::receive((int)$_POST['transfer_id'], $userId);
-                $this->flash('success', 'Stock received.');
+            if (isset($_POST['dispatch_transfer']) || isset($_POST['receive_transfer'])) {
+                $this->flash('error', 'Dispatch and receive must go through V-SIAS inspection. Stock moves only after store approval.');
             }
             if (isset($_POST['cancel_transfer'])) {
                 Transfer::cancel((int)$_POST['transfer_id']);
@@ -83,6 +62,9 @@ final class TransfersController extends Controller
             'myRequests' => Transfer::listByStatus('pending', $userRole, $userLoc, 'dest_location_id'),
             'locations' => Location::all(),
             'products' => Product::activeItems(),
+            'transferTab' => in_array((string)($_GET['tab'] ?? ''), ['incoming', 'outgoing', 'requests'], true)
+                ? (string)$_GET['tab']
+                : 'incoming',
         ]);
     }
 }

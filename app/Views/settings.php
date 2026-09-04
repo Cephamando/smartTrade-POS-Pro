@@ -54,7 +54,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold small text-muted">SYSTEM LOCKOUT DATE</label>
-                                <input type="date" name="lockout_date" class="form-control fw-bold border-danger text-danger" value="<?= htmlspecialchars($settings['lockout_date'] ?? '') ?>" placeholder="Leave blank for lifetime access">
+                                <input type="text" name="lockout_date" class="form-control datepicker fw-bold border-danger text-danger" value="<?= htmlspecialchars($settings['lockout_date'] ?? '') ?>" placeholder="Leave blank for lifetime access" autocomplete="off">
                             </div>
                         </div>
                     </div>

@@ -95,10 +95,12 @@ final class Report extends Model
             $params[] = $locationId;
         }
         $stmt = self::db()->prepare(
-            "SELECT il.*, COALESCE(p.name, 'Unknown Product') as product_name, COALESCE(u.username, 'Unknown User') as username
+            "SELECT il.*, COALESCE(p.name, 'Unknown Product') as product_name, COALESCE(u.username, 'Unknown User') as username,
+                    s.id as sale_id, s.payment_status
              FROM inventory_logs il
              LEFT JOIN products p ON il.product_id = p.id
              LEFT JOIN users u ON il.user_id = u.id
+             LEFT JOIN sales s ON il.action_type IN ('sale','refund') AND s.id = il.reference_id
              WHERE il.created_at BETWEEN ? AND ? $locSql
              ORDER BY il.created_at DESC"
         );

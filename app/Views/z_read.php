@@ -29,7 +29,7 @@
             <input type="hidden" name="page" value="z_read">
             <div class="col-md-3">
                 <label class="form-label fw-bold small text-muted">DATE</label>
-                <input type="date" name="date" class="form-control fw-bold" value="<?= htmlspecialchars($date) ?>">
+                <input type="text" name="date" class="form-control datepicker fw-bold" value="<?= htmlspecialchars($date) ?>" autocomplete="off">
             </div>
             <div class="col-md-2">
                 <label class="form-label fw-bold small text-muted">TIME FROM</label>

@@ -26,6 +26,14 @@ $pmData = $pmData ?? [];
             <span id="readyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">0</span>
         </button>
         <?php endif; ?>
+        <?php if (!empty($canSeeVsiasApprovals)): ?>
+        <a class="btn btn-info fw-bold position-relative text-white js-vsias-inspect" href="<?= htmlspecialchars($vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
+            <i class="bi bi-clipboard-check"></i> Approvals
+            <?php if (!empty($vsiasPending)): ?>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int)$vsiasPending ?></span>
+            <?php endif; ?>
+        </a>
+        <?php endif; ?>
         <a href="index.php?page=pos" class="btn btn-primary fw-bold"><i class="bi bi-cart4"></i> Go to POS</a>
     </div>
 </div>

@@ -1,54 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Reports & Analytics</title>
-    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
-    <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
-    <link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
-    <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
-    
-    <style>
-        body { background-color: #f8f9fa; }
-        .metric-card { border: none; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
-        .metric-card:hover { transform: translateY(-3px); }
-        .table-responsive { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 15px; }
-            @media print {
+<?php
+$reportRole = strtolower((string)($_SESSION['role'] ?? ''));
+$canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
+?>
+<style>
+    .metric-card { border: none; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
+    .metric-card:hover { transform: translateY(-3px); }
+    .table-responsive { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 15px; }
+    @media print {
         @page { margin: 10mm; size: portrait; }
-        body { background-color: #fff !important; font-family: 'Courier New', Courier, monospace !important; color: #000 !important; }
-        
-        /* Hide all UI elements, navigation, and DataTables controls */
-        .no-print, .nav-tabs, form, .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate { display: none !important; }
-        
-        /* Reveal the dedicated print header */
+        body { background-color: #fff !important; }
+        .no-print, .nav-tabs, form, .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate, .app-navbar, .footer, .nav-toolbar { display: none !important; }
         #print-only-header { display: block !important; text-align: center; border-bottom: 2px dashed #000; padding-bottom: 15px; margin-bottom: 25px; }
-        
-        /* Reformat the 4 Metric Cards into a formal grid */
         .row.g-3.mb-4 { display: flex !important; flex-wrap: nowrap !important; margin-bottom: 25px !important; }
         .col-md-3 { flex: 0 0 25% !important; max-width: 25% !important; padding: 0 5px !important; }
-        .metric-card { border: 2px solid #000 !important; background: #fff !important; color: #000 !important; text-align: center !important; padding: 15px 5px !important; box-shadow: none !important; border-radius: 0 !important; }
+        .metric-card { border: 2px solid #000 !important; background: #fff !important; color: #000 !important; text-align: center !important; box-shadow: none !important; border-radius: 0 !important; }
         .metric-card * { color: #000 !important; }
-        .metric-card .display-6 { font-size: 16pt !important; font-weight: 900 !important; margin-top: 5px; }
-        .metric-card .small { font-size: 10pt !important; font-weight: bold !important; text-transform: uppercase; }
-        
-        /* Reformat the Table for paper */
         .table-responsive { padding: 0 !important; background: transparent !important; box-shadow: none !important; }
-        table.table { width: 100% !important; border-collapse: collapse !important; border: 2px solid #000 !important; }
-        table.table th, table.table td { border: 1px solid #000 !important; padding: 8px !important; color: #000 !important; font-size: 10pt !important; }
-        table.table thead th { background-color: #f0f0f0 !important; -webkit-print-color-adjust: exact; color: #000 !important; font-weight: bold !important; border-bottom: 2px solid #000 !important; }
-        
-        /* Format status badges into clean text tags */
-        .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; padding: 2px 6px !important; font-size: 9pt !important; text-transform: uppercase; font-weight: bold !important; }
-        
-        /* Strip interactive styling from links */
+        table.table th, table.table td { border: 1px solid #000 !important; color: #000 !important; }
+        .badge { border: 1px solid #000 !important; color: #000 !important; background: transparent !important; }
         a, button.btn-link { text-decoration: none !important; color: #000 !important; }
     }
     #print-only-header { display: none; }
-    </style>
-</head>
-<body class="p-3">
+</style>
 <div id="print-only-header">
     <h2 style="margin: 0; font-weight: 900; text-transform: uppercase; font-size: 24pt;">Master Report</h2>
     <h4 style="margin: 5px 0; font-size: 14pt;">Category: <?= strtoupper($reportType) ?></h4>
@@ -73,11 +46,11 @@
         <input type="hidden" name="type" value="<?= htmlspecialchars($reportType) ?>">
         <div class="col-md-3">
             <label class="form-label small fw-bold">Start Date</label>
-            <input type="text" name="start" class="form-control datepicker" value="<?= $startDate ?>">
+                <input type="text" name="start" class="form-control datepicker" value="<?= $startDate ?>" autocomplete="off">
         </div>
         <div class="col-md-3">
             <label class="form-label small fw-bold">End Date</label>
-            <input type="text" name="end" class="form-control datepicker" value="<?= $endDate ?>">
+                <input type="text" name="end" class="form-control datepicker" value="<?= $endDate ?>" autocomplete="off">
         </div>
         <div class="col-md-3">
             <label class="form-label small fw-bold">Location</label>
@@ -125,8 +98,6 @@
                 <div class="small text-uppercase opacity-75 fw-bold">Voided Items (<?= $voidStats['void_count'] ?? 0 ?>)</div>
                 <div class="display-6 fw-bold">ZMW <?= number_format($voidStats['total_voided'] ?? 0, 2) ?></div>
             </div>
-        </div>
-    </div>
         </div>
     </div>
 </div>
@@ -247,16 +218,26 @@
 
         <?php elseif($reportType === 'audit'): ?>
         <thead class="table-dark">
-            <tr><th>Time</th><th>Product</th><th>User</th><th>Action</th><th class="text-end">Qty Change</th><th>Reason/Ref</th></tr>
+            <tr><th>Time</th><th>Product</th><th>User</th><th>Action</th><th class="text-end">Qty Change</th><th>Reason/Ref</th><th class="text-end no-print">Actions</th></tr>
         </thead>
         <tbody>
             <?php foreach($reportData as $row): ?>
             <tr>
                 <td><?= date('M d, H:i', strtotime($row['created_at'])) ?></td>
-                <td class="fw-bold"><?= htmlspecialchars($row['product_name']) ?></td><td><?= htmlspecialchars($row['username']) ?></td>
+                <td class="fw-bold"><?= htmlspecialchars($row['product_name']) ?></td>
+                <td><?= htmlspecialchars($row['username']) ?></td>
                 <td><span class="badge bg-<?= $row['action_type']=='sale'?'success':($row['action_type']=='adjustment'?'warning':($row['action_type']=='refund'?'danger':'info')) ?>"><?= strtoupper($row['action_type']) ?></span></td>
                 <td class="text-end fw-bold <?= $row['change_qty'] < 0 ? 'text-danger' : 'text-success' ?>"><?= $row['change_qty'] > 0 ? '+'.$row['change_qty'] : $row['change_qty'] ?></td>
                 <td class="small text-muted"><?= ($row['action_type']=='sale') ? 'Sale #'.$row['reference_id'] : (($row['action_type']=='refund') ? 'Refund #'.$row['reference_id'] : 'Manual Adj') ?></td>
+                <td class="text-end no-print">
+                    <?php if(in_array($row['action_type'], ['sale','refund']) && !empty($row['sale_id'])): ?>
+                        <button onclick="viewSaleBreakdown(<?= (int)$row['sale_id'] ?>)" class="btn btn-sm btn-outline-secondary" title="View breakdown"><i class="bi bi-list-ul"></i></button>
+                        <button onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= (int)$row['sale_id'] ?>')" class="btn btn-sm btn-outline-primary ms-1" title="Print"><i class="bi bi-printer"></i></button>
+                        <?php if($canRefundSales && strtolower($row['payment_status'] ?? '') === 'paid' && $row['action_type'] === 'sale'): ?>
+                        <a href="index.php?page=refund_items&sale_id=<?= (int)$row['sale_id'] ?>" class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></a>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </td>
             </tr>
             <?php endforeach; ?>
         </tbody>
@@ -303,30 +284,11 @@
     </div>
 </div>
 
-<script src="vendor/jquery/jquery.min.js"></script>
-<script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+<link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
 <script src="vendor/datatables/jquery.dataTables.min.js"></script>
 <script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
-<script src="vendor/flatpickr/flatpickr.min.js"></script>
 <script>
-function printMasterReport() {
-    if ($.fn.DataTable.isDataTable('#reportsTable')) {
-        let table = $('#reportsTable').DataTable();
-        let currentLen = table.page.len();
-        table.page.len(-1).draw();
-        setTimeout(() => {
-            window.print();
-            table.page.len(currentLen).draw();
-        }, 500);
-    } else {
-        window.print();
-    }
-}
-</script>
-
-<script>
-    flatpickr(".datepicker", { dateFormat: "Y-m-d", allowInput: true });
-    
     $(document).ready(function() {
         $('#reportsTable').DataTable({
             "pageLength": 50,
@@ -408,5 +370,3 @@ function printMasterReport() {
     }
 }
 </script>
-</body>
-</html>

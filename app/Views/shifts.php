@@ -33,7 +33,7 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
                     <input type="hidden" name="page" value="shifts">
                     <div class="col-md-3">
                         <label class="form-label small fw-bold text-muted">Filter Date</label>
-                        <input type="date" name="filter_date" class="form-control fw-bold border-secondary shadow-sm" value="<?= htmlspecialchars($filterDate ?? date('Y-m-d')) ?>">
+                        <input type="text" name="filter_date" class="form-control datepicker fw-bold border-secondary shadow-sm" value="<?= htmlspecialchars($filterDate ?? date('Y-m-d')) ?>" autocomplete="off">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small fw-bold text-muted">Staff Member</label>

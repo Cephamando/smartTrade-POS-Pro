@@ -12,12 +12,12 @@
             
             <div class="col-md-3">
                 <label class="form-label fw-bold small">Start Date</label>
-                <input type="date" name="start_date" class="form-control" value="<?= $startDate ?>">
+                <input type="text" name="start_date" class="form-control datepicker" value="<?= $startDate ?>" autocomplete="off">
             </div>
             
             <div class="col-md-3">
                 <label class="form-label fw-bold small">End Date</label>
-                <input type="date" name="end_date" class="form-control" value="<?= $endDate ?>">
+                <input type="text" name="end_date" class="form-control datepicker" value="<?= $endDate ?>" autocomplete="off">
             </div>
 
             <div class="col-md-3">

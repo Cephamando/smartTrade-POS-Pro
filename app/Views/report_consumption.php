@@ -10,12 +10,12 @@
             
             <div class="col-md-3">
                 <label class="form-label fw-bold small text-muted">START DATE</label>
-                <input type="date" name="start_date" class="form-control fw-bold" value="<?= htmlspecialchars($startDate) ?>" required>
+                <input type="text" name="start_date" class="form-control datepicker fw-bold" value="<?= htmlspecialchars($startDate) ?>" required autocomplete="off">
             </div>
             
             <div class="col-md-3">
                 <label class="form-label fw-bold small text-muted">END DATE</label>
-                <input type="date" name="end_date" class="form-control fw-bold" value="<?= htmlspecialchars($endDate) ?>" required>
+                <input type="text" name="end_date" class="form-control datepicker fw-bold" value="<?= htmlspecialchars($endDate) ?>" required autocomplete="off">
             </div>
             
             <div class="col-md-4">
@@ -70,7 +70,6 @@
 <link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
 <link href="vendor/datatables/buttons.bootstrap5.min.css" rel="stylesheet">
 
-<script src="vendor/jquery/jquery.min.js"></script>
 <script src="vendor/datatables/jquery.dataTables.min.js"></script>
 <script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
 

@@ -32,6 +32,8 @@ if (isset($pdo)) {
     <title><?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?></title>
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
+    <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
+    <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="js/app-alerts.js"></script>
     <style>
@@ -106,6 +108,8 @@ if (isset($pdo)) {
             white-space: nowrap;
         }
         .nav-chip:hover { background: rgba(255, 193, 7, 0.15); border-color: rgba(255,193,7,0.45); color: #fff; }
+        a.nav-chip { color: #fff; }
+        a.nav-chip:hover { color: #fff; }
         @media (max-width: 767.98px) {
             .navbar .container-fluid { padding-left: 0.75rem; padding-right: 0.75rem; }
             .navbar-collapse { padding-top: 0.5rem; }
@@ -134,6 +138,16 @@ if (isset($pdo)) {
 $role = $_SESSION['role'] ?? 'cashier';
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
+$canSeeVsiasApprovals = in_array($role, ['admin', 'manager', 'dev'], true);
+$vsiasPending = 0;
+$vsiasPendingUrl = \App\Helpers\Vsias::pendingApprovalsUrl();
+if ($canSeeVsiasApprovals && !$isEmbedded) {
+    try {
+        $vsiasPending = \App\Helpers\Vsias::pendingApprovalCount();
+    } catch (\Throwable $e) {
+        $vsiasPending = 0;
+    }
+}
 ?>
 
 <?php if (!$isEmbedded): ?>
@@ -209,7 +223,14 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
                         <li><a class="dropdown-item fw-bold text-success" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA Smart Invoice</a></li>
                         <?php endif; ?>
                         <?php $vsiasUrl = rtrim((string)(getenv('VSIAS_URL') ?: 'http://localhost:8095'), '/'); ?>
-                        <li><a class="dropdown-item fw-bold text-info" href="<?= htmlspecialchars($vsiasUrl) ?>" target="_blank" rel="noopener"><i class="bi bi-clipboard-check"></i> Site inspection (V-SIAS Pro)</a></li>
+                        <li>
+                            <a class="dropdown-item fw-bold text-info js-vsias-inspect" href="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals">
+                                <i class="bi bi-clipboard-check"></i> Site inspection (V-SIAS Pro)
+                                <?php if ($canSeeVsiasApprovals && $vsiasPending > 0): ?>
+                                <span class="badge bg-danger ms-1"><?= (int)$vsiasPending ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts & X-Reads</a></li>
                         <li><a class="dropdown-item" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
@@ -256,6 +277,15 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
         <?php endif; ?>
 
             <div class="d-flex align-items-center ms-auto gap-2 nav-toolbar">
+                <?php if ($canSeeVsiasApprovals): ?>
+                <a href="<?= htmlspecialchars($vsiasPendingUrl) ?>" class="nav-chip position-relative text-decoration-none js-vsias-inspect" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
+                    <i class="bi bi-bell-fill text-warning"></i>
+                    Approvals
+                    <?php if ($vsiasPending > 0): ?>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int)$vsiasPending ?></span>
+                    <?php endif; ?>
+                </a>
+                <?php endif; ?>
                 <button type="button" class="nav-chip btn hover-location" data-bs-toggle="modal" data-bs-target="#globalLocationModal" title="Change workstation">
                     <i class="bi bi-geo-alt-fill text-warning"></i>
                     <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
@@ -270,6 +300,27 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
         </div>
     </div>
 </nav>
+<?php if (!$isEmbedded): ?>
+<div class="modal fade" id="vsiasInspectModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 96vw; width: 96vw; margin: 2vh auto;">
+        <div class="modal-content border-0 shadow-lg overflow-hidden" style="height: 92vh;">
+            <div class="modal-header py-2 bg-dark text-white flex-shrink-0">
+                <h5 class="modal-title fw-bold" id="vsiasInspectTitle"><i class="bi bi-clipboard-check text-warning me-2"></i>V-SIAS inspection</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 position-relative" style="height: calc(92vh - 56px);">
+                <div id="vsiasInspectLoading" class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white text-muted">
+                    <div class="text-center">
+                        <div class="spinner-border text-warning mb-2" role="status"></div>
+                        <div class="fw-bold">Opening V-SIAS…</div>
+                    </div>
+                </div>
+                <iframe id="vsiasInspectFrame" title="V-SIAS inspection" allow="camera; microphone; clipboard-write" referrerpolicy="origin" style="position:relative; width:100%; height:100%; min-height:calc(92vh - 56px); border:0; background:#fff;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <div class="container-fluid px-4">
 <?php else: ?>
 <div class="container-fluid p-2 pt-3">

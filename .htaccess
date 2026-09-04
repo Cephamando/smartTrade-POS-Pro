@@ -4,15 +4,15 @@
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-Content-Type-Options "nosniff"
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header set Permissions-Policy "geolocation=(), microphone=(self \"http://localhost:8095\" \"http://127.0.0.1:8095\"), camera=(self \"http://localhost:8095\" \"http://127.0.0.1:8095\")"
     
     # OWASP Strict Content-Security-Policy (with explicit fallbacks)
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' http://localhost:8095 http://127.0.0.1:8095; child-src 'self' http://localhost:8095 http://127.0.0.1:8095;"
     
     # OWASP Spectre & Cache Fixes
-    Header set Cross-Origin-Resource-Policy "same-origin"
-    Header set Cross-Origin-Embedder-Policy "require-corp"
-    Header set Cross-Origin-Opener-Policy "same-origin"
+    Header unset Cross-Origin-Resource-Policy
+    Header unset Cross-Origin-Embedder-Policy
+    Header unset Cross-Origin-Opener-Policy
     Header set Cache-Control "no-cache, no-store, must-revalidate, private"
     Header set Pragma "no-cache"
 </IfModule>

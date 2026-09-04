@@ -1,3 +1,4 @@
+<?php $transferTab = in_array((string)($transferTab ?? ''), ['incoming', 'outgoing', 'requests'], true) ? $transferTab : 'incoming'; ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>🚚 Stock Requisitions & Transfers</h3>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#requestModal">
@@ -7,7 +8,7 @@
 
 <ul class="nav nav-tabs mb-4" id="transferTabs" role="tablist">
     <li class="nav-item">
-        <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#incoming">
+        <button class="nav-link <?= $transferTab === 'incoming' ? 'active fw-bold' : 'fw-bold' ?>" data-bs-toggle="tab" data-bs-target="#incoming">
             <i class="bi bi-box-seam"></i> Incoming (To Receive)
             <?php if(isset($incomingStock) && count($incomingStock) > 0): ?>
                 <span class="badge bg-danger ms-2"><?= count($incomingStock) ?></span>
@@ -15,7 +16,7 @@
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#outgoing">
+        <button class="nav-link <?= $transferTab === 'outgoing' ? 'active fw-bold' : 'fw-bold' ?>" data-bs-toggle="tab" data-bs-target="#outgoing">
             <i class="bi bi-truck"></i> Outgoing (To Dispatch)
             <?php if(isset($pendingDispatch) && count($pendingDispatch) > 0): ?>
                 <span class="badge bg-warning text-dark ms-2"><?= count($pendingDispatch) ?></span>
@@ -23,14 +24,14 @@
         </button>
     </li>
     <li class="nav-item">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#requests">
+        <button class="nav-link <?= $transferTab === 'requests' ? 'active' : '' ?>" data-bs-toggle="tab" data-bs-target="#requests">
             <i class="bi bi-list-task"></i> My Pending Requests
         </button>
     </li>
 </ul>
 
 <div class="tab-content">
-    <div class="tab-pane fade show active" id="incoming">
+    <div class="tab-pane fade <?= $transferTab === 'incoming' ? 'show active' : '' ?>" id="incoming">
         <div class="card shadow-sm border-success">
             <div class="card-header bg-success text-white">
                 <i class="bi bi-arrow-down-circle"></i> Stock Arriving at Your Location
@@ -54,13 +55,15 @@
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['dispatched_at'])) ?></td>
                             <td class="text-end">
-                                <form method="POST" action="index.php?page=transfers">
-                                    <input type="hidden" name="receive_transfer" value="1">
-                                    <input type="hidden" name="transfer_id" value="<?= $t['id'] ?>">
-                                    <button class="btn btn-success btn-sm fw-bold">
-                                        <i class="bi bi-check-lg"></i> Accept Stock
-                                    </button>
-                                </form>
+                                <?php if (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'receive')): ?>
+                                <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> Awaiting store approval</span>
+                                <div class="small text-muted mt-1">Receive is locked until V-SIAS is signed</div>
+                                <?php else: ?>
+                                <a class="btn btn-success btn-sm fw-bold js-vsias-inspect" href="<?= htmlspecialchars(\App\Helpers\Vsias::transferInspectionUrl($t, 'receive')) ?>" data-tab="incoming" data-title="Inspect &amp; receive">
+                                    <i class="bi bi-clipboard-check"></i> Accept Stock
+                                </a>
+                                <div class="small text-muted mt-1">Opens V-SIAS in this page</div>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; endif; ?>
@@ -73,7 +76,7 @@
         </div>
     </div>
 
-    <div class="tab-pane fade" id="outgoing">
+    <div class="tab-pane fade <?= $transferTab === 'outgoing' ? 'show active' : '' ?>" id="outgoing">
         <div class="card shadow-sm border-warning">
             <div class="card-header bg-warning text-dark">
                 <i class="bi bi-arrow-up-circle"></i> Requests Awaiting Dispatch (From You)
@@ -102,14 +105,14 @@
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['created_at'])) ?></td>
                             <td class="text-end">
-                                <?php if ($move['ok']): ?>
-                                <form method="POST" action="index.php?page=transfers" class="d-inline">
-                                    <input type="hidden" name="dispatch_transfer" value="1">
-                                    <input type="hidden" name="transfer_id" value="<?= $t['id'] ?>">
-                                    <button class="btn btn-warning btn-sm fw-bold border">
-                                        <i class="bi bi-box-seam"></i> Dispatch
-                                    </button>
-                                </form>
+                                <?php if (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'dispatch')): ?>
+                                <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> Awaiting store approval</span>
+                                <div class="small text-muted mt-1">Dispatch is locked until V-SIAS is signed</div>
+                                <?php elseif ($move['ok']): ?>
+                                <a class="btn btn-warning btn-sm fw-bold border js-vsias-inspect" href="<?= htmlspecialchars(\App\Helpers\Vsias::transferInspectionUrl($t, 'dispatch')) ?>" data-tab="outgoing" data-title="Inspect &amp; dispatch">
+                                    <i class="bi bi-clipboard-check"></i> Dispatch
+                                </a>
+                                <div class="small text-muted mt-1">Opens V-SIAS in this page</div>
                                 <?php else: ?>
                                     <span class="text-muted small d-inline-flex align-items-center gap-1" title="<?= htmlspecialchars($move['reason']) ?>" data-bs-toggle="tooltip">
                                         <i class="bi bi-info-circle text-info"></i> Blocked
@@ -128,7 +131,7 @@
         </div>
     </div>
 
-    <div class="tab-pane fade" id="requests">
+    <div class="tab-pane fade <?= $transferTab === 'requests' ? 'show active' : '' ?>" id="requests">
         <div class="card shadow-sm">
             <div class="card-header bg-light">
                 <i class="bi bi-clock"></i> My Pending Requests
@@ -150,7 +153,13 @@
                             <td><?= htmlspecialchars($t['source_name'] ?? '') ?></td>
                             <td><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td><?= $t['quantity'] ?></td>
-                            <td><span class="badge bg-secondary">Pending Approval</span></td>
+                            <td>
+                                <?php if (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'dispatch')): ?>
+                                <span class="badge bg-warning text-dark">Inspection submitted</span>
+                                <?php else: ?>
+                                <span class="badge bg-secondary">Pending Approval</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <form method="POST" action="index.php?page=transfers" class="js-confirm-form"
                                     data-swal-title="Cancel this request?"

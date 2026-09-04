@@ -85,7 +85,7 @@ foreach ($locations as $l) {
                         </div>
                         <div class="col-5">
                             <label class="form-label small fw-bold text-muted">NEEDED BY</label>
-                            <input type="date" name="needed_by" class="form-control" value="<?= htmlspecialchars($editInquiry['needed_by'] ?? '') ?>">
+                            <input type="text" name="needed_by" class="form-control datepicker" value="<?= htmlspecialchars($editInquiry['needed_by'] ?? '') ?>" autocomplete="off">
                         </div>
                     </div>
                     <div class="mb-3">

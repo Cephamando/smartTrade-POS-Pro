@@ -38,10 +38,15 @@ final class Product extends Model
         )->fetchAll();
     }
 
-    public static function nameExists(string $name): bool
+    public static function nameExists(string $name, ?int $excludeId = null): bool
     {
-        $stmt = self::db()->prepare('SELECT id FROM products WHERE name = ?');
-        $stmt->execute([$name]);
+        if ($excludeId) {
+            $stmt = self::db()->prepare('SELECT id FROM products WHERE name = ? AND id != ?');
+            $stmt->execute([$name, $excludeId]);
+        } else {
+            $stmt = self::db()->prepare('SELECT id FROM products WHERE name = ?');
+            $stmt->execute([$name]);
+        }
         return (bool)$stmt->fetchColumn();
     }
 
@@ -78,6 +83,26 @@ final class Product extends Model
             }
             throw $e;
         }
+    }
+
+    public static function update(
+        int $id,
+        string $name,
+        $categoryId,
+        $price,
+        $cost,
+        string $unit,
+        ?string $sku,
+        string $taxClass,
+        ?string $unspscCode,
+        string $type = 'item',
+        int $isActive = 1
+    ): void {
+        $type = $type === 'service' ? 'service' : 'item';
+        $isActive = $isActive ? 1 : 0;
+        self::db()->prepare(
+            'UPDATE products SET name=?, category_id=?, price=?, cost_price=?, unit=?, sku=?, tax_class=?, unspsc_code=?, type=?, is_active=? WHERE id=?'
+        )->execute([$name, $categoryId, $price, $cost, $unit, $sku, $taxClass, $unspscCode, $type, $isActive, $id]);
     }
 
     public static function csvHeaders(): array

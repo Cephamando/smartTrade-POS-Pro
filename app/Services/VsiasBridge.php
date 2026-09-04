@@ -93,19 +93,44 @@ final class VsiasBridge
             (int)($payload['destination_location_id'] ?? 0),
             (string)($payload['destination_location'] ?? '')
         );
-        if ($type === 'inbound' && $dest && !Movement::isBackOfHouse($dest)) {
-            $wid = $this->warehouseId();
-            $wh = $wid ? Location::find($wid) : null;
-            $dest = $wh ?: $dest;
-        }
-        if ($type === 'inbound' && !$dest) {
-            $wid = $this->warehouseId();
-            $dest = $wid ? Location::find($wid) : null;
-        }
         $source = $this->resolveLocation(
             (int)($payload['source_location_id'] ?? 0),
             (string)($payload['source_location'] ?? '')
         );
+
+        $transferId = (int)($payload['transfer_id'] ?? 0);
+        if ($transferId <= 0 && preg_match('/transfer\s*#\s*(\d+)/i', (string)($payload['notes'] ?? ''), $m)) {
+            $transferId = (int)$m[1];
+        }
+        $intent = strtolower(trim((string)($payload['transfer_intent'] ?? $payload['intent'] ?? '')));
+        $linked = $transferId > 0 ? Transfer::find($transferId) : null;
+        if ($linked && !in_array($intent, ['dispatch', 'receive'], true)) {
+            if ($type === 'inbound' && ($linked['status'] ?? '') === 'in_transit') {
+                $intent = 'receive';
+            } elseif ($type === 'outbound' && ($linked['status'] ?? '') === 'pending') {
+                $intent = 'dispatch';
+            }
+        }
+        $isReceiveLink = (bool)($linked && $intent === 'receive' && $type === 'inbound');
+        $isDispatchLink = (bool)($linked && $intent === 'dispatch' && $type === 'outbound');
+
+        if ($isReceiveLink) {
+            $dest = Location::find((int)$linked['dest_location_id']) ?: $dest;
+            $source = Location::find((int)$linked['source_location_id']) ?: $source;
+        } elseif ($isDispatchLink) {
+            $source = Location::find((int)$linked['source_location_id']) ?: $source;
+            $dest = Location::find((int)$linked['dest_location_id']) ?: $dest;
+        } else {
+            if ($type === 'inbound' && $dest && !Movement::isBackOfHouse($dest)) {
+                $wid = $this->warehouseId();
+                $wh = $wid ? Location::find($wid) : null;
+                $dest = $wh ?: $dest;
+            }
+            if ($type === 'inbound' && !$dest) {
+                $wid = $this->warehouseId();
+                $dest = $wid ? Location::find($wid) : null;
+            }
+        }
         $categoryName = trim((string)($payload['category'] ?? ''));
         $categoryId = $categoryName !== '' && strcasecmp($categoryName, 'Other') !== 0
             ? Category::findIdByName($categoryName)
@@ -132,7 +157,9 @@ final class VsiasBridge
                 $dest,
                 $categoryId,
                 $userId,
-                $enterprise
+                $enterprise,
+                $linked,
+                $intent
             );
             $linesOut[] = $result;
             if (!empty($result['field'])) {
@@ -155,7 +182,29 @@ final class VsiasBridge
             ];
         }
 
-        if ($type === 'inbound' && $inboundBook) {
+        if ($isDispatchLink) {
+            $completed = $this->completeLinkedTransfer(
+                $linked,
+                'dispatch',
+                $tracking,
+                $linesOut,
+                $userId
+            );
+            if (($completed['status'] ?? '') === 'error') {
+                return $completed + ['tracking_code' => $tracking, 'lines' => $linesOut];
+            }
+        } elseif ($isReceiveLink) {
+            $completed = $this->completeLinkedTransfer(
+                $linked,
+                'receive',
+                $tracking,
+                $linesOut,
+                $userId
+            );
+            if (($completed['status'] ?? '') === 'error') {
+                return $completed + ['tracking_code' => $tracking, 'lines' => $linesOut];
+            }
+        } elseif ($type === 'inbound' && $inboundBook) {
             $this->dockInboundBatch(
                 $tracking,
                 $inboundBook,
@@ -194,14 +243,21 @@ final class VsiasBridge
         $message = $type === 'inbound'
             ? 'Docked in the smartTrade receiving bay. Send it to Goods Received from there.'
             : 'Handoff ingested.';
-        if ($custom > 0 && $type === 'inbound') {
+        if ($isDispatchLink) {
+            $message = 'Dispatched smartTrade transfer #' . $transferId . '. Stock left the source and is in transit.';
+        } elseif ($isReceiveLink) {
+            $message = 'Received smartTrade transfer #' . $transferId . ' into destination stock.';
+        }
+        if ($custom > 0 && $type === 'inbound' && !$isReceiveLink) {
             $message = 'Docked in the receiving bay. Custom items are flagged there for catalog registration before Goods Received.';
         }
         if ($hasFail || $pending > 0) {
             $status = 'partial';
-            $message = $type === 'inbound'
-                ? 'Docked with pending fiscal lines. Finish them from the receiving bay, then send to Goods Received.'
-                : 'Handoff saved with pending fiscal or stock lines. Re-approve to retry.';
+            $message = $isDispatchLink || $isReceiveLink
+                ? $message
+                : ($type === 'inbound'
+                    ? 'Docked with pending fiscal lines. Finish them from the receiving bay, then send to Goods Received.'
+                    : 'Handoff saved with pending fiscal or stock lines. Re-approve to retry.');
         }
         if ($booked === 0 && $docked === 0 && $hasFail) {
             $status = 'error';
@@ -231,7 +287,9 @@ final class VsiasBridge
         ?array $dest,
         ?int $categoryId,
         int $userId,
-        bool $enterprise
+        bool $enterprise,
+        ?array $linkedTransfer = null,
+        string $intent = ''
     ): array {
         $name = trim((string)($item['item_name'] ?? $item['name'] ?? ''));
         $condition = strtolower(trim((string)($item['condition_status'] ?? 'intact')));
@@ -274,13 +332,24 @@ final class VsiasBridge
         }
 
         $matched = $this->matchProduct($item);
+        if (!$matched && $linkedTransfer) {
+            $matched = Product::movementContext((int)$linkedTransfer['product_id']);
+        }
         $unspsc = preg_replace('/\D/', '', (string)($item['unspsc_code'] ?? '')) ?? '';
         $taxClass = strtoupper(trim((string)($item['tax_class'] ?? '')));
         if (!in_array($taxClass, ['A', 'B', 'C', 'D'], true)) {
             $taxClass = 'A';
         }
 
+        $isReceiveLink = (bool)($linkedTransfer && $intent === 'receive' && $type === 'inbound');
+        $isDispatchLink = (bool)($linkedTransfer && $intent === 'dispatch' && $type === 'outbound');
+
         if (!$matched) {
+            if ($linkedTransfer) {
+                $base['error'] = 'Could not match the smartTrade transfer product.';
+                $this->upsertSync($tracking, $lineKey, $base + ['zra_status' => 'error']);
+                return $base;
+            }
             if ($type === 'inbound') {
                 $receiveLoc = $dest;
                 if (!$receiveLoc) {
@@ -379,6 +448,12 @@ final class VsiasBridge
         }
 
         if ($type === 'inbound') {
+            if ($isReceiveLink) {
+                $base['qty'] = $qty;
+                $base['defer_receive'] = true;
+                $this->upsertSync($tracking, $lineKey, $base + ['zra_status' => $zraOk ? 'ok' : 'fail']);
+                return $base;
+            }
             $receiveLoc = $dest;
             if (!$receiveLoc) {
                 $wid = $this->warehouseId();
@@ -410,6 +485,12 @@ final class VsiasBridge
         $move = Movement::transfer($matched, $source, $dest);
         if (!$move['ok']) {
             $base['error'] = ($base['error'] ? $base['error'] . ' ' : '') . $move['reason'];
+            $this->upsertSync($tracking, $lineKey, $base + ['zra_status' => $zraOk ? 'ok' : 'fail']);
+            return $base;
+        }
+        if ($isDispatchLink) {
+            $base['qty'] = $qty;
+            $base['defer_dispatch'] = true;
             $this->upsertSync($tracking, $lineKey, $base + ['zra_status' => $zraOk ? 'ok' : 'fail']);
             return $base;
         }
@@ -662,5 +743,116 @@ final class VsiasBridge
             $this->pdo->exec('ALTER TABLE vsias_sync_log ADD COLUMN dock_id INT NULL AFTER transfer_id');
         } catch (\Throwable $e) {
         }
+    }
+
+    /**
+     * @param array<string,mixed> $linked
+     * @param list<array<string,mixed>> $linesOut
+     * @return array<string,mixed>
+     */
+    private function completeLinkedTransfer(
+        array $linked,
+        string $intent,
+        string $tracking,
+        array &$linesOut,
+        int $userId
+    ): array {
+        $transferId = (int)($linked['id'] ?? 0);
+        $fresh = Transfer::find($transferId);
+        if ($intent === 'receive' && $fresh && ($fresh['status'] ?? '') === 'completed') {
+            $this->markLinesBooked($tracking, $linesOut, $transferId);
+            return ['status' => 'success'];
+        }
+        if ($intent === 'dispatch' && $fresh && in_array(($fresh['status'] ?? ''), ['in_transit', 'completed'], true)) {
+            $this->markLinesBooked($tracking, $linesOut, $transferId);
+            return ['status' => 'success'];
+        }
+
+        $deferKey = $intent === 'receive' ? 'defer_receive' : 'defer_dispatch';
+        $ready = false;
+        $inspectedQty = 0.0;
+        foreach ($linesOut as $line) {
+            if (!empty($line['skipped'])) {
+                continue;
+            }
+            if (!empty($line[$deferKey]) || !empty($line['booked'])) {
+                $ready = true;
+                if ($inspectedQty <= 0) {
+                    $inspectedQty = (float)($line['qty'] ?? 0);
+                }
+            } elseif (!empty($line['error'])) {
+                return [
+                    'status' => 'error',
+                    'message' => (string)$line['error'],
+                ];
+            }
+        }
+        if (!$ready) {
+            return [
+                'status' => 'error',
+                'message' => 'Inspection did not yield a quantity to ' . $intent . ' for transfer #' . $transferId . '.',
+            ];
+        }
+        if ($inspectedQty <= 0) {
+            $inspectedQty = (float)($linked['quantity'] ?? 0);
+        }
+        if ($inspectedQty > 0) {
+            Transfer::setQuantity($transferId, $inspectedQty);
+        }
+
+        if ($intent === 'dispatch') {
+            $result = Transfer::dispatch($transferId, $userId);
+            $fresh = Transfer::find($transferId);
+            if ($result === 'stock') {
+                return [
+                    'status' => 'error',
+                    'message' => 'Insufficient stock at the source location for transfer #' . $transferId . '.',
+                ];
+            }
+            if ($result !== 'ok' && (!$fresh || $fresh['status'] !== 'in_transit')) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Could not dispatch smartTrade transfer #' . $transferId . '.',
+                ];
+            }
+        } else {
+            $fresh = Transfer::find($transferId);
+            if ($fresh && $fresh['status'] === 'completed') {
+                $this->markLinesBooked($tracking, $linesOut, $transferId);
+                return ['status' => 'success'];
+            }
+            Transfer::receive($transferId, $userId);
+            $fresh = Transfer::find($transferId);
+            if (!$fresh || $fresh['status'] !== 'completed') {
+                return [
+                    'status' => 'error',
+                    'message' => 'Transfer #' . $transferId . ' is not awaiting receive (it must be in transit).',
+                ];
+            }
+        }
+
+        $this->markLinesBooked($tracking, $linesOut, $transferId);
+        return ['status' => 'success'];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $linesOut
+     */
+    private function markLinesBooked(string $tracking, array &$linesOut, int $transferId): void
+    {
+        foreach ($linesOut as &$line) {
+            if (!empty($line['skipped'])) {
+                continue;
+            }
+            $line['booked'] = true;
+            $line['transfer_id'] = $transferId;
+            unset($line['defer_dispatch'], $line['defer_receive']);
+            $this->upsertSync($tracking, (string)$line['line_key'], $line + [
+                'zra_status' => !empty($line['zra_synced']) ? 'ok' : 'fail',
+                'booked' => 1,
+                'transfer_id' => $transferId,
+            ]);
+        }
+        unset($line);
     }
 }

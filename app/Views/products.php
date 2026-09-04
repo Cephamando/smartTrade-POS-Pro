@@ -26,7 +26,7 @@ $isEnt = $tier === 'enterprise';
             <a href="index.php?page=products&export=csv" class="btn btn-success fw-bold me-2 shadow-sm"><i class="bi bi-file-earmark-excel"></i> Export Excel</a>
             <button onclick="printCatalog()" class="btn btn-dark fw-bold me-2 shadow-sm"><i class="bi bi-printer"></i> Print Catalog</button>
             <button class="btn btn-outline-primary fw-bold me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#catModal"><i class="bi bi-folder-plus"></i> New Category</button>
-            <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#prodModal"><i class="bi bi-plus-circle"></i> New Product</button>
+            <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#prodModal" onclick="resetProdForm()"><i class="bi bi-plus-circle"></i> New Product</button>
         </div>
     </div>
 
@@ -97,6 +97,7 @@ $isEnt = $tier === 'enterprise';
                             <th class="text-end">Cost (ZMW)</th>
                             <th class="text-end">Price (ZMW)</th>
                             <th>Status</th>
+                            <th class="text-end no-print">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -140,6 +141,29 @@ $isEnt = $tier === 'enterprise';
                                             <span class="badge bg-danger">Disabled</span>
                                         <?php endif; ?>
                                     </td>
+                                    <td class="text-end no-print">
+                                        <?php
+                                        $editPayload = [
+                                            'id' => (int)$p['id'],
+                                            'name' => (string)$p['name'],
+                                            'sku' => (string)($p['sku'] ?? ''),
+                                            'category_id' => (int)($p['category_id'] ?? 0),
+                                            'unit' => (string)($p['unit'] ?: 'unit'),
+                                            'type' => (string)($p['type'] ?? 'item'),
+                                            'tax_class' => (string)($p['tax_class'] ?? 'A'),
+                                            'unspsc_code' => (string)($p['unspsc_code'] ?? ''),
+                                            'unspsc_name' => (string)($p['unspsc_name'] ?? ''),
+                                            'cost_price' => $p['cost_price'],
+                                            'price' => $p['price'],
+                                            'is_active' => (int)($p['is_active'] ?? 1),
+                                        ];
+                                        ?>
+                                        <button type="button" class="btn btn-sm btn-outline-primary js-edit-product"
+                                            data-product="<?= htmlspecialchars(json_encode($editPayload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>"
+                                            title="Edit product">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -158,25 +182,26 @@ $isEnt = $tier === 'enterprise';
     <div class="modal-dialog modal-lg">
         <div class="modal-content border-primary border-top border-4">
             <div class="modal-header bg-light">
-                <h5 class="modal-title fw-bold">Add Product</h5>
+                <h5 class="modal-title fw-bold" id="prodModalTitle">Add Product</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="index.php?page=products">
+            <form method="POST" action="index.php?page=products" id="prodForm">
                 <div class="modal-body">
                     <input type="hidden" name="save_product" value="1">
+                    <input type="hidden" name="product_id" id="productId" value="">
                     <div class="row mb-3">
-                        <div class="col-8"><label class="form-label small fw-bold text-muted">PRODUCT NAME</label><input type="text" name="name" class="form-control fw-bold" required></div>
-                        <div class="col-4"><label class="form-label small fw-bold text-muted">SKU (Optional)</label><input type="text" name="sku" class="form-control" placeholder="e.g. DRINK-001"></div>
+                        <div class="col-8"><label class="form-label small fw-bold text-muted">PRODUCT NAME</label><input type="text" name="name" id="prodName" class="form-control fw-bold" required></div>
+                        <div class="col-4"><label class="form-label small fw-bold text-muted">SKU (Optional)</label><input type="text" name="sku" id="prodSku" class="form-control" placeholder="e.g. DRINK-001"></div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-4">
                             <label class="form-label small fw-bold text-muted">CATEGORY</label>
-                            <select name="category_id" class="form-select"><option value="">-- None --</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option><?php endforeach; ?></select>
+                            <select name="category_id" id="prodCategory" class="form-select"><option value="">-- None --</option><?php foreach ($categories as $c): ?><option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars($c['name']) ?></option><?php endforeach; ?></select>
                         </div>
-                        <div class="col-4"><label class="form-label small fw-bold text-muted">UNIT</label><input type="text" name="unit" class="form-control" value="unit"></div>
+                        <div class="col-4"><label class="form-label small fw-bold text-muted">UNIT</label><input type="text" name="unit" id="prodUnit" class="form-control" value="unit"></div>
                         <div class="col-4">
                             <label class="form-label small fw-bold text-muted">TYPE</label>
-                            <select name="type" class="form-select">
+                            <select name="type" id="prodType" class="form-select">
                                 <option value="item">Item</option>
                                 <option value="service">Service</option>
                             </select>
@@ -186,7 +211,7 @@ $isEnt = $tier === 'enterprise';
                         <?php if ($isEnt): ?>
                         <div class="col-4">
                             <label class="form-label small fw-bold text-muted">ZRA TAX CLASS</label>
-                            <select name="tax_class" class="form-select">
+                            <select name="tax_class" id="prodTaxClass" class="form-select">
                                 <option value="A" selected>Class A - Standard (16%)</option>
                                 <option value="B">Class B - Zero Rated (0%)</option>
                                 <option value="C">Class C - Exempt</option>
@@ -194,7 +219,7 @@ $isEnt = $tier === 'enterprise';
                             </select>
                         </div>
                         <?php else: ?>
-                        <input type="hidden" name="tax_class" value="A">
+                        <input type="hidden" name="tax_class" id="prodTaxClass" value="A">
                         <?php endif; ?>
                         <div class="<?= $isEnt ? 'col-8' : 'col-12' ?>">
                             <label class="form-label small fw-bold text-muted">UNSPSC CODE</label>
@@ -205,12 +230,21 @@ $isEnt = $tier === 'enterprise';
                         </div>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" class="form-control text-danger" placeholder="0.00"></div>
-                        <div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" class="form-control text-success fw-bold" placeholder="0.00"></div>
+                        <div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" id="prodCost" class="form-control text-danger" placeholder="0.00"></div>
+                        <div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" id="prodPrice" class="form-control text-success fw-bold" placeholder="0.00"></div>
+                    </div>
+                    <div class="row mb-0 d-none" id="prodStatusWrap">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted">STATUS</label>
+                            <select name="is_active" id="prodStatus" class="form-select">
+                                <option value="1">Active</option>
+                                <option value="0">Disabled</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-0">
-                    <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm"><i class="bi bi-save"></i> Save Product</button>
+                    <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm" id="prodSaveBtn"><i class="bi bi-save"></i> Save Product</button>
                 </div>
             </form>
         </div>
@@ -264,7 +298,6 @@ $isEnt = $tier === 'enterprise';
 </div>
 
 <link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
-<script src="vendor/jquery/jquery.min.js"></script>
 <script src="vendor/datatables/jquery.dataTables.min.js"></script>
 <script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
 
@@ -277,7 +310,8 @@ $isEnt = $tier === 'enterprise';
             "pageLength": 25,
             "lengthMenu": [[25, 50, 100, 250, 500, -1], [25, 50, 100, 250, 500, "All"]],
             "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6">>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
-            "language": { "emptyTable": "No products found. Add a product or import a CSV/Excel file." }
+            "language": { "emptyTable": "No products found. Add a product or import a CSV/Excel file." },
+            "columnDefs": [{ "orderable": false, "targets": -1 }]
         });
         $('.dataTables_length select').addClass('form-select form-select-sm d-inline-block w-auto border-secondary shadow-sm');
 
@@ -383,7 +417,7 @@ $isEnt = $tier === 'enterprise';
             document.getElementById('assignUnspscSearch').focus();
         });
     });
-    bindUnspscSearch(
+        bindUnspscSearch(
         document.getElementById('assignUnspscSearch'),
         document.getElementById('assignUnspscResults'),
         function (item) {
@@ -406,4 +440,69 @@ $isEnt = $tier === 'enterprise';
                 });
         }
     );
+
+    function resetProdForm() {
+        const form = document.getElementById('prodForm');
+        if (form) {
+            form.reset();
+        }
+        document.getElementById('productId').value = '';
+        document.getElementById('prodModalTitle').textContent = 'Add Product';
+        document.getElementById('prodSaveBtn').innerHTML = '<i class="bi bi-save"></i> Save Product';
+        document.getElementById('prodStatusWrap').classList.add('d-none');
+        document.getElementById('newUnspscCode').value = '';
+        document.getElementById('newUnspscChosen').textContent = 'Optional — search and select a code.';
+        document.getElementById('newUnspscSearch').value = '';
+        document.getElementById('newUnspscResults').innerHTML = '';
+        const tax = document.getElementById('prodTaxClass');
+        if (tax && tax.tagName === 'SELECT') {
+            tax.value = 'A';
+        }
+    }
+
+    function setProdUnspsc(code, name) {
+        document.getElementById('newUnspscCode').value = code || '';
+        document.getElementById('newUnspscResults').innerHTML = '';
+        if (code) {
+            const label = name ? (code + ' — ' + name) : code;
+            document.getElementById('newUnspscChosen').textContent = 'Selected: ' + label;
+            document.getElementById('newUnspscSearch').value = name ? (code + ' ' + name) : code;
+        } else {
+            document.getElementById('newUnspscChosen').textContent = 'Optional — search and select a code.';
+            document.getElementById('newUnspscSearch').value = '';
+        }
+    }
+
+    const prodModalEl = document.getElementById('prodModal');
+    if (prodModalEl) {
+        prodModalEl.addEventListener('hidden.bs.modal', resetProdForm);
+    }
+    document.querySelectorAll('.js-edit-product').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            let product = {};
+            try {
+                product = JSON.parse(btn.getAttribute('data-product') || '{}');
+            } catch (e) {
+                return;
+            }
+            document.getElementById('prodModalTitle').textContent = 'Edit Product';
+            document.getElementById('prodSaveBtn').innerHTML = '<i class="bi bi-save"></i> Update Product';
+            document.getElementById('productId').value = product.id || '';
+            document.getElementById('prodName').value = product.name || '';
+            document.getElementById('prodSku').value = product.sku || '';
+            document.getElementById('prodCategory').value = product.category_id ? String(product.category_id) : '';
+            document.getElementById('prodUnit').value = product.unit || 'unit';
+            document.getElementById('prodType').value = product.type || 'item';
+            const tax = document.getElementById('prodTaxClass');
+            if (tax) {
+                tax.value = product.tax_class || 'A';
+            }
+            document.getElementById('prodCost').value = product.cost_price != null ? product.cost_price : '';
+            document.getElementById('prodPrice').value = product.price != null ? product.price : '';
+            document.getElementById('prodStatus').value = String(product.is_active === 0 ? 0 : 1);
+            document.getElementById('prodStatusWrap').classList.remove('d-none');
+            setProdUnspsc(product.unspsc_code || '', product.unspsc_name || '');
+            bootstrap.Modal.getOrCreateInstance(prodModalEl).show();
+        });
+    });
 </script>

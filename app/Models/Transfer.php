@@ -133,11 +133,23 @@ final class Transfer extends Model
         self::db()->prepare("UPDATE inventory_transfers SET status = 'cancelled' WHERE id = ? AND status = 'pending'")->execute([$id]);
     }
 
+    public static function setQuantity(int $id, float $qty): void
+    {
+        if ($qty <= 0) {
+            return;
+        }
+        self::db()->prepare(
+            "UPDATE inventory_transfers SET quantity = ? WHERE id = ? AND status IN ('pending', 'in_transit')"
+        )->execute([$qty, $id]);
+    }
+
     public static function listByStatus(string $status, string $role, int $userLoc, string $locColumn): array
     {
-        $sql = "SELECT t.*, p.name AS product_name, l1.name AS source_name, l2.name AS dest_name
+        $sql = "SELECT t.*, p.name AS product_name, p.sku, p.unspsc_code, p.unit, p.tax_class,
+                       p.category_id, c.name AS category_name, l1.name AS source_name, l2.name AS dest_name
                 FROM inventory_transfers t
                 JOIN products p ON t.product_id = p.id
+                LEFT JOIN categories c ON c.id = p.category_id
                 JOIN locations l1 ON t.source_location_id = l1.id
                 JOIN locations l2 ON t.dest_location_id = l2.id
                 WHERE t.status = ?";
