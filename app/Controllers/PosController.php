@@ -29,7 +29,8 @@ final class PosController extends Controller
                     if ($pdo->inTransaction()) {
                         $pdo->rollBack();
                     }
-                    $this->flash('error', 'Unable to complete checkout.');
+                    $msg = trim($e->getMessage());
+                    $this->flash('error', $msg !== '' ? $msg : 'Unable to complete checkout.');
                 }
             } else {
                 $this->flash('error', 'Open a shift before checkout.');

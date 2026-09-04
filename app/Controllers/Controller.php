@@ -62,9 +62,13 @@ class Controller
 
     protected function jsonExit(array $data, int $code = 200): never
     {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
         http_response_code($code);
-        header('Content-Type: application/json');
-        echo json_encode($data);
+        header('Content-Type: application/json; charset=utf-8');
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        echo $json !== false ? $json : '{"status":"error","msg":"Unable to encode response."}';
         exit;
     }
 

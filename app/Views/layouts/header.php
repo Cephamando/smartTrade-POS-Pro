@@ -35,7 +35,7 @@ if (isset($pdo)) {
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
-    <script src="js/app-alerts.js"></script>
+    <script src="js/app-alerts.js?v=20260904c"></script>
     <style>
         body { background-color: #f4f6f9; }
         .app-navbar {
@@ -259,6 +259,14 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
         
         <?php else: ?>
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
+                <li class="nav-item">
+                    <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check"></i> Back to POS</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-bold" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Stock request</a>
+                </li>
+                <?php endif; ?>
                 <?php if (in_array($role, ['chef', 'head_chef']) && in_array($tier, ['pro+', 'enterprise'])): ?>
                 <li class="nav-item">
                     <a class="nav-link text-warning fw-bold fs-5" href="index.php?page=kds"><i class="bi bi-display"></i> Live KDS Screen</a>

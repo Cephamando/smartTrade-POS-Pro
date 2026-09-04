@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <link rel="stylesheet" href="css/pos-keyboard.css?v=5">
-    <script src="js/app-alerts.js"></script>
+    <script src="js/app-alerts.js?v=20260904c"></script>
     <style>
         :root { --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>; --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>; --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>; }
         body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; }
@@ -286,11 +286,13 @@
                             $notSellable = !$sellBlock['ok'];
                             $pendingZra = \App\Helpers\Movement::requiresZra() && !\App\Helpers\Movement::isZraReady($p);
                             $isRaw = \App\Helpers\Movement::isRawProduct($p);
-                            $isOut = ($p['stock_qty'] <= 0 && !$hasRecipe && !$notSellable);
-                            $blocked = $isOut || $notSellable;
+                            $inCart = (float)(($cartQtyByProduct[(int)$p['id']] ?? 0));
+                            $available = $hasRecipe ? (float)$p['stock_qty'] : max(0, (float)$p['stock_qty'] - $inCart);
+                            $isOut = ($available <= 0 && !$hasRecipe && !$notSellable);
+                            $blocked = $notSellable;
                         ?>
-                        <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= $blocked ? '1' : '0' ?>">
-                            <form method="POST" class="h-100 add-item-form">
+                        <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-out="<?= ($isOut || $blocked) ? '1' : '0' ?>" data-product-id="<?= (int)$p['id'] ?>" data-on-hand="<?= htmlspecialchars((string)(float)$p['stock_qty']) ?>" data-tracks-stock="<?= ($hasRecipe || $notSellable || $pendingZra || $isRaw) ? '0' : '1' ?>">
+                            <form method="POST" class="h-100 add-item-form js-pos-cart">
                                 <input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="<?= $p['id'] ?>"><input type="hidden" name="is_refund" class="refund-input" value="0">
                                 <button type="submit" class="item-card d-flex flex-column text-start p-2 <?= $notSellable ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
                                     <div style="height: 38px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm w-100"><?= htmlspecialchars($p['name']) ?></div>
@@ -299,7 +301,7 @@
                                             <span class="stock-badge bg-secondary">Pending ZRA</span>
                                         <?php elseif ($isRaw): ?>
                                             <span class="stock-badge bg-secondary">Raw</span>
-                                        <?php elseif($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= $p['stock_qty'] ?> in stock</span><?php endif; ?>
+                                        <?php elseif($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= \App\Helpers\Movement::formatQty($available) ?> in stock</span><?php endif; ?>
                                     </div>
                                     <div class="text-primary fw-bold w-100 mt-auto fs-6">ZMW <?= number_format($p['price'], 2) ?></div>
                                 </button>
@@ -336,49 +338,32 @@
             <div class="cart-header d-flex justify-content-between align-items-center" id="cartHeader">
                 <h5 class="m-0 fw-bold cart-compact-title"><i class="bi bi-basket3-fill me-2"></i> Order</h5>
                 <button type="button" class="btn btn-sm btn-outline-light cart-compact" onclick="toggleCart()" aria-expanded="false">
-                    <span class="fw-bold"><i class="bi bi-basket3-fill me-1"></i> <?= !empty($_SESSION['cart']) ? count($_SESSION['cart']) : 0 ?> items</span>
-                    <span class="fw-bold">ZMW <?= number_format($balance ?? 0, 2) ?></span>
+                    <span class="fw-bold"><i class="bi bi-basket3-fill me-1"></i> <span id="cartCompactCount"><?= !empty($_SESSION['cart']) ? count($_SESSION['cart']) : 0 ?> items</span></span>
+                    <span class="fw-bold" id="cartCompactTotal">ZMW <?= number_format($balance ?? 0, 2) ?></span>
                     <span class="cart-toggle-label"><i class="bi bi-chevron-up"></i> Basket</span>
                 </button>
             </div>
-            <div class="cart-items">
-                <?php if (empty($_SESSION['cart'])): ?><div class="text-center mt-5 text-muted"><p>Cart is empty</p></div><?php else: foreach ($_SESSION['cart'] as $key => $item): $isRefundItem = $item['is_refund'] ?? false; ?>
-                <div class="cart-item <?= $isRefundItem ? 'border-danger border-2' : '' ?>">
-                    <div class="flex-grow-1 me-2 overflow-hidden">
-                        <div class="fw-bold text-truncate <?= $isRefundItem ? 'text-danger' : '' ?>"><?= htmlspecialchars($item['name']) ?></div>
-                        <div class="d-flex align-items-center gap-2 mt-1">
-                            <small class="text-muted fw-bold <?= $isRefundItem ? 'text-danger' : '' ?>">@ ZMW <?= number_format($item['price'], 2) ?></small>
-                            <?php if (!$isRefundItem): ?>
-                                <?php $isFood = in_array(strtolower($item['cat_type'] ?? ''), ['food', 'meal']); if ($isFood && in_array($tier, ['pro+', 'enterprise'])): ?>
-                                    <span class="badge bg-warning text-dark border shadow-sm" style="font-size:0.7rem;"><i class="bi bi-fire"></i> Kitchen</span>
-                                <?php else: ?>
-                                    <form method="POST" class="d-inline"><input type="hidden" name="toggle_fulfillment" value="1"><input type="hidden" name="cart_key" value="<?= $key ?>"><?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><button class="btn btn-sm btn-fulfillment <?= ($item['fulfillment']??'collected')=='collected'?'btn-outline-success':'btn-warning' ?>"><?= ($item['fulfillment']??'collected')=='collected' ? 'Got It' : 'Later' ?></button><?php else: ?><span class="badge bg-success">Collected</span><?php endif; ?></form>
-                                <?php endif; ?>
-                            <?php else: ?><span class="badge bg-danger">RETURN</span><?php endif; ?>
-                        </div>
-                    </div>
-                    <div class="d-flex align-items-center bg-light rounded border">
-                        <form method="POST" class="d-flex m-0"><input type="hidden" name="cart_key" value="<?= $key ?>"><input type="hidden" name="update_qty" value="1"><button name="action" value="dec" class="btn btn-sm text-danger px-2 fw-bold">-</button><span class="px-2 fw-bold"><?= $item['qty'] ?></span><button name="action" value="inc" class="btn btn-sm text-success px-2 fw-bold">+</button></form>
-                        <form method="POST" class="d-inline ms-1"><input type="hidden" name="remove_item" value="1"><input type="hidden" name="cart_key" value="<?= $key ?>"><button class="btn btn-sm text-secondary"><i class="bi bi-trash"></i></button></form>
-                    </div>
-                </div>
-                <?php endforeach; endif; ?>
+            <div class="cart-items" id="cartItems">
+                <?php
+                    $cart = $_SESSION['cart'] ?? [];
+                    include APP_PATH . '/Views/pos_cart_items.php';
+                ?>
             </div>
             <div class="cart-footer">
                 <div class="cart-total-row d-flex justify-content-between align-items-end mb-3">
                     <span class="text-muted small fw-bold">TOTAL</span>
-                    <span class="fs-2 fw-bold <?= $balance < 0 ? 'text-danger' : 'text-dark' ?> lh-1">ZMW <?= number_format($balance, 2) ?></span>
+                    <span class="fs-2 fw-bold <?= $balance < 0 ? 'text-danger' : 'text-dark' ?> lh-1" id="cartGrandTotal">ZMW <?= number_format($balance, 2) ?></span>
                 </div>
                 <div class="d-grid gap-2 mb-3">
-                    <button type="button" class="btn w-100 py-3 btn-charge shadow <?= $balance < 0 ? 'bg-danger border-danger' : '' ?>" onclick="initCheckout(false)" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>><?= $balance < 0 ? 'REFUND CASH' : 'CHARGE' ?></button>
+                    <button type="button" id="btnCharge" class="btn w-100 py-3 btn-charge shadow <?= $balance < 0 ? 'bg-danger border-danger' : '' ?>" onclick="initCheckout(false)" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>><?= $balance < 0 ? 'REFUND CASH' : 'CHARGE' ?></button>
                     <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                     <div class="btn-group w-100">
-                        <button type="button" class="btn btn-warning fw-bold py-2" data-bs-toggle="modal" data-bs-target="#addToTabModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>ADD TO TAB</button>
+                        <button type="button" id="btnAddToTab" class="btn btn-warning fw-bold py-2" data-bs-toggle="modal" data-bs-target="#addToTabModal" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>ADD TO TAB</button>
                     </div>
                     <?php endif; ?>
                     <div class="row g-2">
-                        <div class="col-<?= (in_array($tier, ['pro', 'pro+', 'enterprise'])) ? '6' : '12' ?>"><form method="POST" class="js-confirm-form" data-swal-title="Clear the cart?" data-swal-text="All items on this order will be removed." data-swal-confirm="Clear" data-swal-cancel="Keep" data-swal-icon="warning"><input type="hidden" name="clear_cart" value="1"><button class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
-                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="col-6"><button type="button" class="btn btn-dark w-100 btn-sm fw-bold text-warning" onclick="logWasteAuth()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></div><?php endif; ?>
+                        <div class="col-<?= (in_array($tier, ['pro', 'pro+', 'enterprise'])) ? '6' : '12' ?>"><form method="POST" class="js-confirm-form js-pos-cart" data-swal-title="Clear the cart?" data-swal-text="All items on this order will be removed." data-swal-confirm="Clear" data-swal-cancel="Keep" data-swal-icon="warning"><input type="hidden" name="clear_cart" value="1"><button id="btnClearCart" class="btn btn-outline-danger w-100 btn-sm fw-bold" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>CLEAR</button></form></div>
+                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="col-6"><button type="button" id="btnLostStock" class="btn btn-dark w-100 btn-sm fw-bold text-warning" onclick="logWasteAuth()" <?= empty($_SESSION['cart']) ? 'disabled' : '' ?>>LOST STOCK</button></div><?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -552,7 +537,7 @@
         <?php endforeach; ?>
     </div>
 
-    <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
+    <div class="modal fade" id="openPriceModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold" id="op_name">Custom Amount</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form method="POST" class="js-pos-cart" id="openPriceForm"><div class="modal-body p-4 bg-light"><input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" id="op_pid"><input type="hidden" name="is_refund" id="op_refund" value="0"><label class="form-label small fw-bold text-muted mb-2">AMOUNT</label><div class="input-group"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="custom_price" id="op_price" class="form-control fw-bold" required placeholder="0.00"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm">CONFIRM</button></div></form></div></div></div>
     
     <div class="modal fade" id="checkoutModal">
         <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
@@ -637,6 +622,132 @@
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/pos-keyboard.js?v=4"></script>
     <script>
+        window.posCartBalance = <?= json_encode((float)($balance ?? 0)) ?>;
+        function formatPosQty(qty) {
+            const n = Math.max(0, parseFloat(qty) || 0);
+            const s = n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+            return s === '' ? '0' : s;
+        }
+        function applyCartResponse(data) {
+            if (!data) return;
+            if (data.status === 'error') {
+                AppAlert.notify({ icon: 'error', text: data.msg || 'Unable to update the cart.' });
+                return;
+            }
+            const items = document.getElementById('cartItems');
+            if (items && typeof data.cart_html === 'string') {
+                items.innerHTML = data.cart_html;
+            }
+            window.posCartBalance = parseFloat(data.balance || 0);
+            const count = parseInt(data.cart_count || 0, 10);
+            const empty = !!data.empty;
+            const countEl = document.getElementById('cartCompactCount');
+            if (countEl) countEl.textContent = count + (count === 1 ? ' item' : ' items');
+            const compactTotal = document.getElementById('cartCompactTotal');
+            if (compactTotal) compactTotal.textContent = 'ZMW ' + (data.balance_label || '0.00');
+            const grand = document.getElementById('cartGrandTotal');
+            if (grand) {
+                grand.textContent = 'ZMW ' + (data.balance_label || '0.00');
+                grand.classList.toggle('text-danger', window.posCartBalance < 0);
+                grand.classList.toggle('text-dark', window.posCartBalance >= 0);
+            }
+            const charge = document.getElementById('btnCharge');
+            if (charge) {
+                charge.disabled = empty;
+                charge.textContent = window.posCartBalance < 0 ? 'REFUND CASH' : 'CHARGE';
+                charge.classList.toggle('bg-danger', window.posCartBalance < 0);
+                charge.classList.toggle('border-danger', window.posCartBalance < 0);
+            }
+            ['btnAddToTab', 'btnClearCart', 'btnLostStock'].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) el.disabled = empty;
+            });
+            const qtyMap = data.cart_qty || {};
+            document.querySelectorAll('#items-grid .item[data-tracks-stock="1"]').forEach(function (el) {
+                const onHand = parseFloat(el.dataset.onHand || '0');
+                const inCart = parseFloat(qtyMap[el.dataset.productId] || qtyMap[String(el.dataset.productId)] || 0);
+                const available = Math.max(0, onHand - inCart);
+                const badge = el.querySelector('.stock-badge');
+                if (badge && !badge.classList.contains('bg-recipe') && !badge.classList.contains('bg-secondary')) {
+                    badge.textContent = formatPosQty(available) + ' in stock';
+                    badge.classList.toggle('bg-ok', available > 0);
+                    badge.classList.toggle('bg-low', available <= 0);
+                }
+                el.dataset.out = available <= 0 ? '1' : '0';
+            });
+            const notice = data.notice || null;
+            if (notice && notice.kind === 'shortage') {
+                AppAlert.notify({
+                    icon: 'warning',
+                    title: notice.title || 'Not enough stock',
+                    html: notice.html || notice.text || '',
+                    confirmText: 'Stay on POS'
+                });
+            } else if (notice && notice.text) {
+                AppAlert.notify({ icon: notice.kind === 'info' ? 'info' : 'error', text: notice.text });
+            }
+            if (window.innerWidth <= 768 && !empty) {
+                setCartExpanded(true);
+            }
+        }
+        function posCartParse(r) {
+            return r.text().then(function (text) {
+                const start = text.indexOf('{');
+                const payload = start >= 0 ? text.slice(start) : text;
+                try {
+                    return JSON.parse(payload);
+                } catch (err) {
+                    throw new Error('bad-json');
+                }
+            });
+        }
+        function posCartSubmit(form, submitter) {
+            const body = new FormData(form);
+            body.set('ajax', '1');
+            if (submitter && submitter.name) {
+                body.set(submitter.name, submitter.value);
+            }
+            return fetch('index.php?page=pos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                body: body
+            }).then(posCartParse).then(function (data) {
+                applyCartResponse(data);
+                const modalEl = form.closest('.modal');
+                if (modalEl && data && data.status !== 'error' && window.bootstrap) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+            }).catch(function () {
+                AppAlert.notify({ icon: 'error', text: 'Unable to update the cart.' });
+            });
+        }
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (!form || !form.classList || !form.classList.contains('js-pos-cart')) {
+                return;
+            }
+            if (form.classList.contains('js-confirm-form') && form.dataset.swalConfirmed !== '1') {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            posCartSubmit(form, e.submitter);
+        }, true);
+        function posCartAdd(fields) {
+            const body = new FormData();
+            body.set('ajax', '1');
+            Object.keys(fields).forEach(function (k) { body.set(k, fields[k]); });
+            fetch('index.php?page=pos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                body: body
+            }).then(posCartParse).then(applyCartResponse).catch(function () {
+                AppAlert.notify({ icon: 'error', text: 'Unable to update the cart.' });
+            });
+        }
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
         function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) onlineOpt.selected = true; } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
@@ -653,7 +764,7 @@
         function printTabBill(saleId) { document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); }
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
         function toggleRefundMode() { let isRefund = document.getElementById('refundToggle').checked; document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0'); let header = document.getElementById('mainHeader'); if (isRefund) { header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger'); } else { header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark'); } }
-        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isRefund === '1' && tabStatus === 'pending') { AppAlert.notify({ icon: 'error', title: 'Payment required', text: 'This table has not been paid. Use Void to remove items.' }); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${productId}"><input type="hidden" name="custom_price" value="${price}"><input type="hidden" name="is_refund" value="${isRefund}"><input type="hidden" name="refund_sale_item_id" value="${saleItemId}">`; document.body.appendChild(f); f.submit(); }
+        function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isRefund === '1' && tabStatus === 'pending') { AppAlert.notify({ icon: 'error', title: 'Payment required', text: 'This table has not been paid. Use Void to remove items.' }); return; } posCartAdd({ add_item: '1', product_id: productId, custom_price: price, is_refund: isRefund, refund_sale_item_id: saleItemId }); }
         function logWasteAuth() { Swal.fire({ title: 'Log waste', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a manager username and password.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
         function safeModalShow(id) { let el = document.getElementById(id); if (!el) return; try { let m = bootstrap.Modal.getInstance(el); if (!m) { m = new bootstrap.Modal(el); } m.show(); } catch(e) { el.classList.add('show'); el.style.display = 'block'; } }
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
@@ -668,7 +779,7 @@
         
         function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '', pt = 0, forceTabId = 0) { 
             let nameInput = document.querySelector('[name="customer_name"]');
-            if (!isTabMode) { baseTotal = <?= $balance ?? 0 ?>; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = '<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>'; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
+            if (!isTabMode) { baseTotal = window.posCartBalance || 0; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = <?= json_encode((string)($_SESSION['current_customer'] ?? 'Walk-in')) ?>; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
             currentTotal = baseTotal; tenderedTouched = false; document.getElementById('tipInput').value = '';
             resetSplitRows();
             if (currentTotal < 0) { document.getElementById('checkoutHeader').classList.replace('bg-warning', 'bg-danger'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-warning', 'btn-danger'); document.getElementById('btnCheckoutSubmit').innerText = 'ISSUE REFUND'; document.getElementById('displayTotalDue').classList.replace('text-dark', 'text-danger'); document.getElementById('refundAuthSection').style.display = 'block'; document.getElementById('mgrUserRefund').required = true; document.getElementById('mgrPassRefund').required = true; } else { document.getElementById('checkoutHeader').classList.replace('bg-danger', 'bg-warning'); document.getElementById('btnCheckoutSubmit').classList.replace('btn-danger', 'btn-warning'); document.getElementById('btnCheckoutSubmit').innerText = 'COMPLETE TRANSACTION'; document.getElementById('displayTotalDue').classList.replace('text-danger', 'text-dark'); document.getElementById('refundAuthSection').style.display = 'none'; document.getElementById('mgrUserRefund').required = false; document.getElementById('mgrPassRefund').required = false; }
@@ -823,8 +934,8 @@
             const panel = document.getElementById('cartPanel');
             setCartExpanded(!(panel && panel.classList.contains('expanded')));
         }
-        function addService(id, name, price, isOpen) { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="${id}"><input type="hidden" name="is_refund" value="${isRefund}">`; document.body.appendChild(f); f.submit(); } }
-        <?php if(isset($_SESSION['swal_msg'])): ?> AppAlert.notify({ icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>, text: <?= json_encode((string)$_SESSION['swal_msg']) ?> }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg']); endif; ?>
+        function addService(id, name, price, isOpen) { let isRefund = document.getElementById('refundToggle') && document.getElementById('refundToggle').checked ? '1' : '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { posCartAdd({ add_item: '1', product_id: id, is_refund: isRefund }); } }
+        <?php if(isset($_SESSION['swal_msg']) || isset($_SESSION['swal_html'])): ?> AppAlert.notify({ icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>, title: <?= json_encode($_SESSION['swal_title'] ?? '') ?>, text: <?= json_encode((string)($_SESSION['swal_msg'] ?? '')) ?>, html: <?= json_encode((string)($_SESSION['swal_html'] ?? '')) ?>, confirmText: <?= json_encode($_SESSION['swal_confirm'] ?? '') ?>, cancelText: <?= json_encode($_SESSION['swal_cancel'] ?? '') ?>, url: <?= json_encode($_SESSION['swal_url'] ?? '') ?> }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg'], $_SESSION['swal_title'], $_SESSION['swal_confirm'], $_SESSION['swal_cancel'], $_SESSION['swal_url'], $_SESSION['swal_html']); endif; ?>
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
 <script>

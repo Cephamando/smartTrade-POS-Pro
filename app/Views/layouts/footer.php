@@ -35,9 +35,14 @@
         <?php if (isset($_SESSION['swal_msg'])): ?>
             AppAlert.notify({
                 icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>,
-                text: <?= json_encode((string)$_SESSION['swal_msg']) ?>
+                title: <?= json_encode($_SESSION['swal_title'] ?? '') ?>,
+                text: <?= json_encode((string)($_SESSION['swal_msg'] ?? '')) ?>,
+                html: <?= json_encode((string)($_SESSION['swal_html'] ?? '')) ?>,
+                confirmText: <?= json_encode($_SESSION['swal_confirm'] ?? '') ?>,
+                cancelText: <?= json_encode($_SESSION['swal_cancel'] ?? '') ?>,
+                url: <?= json_encode($_SESSION['swal_url'] ?? '') ?>
             });
-            <?php unset($_SESSION['swal_msg'], $_SESSION['swal_type']); ?>
+            <?php unset($_SESSION['swal_msg'], $_SESSION['swal_type'], $_SESSION['swal_title'], $_SESSION['swal_confirm'], $_SESSION['swal_cancel'], $_SESSION['swal_url'], $_SESSION['swal_html']); ?>
         <?php endif; ?>
     </script>
     <?php if (empty($isEmbedded)): ?>

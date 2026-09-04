@@ -59,41 +59,65 @@ final class Pos
             $session['cart'] = [];
         }
 
-        if (isset($post['add_item']) && $activeShiftId) {
-            $this->addItem($post, $session, $tier);
-            return ['redirect' => true];
+        $ajax = !empty($post['ajax'])
+            || strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
+
+        if (isset($post['add_item'])) {
+            if (!$activeShiftId) {
+                return $ajax
+                    ? ['json' => ['status' => 'error', 'msg' => 'Open a shift before selling.']]
+                    : ['redirect' => true];
+            }
+            try {
+                $notice = $this->addItem($post, $session, $tier, $locationId);
+                return $this->cartMutationResult($session, $locationId, $tier, $ajax, $notice);
+            } catch (\Throwable $e) {
+                return $ajax
+                    ? ['json' => ['status' => 'error', 'msg' => $e->getMessage() ?: 'Unable to add the item.']]
+                    : ['redirect' => true];
+            }
         }
         if (isset($post['update_qty'])) {
-            $key = $post['cart_key'];
-            if (isset($session['cart'][$key])) {
-                if ($post['action'] === 'inc') {
-                    $session['cart'][$key]['qty']++;
-                } elseif ($post['action'] === 'dec') {
-                    $session['cart'][$key]['qty']--;
-                    if ($session['cart'][$key]['qty'] <= 0) {
-                        unset($session['cart'][$key]);
+            $key = $post['cart_key'] ?? '';
+            $notice = null;
+            try {
+                if (isset($session['cart'][$key])) {
+                    if (($post['action'] ?? '') === 'inc') {
+                        $notice = $this->increaseCartItem($session, $key, $locationId);
+                        if ($notice === null) {
+                            $session['cart'][$key]['qty']++;
+                        }
+                    } elseif (($post['action'] ?? '') === 'dec') {
+                        $session['cart'][$key]['qty']--;
+                        if ($session['cart'][$key]['qty'] <= 0) {
+                            unset($session['cart'][$key]);
+                        }
                     }
                 }
+                return $this->cartMutationResult($session, $locationId, $tier, $ajax, $notice);
+            } catch (\Throwable $e) {
+                return $ajax
+                    ? ['json' => ['status' => 'error', 'msg' => $e->getMessage() ?: 'Unable to update the cart.']]
+                    : ['redirect' => true];
             }
-            return ['redirect' => true];
         }
         if (isset($post['remove_item'])) {
-            unset($session['cart'][$post['cart_key']]);
-            return ['redirect' => true];
+            unset($session['cart'][$post['cart_key'] ?? '']);
+            return $this->cartMutationResult($session, $locationId, $tier, $ajax, null);
         }
         if (isset($post['clear_cart'])) {
             $session['cart'] = [];
             unset($session['current_customer']);
-            return ['redirect' => true];
+            return $this->cartMutationResult($session, $locationId, $tier, $ajax, null);
         }
         if (isset($post['toggle_fulfillment'])) {
-            $key = $post['cart_key'];
+            $key = $post['cart_key'] ?? '';
             if (isset($session['cart'][$key]) && !($session['cart'][$key]['is_refund'] ?? false)) {
-                if (!in_array(strtolower($session['cart'][$key]['cat_type']), ['food', 'meal'], true)) {
+                if (!in_array(strtolower($session['cart'][$key]['cat_type'] ?? ''), ['food', 'meal'], true)) {
                     $session['cart'][$key]['fulfillment'] = ($session['cart'][$key]['fulfillment'] === 'collected') ? 'uncollected' : 'collected';
                 }
             }
-            return ['redirect' => true];
+            return $this->cartMutationResult($session, $locationId, $tier, $ajax, null);
         }
         if (isset($post['log_waste']) && $activeShiftId) {
             $mgr = User::verifyManager((string)($post['mgr_user'] ?? ''), (string)($post['mgr_pass'] ?? ''));
@@ -226,6 +250,8 @@ final class Pos
             'onlineTabs' => $onlineTabs,
             'onlineTabItems' => $onlineTabItems,
             'restaurantTables' => RestaurantTable::groupedForLocation($locationId),
+            'cartStock' => $this->cartStockMap($session, $locationId),
+            'cartQtyByProduct' => $this->cartQtyByProduct($session),
         ];
     }
 
@@ -297,19 +323,17 @@ final class Pos
         }
     }
 
-    private function addItem(array $post, array &$session, string $tier): void
+    private function addItem(array $post, array &$session, string $tier, int $locationId): ?array
     {
         $prod = Product::findWithCategory((int)$post['product_id']);
         if (!$prod) {
-            return;
+            return ['kind' => 'info', 'text' => 'Product not found.'];
         }
         $isRefund = isset($post['is_refund']) && $post['is_refund'] === '1';
         if (!$isRefund) {
             $sell = \App\Helpers\Movement::sellOnPos($prod);
             if (!$sell['ok']) {
-                $session['swal_type'] = 'info';
-                $session['swal_msg'] = $sell['reason'];
-                return;
+                return ['kind' => 'info', 'text' => (string)$sell['reason']];
             }
         }
         $pid = (int)$post['product_id'];
@@ -324,6 +348,13 @@ final class Pos
         if (!$isRefund && in_array(strtolower((string)($prod['cat_type'] ?? '')), ['food', 'meal'], true) && in_array($tier, ['pro+', 'enterprise'], true)) {
             $fulfillment = 'uncollected';
         }
+        $nextQty = (isset($session['cart'][$key]) ? (float)$session['cart'][$key]['qty'] : 0) + 1;
+        if (!$isRefund) {
+            $shortage = $this->saleShortage($session, $prod, $locationId, $nextQty, $key);
+            if ($shortage) {
+                return $shortage;
+            }
+        }
         if (isset($session['cart'][$key])) {
             $session['cart'][$key]['qty']++;
         } else {
@@ -336,9 +367,125 @@ final class Pos
                 'fulfillment' => $fulfillment,
                 'type' => $prod['type'],
                 'is_refund' => $isRefund,
+                'tracks_stock' => \App\Helpers\Movement::tracksOnHandStock($prod),
                 'refund_sale_item_id' => $refundSaleItemId,
             ];
         }
+        return null;
+    }
+
+    private function cartQtyByProduct(array $session, ?string $exceptKey = null): array
+    {
+        $qty = [];
+        foreach ($session['cart'] ?? [] as $key => $item) {
+            if ($exceptKey !== null && $key === $exceptKey) {
+                continue;
+            }
+            if (!empty($item['is_refund'])) {
+                continue;
+            }
+            $pid = (int)($item['product_id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $qty[$pid] = ($qty[$pid] ?? 0) + (float)$item['qty'];
+        }
+        return $qty;
+    }
+
+    private function cartStockMap(array $session, int $locationId): array
+    {
+        $map = [];
+        foreach ($session['cart'] ?? [] as $item) {
+            $pid = (int)($item['product_id'] ?? 0);
+            if ($pid <= 0 || isset($map[$pid])) {
+                continue;
+            }
+            $map[$pid] = \App\Models\Inventory::quantity($pid, $locationId);
+        }
+        return $map;
+    }
+
+    private function saleShortage(array $session, array $product, int $locationId, float $nextLineQty, ?string $exceptKey = null): ?array
+    {
+        $pid = (int)$product['id'];
+        $otherQty = $this->cartQtyByProduct($session, $exceptKey)[$pid] ?? 0;
+        $wanted = $otherQty + $nextLineQty;
+        $prompt = \App\Helpers\Movement::shortagePrompt($product, $locationId, $wanted);
+        if (!$prompt) {
+            return null;
+        }
+        $prompt['kind'] = 'shortage';
+        return $prompt;
+    }
+
+    private function increaseCartItem(array $session, string $key, int $locationId): ?array
+    {
+        $item = $session['cart'][$key] ?? null;
+        if (!$item || !empty($item['is_refund'])) {
+            return null;
+        }
+        $prod = Product::findWithCategory((int)$item['product_id']);
+        if (!$prod) {
+            return null;
+        }
+        return $this->saleShortage($session, $prod, $locationId, (float)$item['qty'] + 1, $key);
+    }
+
+    private function flashNotice(array &$session, ?array $notice): void
+    {
+        if (!$notice) {
+            return;
+        }
+        if (($notice['kind'] ?? '') === 'shortage') {
+            $session['swal_type'] = 'warning';
+            $session['swal_title'] = $notice['title'] ?? 'Not enough stock';
+            $session['swal_msg'] = $notice['text'] ?? '';
+            $session['swal_html'] = $notice['html'] ?? '';
+            $session['swal_confirm'] = 'Stay on POS';
+            $session['swal_cancel'] = '';
+            $session['swal_url'] = '';
+            return;
+        }
+        $session['swal_type'] = $notice['kind'] === 'info' ? 'info' : 'error';
+        $session['swal_msg'] = $notice['text'] ?? '';
+    }
+
+    private function cartMutationResult(array &$session, int $locationId, string $tier, bool $ajax, ?array $notice): array
+    {
+        if ($ajax) {
+            return ['json' => $this->cartAjaxResponse($session, $locationId, $tier, $notice)];
+        }
+        $this->flashNotice($session, $notice);
+        return ['redirect' => true];
+    }
+
+    private function cartAjaxResponse(array $session, int $locationId, string $tier, ?array $notice): array
+    {
+        $cart = $session['cart'] ?? [];
+        $balance = 0.0;
+        foreach ($cart as $item) {
+            $balance += ((float)$item['price']) * ((float)$item['qty']);
+        }
+        $payload = [
+            'status' => ($notice['kind'] ?? '') === 'shortage' ? 'shortage' : (($notice['kind'] ?? '') === 'info' ? 'notice' : 'ok'),
+            'cart_html' => $this->renderCartItems($session, $tier),
+            'cart_count' => count($cart),
+            'balance' => $balance,
+            'balance_label' => number_format($balance, 2),
+            'empty' => $cart === [],
+            'cart_qty' => (object)$this->cartQtyByProduct($session),
+            'notice' => $notice,
+        ];
+        return $payload;
+    }
+
+    private function renderCartItems(array $session, string $tier): string
+    {
+        $cart = $session['cart'] ?? [];
+        ob_start();
+        include APP_PATH . '/Views/pos_cart_items.php';
+        return (string)ob_get_clean();
     }
 
     private function transferTabItems(array $post, array &$session, int $userId, int $locationId, int $activeShiftId): void
@@ -406,6 +553,7 @@ final class Pos
             return;
         }
         try {
+            \App\Helpers\Movement::assertCartStock($session['cart'] ?? [], $locationId);
             $this->pdo->beginTransaction();
             $splitSaleIds = [];
             foreach ($splitData as $guest) {
@@ -457,6 +605,7 @@ final class Pos
     {
         try {
             $this->pdo->beginTransaction();
+            \App\Helpers\Movement::assertCartStock($session['cart'] ?? [], $locationId);
             $targetId = $post['target_tab_id'];
             $tableId = isset($post['target_table_id']) && $post['target_table_id'] !== '' ? (int)$post['target_table_id'] : null;
             if ($targetId === 'new') {
@@ -494,7 +643,7 @@ final class Pos
                 $this->pdo->rollBack();
             }
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Unable to add items to the tab.';
+            $session['swal_msg'] = trim($e->getMessage()) !== '' ? $e->getMessage() : 'Unable to add items to the tab.';
         }
     }
 

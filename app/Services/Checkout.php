@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Helpers\Movement;
 use App\Models\User;
 use PDO;
 
@@ -65,6 +66,10 @@ final class Checkout
             if (!$mgr) {
                 throw new \Exception("Manager Authorization required for Cash Refunds.");
             }
+        }
+
+        if ($settleTabId <= 0) {
+            Movement::assertCartStock($session['cart'] ?? [], $locationId);
         }
 
         if ($settleTabId > 0) {

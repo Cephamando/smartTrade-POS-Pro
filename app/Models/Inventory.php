@@ -29,6 +29,34 @@ final class Inventory extends Model
         return $qty !== false ? max(0.0, (float)$qty) : 0.0;
     }
 
+    /**
+     * Locations that currently hold this product, most stock first.
+     *
+     * @return list<array{location_id:int,location_name:string,quantity:float}>
+     */
+    public static function stockByLocation(int $productId, int $excludeLocationId = 0): array
+    {
+        $sql = "SELECT l.id AS location_id, l.name AS location_name, GREATEST(i.quantity, 0) AS quantity
+                FROM inventory i
+                JOIN locations l ON l.id = i.location_id
+                WHERE i.product_id = ? AND i.quantity > 0";
+        $params = [$productId];
+        if ($excludeLocationId > 0) {
+            $sql .= ' AND i.location_id != ?';
+            $params[] = $excludeLocationId;
+        }
+        $sql .= ' ORDER BY i.quantity DESC, l.name ASC';
+        $stmt = self::db()->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll() ?: [];
+        foreach ($rows as &$row) {
+            $row['location_id'] = (int)$row['location_id'];
+            $row['quantity'] = (float)$row['quantity'];
+        }
+        unset($row);
+        return $rows;
+    }
+
     public static function filtered(string $locFilter, string $catFilter, string $search): array
     {
         $sql = "

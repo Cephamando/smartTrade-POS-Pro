@@ -20,18 +20,44 @@
         var icon = opts.icon || 'info';
         var isBlocking = icon === 'error' || icon === 'warning';
         var timer = opts.timer;
+        var url = opts.url || '';
+        var html = opts.html || '';
         if (timer === undefined) {
-            timer = isBlocking ? undefined : 3200;
+            timer = (isBlocking || url || html) ? undefined : 3200;
         }
-        return Swal.fire({
+        var fire = {
             icon: icon,
             title: opts.title || TITLES[icon] || 'Notice',
-            text: opts.text || '',
-            confirmButtonText: opts.confirmText || 'OK',
+            confirmButtonText: opts.confirmText || (url ? 'Continue' : 'OK'),
             confirmButtonColor: isBlocking ? '#dc3545' : '#0d6efd',
+            cancelButtonText: opts.cancelText || 'Cancel',
             showConfirmButton: true,
+            showCancelButton: !!(url || opts.cancelText),
+            reverseButtons: true,
             timer: timer || undefined,
-            timerProgressBar: !!timer && !isBlocking
+            timerProgressBar: !!timer && !isBlocking && !url && !html
+        };
+        if (html) {
+            fire.html = html;
+            fire.didOpen = function (popup) {
+                popup.querySelectorAll('a[href]').forEach(function (a) {
+                    a.addEventListener('click', function (e) {
+                        var href = a.getAttribute('href');
+                        if (!href || href.charAt(0) === '#') {
+                            return;
+                        }
+                        e.preventDefault();
+                        window.location.href = href;
+                    });
+                });
+            };
+        } else {
+            fire.text = opts.text || '';
+        }
+        return Swal.fire(fire).then(function (result) {
+            if (url && result.isConfirmed) {
+                window.location.href = url;
+            }
         });
     };
 

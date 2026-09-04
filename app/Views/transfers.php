@@ -199,14 +199,20 @@
                         <label class="form-label fw-bold small text-muted">1. SELECT PRODUCT</label>
                         <select name="product_id" id="req_product_id" class="form-select form-select-lg fw-bold border-primary shadow-sm" required>
                             <option value="">-- Choose an item --</option>
-                            <?php if(isset($products)): foreach($products as $p):
+                            <?php
+                            $prefillProductId = (int)($_GET['product_id'] ?? 0);
+                            $prefillQty = (float)($_GET['qty'] ?? 0);
+                            $prefillDestId = (int)($_GET['dest_location_id'] ?? ($_SESSION['location_id'] ?? 0));
+                            $prefillSourceId = (int)($_GET['source_location_id'] ?? 0);
+                            $openRequest = !empty($_GET['open_request']);
+                            if(isset($products)): foreach($products as $p):
                                 $raw = \App\Helpers\Movement::isRawProduct($p);
                                 $zraBlocked = \App\Helpers\Movement::requiresZra() && !\App\Helpers\Movement::isZraReady($p);
                                 $reason = $zraBlocked
                                     ? 'Not registered with ZRA yet. Keep it in warehouse until ZRA registration completes.'
                                     : ($raw ? 'Raw food cannot be transferred to a POS. Keep it in kitchen or warehouse, then produce the finished dish.' : '');
                             ?>
-                                <option value="<?= $p['id'] ?>" data-raw="<?= $raw ? '1' : '0' ?>" data-zra="<?= $zraBlocked ? '1' : '0' ?>" data-reason="<?= htmlspecialchars($reason) ?>">
+                                <option value="<?= $p['id'] ?>" data-raw="<?= $raw ? '1' : '0' ?>" data-zra="<?= $zraBlocked ? '1' : '0' ?>" data-reason="<?= htmlspecialchars($reason) ?>" <?= $prefillProductId === (int)$p['id'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($p['name'] ?? '') ?><?= $zraBlocked ? ' — PENDING ZRA' : ($raw ? ' — RAW' : '') ?>
                                 </option>
                             <?php endforeach; endif; ?>
@@ -220,7 +226,7 @@
                                 <select name="source_location_id" id="source_loc_id" class="form-select mb-3 border-danger" required>
                                     <option value="">-- Request From --</option>
                                     <?php foreach ($locations as $l): ?>
-                                        <option value="<?= $l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" data-pos="<?= \App\Helpers\Movement::isFrontOfHouse($l) ? '1' : '0' ?>">
+                                        <option value="<?= $l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" data-pos="<?= \App\Helpers\Movement::isFrontOfHouse($l) ? '1' : '0' ?>" <?= ((int)$l['id'] === $prefillSourceId) ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($l['name'] ?? '') ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -238,7 +244,7 @@
                                 <select name="dest_location_id" id="dest_loc_id" class="form-select mb-3 border-success" required>
                                     <option value="">-- Send To --</option>
                                     <?php foreach ($locations as $l): ?>
-                                        <option value="<?= $l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" data-pos="<?= \App\Helpers\Movement::isFrontOfHouse($l) ? '1' : '0' ?>" <?= ($l['id'] == ($_SESSION['location_id'] ?? 0)) ? 'selected' : '' ?>>
+                                        <option value="<?= $l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" data-pos="<?= \App\Helpers\Movement::isFrontOfHouse($l) ? '1' : '0' ?>" <?= ($l['id'] == $prefillDestId) ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($l['name'] ?? '') ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -255,7 +261,7 @@
                     <div class="mt-4 pt-3 border-top">
                         <label class="form-label fw-bold small text-muted">REQUEST QUANTITY</label>
                         <div class="input-group input-group-lg shadow-sm">
-                            <input type="number" name="quantity" class="form-control text-center fw-bold fs-4 text-primary" step="0.01" min="0.01" required placeholder="0.00">
+                            <input type="number" name="quantity" id="req_quantity" class="form-control text-center fw-bold fs-4 text-primary" step="0.01" min="0.01" required placeholder="0.00" value="<?= $prefillQty > 0 ? htmlspecialchars(\App\Helpers\Movement::formatQty($prefillQty)) : '' ?>">
                             <span class="input-group-text bg-white fw-bold">Units</span>
                         </div>
                     </div>
@@ -286,6 +292,15 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDualStock();
     refreshMoveRules();
 
+    <?php if (!empty($openRequest)): ?>
+    const requestModalEl = document.getElementById('requestModal');
+    if (requestModalEl && window.bootstrap && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(requestModalEl).show();
+        updateDualStock();
+        refreshMoveRules();
+    }
+    <?php endif; ?>
+
     function refreshMoveRules() {
         const opt = prodSelect.options[prodSelect.selectedIndex];
         const raw = opt && opt.dataset.raw === '1';
@@ -311,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 hint.innerHTML = '';
             }
         }
-        if (destBlocked) {
+        if (destBlocked && !<?= $openRequest && $prefillDestId ? 'true' : 'false' ?>) {
             destSelect.value = '';
         }
         if (submit) {

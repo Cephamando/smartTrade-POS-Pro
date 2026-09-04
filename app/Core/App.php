@@ -193,7 +193,7 @@ final class App
                     $page = 'kitchen';
                 }
             } else {
-                $allowed = array_merge($allowedCommon, ['pos']);
+                $allowed = array_merge($allowedCommon, ['pos', 'transfers']);
                 if (!in_array($page, $allowed, true)) {
                     $page = 'pos';
                 }
