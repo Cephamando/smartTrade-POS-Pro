@@ -176,16 +176,13 @@ final class Refund
         new \ZraVsdcClient($this->pdo);
         $stmt = $this->pdo->prepare(
             "SELECT si.*, p.name,
-                    GREATEST(
-                        0,
-                        si.quantity - COALESCE((
-                            SELECT SUM(r.quantity)
-                            FROM sale_items r
-                            WHERE r.refund_sale_item_id = si.id
-                              AND r.is_refund = 1
-                              AND r.status <> 'voided'
-                        ), 0)
-                    ) AS remaining
+                    COALESCE((
+                        SELECT SUM(r.quantity)
+                        FROM sale_items r
+                        WHERE r.refund_sale_item_id = si.id
+                          AND r.is_refund = 1
+                          AND r.status <> 'voided'
+                    ), 0) AS linked_qty
              FROM sale_items si
              JOIN products p ON p.id = si.product_id
              WHERE si.sale_id = ?
@@ -194,14 +191,57 @@ final class Refund
                AND si.price >= 0"
         );
         $stmt->execute([$saleId]);
+        $rows = $stmt->fetchAll() ?: [];
+        $unlinkedLeft = [];
+        foreach ($rows as $row) {
+            $pid = (int)$row['product_id'];
+            if (!isset($unlinkedLeft[$pid])) {
+                $unlinkedLeft[$pid] = $this->unlinkedZraCreditedQty($saleId, $pid);
+            }
+        }
         $out = [];
-        foreach ($stmt->fetchAll() ?: [] as $row) {
-            if ((float)$row['remaining'] <= 0.0001) {
+        foreach ($rows as $row) {
+            $pid = (int)$row['product_id'];
+            $left = max(0.0, (float)$row['quantity'] - (float)$row['linked_qty']);
+            $take = min($left, $unlinkedLeft[$pid] ?? 0.0);
+            $left -= $take;
+            $unlinkedLeft[$pid] = ($unlinkedLeft[$pid] ?? 0.0) - $take;
+            if ($left <= 0.0001) {
                 continue;
             }
+            $row['remaining'] = $left;
             $out[(int)$row['id']] = $row;
         }
         return $out;
+    }
+
+    /**
+     * Credit notes the POS posted without refund_sale_item_id still cite the
+     * original Smart Invoice (zra_org_invc_no). Count those so a later Reports
+     * refund cannot send a second credit for the same wrap.
+     */
+    public function unlinkedZraCreditedQty(int $originalSaleId, int $productId, int $exceptCreditSaleId = 0): float
+    {
+        if ($originalSaleId <= 0 || $productId <= 0) {
+            return 0.0;
+        }
+        $stmt = $this->pdo->prepare(
+            "SELECT COALESCE(SUM(r.quantity), 0)
+             FROM sale_items r
+             JOIN sales cs ON cs.id = r.sale_id
+             JOIN sales orig ON orig.id = ?
+             WHERE r.product_id = ?
+               AND COALESCE(r.is_refund, 0) = 1
+               AND r.status <> 'voided'
+               AND COALESCE(r.refund_sale_item_id, 0) = 0
+               AND COALESCE(cs.zra_rcpt_sign, '') <> ''
+               AND cs.zra_org_invc_no IS NOT NULL
+               AND orig.zra_rcpt_no IS NOT NULL
+               AND cs.zra_org_invc_no = orig.zra_rcpt_no
+               AND (? = 0 OR cs.id <> ?)"
+        );
+        $stmt->execute([$originalSaleId, $productId, $exceptCreditSaleId, $exceptCreditSaleId]);
+        return (float)$stmt->fetchColumn();
     }
 
     private function insertCreditSale(array $sale, int $userId, float $amount): int

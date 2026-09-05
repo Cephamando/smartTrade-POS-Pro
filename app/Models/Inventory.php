@@ -30,6 +30,39 @@ final class Inventory extends Model
     }
 
     /**
+     * @param list<int> $productIds
+     * @param list<int> $locationIds
+     * @return array<int, array<int, float>>
+     */
+    public static function quantitiesByProductAndLocation(array $productIds, array $locationIds): array
+    {
+        $productIds = array_values(array_unique(array_filter(array_map('intval', $productIds))));
+        $locationIds = array_values(array_unique(array_filter(array_map('intval', $locationIds))));
+        $map = [];
+        foreach ($productIds as $productId) {
+            $map[$productId] = [];
+            foreach ($locationIds as $locationId) {
+                $map[$productId][$locationId] = 0.0;
+            }
+        }
+        if ($productIds === [] || $locationIds === []) {
+            return $map;
+        }
+        $productPlaceholders = implode(',', array_fill(0, count($productIds), '?'));
+        $locationPlaceholders = implode(',', array_fill(0, count($locationIds), '?'));
+        $stmt = self::db()->prepare(
+            "SELECT product_id, location_id, GREATEST(quantity, 0) AS quantity
+             FROM inventory
+             WHERE product_id IN ($productPlaceholders) AND location_id IN ($locationPlaceholders)"
+        );
+        $stmt->execute(array_merge($productIds, $locationIds));
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $map[(int)$row['product_id']][(int)$row['location_id']] = (float)$row['quantity'];
+        }
+        return $map;
+    }
+
+    /**
      * Locations that currently hold this product, most stock first.
      *
      * @return list<array{location_id:int,location_name:string,quantity:float}>

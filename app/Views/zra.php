@@ -15,7 +15,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
 <?php if (!empty($zraLastResult)): ?>
     <?php
         $layer = $zraLastResult['layer'] ?? 'vsdc';
-        $alertClass = $layer === 'ok' ? 'alert-success' : (in_array($layer, ['zra', 'client'], true) ? 'alert-warning' : 'alert-danger');
+        $alertClass = $layer === 'ok' ? 'alert-success' : ($layer === 'skipped' ? 'alert-info' : (in_array($layer, ['zra', 'client'], true) ? 'alert-warning' : 'alert-danger'));
     ?>
     <div class="alert <?= $alertClass ?> shadow-sm">
         <div class="fw-bold mb-1">Last VSDC response (<?= htmlspecialchars((string)($zraLastResult['resultCd'] ?? 'n/a')) ?>)</div>
@@ -96,8 +96,12 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                         <input type="hidden" name="zra_action" value="test_connection">
                         <button class="btn btn-outline-secondary">Test connection</button>
                     </form>
-                    <form method="post">
-                        <input type="hidden" name="zra_action" value="initialize">
+                    <form method="post" class="js-confirm-form"
+                        data-swal-title="Initialize this ZRA device?"
+                        data-swal-text="Do this only once. Re-initializing or recreating the VSDC container can delete API keys."
+                        data-swal-confirm="Initialize"
+                        data-swal-cancel="Cancel"
+                        data-swal-icon="warning">
                         <button class="btn btn-success fw-bold" <?= $initialized ? 'disabled' : '' ?>>
                             <i class="bi bi-plug"></i> Initialize device
                         </button>
@@ -110,8 +114,13 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                         <input type="hidden" name="zra_action" value="sync_classes">
                         <button class="btn btn-outline-primary">Sync UNSPSC classes</button>
                     </form>
-                    <form method="post">
-                        <input type="hidden" name="zra_action" value="sync_items">
+                    <form method="post" class="js-confirm-form"
+                        data-swal-title="Register products with ZRA?"
+                        data-swal-text="Catalog items will be posted to the fiscal device."
+                        data-swal-confirm="Register"
+                        data-swal-cancel="Cancel"
+                        data-swal-icon="question"
+                        data-swal-confirm-color="#212529">
                         <button class="btn btn-outline-dark">Register products</button>
                     </form>
                 </div>
@@ -133,8 +142,13 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="fw-bold mb-0">Unfiscalized paid sales</h5>
-                    <form method="post">
-                        <input type="hidden" name="zra_action" value="retry_sales">
+                    <form method="post" class="js-confirm-form"
+                        data-swal-title="Retry unfiscalized sales?"
+                        data-swal-text="Pending and failed invoices will be sent to ZRA again."
+                        data-swal-confirm="Retry"
+                        data-swal-cancel="Cancel"
+                        data-swal-icon="question"
+                        data-swal-confirm-color="#0d6efd">
                         <button class="btn btn-sm btn-primary">Retry failed / pending</button>
                     </form>
                 </div>
@@ -167,8 +181,13 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <form method="post">
-                                        <input type="hidden" name="zra_action" value="fiscalize_one">
+                                    <form method="post" class="js-confirm-form"
+                                        data-swal-title="Push this sale to ZRA?"
+                                        data-swal-text="Invoice #<?= (int)$row['id'] ?> will be fiscalized now."
+                                        data-swal-confirm="Push"
+                                        data-swal-cancel="Cancel"
+                                        data-swal-icon="question"
+                                        data-swal-confirm-color="#198754">
                                         <input type="hidden" name="sale_id" value="<?= (int)$row['id'] ?>">
                                         <button class="btn btn-sm btn-outline-success">Push</button>
                                     </form>

@@ -40,9 +40,15 @@ final class KitchenController extends Controller
             $this->redirect('kitchen');
         }
 
+        $meals = Product::meals();
+        $sellableLocs = Location::sellable();
         $this->render([
-            'meals' => Product::meals(),
-            'sellableLocs' => Location::sellable(),
+            'meals' => $meals,
+            'sellableLocs' => $sellableLocs,
+            'posStock' => Inventory::quantitiesByProductAndLocation(
+                array_map(static fn(array $meal): int => (int)$meal['id'], $meals),
+                array_map(static fn(array $loc): int => (int)$loc['id'], $sellableLocs)
+            ),
         ]);
     }
 }

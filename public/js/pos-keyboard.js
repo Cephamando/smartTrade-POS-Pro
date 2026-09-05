@@ -8,7 +8,7 @@
     const NUM_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '00'];
     const STORAGE_KEY = 'posVirtualKeyboard';
 
-    let enabled = false;
+    let enabled = true;
     let target = null;
     let root = null;
     let keysEl = null;
@@ -259,6 +259,13 @@
             });
         });
         window.addEventListener('resize', updateSpace);
-        setEnabled(localStorage.getItem(STORAGE_KEY) !== '0');
+        setEnabled(true);
+        const field = document.querySelector('#startShiftModal input[name="starting_cash"]')
+            || document.querySelector('#pendingShiftModal input[name="mgr_username"]')
+            || document.getElementById('search');
+        if (field && isTypable(field)) {
+            field.focus();
+            attach(field);
+        }
     });
 })();

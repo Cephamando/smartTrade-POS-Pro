@@ -34,6 +34,7 @@
             showConfirmButton: true,
             showCancelButton: !!(url || opts.cancelText),
             reverseButtons: true,
+            zIndex: 20000,
             timer: timer || undefined,
             timerProgressBar: !!timer && !isBlocking && !url && !html
         };
@@ -73,11 +74,23 @@
             confirmButtonText: opts.confirmText || 'Confirm',
             cancelButtonText: opts.cancelText || 'Cancel',
             confirmButtonColor: opts.confirmColor || '#0d6efd',
-            cancelButtonColor: '#6c757d'
+            cancelButtonColor: '#6c757d',
+            zIndex: 20000
         }).then(function (result) {
             return result.isConfirmed;
         });
     };
+
+    function confirmOpts(el) {
+        return {
+            title: el.dataset.swalTitle || 'Please confirm',
+            text: el.dataset.swalText || '',
+            confirmText: el.dataset.swalConfirm || 'Confirm',
+            cancelText: el.dataset.swalCancel || 'Cancel',
+            icon: el.dataset.swalIcon || 'question',
+            confirmColor: el.dataset.swalConfirmColor || '#dc3545'
+        };
+    }
 
     document.addEventListener('submit', function (e) {
         var form = e.target;
@@ -87,26 +100,45 @@
         if (form.dataset.swalConfirmed === '1') {
             return;
         }
+        var submitter = e.submitter || null;
         e.preventDefault();
-        AppAlert.confirm({
-            title: form.dataset.swalTitle || 'Please confirm',
-            text: form.dataset.swalText || '',
-            confirmText: form.dataset.swalConfirm || 'Confirm',
-            cancelText: form.dataset.swalCancel || 'Cancel',
-            icon: form.dataset.swalIcon || 'question',
-            confirmColor: form.dataset.swalConfirmColor || '#dc3545'
-        }).then(function (ok) {
+        AppAlert.confirm(confirmOpts(form)).then(function (ok) {
             if (!ok) {
                 return;
             }
             form.dataset.swalConfirmed = '1';
             if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
+                if (submitter) {
+                    form.requestSubmit(submitter);
+                } else {
+                    form.requestSubmit();
+                }
             } else {
                 form.submit();
             }
+            if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+                delete form.dataset.swalConfirmed;
+            }
         });
     });
+
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest && e.target.closest('.js-confirm-action');
+        if (!btn || btn.dataset.swalConfirmed === '1') {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        AppAlert.confirm(confirmOpts(btn)).then(function (ok) {
+            if (!ok) {
+                return;
+            }
+            btn.dataset.swalConfirmed = '1';
+            if (typeof btn.click === 'function') {
+                btn.click();
+            }
+        });
+    }, true);
 
     window.AppAlert = AppAlert;
 })(window);

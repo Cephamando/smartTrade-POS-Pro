@@ -122,7 +122,13 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
                             <i class="bi bi-play-circle-fill"></i> Start New Shift
                         </div>
                         <div class="card-body">
-                            <form method="POST" action="index.php?page=shifts">
+                            <form method="POST" action="index.php?page=shifts" class="js-confirm-form"
+                                data-swal-title="Clock in and start this shift?"
+                                data-swal-text="The opening float will be recorded and sales can begin."
+                                data-swal-confirm="Clock in"
+                                data-swal-cancel="Cancel"
+                                data-swal-icon="question"
+                                data-swal-confirm-color="#198754">
                                 <input type="hidden" name="start_shift" value="1">
 
                                 <?php if ($tmplIsMoneyRole): ?>

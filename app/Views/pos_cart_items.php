@@ -22,7 +22,7 @@ if (empty($cart)): ?>
     </div>
     <div class="d-flex align-items-center bg-light rounded border">
         <form method="POST" class="d-flex m-0 js-pos-cart"><input type="hidden" name="cart_key" value="<?= htmlspecialchars((string)$key) ?>"><input type="hidden" name="update_qty" value="1"><button name="action" value="dec" class="btn btn-sm text-danger px-2 fw-bold">-</button><span class="px-2 fw-bold"><?= $item['qty'] ?></span><button name="action" value="inc" class="btn btn-sm text-success px-2 fw-bold">+</button></form>
-        <form method="POST" class="d-inline ms-1 js-pos-cart"><input type="hidden" name="remove_item" value="1"><input type="hidden" name="cart_key" value="<?= htmlspecialchars((string)$key) ?>"><button class="btn btn-sm text-secondary"><i class="bi bi-trash"></i></button></form>
+        <form method="POST" class="d-inline ms-1 js-pos-cart js-confirm-form" data-swal-title="Remove this item?" data-swal-text="It will be taken off the current order." data-swal-confirm="Remove" data-swal-cancel="Keep" data-swal-icon="warning"><input type="hidden" name="remove_item" value="1"><input type="hidden" name="cart_key" value="<?= htmlspecialchars((string)$key) ?>"><button class="btn btn-sm text-secondary"><i class="bi bi-trash"></i></button></form>
     </div>
 </div>
 <?php endforeach; endif; ?>

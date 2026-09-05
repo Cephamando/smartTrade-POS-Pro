@@ -24,7 +24,12 @@
 </div>
 
 <div class="container-fluid px-4">
-    <form method="POST" id="grvForm">
+    <form method="POST" id="grvForm" class="js-confirm-form"
+        data-swal-title="Process this goods received voucher?"
+        data-swal-text="Quantities will be added to stock at the selected location."
+        data-swal-confirm="Process GRV"
+        data-swal-cancel="Cancel"
+        data-swal-icon="warning">
         <input type="hidden" name="process_grv" value="1">
         
         <div class="card shadow-sm border-0 mb-4">

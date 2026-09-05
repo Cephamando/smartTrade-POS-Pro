@@ -120,7 +120,13 @@ foreach ($locations as $l) {
                             <td class="text-end">
                                 <a class="btn btn-sm btn-outline-primary" href="index.php?page=purchasing&tab=inquiry&inquiry_id=<?= (int)$row['id'] ?>">Open</a>
                                 <?php if (!in_array($row['status'], ['converted', 'cancelled'], true)): ?>
-                                <form method="POST" class="d-inline">
+                                <form method="POST" class="d-inline js-confirm-form"
+                                    data-swal-title="Convert inquiry #<?= (int)$row['id'] ?> to an order?"
+                                    data-swal-text="This inquiry will become a purchase order."
+                                    data-swal-confirm="Convert"
+                                    data-swal-cancel="Cancel"
+                                    data-swal-icon="question"
+                                    data-swal-confirm-color="#198754">
                                     <input type="hidden" name="convert_inquiry" value="1">
                                     <input type="hidden" name="inquiry_id" value="<?= (int)$row['id'] ?>">
                                     <button class="btn btn-sm btn-success">To order</button>

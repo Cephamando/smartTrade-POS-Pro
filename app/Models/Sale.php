@@ -189,18 +189,28 @@ final class Sale extends Model
              LIMIT 40"
         );
         $stmt->execute([$productId, $locationId]);
+        $refund = new \App\Services\Refund(self::db());
+        $remainingBySale = [];
         $out = [];
         foreach ($stmt->fetchAll() ?: [] as $row) {
+            $saleId = (int)$row['sale_id'];
+            if (!isset($remainingBySale[$saleId])) {
+                $remainingBySale[$saleId] = $refund->remainingByItem($saleId);
+            }
+            $live = $remainingBySale[$saleId][(int)$row['sale_item_id']] ?? null;
+            if (!$live) {
+                continue;
+            }
             $out[] = [
                 'sale_item_id' => (int)$row['sale_item_id'],
-                'sale_id' => (int)$row['sale_id'],
+                'sale_id' => $saleId,
                 'product_id' => (int)$row['product_id'],
                 'created_at' => (string)$row['created_at'],
                 'customer_name' => trim((string)($row['customer_name'] ?? '')) ?: 'Walk-in',
                 'location_id' => (int)$row['location_id'],
                 'location_name' => (string)($row['location_name'] ?? ''),
                 'price' => abs((float)$row['price']),
-                'remaining' => (float)$row['remaining'],
+                'remaining' => (float)$live['remaining'],
                 'payment_method' => (string)($row['payment_method'] ?? ''),
                 'zra_rcpt_no' => (int)($row['zra_rcpt_no'] ?? 0),
                 'zra_signed' => trim((string)($row['zra_rcpt_sign'] ?? '')) !== '',

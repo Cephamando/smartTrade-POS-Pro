@@ -106,7 +106,13 @@ $currentLocId = (int)($currentLocId ?? 0);
                 </div>
                 <?php endif; ?>
 
-                <form method="POST">
+                <form method="POST" class="js-confirm-form"
+                    data-swal-title="Send this consignment to Goods Received?"
+                    data-swal-text="Unregistered lines will be added to the catalog. Stock is not booked until GRV is processed."
+                    data-swal-confirm="Send"
+                    data-swal-cancel="Cancel"
+                    data-swal-icon="question"
+                    data-swal-confirm-color="#fd7e14">
                     <input type="hidden" name="dock_id" value="<?= (int)$open['id'] ?>">
                     <?php if ($open['status'] === 'docked'): ?>
                     <div class="mb-3">
@@ -199,10 +205,14 @@ $currentLocId = (int)($currentLocId ?? 0);
                     <?php endif; ?>
                 </form>
                 <?php if ($open['status'] === 'docked'): ?>
-                <form method="POST" class="mt-2">
+                <form method="POST" class="mt-2 js-confirm-form"
+                    data-swal-title="Return this consignment?"
+                    data-swal-text="It will leave the bay without adding stock."
+                    data-swal-confirm="Return"
+                    data-swal-cancel="Keep"
+                    data-swal-icon="warning">
                     <input type="hidden" name="dock_id" value="<?= (int)$open['id'] ?>">
-                    <button type="submit" name="cancel_dock" value="1" class="btn btn-outline-secondary"
-                            onclick="return confirm('Return this consignment from the bay without adding stock?');">
+                    <button type="submit" name="cancel_dock" value="1" class="btn btn-outline-secondary">
                         Return from bay
                     </button>
                 </form>

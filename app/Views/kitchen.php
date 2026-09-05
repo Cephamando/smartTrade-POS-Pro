@@ -1,3 +1,4 @@
+<?php $posStock = $posStock ?? []; ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="bi bi-fire text-danger"></i> Meal Production</h3>
     <!-- <a href="index.php?page=pos" class="btn btn-outline-secondary"><i class="bi bi-cart4"></i> Go to POS</a> -->
@@ -31,12 +32,18 @@
                     <input type="hidden" name="produce_item" value="1">
                     <input type="hidden" name="product_id" value="<?= $meal['id'] ?>">
                     
-                    <select name="target_location_id" class="form-select form-select-sm mb-2 fw-bold text-primary border-primary" required>
+                    <select name="target_location_id" class="form-select form-select-sm mb-2 fw-bold text-primary border-primary js-produce-pos" required>
                         <option value="">Select POS...</option>
-                        <?php foreach($sellableLocs as $sl): ?>
-                            <option value="<?= $sl['id'] ?>">To: <?= htmlspecialchars($sl['name']) ?></option>
+                        <?php foreach($sellableLocs as $sl):
+                            $onHand = (float)(($posStock[(int)$meal['id']][(int)$sl['id']] ?? 0));
+                            $onHandLabel = \App\Helpers\Movement::formatQty($onHand);
+                        ?>
+                            <option value="<?= (int)$sl['id'] ?>" data-qty="<?= htmlspecialchars($onHandLabel) ?>" data-name="<?= htmlspecialchars((string)$sl['name']) ?>">To: <?= htmlspecialchars($sl['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="js-pos-stock small mb-2" hidden>
+                        <span class="js-pos-stock-label fw-bold"></span>
+                    </div>
 
                     <div class="input-group input-group-sm mb-2">
                         <span class="input-group-text bg-white fw-bold">Qty</span>
@@ -50,3 +57,40 @@
     </div>
     <?php endforeach; ?>
 </div>
+<script>
+(function () {
+    function updatePosStock(select) {
+        var form = select.closest('form');
+        if (!form) {
+            return;
+        }
+        var box = form.querySelector('.js-pos-stock');
+        var label = form.querySelector('.js-pos-stock-label');
+        if (!box || !label) {
+            return;
+        }
+        var opt = select.options[select.selectedIndex];
+        if (!select.value || !opt) {
+            box.hidden = true;
+            label.textContent = '';
+            return;
+        }
+        var qty = opt.getAttribute('data-qty') || '0';
+        var name = opt.getAttribute('data-name') || 'this POS';
+        var n = parseFloat(qty) || 0;
+        box.hidden = false;
+        box.classList.toggle('text-danger', n <= 0);
+        box.classList.toggle('text-success', n > 0);
+        box.classList.toggle('text-muted', false);
+        label.textContent = n <= 0
+            ? 'None on hand at ' + name
+            : qty + ' on hand at ' + name;
+    }
+    document.querySelectorAll('.js-produce-pos').forEach(function (select) {
+        select.addEventListener('change', function () {
+            updatePosStock(select);
+        });
+        updatePosStock(select);
+    });
+})();
+</script>

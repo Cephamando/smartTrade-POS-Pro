@@ -35,7 +35,7 @@ if (isset($pdo)) {
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
-    <script src="js/app-alerts.js?v=20260904c"></script>
+    <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         body { background-color: #f4f6f9; }
         .app-navbar {
@@ -160,7 +160,13 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-3 bg-light">
-                <form method="POST">
+                <form method="POST" class="js-confirm-form"
+                    data-swal-title="Switch workstation?"
+                    data-swal-text="Stock, sales, and reports will use the location you pick."
+                    data-swal-confirm="Switch"
+                    data-swal-cancel="Cancel"
+                    data-swal-icon="question"
+                    data-swal-confirm-color="#fd7e14">
                     <?php foreach($allGlobalLocations as $loc): $isActive = (($_SESSION['location_id'] ?? 0) == $loc['id']); ?>
                         <button name="change_global_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-2 fw-bold text-start shadow-sm <?= $isActive ? 'border-warning bg-warning bg-opacity-10' : '' ?>">
                             <i class="bi bi-geo-alt-fill <?= $isActive ? 'text-warning' : 'text-secondary' ?> me-2"></i> <?= htmlspecialchars($loc['name']) ?>

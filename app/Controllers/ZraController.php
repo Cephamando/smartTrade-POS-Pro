@@ -30,10 +30,10 @@ final class ZraController extends Controller
                 $_SESSION['zra_last_result'] = $actionResult;
                 if (($actionResult['resultCd'] ?? '') === '000' || ($explained['layer'] ?? '') === 'ok') {
                     $this->flash('success', $actionResult['resultMsg'] ?? 'VSDC action completed.');
+                } elseif (($actionResult['resultCd'] ?? '') === 'skipped' || ($explained['layer'] ?? '') === 'skipped') {
+                    $this->flash('info', $actionResult['resultMsg'] ?? 'No action was required.');
                 } elseif (($explained['layer'] ?? '') === 'client') {
                     $this->flash('error', $actionResult['resultMsg'] ?? 'Unable to complete this VSDC request.');
-                } elseif (($actionResult['resultCd'] ?? '') === 'skipped') {
-                    $this->flash('info', $actionResult['resultMsg'] ?? 'No action was required.');
                 } else {
                     $this->flash('error', $actionResult['resultMsg'] ?? 'VSDC action failed.');
                 }
@@ -43,13 +43,15 @@ final class ZraController extends Controller
             $this->redirect('zra');
         }
 
+        $last = $_SESSION['zra_last_result'] ?? null;
+        unset($_SESSION['zra_last_result']);
         $this->render([
             'zra' => $zra,
             'zraConfig' => $zra->getConfig(),
             'zraSettings' => $zra->getSettings(),
             'zraPing' => $zra->ping(),
             'zraSummary' => $zra->statusSummary(),
-            'zraLastResult' => $_SESSION['zra_last_result'] ?? null,
+            'zraLastResult' => $last,
             'pendingSales' => Sale::pendingFiscal(),
             'recentSynced' => Sale::recentSynced(),
         ]);

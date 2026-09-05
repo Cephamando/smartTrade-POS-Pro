@@ -7,7 +7,7 @@
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
-    <script src="js/app-alerts.js"></script>
+    <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         body { background-color: #212529; color: #fff; padding: 20px; }
         .kds-header { display: flex; justify-content: space-between; align-items: center; mb-4; border-bottom: 2px solid #444; padding-bottom: 10px; }
@@ -73,10 +73,11 @@
 
                 let itemsHtml = order.items.map(item => {
                     let btnHtml = '';
+                    const safeName = escapeHtml(item.name || 'this item');
                     if (item.status === 'pending') {
-                        btnHtml = `<button onclick="updateStatus(${item.id}, 'cooking')" class="btn btn-sm btn-outline-dark fw-bold">COOK</button>`;
+                        btnHtml = `<button type="button" class="btn btn-sm btn-outline-dark fw-bold js-kds-action" data-item-id="${item.id}" data-status="cooking" data-name="${safeName}">COOK</button>`;
                     } else if (item.status === 'cooking') {
-                        btnHtml = `<button onclick="updateStatus(${item.id}, 'ready')" class="btn btn-sm btn-success fw-bold">DONE</button>`;
+                        btnHtml = `<button type="button" class="btn btn-sm btn-success fw-bold js-kds-action" data-item-id="${item.id}" data-status="ready" data-name="${safeName}">DONE</button>`;
                     }
                     
                     return `
@@ -106,16 +107,43 @@
             }).join('');
         }
 
-        // --- 3. ACTIONS ---
-        function updateStatus(itemId, newStatus) {
-            const formData = new FormData();
-            formData.append('item_id', itemId);
-            formData.append('status', newStatus);
-
-            fetch('index.php?page=kds', { method: 'POST', body: formData })
-                .then(() => fetchOrders()) // Refresh immediately
-                .catch(() => AppAlert.notify({ icon: 'error', title: 'Update failed', text: 'Unable to update this ticket. Try again.', confirmText: 'OK' }));
+        function escapeHtml(value) {
+            return String(value || '').replace(/[&<>"']/g, function (ch) {
+                return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+            });
         }
+
+        function updateStatus(itemId, newStatus, itemName) {
+            const cooking = newStatus === 'cooking';
+            AppAlert.confirm({
+                icon: 'question',
+                title: cooking ? 'Start cooking?' : 'Mark this item done?',
+                text: cooking
+                    ? 'Send ' + (itemName || 'this item') + ' to the cook line.'
+                    : (itemName || 'This item') + ' will be marked ready for pickup.',
+                confirmText: cooking ? 'Cook' : 'Done',
+                cancelText: 'Cancel',
+                confirmColor: cooking ? '#212529' : '#198754'
+            }).then(function (ok) {
+                if (!ok) {
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('item_id', itemId);
+                formData.append('status', newStatus);
+                fetch('index.php?page=kds', { method: 'POST', body: formData })
+                    .then(() => fetchOrders())
+                    .catch(() => AppAlert.notify({ icon: 'error', title: 'Update failed', text: 'Unable to update this ticket. Try again.', confirmText: 'OK' }));
+            });
+        }
+
+        document.getElementById('ordersContainer').addEventListener('click', function (e) {
+            const btn = e.target.closest('.js-kds-action');
+            if (!btn) {
+                return;
+            }
+            updateStatus(parseInt(btn.getAttribute('data-item-id'), 10), btn.getAttribute('data-status'), btn.getAttribute('data-name'));
+        });
 
         // Initial Load & Loop
         fetchOrders();

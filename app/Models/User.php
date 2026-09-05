@@ -65,14 +65,20 @@ final class User extends Model
         )->fetchAll();
     }
 
+    public static function locationIdOrNull(int $locationId): ?int
+    {
+        return $locationId > 0 ? $locationId : null;
+    }
+
     public static function create(string $username, string $fullName, string $passwordHash, string $role, int $locationId): void
     {
         self::db()->prepare('INSERT INTO users (username, full_name, password_hash, role, location_id, is_active) VALUES (?, ?, ?, ?, ?, 1)')
-            ->execute([$username, $fullName, $passwordHash, $role, $locationId]);
+            ->execute([$username, $fullName, $passwordHash, $role, self::locationIdOrNull($locationId)]);
     }
 
     public static function update(int $id, string $username, string $fullName, string $role, int $locationId, ?string $passwordHash = null): void
     {
+        $locationId = self::locationIdOrNull($locationId);
         if ($passwordHash) {
             self::db()->prepare('UPDATE users SET username = ?, full_name = ?, role = ?, location_id = ?, password_hash = ? WHERE id = ?')
                 ->execute([$username, $fullName, $role, $locationId, $passwordHash, $id]);

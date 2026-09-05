@@ -97,7 +97,12 @@
         </div>
     </div>
 
-    <form method="POST" action="index.php?page=inventory" id="stockTakeForm">
+    <form method="POST" action="index.php?page=inventory" id="stockTakeForm" class="js-confirm-form"
+        data-swal-title="Post this stock take?"
+        data-swal-text="Physical counts will overwrite on-hand quantities for every line you filled in."
+        data-swal-confirm="Update stock"
+        data-swal-cancel="Cancel"
+        data-swal-icon="warning">
         <input type="hidden" name="bulk_stock_take" value="1">
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">

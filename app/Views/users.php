@@ -151,7 +151,8 @@ function editUser(user) {
     document.getElementById('userFullName').value = user.full_name;
     document.getElementById('userUsername').value = user.username;
     document.getElementById('userRole').value = user.role;
-    document.getElementById('userLocation').value = user.location_id;
+    const locId = parseInt(user.location_id, 10);
+    document.getElementById('userLocation').value = (locId > 0) ? String(locId) : '0';
     document.getElementById('userPassword').value = "";
     
     new bootstrap.Modal(document.getElementById('userModal')).show();

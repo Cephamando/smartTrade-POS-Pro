@@ -194,11 +194,17 @@ class ZraVsdcClient
             ];
         }
 
+        if ($cd === 'skipped') {
+            return [
+                'layer' => 'skipped',
+                'hint' => (string)($res['resultMsg'] ?? 'No VSDC posting was required.'),
+            ];
+        }
+
         if ($cd === '000' || str_contains($msg, 'succeeded') || str_contains($msg, 'already initialized')) {
-            $hint = 'VSDC accepted the request.';
+            $ok = (int)($res['synced'] ?? 0);
+            $fail = (int)($res['failed'] ?? 0);
             if (isset($res['synced'])) {
-                $ok = (int)($res['synced'] ?? 0);
-                $fail = (int)($res['failed'] ?? 0);
                 if ($ok === 0 && $fail === 0) {
                     $hint = 'All active products are already registered. Ring a test cash sale and check the receipt for SDC ID, signature, and QR.';
                 } elseif ($fail === 0) {
@@ -210,6 +216,10 @@ class ZraVsdcClient
                 $hint = 'Classification dictionary is stored. Next: Register products.';
             } elseif (str_contains($msg, 'synced') && str_contains($msg, 'item')) {
                 $hint = 'Products are on ZRA. Ring a test cash sale and check the receipt for SDC ID, signature, and QR.';
+            } else {
+                $hint = str_contains($msg, 'already initialized')
+                    ? 'Device is already initialized. Next: Sync standard codes.'
+                    : 'Handshake succeeded. Next: Sync standard codes, then Register products, then ring a test sale.';
             }
             return [
                 'layer' => 'ok',
@@ -524,12 +534,22 @@ class ZraVsdcClient
             );
             $orig = $this->resolveOriginalInvoice($saleData, $saleItems, $opts);
             if ($orig['orgInvcNo'] <= 0 || $orig['orgSdcId'] === '') {
-                $msg = 'Refund needs the original ZRA invoice (SDC ID and receipt number). Refund from the fiscalized receipt, not a blank walk-in return.';
-                $this->markSaleFailed($saleId, $msg);
-                return ['resultCd' => '910', 'resultMsg' => $msg];
+                $msg = 'Sale #' . $saleId . ' is a POS return with no original Smart Invoice. ZRA cannot accept it. Do not retry. Refund from Reports against the original ticket, or pick the invoice in POS refund mode.';
+                $this->markSaleSkipped($saleId, $msg);
+                return ['resultCd' => 'skipped', 'resultMsg' => $msg];
             }
             $opts['orgInvcNo'] = $orig['orgInvcNo'];
             $opts['orgSdcId'] = $orig['orgSdcId'];
+            $over = $this->creditNoteExceedsOriginal($saleId, $saleItems, $orig['orgInvcNo']);
+            if ($over !== null) {
+                if (!empty($over['duplicate'])) {
+                    $this->reverseUnsyncedCreditStock($saleData, $saleItems);
+                    $this->markSaleSkipped($saleId, $over['message']);
+                    return ['resultCd' => 'skipped', 'resultMsg' => $over['message']];
+                }
+                $this->markSaleFailed($saleId, $over['message']);
+                return ['resultCd' => '931', 'resultMsg' => $over['message']];
+            }
         }
         foreach ($saleItems as $i => $line) {
             if (empty($line['zra_synced']) || empty($line['zra_item_cd'])) {
@@ -601,19 +621,29 @@ class ZraVsdcClient
         $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $ok = 0;
         $fail = 0;
+        $skip = 0;
         foreach ($ids as $id) {
             $res = $this->fiscalizeSale((int)$id);
             if (($res['resultCd'] ?? '') === '000') {
                 $ok++;
-            } elseif (($res['resultCd'] ?? '') !== 'skipped') {
+            } elseif (($res['resultCd'] ?? '') === 'skipped') {
+                $skip++;
+            } else {
                 $fail++;
             }
         }
+        $cd = '000';
+        if ($fail > 0) {
+            $cd = '901';
+        } elseif ($ok === 0 && $skip > 0) {
+            $cd = 'skipped';
+        }
         return [
-            'resultCd' => $fail === 0 ? '000' : '901',
-            'resultMsg' => "Retried " . count($ids) . " sale(s): $ok synced, $fail failed",
+            'resultCd' => $cd,
+            'resultMsg' => 'Retried ' . count($ids) . ' sale(s): ' . $ok . ' synced, ' . $fail . ' failed, ' . $skip . ' skipped.',
             'synced' => $ok,
             'failed' => $fail,
+            'skipped' => $skip,
         ];
     }
 
@@ -1312,6 +1342,115 @@ class ZraVsdcClient
                 SELECT 1 FROM sale_items si
                 WHERE si.sale_id = sales.id AND si.status NOT IN ('voided')
             )";
+    }
+
+    /**
+     * VSDC 931: cumulative credits for an itemCd cannot exceed the original invoice.
+     *
+     * @return array{message:string, duplicate:bool}|null
+     */
+    private function creditNoteExceedsOriginal(int $creditSaleId, array $items, int $orgInvcNo): ?array
+    {
+        if ($orgInvcNo <= 0) {
+            return null;
+        }
+        $origStmt = $this->pdo->prepare(
+            "SELECT si.product_id,
+                    MAX(COALESCE(p.name, 'item')) AS name,
+                    MAX(COALESCE(p.zra_item_cd, p.sku, '')) AS item_cd,
+                    SUM(ABS(si.quantity) * ABS(si.price)) AS orig_amt
+             FROM sale_items si
+             JOIN sales s ON s.id = si.sale_id
+             LEFT JOIN products p ON p.id = si.product_id
+             WHERE s.zra_rcpt_no = ?
+               AND COALESCE(si.is_refund, 0) = 0
+               AND si.status <> 'voided'
+               AND si.price >= 0
+             GROUP BY si.product_id"
+        );
+        $origStmt->execute([$orgInvcNo]);
+        $originals = [];
+        foreach ($origStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $originals[(int)$row['product_id']] = $row;
+        }
+        $credStmt = $this->pdo->prepare(
+            "SELECT si.product_id, SUM(ABS(si.quantity) * ABS(si.price)) AS credited
+             FROM sale_items si
+             JOIN sales s ON s.id = si.sale_id
+             WHERE s.zra_org_invc_no = ?
+               AND s.id <> ?
+               AND COALESCE(s.zra_rcpt_sign, '') <> ''
+               AND (s.final_total < 0 OR si.is_refund = 1)
+               AND si.status <> 'voided'
+             GROUP BY si.product_id"
+        );
+        $credStmt->execute([$orgInvcNo, $creditSaleId]);
+        $already = [];
+        foreach ($credStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $already[(int)$row['product_id']] = (float)$row['credited'];
+        }
+        $thisAmt = [];
+        $names = [];
+        foreach ($items as $line) {
+            if (strtoupper((string)($line['sku'] ?? '')) === 'ZRA-TIP') {
+                continue;
+            }
+            $pid = (int)($line['product_id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $thisAmt[$pid] = ($thisAmt[$pid] ?? 0.0) + abs((float)$line['quantity']) * abs((float)$line['price']);
+            $names[$pid] = (string)($line['name'] ?? 'item');
+        }
+        foreach ($thisAmt as $pid => $amt) {
+            $origAmt = (float)($originals[$pid]['orig_amt'] ?? 0);
+            $prior = (float)($already[$pid] ?? 0);
+            if ($prior + $amt <= $origAmt + 0.009) {
+                continue;
+            }
+            $label = $names[$pid] ?? ($originals[$pid]['name'] ?? 'item');
+            $itemCd = (string)($originals[$pid]['item_cd'] ?? '');
+            $msg = 'Invoice #' . $orgInvcNo . ' already has ZMW ' . number_format($prior, 2)
+                . ' credited for ' . $label
+                . ($itemCd !== '' ? ' (' . $itemCd . ')' : '')
+                . '. This credit note would make ZMW ' . number_format($prior + $amt, 2)
+                . ' against an original of ZMW ' . number_format($origAmt, 2)
+                . '. Do not retry.';
+            return [
+                'message' => $msg,
+                'duplicate' => $prior + 0.009 >= $origAmt,
+            ];
+        }
+        return null;
+    }
+
+    private function reverseUnsyncedCreditStock(array $sale, array $items): void
+    {
+        if (trim((string)($sale['zra_rcpt_sign'] ?? '')) !== '') {
+            return;
+        }
+        $loc = (int)($sale['location_id'] ?? 0);
+        $uid = (int)($sale['user_id'] ?? 0);
+        $saleId = (int)($sale['id'] ?? 0);
+        foreach ($items as $line) {
+            if (strtoupper((string)($line['sku'] ?? '')) === 'ZRA-TIP') {
+                continue;
+            }
+            $pid = (int)($line['product_id'] ?? 0);
+            $qty = abs((float)($line['quantity'] ?? 0));
+            if ($pid <= 0 || $qty <= 0 || $loc <= 0) {
+                continue;
+            }
+            deductStock($this->pdo, $pid, $qty, $loc, $uid, 'refund_void');
+        }
+        if ($saleId > 0) {
+            try {
+                $this->pdo->prepare("UPDATE sale_items SET status = 'voided' WHERE sale_id = ? AND COALESCE(is_refund, 0) = 1")
+                    ->execute([$saleId]);
+            } catch (Throwable $e) {
+                // keep the skip even if the void flag cannot be written
+            }
+        }
     }
 
     private function markSaleFailed(int $saleId, string $message): void

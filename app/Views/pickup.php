@@ -7,7 +7,7 @@
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
-    <script src="js/app-alerts.js"></script>
+    <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         body { background-color: #2c3e50; color: #ecf0f1; font-family: sans-serif; }
         .pickup-header { background: #34495e; padding: 20px; border-bottom: 4px solid #27ae60; margin-bottom: 30px; }
