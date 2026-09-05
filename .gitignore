@@ -25,3 +25,6 @@ myStuff/
 # --- Logs ---
 *.log
 
+# --- Shop backups (contain keys and .env) ---
+/backups/
+

@@ -122,32 +122,14 @@ If Initialize succeeds, **never click it again**.
 
 ### 6. Backup the keys (same day)
 
-The keys are **not** in `.env` or MySQL. They are in Docker volume `vsdc_webapps`. Back that up **with** the database, **off this PC**.
+The keys are **not** in `.env` or MySQL. They are in Docker volume `vsdc_webapps` (packed as `vsdc_webapps-*.tgz`). Back that up **with** the database, **off this PC**. The shop stays up.
 
 ```bash
 cd ~/smartTrade-POS-Pro
-mkdir -p backups
-docker compose stop web vsdc db
-
-STAMP=$(date +%Y%m%d-%H%M)
-
-docker run --rm --volumes-from vsdc \
-  -v "$(pwd)/backups:/backup" alpine \
-  tar czf "/backup/vsdc_webapps-${STAMP}.tgz" -C /usr/local/tomcat/webapps .
-
-docker run --rm --volumes-from smartTradePOS_db \
-  -v "$(pwd)/backups:/backup" alpine \
-  tar czf "/backup/db_data-${STAMP}.tgz" -C /var/lib/mysql .
-
-docker compose start db vsdc web
+./scripts/backup-shop.sh
 ```
 
-Copy off the PC:
-
-- `backups/vsdc_webapps-*.tgz` (cannot be re-downloaded from ZRA)
-- `backups/db_data-*.tgz`
-- `.env`
-- the production `.war` in `api/`
+Copy the whole `backups/YYYYMMDD-HHMM/` folder off this PC (USB, another computer, or Windows Documents). The `vsdc_webapps` archive cannot be re-downloaded from ZRA.
 
 Then start selling.
 
@@ -167,24 +149,11 @@ Then start selling.
 
 ## If the shop PC dies
 
-On the new PC: install Docker, copy the project, `.env` (same serial), WAR, and the two `.tgz` files. **Do not Initialize.**
+On the new PC: install Docker, copy the project, `.env` (same serial), WAR, and the backup folder. **Do not Initialize.**
 
 ```bash
 cd ~/smartTrade-POS-Pro
-docker compose up --no-start
-docker compose stop
-
-docker run --rm --volumes-from vsdc \
-  -v "$(pwd)/backups:/backup" alpine \
-  sh -c 'rm -rf /usr/local/tomcat/webapps/* && tar xzf /backup/vsdc_webapps-YYYYMMDD-HHMM.tgz -C /usr/local/tomcat/webapps'
-
-docker run --rm --volumes-from smartTradePOS_db \
-  -v "$(pwd)/backups:/backup" alpine \
-  sh -c 'rm -rf /var/lib/mysql/* && tar xzf /backup/db_data-YYYYMMDD-HHMM.tgz -C /var/lib/mysql'
-
-docker compose start db
-docker compose start vsdc
-docker compose start web
+./scripts/restore-shop.sh YYYYMMDD-HHMM --yes
 ```
 
 Replace `YYYYMMDD-HHMM` with your backup stamp. On **ZRA Smart Invoice**, SDC ID should match the old PC. Use **Test connection** only.
