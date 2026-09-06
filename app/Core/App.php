@@ -30,23 +30,17 @@ final class App
 
     private function sendSecurityHeaders(): void
     {
-        $vsias = \App\Helpers\Vsias::origin();
-        $frameSrc = implode(' ', array_unique(array_filter([
-            $vsias,
-            'http://localhost:8095',
-            'http://127.0.0.1:8095',
-            'https://localhost:8095',
-            'https://127.0.0.1:8095',
-        ])));
         header('X-Frame-Options: SAMEORIGIN');
         header('X-Content-Type-Options: nosniff');
-        header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
-        header('Permissions-Policy: geolocation=(), microphone=(self "' . $vsias . '"), camera=(self "' . $vsias . '")');
+        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        }
+        header('Permissions-Policy: geolocation=(), microphone=*, camera=*');
         header(
             "Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval'; "
             . "img-src 'self' data: https://api.qrserver.com; font-src 'self' data:; "
             . "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            . "frame-src 'self' {$frameSrc}; child-src 'self' {$frameSrc};"
+            . "frame-src 'self' http: https:; child-src 'self' http: https:;"
         );
     }
 

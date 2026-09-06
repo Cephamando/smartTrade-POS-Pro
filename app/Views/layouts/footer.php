@@ -56,10 +56,42 @@
         let wired = false;
         const vsiasEvents = ['handoff-submitted', 'handoff-approved', 'handoff-disputed', 'handoff-reviewed'];
 
-        function inspectionUrl(href) {
+        function publicVsiasOrigin() {
+            try {
+                const url = new URL(vsiasOrigin);
+                const pageHost = window.location.hostname;
+                if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+                    url.hostname = pageHost;
+                    url.protocol = window.location.protocol;
+                }
+                return url.origin;
+            } catch (err) {
+                return vsiasOrigin;
+            }
+        }
+
+        function pageIsLoopback() {
+            const host = window.location.hostname;
+            return host === 'localhost' || host === '127.0.0.1';
+        }
+
+        function inspectionUrl(href, embed) {
             const url = new URL(href, window.location.href);
-            url.searchParams.set('embed', '1');
-            url.searchParams.set('parent_origin', window.location.origin);
+            const pageHost = window.location.hostname;
+            if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+                url.hostname = pageHost;
+                url.protocol = window.location.protocol;
+                if (!url.port) {
+                    url.port = '8095';
+                }
+            }
+            if (embed) {
+                url.searchParams.set('embed', '1');
+                url.searchParams.set('parent_origin', window.location.origin);
+            } else {
+                url.searchParams.delete('embed');
+                url.searchParams.delete('parent_origin');
+            }
             return url.toString();
         }
 
@@ -68,12 +100,29 @@
                 return;
             }
             const loading = document.getElementById('vsiasInspectLoading');
+            const newTab = document.getElementById('vsiasInspectNewTab');
+            if (newTab) {
+                newTab.href = url;
+            }
             if (loading) {
                 loading.classList.remove('d-none');
+                const hint = loading.querySelector('.js-vsias-frame-hint');
+                if (hint) {
+                    hint.classList.add('d-none');
+                }
             }
             frame.onload = function () {
                 if (loading) {
                     loading.classList.add('d-none');
+                }
+            };
+            frame.onerror = function () {
+                if (loading) {
+                    loading.classList.remove('d-none');
+                    const hint = loading.querySelector('.js-vsias-frame-hint');
+                    if (hint) {
+                        hint.classList.remove('d-none');
+                    }
                 }
             };
             if (frame.src === url) {
@@ -115,7 +164,7 @@
                     }
                 });
                 window.addEventListener('message', function (e) {
-                    if (e.origin !== vsiasOrigin) {
+                    if (e.origin !== publicVsiasOrigin()) {
                         return;
                     }
                     const data = e.data || {};
@@ -149,7 +198,11 @@
             if (titleEl) {
                 titleEl.innerHTML = '<i class="bi bi-clipboard-check text-warning me-2"></i>' + (link.getAttribute('data-title') || 'V-SIAS inspection');
             }
-            pendingUrl = inspectionUrl(link.href);
+            if (!pageIsLoopback()) {
+                window.location.href = inspectionUrl(link.href, false);
+                return;
+            }
+            pendingUrl = inspectionUrl(link.href, true);
             reloadOnClose = false;
             modal.show();
             setTimeout(function () {

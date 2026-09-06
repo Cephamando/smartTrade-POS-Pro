@@ -110,3 +110,68 @@ Once saved, build your container:
 > docker compose up -d --build
 
 Your packages should now pull and install successfully.
+
+----------------------------------------------------------------------
+Enable access from remote devices on the same network
+-----------------------------------------------------------------------
+Because WSL 2 runs on its own virtualized network, devices on your local Wi-Fi cannot see it by default. To make your app accessible to the other PC, you need to route traffic from your Windows host machine to your WSL instance.
+
+Install net-tools
+```bash
+> sudo apt update && sudo apt install net-tools
+```
+
+verify 'Apache IP Binding' by running the following:
+```bash
+> sudo netstat -tulpn | grep <App_Port>
+```
+Or the more modern:
+```bash
+> sudo ss -tulpn | grep <App_Port>
+```
+if the output shows 127.0.0.1:<App_Port>, the binding is restricted to local connections.
+If the output shows 0.0.0.0:<App_Port> or *:<App_Port>, Apache is configured correctly to accept outside network connections.
+
+
+1. **Find your Windows IP address**
+Open a standard Windows Command Prompt or PowerShell and run:
+```cmd
+> ipconfig
+```
+Look for the **IPv4 Address** under your active Wi-Fi or Ethernet adapter (it will usually start with `192.168.x.x` or `10.x.x.x`).
+
+2. **Find your WSL IP address**
+Inside your WSL terminal (where your PHP app is running), run:
+```bash
+> hostname -I
+```
+Note the first IP address listed.
+
+3. **Set up a port proxy**
+Open a **new Windows PowerShell window as Administrator**. Run the following command, replacing `<WSL_IP>` with the address you found in Step 2 and <App_Port> with the App port:
+```powershell
+> netsh interface portproxy add v4tov4 listenport=<App_Port> listenaddress=0.0.0.0 connectport=<App_Port> connectaddress=<WSL_IP>
+```
+
+4. **Open the Windows Firewall**
+In that same Administrator PowerShell window, run this command to allow external devices to connect to port <App_Port>:
+```powershell
+> New-NetFirewallRule -DisplayName "WSL Port <App_Port>" -Direction Inbound -Action Allow -Protocol TCP -LocalPort <App_Port>
+```
+5. confirm the proxy mapped correctly by running
+```cmd
+netsh interface portproxy show all
+```
+```bash
+> sudo netstat -tulpn | grep <App_Port>
+```
+Or the more modern:
+```bash
+> sudo ss -tulpn | grep <App_Port>
+
+5. **Access the app**
+On your other PC, open a web browser and navigate to your Windows IP address and port:
+`http://<WINDOWS_IP>:<App_Port>`
+```
+
+

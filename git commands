@@ -13,12 +13,14 @@ git remote set-url --add --push origin git@gitlab.com:your-username/your-git-rep
 git remote remove origin
 
 # Set the base fetch URL to GitHub (using SSH)
-git remote add origin git@github.com:Cephamando/smartTrade-POS-Pro.git
+git remote add origin git@github.com:Cephamando/vsias-Pro.git
 
 # Add GitHub as a push destination
-git remote set-url --add --push origin git@github.com:Cephamando/smartTrade-POS-Pro.git
+git remote set-url --add --push origin git@github.com:Cephamando/vsias-Pro.git
 
 # Add GitLab as a push destination
-git remote set-url --add --push origin git@gitlab.com:Cephamando/smartTrade-POS-Pro.git
+git remote set-url --add --push origin git@gitlab.com:Cephamando/vsias-Pro.git
 
 git add . && git commit -m "$(cat <<'EOF' [message here] EOF)"
+
+git push --set-upstream origin main

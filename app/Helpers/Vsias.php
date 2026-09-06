@@ -4,9 +4,54 @@ namespace App\Helpers;
 
 final class Vsias
 {
-    public static function baseUrl(): string
+    public static function configuredUrl(): string
     {
         return rtrim((string)(getenv('VSIAS_URL') ?: 'http://localhost:8095'), '/');
+    }
+
+    public static function baseUrl(): string
+    {
+        return self::browserUrl();
+    }
+
+    /**
+     * Browser-facing V-SIAS origin. When .env says localhost, reuse the host
+     * the cashier used to open the POS so phones do not iframe their own loopback.
+     */
+    public static function browserUrl(): string
+    {
+        $configured = self::configuredUrl();
+        $parts = parse_url($configured);
+        $configuredHost = strtolower((string)($parts['host'] ?? 'localhost'));
+        if (!in_array($configuredHost, ['localhost', '127.0.0.1'], true)) {
+            return $configured;
+        }
+        $clientHost = self::requestHost();
+        if ($clientHost === '' || in_array($clientHost, ['localhost', '127.0.0.1'], true)) {
+            return $configured;
+        }
+        $scheme = (string)($parts['scheme'] ?? 'http');
+        $port = (int)($parts['port'] ?? 8095);
+        return $scheme . '://' . $clientHost . ($port > 0 ? ':' . $port : '');
+    }
+
+    private static function requestHost(): string
+    {
+        $raw = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+        $host = strtolower((string)(parse_url('http://' . $raw, PHP_URL_HOST) ?: ''));
+        if ($host === '') {
+            return '';
+        }
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return $host;
+        }
+        if (preg_match('/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/', $host)) {
+            return $host;
+        }
+        return '';
     }
 
     /**
@@ -140,7 +185,7 @@ final class Vsias
         if ($internal !== '') {
             return $internal;
         }
-        $browser = self::baseUrl();
+        $browser = self::configuredUrl();
         $host = (string)(parse_url($browser, PHP_URL_HOST) ?: '');
         if (in_array(strtolower($host), ['localhost', '127.0.0.1'], true)) {
             $port = (int)(parse_url($browser, PHP_URL_PORT) ?: 8095);
@@ -157,7 +202,7 @@ final class Vsias
 
     public static function origin(): string
     {
-        $parts = parse_url(self::baseUrl());
+        $parts = parse_url(self::browserUrl());
         if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
             return 'http://localhost:8095';
         }

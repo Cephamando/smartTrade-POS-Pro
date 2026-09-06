@@ -320,13 +320,15 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
         <div class="modal-content border-0 shadow-lg overflow-hidden" style="height: 92vh;">
             <div class="modal-header py-2 bg-dark text-white flex-shrink-0">
                 <h5 class="modal-title fw-bold" id="vsiasInspectTitle"><i class="bi bi-clipboard-check text-warning me-2"></i>V-SIAS inspection</h5>
+                <a id="vsiasInspectNewTab" class="btn btn-sm btn-outline-warning fw-bold me-2" href="#" target="_blank" rel="noopener">Open in new tab</a>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0 position-relative" style="height: calc(92vh - 56px);">
                 <div id="vsiasInspectLoading" class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-white text-muted">
-                    <div class="text-center">
+                    <div class="text-center px-3">
                         <div class="spinner-border text-warning mb-2" role="status"></div>
                         <div class="fw-bold">Opening V-SIAS…</div>
+                        <div class="js-vsias-frame-hint small mt-2 d-none">If this stays empty, use <strong>Open in new tab</strong>.</div>
                     </div>
                 </div>
                 <iframe id="vsiasInspectFrame" title="V-SIAS inspection" allow="camera; microphone; clipboard-write" referrerpolicy="origin" style="position:relative; width:100%; height:100%; min-height:calc(92vh - 56px); border:0; background:#fff;"></iframe>
