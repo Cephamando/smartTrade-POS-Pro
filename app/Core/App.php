@@ -89,7 +89,6 @@ final class App
         }
 
         $action = (string)$_GET['action'];
-        $pdo = Database::connection();
 
         if ($action === 'logout') {
             session_destroy();
@@ -97,10 +96,17 @@ final class App
             exit;
         }
 
+        // ALLOW VSDC & OTHER ACTIONS TO PASS THROUGH TO ROUTER
+        if (!in_array($action, ['check_ready_orders', 'get_shift_sales', 'get_stock_level'], true)) {
+            return false;
+        }
+
+        $pdo = Database::connection();
         header('Content-Type: application/json');
 
         if ($action === 'check_ready_orders') {
             $locationId = $_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0;
+            session_write_close(); // Prevent session lock freezes
             try {
                 $stmt = $pdo->prepare("SELECT COUNT(*) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.location_id = ? AND si.status = 'ready' AND si.fulfillment_status = 'uncollected'");
                 $stmt->execute([$locationId]);
@@ -113,6 +119,7 @@ final class App
 
         if ($action === 'get_shift_sales') {
             $shiftId = (int)($_GET['shift_id'] ?? 0);
+            session_write_close();
             try {
                 $stmt = $pdo->prepare("SELECT id, created_at, customer_name, final_total, payment_method FROM sales WHERE shift_id = ? AND payment_status = 'paid' ORDER BY created_at DESC");
                 $stmt->execute([$shiftId]);
@@ -126,6 +133,7 @@ final class App
         if ($action === 'get_stock_level') {
             $productId = $_GET['product_id'] ?? 0;
             $locationId = $_GET['location_id'] ?? 0;
+            session_write_close();
             try {
                 $stmt = $pdo->prepare('SELECT quantity FROM inventory WHERE product_id = ? AND location_id = ?');
                 $stmt->execute([$productId, $locationId]);
@@ -136,8 +144,7 @@ final class App
             return true;
         }
 
-        echo json_encode(['error' => 'Unknown action']);
-        return true;
+        return false;
     }
 
     private function resolvePage(): string
