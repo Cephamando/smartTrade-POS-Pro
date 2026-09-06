@@ -28,3 +28,4 @@ myStuff/
 # --- Shop backups (contain keys and .env) ---
 /backups/
 
+*Zone.Identifier
