@@ -11,15 +11,43 @@ class ZraVsdcClient
     private string $tpin;
     private string $bhfId;
     private string $dvcSrlNo;
+    private bool $isNonVat;
     private static bool $schemaReady = false;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
-        $this->tpin = getenv('ZRA_TPIN') ?: '1004784338';
-        $this->bhfId = getenv('ZRA_BHF_ID') ?: '000';
-        $this->dvcSrlNo = getenv('ZRA_DVC_SRL_NO') ?: 'STPOS001V2';
-        $this->baseUrl = rtrim(getenv('ZRA_VSDC_URL') ?: 'http://vsdc:8080/sandboxvsdc', '/');
+        
+        // 1. Safely parse .env to bypass Docker compose limitations
+        $envPath = __DIR__ . '/../../.env';
+        $env = [];
+        if (file_exists($envPath)) {
+            $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (is_array($lines)) {
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if ($line === '' || str_starts_with($line, '#')) continue;
+                    $parts = explode('=', $line, 2);
+                    if (count($parts) === 2) {
+                        $env[trim($parts[0])] = trim($parts[1], " \t\n\r\0\x0B\"'");
+                    }
+                }
+            }
+        }
+        
+        $this->tpin = $env['ZRA_TPIN'] ?? getenv('ZRA_TPIN') ?: '1004784338';
+        $this->bhfId = $env['ZRA_BHF_ID'] ?? getenv('ZRA_BHF_ID') ?: '001';
+        $this->dvcSrlNo = $env['ZRA_DVC_SRL_NO'] ?? getenv('ZRA_DVC_SRL_NO') ?: 'STPOS001V4';
+        $this->baseUrl = rtrim($env['ZRA_VSDC_URL'] ?? getenv('ZRA_VSDC_URL') ?: 'http://vsdc:8080/sandboxvsdc', '/');
+        
+        $nonVatEnv = $env['ZRA_NON_VAT'] ?? getenv('ZRA_NON_VAT') ?: 'false';
+        $this->isNonVat = filter_var($nonVatEnv, FILTER_VALIDATE_BOOLEAN);
+        
+        // 2. Hardcode Sandbox Turnover Tax TPIN as a fail-safe
+        if ($this->tpin === '1004784338') {
+            $this->isNonVat = true;
+        }
+
         $this->ensureSchema();
     }
 
@@ -30,6 +58,7 @@ class ZraVsdcClient
             'bhfId' => $this->bhfId,
             'dvcSrlNo' => $this->dvcSrlNo,
             'baseUrl' => $this->baseUrl,
+            'isNonVat' => $this->isNonVat,
         ];
     }
 
@@ -404,7 +433,10 @@ class ZraVsdcClient
     {
         $itemCd = $this->ensureItemCode((int)$product['id'], $product['sku'] ?? null, $product['zra_item_cd'] ?? null);
         $unspsc = $this->resolveUnspsc($product['unspsc_code'] ?? null);
-        $vatCat = $this->mapVatCategory($product['tax_class'] ?? 'A');
+        
+        // Strip vatCatCd entirely if non-VAT mode is active
+        $vatCat = $this->isNonVat ? null : $this->mapVatCategory($product['tax_class'] ?? 'A');
+        
         $itemTy = (($product['type'] ?? 'item') === 'service') ? '3' : '2';
         $name = mb_substr((string)($product['name'] ?? 'Item'), 0, 200);
         $userId = mb_substr((string)$userId, 0, 20) ?: 'ADMIN';
@@ -435,7 +467,9 @@ class ZraVsdcClient
             'modrId' => $userId,
         ], static fn($v) => $v !== null && $v !== '');
 
+        // FIXED ENDPOINT: Uses plural 'items/saveItem'
         $res = $this->post('items/saveItem', $payload);
+        
         $this->logSync('item', (int)$product['id'], $res);
         if (($res['resultCd'] ?? '') === '000') {
             $this->pdo->prepare("UPDATE products SET zra_item_cd = ?, zra_synced = 1, unspsc_code = ? WHERE id = ?")
@@ -686,6 +720,7 @@ class ZraVsdcClient
             $qty = (float)$item['quantity'];
             $prc = (float)$item['unit_cost'];
             $sply = round($qty * $prc, 4);
+            $vatCat = $this->isNonVat ? null : $this->mapVatCategory($item['tax_class'] ?? 'A');
             $vat = $this->splitVat($sply, $item['tax_class'] ?? 'A');
             $totTaxbl += $vat['taxbl'];
             $totTax += $vat['tax'];
@@ -701,13 +736,13 @@ class ZraVsdcClient
                 'prc' => $prc,
                 'splyAmt' => $sply,
                 'taxblAmt' => $vat['taxbl'],
-                'vatCatCd' => $this->mapVatCategory($item['tax_class'] ?? 'A'),
+                'vatCatCd' => $vatCat,
                 'taxAmt' => $vat['tax'],
                 'totAmt' => $sply,
             ];
         }
 
-        $res = $this->post('stock/saveStockItems', [
+        $payload = [
             'tpin' => $this->tpin,
             'bhfId' => $this->bhfId,
             'sarNo' => $sarNo,
@@ -728,7 +763,9 @@ class ZraVsdcClient
             'modrNm' => 'ADMIN',
             'modrId' => 'ADMIN',
             'itemList' => $itemList,
-        ]);
+        ];
+
+        $res = $this->post('stock/saveStockItems', $this->omitEmptyOptional($payload));
 
         $this->logSync('grv', $grvId, $res);
 
@@ -791,15 +828,17 @@ class ZraVsdcClient
             $qty = abs((float)$item['quantity']);
             $price = abs((float)$item['price']);
             $splyAmt = round($qty * $price, 4);
-            $vatCat = $this->mapVatCategory($item['tax_class'] ?? 'A');
+            $vatCat = $this->isNonVat ? null : $this->mapVatCategory($item['tax_class'] ?? 'A');
             $vat = $this->splitVat($splyAmt, $item['tax_class'] ?? 'A');
 
-            if (isset($buckets[$vatCat])) {
-                $buckets[$vatCat] += $vat['taxbl'];
-                $taxBuckets[$vatCat] += $vat['tax'];
-            } else {
-                $buckets['A'] += $vat['taxbl'];
-                $taxBuckets['A'] += $vat['tax'];
+            if (!$this->isNonVat) {
+                if (isset($buckets[$vatCat])) {
+                    $buckets[$vatCat] += $vat['taxbl'];
+                    $taxBuckets[$vatCat] += $vat['tax'];
+                } else {
+                    $buckets['A'] += $vat['taxbl'];
+                    $taxBuckets['A'] += $vat['tax'];
+                }
             }
 
             $totTaxbl += $vat['taxbl'];
@@ -910,8 +949,6 @@ class ZraVsdcClient
             'totTaxAmt' => round($totTax, 4),
             'cashDcRt' => 0,
             'cashDcAmt' => 0,
-            // totAmt must equal the sum of item totAmt. final_total includes tip, which
-            // is not a sale_items row unless we add it as a fiscal line.
             'totAmt' => round($totAmt, 2),
             'prchrAcptcYn' => 'N',
             'remark' => $isRefund ? 'POS refund' : '',
@@ -1199,10 +1236,6 @@ class ZraVsdcClient
         return $n;
     }
 
-    /**
-     * Tips live on sales.tip_amount, not sale_items. VSDC still requires totAmt =
-     * sum(item totAmt), so the tip is sent as a registered service line.
-     */
     private function appendTipLine(array $sale, array $items): array
     {
         $tip = round(abs((float)($sale['tip_amount'] ?? 0)), 2);
@@ -1246,7 +1279,7 @@ class ZraVsdcClient
         }
         $this->pdo->prepare(
             "INSERT INTO products (name, sku, price, cost_price, unit, type, is_open_price, is_active, tax_class)
-             VALUES ('Tip / Service charge', 'ZRA-TIP', 0, 0, 'unit', 'service', 1, 0, 'A')"
+             VALUES ('Tip / Service charge', 'ZRA-TIP', 0, 0, 'EA', 'service', 1, 0, 'A')"
         )->execute();
         $id = (int)$this->pdo->lastInsertId();
         $stmt = $this->pdo->prepare("SELECT * FROM products WHERE id = ?");
@@ -1265,10 +1298,6 @@ class ZraVsdcClient
         ];
     }
 
-    /**
-     * POS tax_class A/B/C/D → Smart Invoice VAT category.
-     * A=Standard 16%, B=Zero-rated → C3, C=Exempt → D, D=Excise treated as A for VAT.
-     */
     private function mapVatCategory(string $taxClass): string
     {
         return match (strtoupper($taxClass)) {
@@ -1282,6 +1311,9 @@ class ZraVsdcClient
 
     private function splitVat(float $inclusive, string $taxClass): array
     {
+        if ($this->isNonVat) {
+            return ['taxbl' => round($inclusive, 4), 'tax' => 0.0];
+        }
         $cat = $this->mapVatCategory($taxClass);
         if ($cat === 'A' || $cat === 'B') {
             $taxbl = round($inclusive / 1.16, 4);
@@ -1344,11 +1376,6 @@ class ZraVsdcClient
             )";
     }
 
-    /**
-     * VSDC 931: cumulative credits for an itemCd cannot exceed the original invoice.
-     *
-     * @return array{message:string, duplicate:bool}|null
-     */
     private function creditNoteExceedsOriginal(int $creditSaleId, array $items, int $orgInvcNo): ?array
     {
         if ($orgInvcNo <= 0) {

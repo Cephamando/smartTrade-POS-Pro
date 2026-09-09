@@ -14,6 +14,8 @@ final class App
         $this->bootSession();
         $this->loadSettings();
         $this->handleLocationSwitch();
+        
+        // If it's a global JSON polling action, handle it and stop.
         if ($this->handleJsonAction()) {
             return;
         }
@@ -96,9 +98,9 @@ final class App
             exit;
         }
 
-        // ALLOW VSDC & OTHER ACTIONS TO PASS THROUGH TO ROUTER
+        // ALLOW VSDC & OTHER MODULE ACTIONS TO PASS THROUGH TO THE ROUTER
         if (!in_array($action, ['check_ready_orders', 'get_shift_sales', 'get_stock_level'], true)) {
-            return false;
+            return false; 
         }
 
         $pdo = Database::connection();

@@ -102,6 +102,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                         data-swal-confirm="Initialize"
                         data-swal-cancel="Cancel"
                         data-swal-icon="warning">
+                        <input type="hidden" name="zra_action" value="initialize">
                         <button class="btn btn-success fw-bold" <?= $initialized ? 'disabled' : '' ?>>
                             <i class="bi bi-plug"></i> Initialize device
                         </button>
@@ -121,6 +122,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                         data-swal-cancel="Cancel"
                         data-swal-icon="question"
                         data-swal-confirm-color="#212529">
+                        <input type="hidden" name="zra_action" value="register_products">
                         <button class="btn btn-outline-dark">Register products</button>
                     </form>
                 </div>
@@ -149,6 +151,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                         data-swal-cancel="Cancel"
                         data-swal-icon="question"
                         data-swal-confirm-color="#0d6efd">
+                        <input type="hidden" name="zra_action" value="retry_sales">
                         <button class="btn btn-sm btn-primary">Retry failed / pending</button>
                     </form>
                 </div>
@@ -188,6 +191,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                                         data-swal-cancel="Cancel"
                                         data-swal-icon="question"
                                         data-swal-confirm-color="#198754">
+                                        <input type="hidden" name="zra_action" value="fiscalize_one">
                                         <input type="hidden" name="sale_id" value="<?= (int)$row['id'] ?>">
                                         <button class="btn btn-sm btn-outline-success">Push</button>
                                     </form>
