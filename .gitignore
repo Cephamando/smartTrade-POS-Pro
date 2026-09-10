@@ -29,3 +29,5 @@ myStuff/
 /backups/
 
 *Zone.Identifier
+*.war
+api/sandboxvsdc-BU/
