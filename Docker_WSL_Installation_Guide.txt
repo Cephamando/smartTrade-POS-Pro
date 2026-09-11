@@ -112,8 +112,63 @@ Once saved, build your container:
 Your packages should now pull and install successfully.
 
 ----------------------------------------------------------------------
-Enable access from remote devices on the same network
+Enable access from remote devices on the same network:
 -----------------------------------------------------------------------
+1. native localhost forwarding in WSL2: The IP automatically stays in sync even if the router assigns the Windows machine a new Wi-Fi address after a reboot!
+
+Open a standard **Windows PowerShell** terminal (not the WSL Ubuntu terminal) and follow these steps to switch to mirrored networking. This will securely bridge the Linux containers to the local Wi-Fi without rigid routing rules.
+
+A. **Open the WSL Configuration File:**
+Run this command in PowerShell to open the global WSL configuration file in Notepad. If prompted to create a new file, click **Yes**:
+
+```powershell
+notepad $env:USERPROFILE\.wslconfig
+```
+
+B. **Enable Mirrored Networking:**
+Add the following lines exactly as written to the file, then save and close Notepad:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+*Note: If you already have a `[wsl2]` section in this file, simply add `networkingMode=mirrored` underneath it.*
+
+
+C. **Restart the Subsystem:** Forces the new network bridge to build.
+Run this command in PowerShell to instantly shut down the Linux subsystem and drop the old network stack:
+
+```powershell
+wsl --shutdown
+```
+Restart Docker
+
+
+D. **Find Your Windows Wi-Fi IP:**
+Still in PowerShell, find your computer's local network address:
+
+```powershell
+ipconfig | findstr "IPv4"
+```
+Note the IP address that looks like `192.168.x.x` or `10.x.x.x`.
+
+
+E. **Boot the POS and Connect:**
+Open your normal WSL Ubuntu terminal and start your application:
+
+```bash
+cd ~/smartTrade-POS-Pro
+docker compose up -d
+
+```
+The WSL environment now perfectly mirrors Windows network interfaces.
+
+Grab a phone, tablet, or another laptop connected to the same Wi-Fi network, open a web browser, and type in the IP address found in Step 4 followed by the app port (e.g., `[http://192.168.0.118:8095](http://192.168.0.118:8095)`). You will immediately see the smartTrade-POS login screen.
+
+
+
+
 Because WSL 2 runs on its own virtualized network, devices on your local Wi-Fi cannot see it by default. To make your app accessible to the other PC, you need to route traffic from your Windows host machine to your WSL instance.
 
 Install net-tools
