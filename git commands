@@ -22,8 +22,9 @@ git commit -m "<message_here>"
 # Create and switch to a new quarantine branch
 git checkout -b <New_Branch_Name>
 
+
 # Push this branch to your remote repository for safe keeping
-git push -u origin <New_Branch_Name>
+git push --set-upstream <New_Branch_Name>
 
 # Switch back to your main branch (use 'master' if your repo uses master)
 git checkout main
