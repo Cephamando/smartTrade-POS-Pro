@@ -20,9 +20,7 @@ ZRA_NON_VAT=true
 *Note: If `ZRA_NON_VAT` is changed after containers are running, use `docker-compose up -d` to refresh the environment variables without destroying volumes.*
 
 **2. Database Sanitization (Crucial for Pre-populated Databases)**
-If deploying a pre-populated database (e.g., migrating a catalog from another branch or test environment), you **must** purge all old transactional data, reset product sync flags, standardize unit codes to ZRA formats (e.g., `EA`), and wipe the old SDC keystore locks. Failing to do this will trigger cryptographic mismatches (Error 901) or routing errors (Error 904).
-
-Run this combined SQL script against the database container:
+If deploying a pre-populated database (e.g., migrating a catalog from another branch or test environment), you **must** purge all old transactional data, reset product sync flags, standardize unit codes to ZRA formats (e.g., `EA`), and wipe the old SDC keystore locks. Failing to do this will trigger cryptographic mismatches (Error 901) or routing errors (Error 904). Run this combined SQL script against the database container:
 
 ```bash
 docker exec -i smartTradePOS_db mysql -f -usmartTradePOSUser -psmartTradePOS123! smartTradePOS_db << 'SQL_END'
@@ -58,10 +56,12 @@ TRUNCATE TABLE purchase_inquiry_items;
 UPDATE products SET zra_synced = 0, zra_item_cd = NULL;
 UPDATE products SET unit = 'EA' WHERE unit IS NULL OR unit IN ('', 'unit', 'Units', 'PLATE', 'EACH');
 
--- Optional: Bulk assign a default UNSPSC code if catalog lacks them (e.g., Beer: 50202201)
--- UPDATE products SET zra_synced = 0, unspsc_code = '50202201' WHERE unspsc_code IS NULL OR unspsc_code = '';
+-- Optional: Bulk assign a default UNSPSC code if catalog lacks them (e.g., Acoholic Drinks:5020220(1-10), Non-Alcoholic drinks:50202(	300-807), Meat:5011(1-2)xxx  Vegies..:5040xxxx)
+-- UPDATE products SET zra_synced = 0, unspsc_code = 'Default_UNSPSC_code_here' WHERE unspsc_code IS NULL OR unspsc_code = '';
 
--- docker exec smartTradePOS_db mysql -usmartTradePOSUser -psmartTradePOS123! smartTradePOS_db -e "UPDATE products SET zra_synced = 0, unspsc_code = '50202201', WHERE unspsc_code IS NULL OR unspsc_code = '';"
+-- set UNSPSC code
+UPDATE products SET zra_synced = 0, unspsc_code = '', WHERE unspsc_code IS NULL OR unspsc_code = '';
+
 -- E. Wipe Old ZRA Initialization Locks
 UPDATE settings SET setting_value='' WHERE setting_key IN ('vsdc_sdcId', 'vsdc_mrcNo', 'vsdc_device_installed');
 

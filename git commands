@@ -45,10 +45,13 @@ git reset --hard <previous_working_commit_hash>
 git push origin main --force
 
 # Stop all running containers and remove their networks
-docker-compose down
+docker compose down
 
 # Rebuild the environment from scratch in the background
-docker-compose up -d --build
+docker compose up -d --build
+
+# [app/web]: lookup how internal service name defined inside the docker-compose.yml
+-- Optional: docker compose up -d --force-recreate app 
 
 
 
