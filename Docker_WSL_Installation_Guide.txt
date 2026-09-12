@@ -143,6 +143,7 @@ Run this command in PowerShell to instantly shut down the Linux subsystem and dr
 wsl --shutdown
 ```
 Restart Docker
+# docker compose up -d --force-recreate web
 
 
 D. **Find Your Windows Wi-Fi IP:**
