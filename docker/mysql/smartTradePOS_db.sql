@@ -1,5 +1,4 @@
 -- Adminer 6.0.1 MySQL 8.3.0 dump
--- settings
 SET NAMES utf8;
 SET time_zone = '+00:00';
 SET foreign_key_checks = 0;
@@ -377,6 +376,66 @@ INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `cat
 (115, 'COOKING OIL',  'OIL001', 0.00, 200.00, 'Ltr',  23, 1,  'item', 0,  'A',  '50151520', 1,  'OIL001'),
 (116, 'Tip / Service charge', 'ZRA-TIP',  0.00, 0.00, 'EA', NULL, 0,  'service',  1,  'A',  '50202201', 1,  'ZRA-TIP');
 
+
+
+DROP TABLE IF EXISTS `purchase_inquiries`;
+CREATE TABLE `purchase_inquiries` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `vendor_id` int DEFAULT NULL,
+  `location_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'draft',
+  `notes` text,
+  `needed_by` date DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pi_status` (`status`),
+  KEY `idx_pi_vendor` (`vendor_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+DROP TABLE IF EXISTS `purchase_inquiry_items`;
+CREATE TABLE `purchase_inquiry_items` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `inquiry_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `quantity` decimal(12,4) NOT NULL DEFAULT '0.0000',
+  `notes` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_pii_inquiry` (`inquiry_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+DROP TABLE IF EXISTS `purchase_order_items`;
+CREATE TABLE `purchase_order_items` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `order_id` int NOT NULL,
+  `product_id` int NOT NULL,
+  `quantity` decimal(12,4) NOT NULL DEFAULT '0.0000',
+  `received_qty` decimal(12,4) NOT NULL DEFAULT '0.0000',
+  `unit_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+  PRIMARY KEY (`id`),
+  KEY `idx_poi_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+DROP TABLE IF EXISTS `purchase_orders`;
+CREATE TABLE `purchase_orders` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `inquiry_id` int DEFAULT NULL,
+  `vendor_id` int NOT NULL,
+  `location_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `reference_no` varchar(50) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `notes` text,
+  `total_cost` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_po_status` (`status`),
+  KEY `idx_po_vendor` (`vendor_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 DROP TABLE IF EXISTS `receiving_dock_items`;
 CREATE TABLE `receiving_dock_items` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -558,13 +617,13 @@ INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
 ('license_tier',  'enterprise'),
 ('lockout_date',  ''),
 ('receipt_footer',  'Thank you for your business!\r\nOdelia-POS'),
-('receipt_header',  'Mazabuka\r\n+260972205210 | mando@odeliazm.com\r\nTPIN: 1004784338'),
+('receipt_header',  'Mazabuka\r\n+260972205210 | mando@odeliazm.com\r\nTPIN: _____________________'),
 ('theme_accent',  '#683e0d'),
 ('theme_cart',  '#3e2723'),
 ('theme_color', '#230d06'),
 ('vsdc_bhfNm',  'Mazabuka-2'),
 ('vsdc_default_unspsc', ''),
-('vsdc_device_installed', '1'),
+('vsdc_device_installed', '0'),
 ('vsdc_last_class_dt',  '0'),
 ('vsdc_last_code_dt', '0'),
 ('vsdc_last_invc_no', '0'),
@@ -1683,6 +1742,25 @@ INSERT INTO `zra_standard_codes` (`id`, `code_class`, `code_class_name`, `code`,
 (937, '70', 'Reported Status',  'E',  'Error',  NULL, '2026-09-12 06:28:49'),
 (938, '71', 'Manufacturer status',  '01', 'Manufacturer', NULL, '2026-09-12 06:28:49'),
 (939, '71', 'Manufacturer status',  '02', 'Not a Manufacturer', NULL, '2026-09-12 06:28:49');
+
+DROP TABLE IF EXISTS `vsias_sync_log`;
+CREATE TABLE `vsias_sync_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tracking_code` varchar(64) NOT NULL,
+  `line_key` varchar(190) NOT NULL,
+  `product_id` int DEFAULT NULL,
+  `zra_status` varchar(32) DEFAULT NULL,
+  `zra_message` text,
+  `booked` tinyint(1) NOT NULL DEFAULT '0',
+  `grv_id` int DEFAULT NULL,
+  `transfer_id` int DEFAULT NULL,
+  `dock_id` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_vsias_track_line` (`tracking_code`,`line_key`),
+  KEY `idx_vsias_track` (`tracking_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 DROP TABLE IF EXISTS `zra_sync_log`;
 CREATE TABLE `zra_sync_log` (
