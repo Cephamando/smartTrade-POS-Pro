@@ -56,7 +56,7 @@ git commit -m "<message_here>"
 git checkout -b <New_Branch_Name>
 
 # Push this branch to your remote repository for safe keeping
-git push -u origin <New_Branch_Name>
+git push --set-upstream origin <New_Branch_Name>
 
 # Switch back to your main branch (use 'master' if your repo uses master)
 git checkout main
@@ -78,10 +78,13 @@ git reset --hard <previous_working_commit_hash>
 git push origin main --force
 
 # Stop all running containers and remove their networks
-docker-compose down
+docker compose down
 
 # Rebuild the environment from scratch in the background
-docker-compose up -d --build
+docker compose up -d --build
+
+# [app/web]: lookup how internal service name defined inside the docker-compose.yml
+-- Optional: docker compose up -d --force-recreate app 
 
 
 
