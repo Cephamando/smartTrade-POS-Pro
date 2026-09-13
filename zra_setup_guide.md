@@ -59,11 +59,11 @@ UPDATE products SET unit = 'EA' WHERE unit IS NULL OR unit IN ('', 'unit', 'Unit
 -- Optional: Bulk assign a default UNSPSC code if catalog lacks them (e.g., Acoholic Drinks:5020220(1-10), Non-Alcoholic drinks:50202(	300-807), Meat:5011(1-2)xxx  Vegies..:5040xxxx)
 -- UPDATE products SET zra_synced = 0, unspsc_code = 'Default_UNSPSC_code_here' WHERE unspsc_code IS NULL OR unspsc_code = '';
 
--- set UNSPSC code
-UPDATE products SET zra_synced = 0, unspsc_code = '', WHERE unspsc_code IS NULL OR unspsc_code = '';
+-- Reset UNSPSC code
+-- UPDATE products SET zra_synced = 0, unspsc_code = '', WHERE unspsc_code IS NULL OR unspsc_code = '';
 
 -- E. Wipe Old ZRA Initialization Locks
-UPDATE settings SET setting_value='' WHERE setting_key IN ('vsdc_sdcId', 'vsdc_mrcNo', 'vsdc_device_installed');
+-- UPDATE settings SET setting_value='' WHERE setting_key IN ('vsdc_sdcId', 'vsdc_mrcNo', 'vsdc_device_installed');
 
 SET FOREIGN_KEY_CHECKS = 1;
 SQL_END
