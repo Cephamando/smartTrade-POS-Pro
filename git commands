@@ -1,13 +1,46 @@
-git remote remove origin
+----------------------------------
+GITHUB SSH PERMISSION (KEY)
+----------------------------------------
+# First, check if a key pair is already generated in the WSL environment:
+>ls -al ~/.ssh/id_*.pub
+
+# 2.Generate a new SSH key:
+> ssh-keygen -t ed25519 -C "your_email@example.com"
+
+# Start the SSH agent and add your key:
+> eval "$(ssh-agent -s)"
+> ssh-add ~/.ssh/id_ed25519
+
+Verification: The terminal should output Identity added: /home/mando/.ssh/id_ed25519...
+
+# Output your public key to the terminal and copy the entire string (it will start with ssh-ed25519):
+> cat ~/.ssh/id_ed25519.pub
+
+# Add the public key to GitHub: Navigate to GitHub Settings > SSH and GPG keys > New SSH key, give it a recognizable name
+
+# Test the connection to verify that GitHub now recognizes your machine:
+> ssh -T git@github.com
+Verification: You should see a success message saying Hi Cephamando! You've successfully authenticated...
+
+
+# If pushing unversioned folder from local pc to a brand-new Git repository.
+> git init
+ 
+# else Clone the repo:
+> git clone git@github.com:your_github_username/your_target_repo.git
+
+
+#If needed: disconnect local repository from the remote repository currently named "origin" to link the local code to a brand new repository created and/or on another GitHub account or 
+> git remote remove origin
 
 # Set the base fetch URL to GitHub (using SSH)
-git remote add origin git@github.com:your-username/your-git-repo.git
+> git remote add origin git@github.com:your-username/your-git-repo.git
 
 # Add GitHub as a push destination
-git remote set-url --add --push origin git@github.com:your-username/your-git-repo.git
+> git remote set-url --add --push origin git@github.com:your-username/your-git-repo.git
 
 # Add GitLab as a push destination
-git remote set-url --add --push origin git@gitlab.com:your-username/your-git-repo.git
+> git remote set-url --add --push origin git@gitlab.com:your-username/your-git-repo.git
 
 git add . && git commit -m "$(cat <<'EOF' [message here] EOF)"
 
@@ -33,7 +66,7 @@ git log --oneline
 
 # Execute the Rollback - Hard reset your working branch to the last functional commit;
 git reset --hard <previous_working_commit_hash>
-
+	
 # ------------------- If GitLab
 # Temporarily Unprotect the Branch in GitLab
 
