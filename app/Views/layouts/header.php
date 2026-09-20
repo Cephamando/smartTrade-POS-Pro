@@ -16,6 +16,8 @@ if (isset($_POST['change_global_location']) && isset($_SESSION['user_id']) && is
 $allGlobalLocations = [];
 $bayWaiting = 0;
 $currentLocationCanSell = true;
+$pendingLocEdits = 0;
+
 if (isset($pdo)) {
     $allGlobalLocations = $pdo->query("SELECT id, name, can_sell FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $currentLocId = $_SESSION['location_id'] ?? 0;
@@ -31,6 +33,17 @@ if (isset($pdo)) {
         $bayWaiting = \App\Models\ReceivingBay::dockedCount();
     } catch (\Throwable $e) {
         $bayWaiting = 0;
+    }
+    
+    $role = $_SESSION['role'] ?? 'cashier';
+    if ($role === 'dev') {
+        try {
+            $stmtPending = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'locations' AND COLUMN_NAME = 'pending_edits'");
+            $stmtPending->execute();
+            if ((int)$stmtPending->fetchColumn() > 0) {
+                $pendingLocEdits = (int)$pdo->query("SELECT COUNT(*) FROM locations WHERE pending_edits IS NOT NULL")->fetchColumn();
+            }
+        } catch (\Throwable $e) {}
     }
 }
 ?>
@@ -230,6 +243,9 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="mgmtDropdown" role="button" data-bs-toggle="dropdown">
                         <i class="bi bi-briefcase"></i> Management
+                        <?php if (!empty($pendingLocEdits)): ?>
+                            <span class="badge bg-warning text-dark ms-1" title="Pending Developer Approval"><i class="bi bi-exclamation-circle-fill"></i></span>
+                        <?php endif; ?>
                     </a>
                     <ul class="dropdown-menu shadow">
                         <li><a class="dropdown-item" href="index.php?page=reports"><i class="bi bi-bar-chart"></i> Master Reports</a></li>
@@ -250,7 +266,16 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts & X-Reads</a></li>
                         <li><a class="dropdown-item" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
-                        <li><a class="dropdown-item" href="index.php?page=locations"><i class="bi bi-geo-alt"></i> Locations</a></li>
+                        
+                        <!-- Location Notifications for Developers -->
+                        <li>
+                            <a class="dropdown-item" href="index.php?page=locations">
+                                <i class="bi bi-geo-alt"></i> Locations
+                                <?php if (!empty($pendingLocEdits)): ?>
+                                    <span class="badge bg-warning text-dark ms-1"><?= $pendingLocEdits ?> Pending</span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
                         
                         <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
                         <li><a class="dropdown-item" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Table Settings</a></li>

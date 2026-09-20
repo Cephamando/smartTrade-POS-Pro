@@ -8,6 +8,16 @@
     </button>
 </div>
 
+<?php if ($userRole === 'dev' && $pendingCount > 0): ?>
+<div class="alert alert-warning border-warning shadow-sm d-flex align-items-center mb-4">
+    <i class="bi bi-exclamation-circle-fill fs-3 me-3 text-warning"></i>
+    <div>
+        <strong class="d-block">Pending Edits Require Your Approval</strong>
+        There are <?= $pendingCount ?> location modifications submitted by administrators waiting for your review.
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="card shadow-sm border-0 border-top border-primary border-4">
     <div class="card-body p-0">
         <table class="table table-hover align-middle mb-0">
@@ -22,8 +32,13 @@
             </thead>
             <tbody>
                 <?php foreach ($locations as $l): ?>
-                <tr>
-                    <td class="fw-bold"><?= htmlspecialchars($l['name']) ?></td>
+                <tr class="<?= !empty($l['pending']) ? 'table-warning bg-opacity-10' : '' ?>">
+                    <td>
+                        <span class="fw-bold d-block"><?= htmlspecialchars($l['name']) ?></span>
+                        <?php if (!empty($l['pending'])): ?>
+                            <span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split"></i> Edit Pending (<?= htmlspecialchars($l['pending']['requested_by']) ?>)</span>
+                        <?php endif; ?>
+                    </td>
                     <td>
                         <?php if ($l['type'] === 'warehouse'): ?>
                             <span class="badge bg-secondary">Warehouse</span>
@@ -42,19 +57,26 @@
                         <?php endif; ?>
                     </td>
                     <td class="text-muted small"><?= htmlspecialchars($l['address'] ?? '-') ?></td>
-                    <td class="text-end">
+                    <td class="text-end text-nowrap">
                         <?php if (!empty($l['can_sell'])): ?>
                             <form method="POST" action="index.php?page=pos" class="d-inline">
                                 <input type="hidden" name="set_pos_location" value="<?= $l['id'] ?>">
-                                <button type="submit" class="btn btn-outline-success btn-sm me-1" title="Launch POS"><i class="bi bi-shop"></i> Launch POS</button>
+                                <button type="submit" class="btn btn-outline-success btn-sm me-1" title="Launch POS"><i class="bi bi-shop"></i></button>
                             </form>
                         <?php else: ?>
-                            <button type="button" class="btn btn-outline-secondary btn-sm me-1" disabled title="POS is disabled for this location"><i class="bi bi-shop"></i> Launch POS</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm me-1" disabled title="POS disabled"><i class="bi bi-shop"></i></button>
                         <?php endif; ?>
 
-                        <button class="btn btn-outline-primary btn-sm me-1" onclick="editLocation(<?= htmlspecialchars(json_encode($l, JSON_UNESCAPED_UNICODE)) ?>)">
-                            <i class="bi bi-pencil"></i> Edit
-                        </button>
+                        <?php if (!empty($l['pending']) && $userRole === 'dev'): ?>
+                            <button class="btn btn-warning btn-sm me-1 fw-bold text-dark" onclick="reviewLocation(<?= htmlspecialchars(json_encode($l, JSON_UNESCAPED_UNICODE)) ?>)">
+                                <i class="bi bi-eye"></i> Review
+                            </button>
+                        <?php else: ?>
+                            <button class="btn btn-outline-primary btn-sm me-1" onclick="editLocation(<?= htmlspecialchars(json_encode($l, JSON_UNESCAPED_UNICODE)) ?>)">
+                                <i class="bi bi-pencil"></i> <?= !empty($l['pending']) ? 'Overwrite Edit' : 'Edit' ?>
+                            </button>
+                        <?php endif; ?>
+
                         <form method="POST" action="index.php?page=locations" class="d-inline" id="deleteForm_<?= $l['id'] ?>">
                             <input type="hidden" name="delete_location" value="1">
                             <input type="hidden" name="location_id" value="<?= $l['id'] ?>">
@@ -74,6 +96,7 @@
     </div>
 </div>
 
+<!-- Modal for Admin/Dev to Edit Location -->
 <div class="modal fade" id="locModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content border-primary border-top border-4 shadow-lg">
@@ -86,6 +109,12 @@
                     <input type="hidden" name="add_location" id="locAction" value="1">
                     <input type="hidden" name="location_id" id="locId" value="">
                     
+                    <?php if ($userRole !== 'dev'): ?>
+                    <div class="alert alert-info py-2 small mb-3 border-info" id="editNotice" style="display:none;">
+                        <i class="bi bi-info-circle-fill"></i> Edits will be queued for developer approval.
+                    </div>
+                    <?php endif; ?>
+
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">LOCATION NAME</label>
                         <input type="text" name="name" id="locName" class="form-control fw-bold" required placeholder="e.g. Main Bar">
@@ -135,6 +164,52 @@
     </div>
 </div>
 
+<!-- Modal for Developer to Review Pending Edits -->
+<?php if ($userRole === 'dev'): ?>
+<div class="modal fade" id="reviewModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-warning border-top border-4 shadow-lg">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-ui-checks"></i> Review Pending Edits</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <p class="text-muted small mb-4 pb-2 border-bottom">Requested by <strong class="text-dark" id="revRequestedBy"></strong> on <span id="revRequestedAt"></span></p>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-6 fw-bold text-muted small text-uppercase">Current State</div>
+                    <div class="col-6 fw-bold text-primary small text-uppercase">Requested Changes</div>
+                </div>
+                
+                <div class="row g-2 mb-3 bg-white p-2 rounded border shadow-sm">
+                    <div class="col-6 border-end" id="currName"></div>
+                    <div class="col-6 fw-bold text-primary" id="reqName"></div>
+                </div>
+                <div class="row g-2 mb-3 bg-white p-2 rounded border shadow-sm">
+                    <div class="col-6 border-end" id="currType"></div>
+                    <div class="col-6 fw-bold text-primary" id="reqType"></div>
+                </div>
+                <div class="row g-2 mb-3 bg-white p-2 rounded border shadow-sm">
+                    <div class="col-6 border-end">POS: <span id="currPos"></span><br>Receiver: <span id="currRec"></span></div>
+                    <div class="col-6 fw-bold text-primary">POS: <span id="reqPos"></span><br>Receiver: <span id="reqRec"></span></div>
+                </div>
+                <div class="row g-2 bg-white p-2 rounded border shadow-sm">
+                    <div class="col-6 small text-muted border-end" id="currAddr"></div>
+                    <div class="col-6 small fw-bold text-primary" id="reqAddr"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light">
+                <form method="POST" action="index.php?page=locations" class="w-100 d-flex gap-2 mb-0">
+                    <input type="hidden" name="location_id" id="revLocId" value="">
+                    <button type="submit" name="reject_edit" value="1" class="btn btn-outline-danger w-50 fw-bold shadow-sm">Reject Edits</button>
+                    <button type="submit" name="approve_edit" value="1" class="btn btn-success w-50 fw-bold shadow-sm">Approve & Apply</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <script>
     const isDev = <?= json_encode($userRole === 'dev') ?>;
 
@@ -148,6 +223,7 @@
         document.getElementById('locCanReceive').checked = false;
         
         if (!isDev) {
+            document.getElementById('editNotice').style.display = 'none';
             document.getElementById('devAuthSection').style.display = 'block';
             document.getElementById('devUser').required = true;
             document.getElementById('devPass').required = true;
@@ -158,8 +234,8 @@
 
     function editLocation(loc) {
         document.getElementById('locForm').reset();
-        document.getElementById('locModalTitle').innerText = 'Edit Location';
-        document.getElementById('locSaveBtn').innerText = 'Update Location';
+        document.getElementById('locModalTitle').innerText = loc.pending ? 'Overwrite Pending Edit' : 'Edit Location';
+        document.getElementById('locSaveBtn').innerText = isDev ? 'Apply Updates' : 'Submit for Approval';
         document.getElementById('locAction').name = 'edit_location';
         document.getElementById('locId').value = loc.id;
         
@@ -170,12 +246,38 @@
         document.getElementById('locCanReceive').checked = parseInt(loc.can_receive || 0) === 1;
 
         if (!isDev) {
+            document.getElementById('editNotice').style.display = 'block';
             document.getElementById('devAuthSection').style.display = 'none';
             document.getElementById('devUser').required = false;
             document.getElementById('devPass').required = false;
         }
 
         new bootstrap.Modal(document.getElementById('locModal')).show();
+    }
+
+    function reviewLocation(loc) {
+        if (!loc.pending) return;
+        
+        document.getElementById('revLocId').value = loc.id;
+        document.getElementById('revRequestedBy').innerText = loc.pending.requested_by || 'Unknown';
+        document.getElementById('revRequestedAt').innerText = loc.pending.requested_at || 'Recently';
+        
+        document.getElementById('currName').innerText = loc.name;
+        document.getElementById('reqName').innerText = loc.pending.name;
+        
+        document.getElementById('currType').innerText = loc.type.toUpperCase();
+        document.getElementById('reqType').innerText = loc.pending.type.toUpperCase();
+        
+        document.getElementById('currPos').innerHTML = parseInt(loc.can_sell) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>';
+        document.getElementById('reqPos').innerHTML = parseInt(loc.pending.can_sell) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>';
+        
+        document.getElementById('currRec').innerHTML = parseInt(loc.can_receive) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>';
+        document.getElementById('reqRec').innerHTML = parseInt(loc.pending.can_receive) ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>';
+        
+        document.getElementById('currAddr').innerText = loc.address || 'None';
+        document.getElementById('reqAddr').innerText = loc.pending.address || 'None';
+        
+        new bootstrap.Modal(document.getElementById('reviewModal')).show();
     }
 
     function promptDelete(id, name) {
@@ -192,7 +294,7 @@
         } else {
             Swal.fire({
                 title: 'Developer Auth Required',
-                html: '<p class="text-muted small">Deleting a location requires developer authorization.</p>' +
+                html: '<p class="text-muted small">Deleting a location requires immediate developer authorization.</p>' +
                       '<input id="swal-dev-user" class="swal2-input" placeholder="Developer Username">' +
                       '<input id="swal-dev-pass" type="password" class="swal2-input" placeholder="Developer Password">',
                 icon: 'warning',
