@@ -15,8 +15,18 @@ if (isset($_POST['change_global_location']) && isset($_SESSION['user_id']) && is
 
 $allGlobalLocations = [];
 $bayWaiting = 0;
+$currentLocationCanSell = true;
 if (isset($pdo)) {
-    $allGlobalLocations = $pdo->query("SELECT id, name FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $allGlobalLocations = $pdo->query("SELECT id, name, can_sell FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $currentLocId = $_SESSION['location_id'] ?? 0;
+    if ($currentLocId) {
+        $stmtLoc = $pdo->prepare("SELECT can_sell FROM locations WHERE id = ?");
+        $stmtLoc->execute([$currentLocId]);
+        $val = $stmtLoc->fetchColumn();
+        if ($val !== false) {
+            $currentLocationCanSell = (int)$val === 1;
+        }
+    }
     try {
         $bayWaiting = \App\Models\ReceivingBay::dockedCount();
     } catch (\Throwable $e) {
@@ -258,8 +268,13 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                     <a class="nav-link text-warning fw-bold" href="index.php?page=kds"><i class="bi bi-fire"></i> Kitchen Display</a>
                 </li>
                 <?php endif; ?>
+                
                 <li class="nav-item">
-                    <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check"></i> Launch POS</a>
+                    <?php if ($currentLocationCanSell): ?>
+                        <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check"></i> Launch POS</a>
+                    <?php else: ?>
+                        <span class="nav-link nav-pos-btn fw-bold bg-secondary text-white-50" style="opacity: 0.65; cursor: not-allowed;" title="POS is disabled for this location"><i class="bi bi-cart-x"></i> POS Disabled</span>
+                    <?php endif; ?>
                 </li>
             </ul>
         
@@ -267,7 +282,11 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
                 <li class="nav-item">
-                    <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check"></i> Back to POS</a>
+                    <?php if ($currentLocationCanSell): ?>
+                        <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check"></i> Back to POS</a>
+                    <?php else: ?>
+                        <span class="nav-link nav-pos-btn fw-bold bg-secondary text-white-50" style="opacity: 0.65; cursor: not-allowed;" title="POS is disabled for this location"><i class="bi bi-cart-x"></i> POS Disabled</span>
+                    <?php endif; ?>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link fw-bold" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Stock request</a>

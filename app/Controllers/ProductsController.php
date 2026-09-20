@@ -16,6 +16,9 @@ final class ProductsController extends Controller
             $this->redirect('dashboard');
         }
 
+        // Ensure database is ready to handle the is_sellable column
+        Product::ensureSchema();
+
         if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             Product::exportCsv();
         }
@@ -49,6 +52,8 @@ final class ProductsController extends Controller
                     $taxClass = !empty($_POST['tax_class']) ? (string)$_POST['tax_class'] : 'A';
                     $unspsc = !empty($_POST['unspsc_code']) ? trim((string)$_POST['unspsc_code']) : null;
                     $type = (string)($_POST['type'] ?? 'item');
+                    $isSellable = array_key_exists('is_sellable', $_POST) ? (int)$_POST['is_sellable'] : 1;
+                    
                     if ($productId > 0) {
                         $existing = Product::findWithCategory($productId);
                         if (!$existing) {
@@ -68,7 +73,8 @@ final class ProductsController extends Controller
                             $taxClass,
                             $unspsc,
                             $type,
-                            $isActive
+                            $isActive,
+                            $isSellable
                         );
                         $this->flash('success', "Product '$name' updated.");
                     } else {
@@ -82,7 +88,8 @@ final class ProductsController extends Controller
                             $taxClass,
                             $unspsc,
                             $userLocId,
-                            $type
+                            $type,
+                            $isSellable
                         );
                         $this->flash('success', "Product '$name' saved.");
                     }

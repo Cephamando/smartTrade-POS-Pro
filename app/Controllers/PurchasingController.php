@@ -14,12 +14,31 @@ final class PurchasingController extends Controller
     {
         $this->requireRole(['admin', 'manager', 'dev']);
         Purchase::ensureSchema();
-        $tab = (string)($_GET['tab'] ?? 'inquiry');
-        if (!in_array($tab, ['inquiry', 'orders', 'received'], true)) {
-            $tab = 'inquiry';
-        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            
+            // Inline POS Visibility Toggle endpoint
+            if (isset($_POST['toggle_sellable'])) {
+                try {
+                    $pid = (int)$_POST['product_id'];
+                    $sellable = (int)$_POST['is_sellable'];
+                    
+                    // Auto-migrate schema on first use
+                    $stmt = $this->pdo()->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'is_sellable'");
+                    if ((int)$stmt->fetchColumn() === 0) {
+                        $this->pdo()->exec("ALTER TABLE products ADD COLUMN is_sellable TINYINT(1) NOT NULL DEFAULT 1");
+                        $this->pdo()->exec("UPDATE products SET is_sellable = 0 WHERE category_type = 'ingredients' OR (used_as_ingredient = 1 AND has_recipe = 0 AND price <= 0)");
+                    }
+                    
+                    $update = $this->pdo()->prepare("UPDATE products SET is_sellable = ? WHERE id = ?");
+                    $update->execute([$sellable, $pid]);
+                    echo json_encode(['status' => 'success']);
+                } catch (\Throwable $e) {
+                    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+                }
+                exit;
+            }
+
             try {
                 if (isset($_POST['save_inquiry'])) {
                     $id = Purchase::saveInquiry(
@@ -96,6 +115,7 @@ final class PurchasingController extends Controller
             } catch (\Throwable $e) {
                 $this->flash('error', $e->getMessage());
             }
+            $tab = (string)($_GET['tab'] ?? 'inquiry');
             $q = ['tab' => $tab];
             if (isset($_POST['process_grv']) && !empty($_POST['dock_id'])) {
                 $q['dock_id'] = (int)$_POST['dock_id'];
@@ -104,6 +124,11 @@ final class PurchasingController extends Controller
                 }
             }
             $this->redirect('purchasing', $q);
+        }
+
+        $tab = (string)($_GET['tab'] ?? 'inquiry');
+        if (!in_array($tab, ['inquiry', 'orders', 'received'], true)) {
+            $tab = 'inquiry';
         }
 
         $editInquiry = !empty($_GET['inquiry_id']) ? Purchase::inquiry((int)$_GET['inquiry_id']) : null;

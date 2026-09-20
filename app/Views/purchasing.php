@@ -348,6 +348,51 @@ function updatePoSelection(poId) {
     window.location.href = url.toString();
 }
 
+function toggleSellable(pid, currentIsSellable) {
+    if (!pid) return;
+    const newStatus = currentIsSellable ? 0 : 1;
+    const text = newStatus 
+        ? "Mark this product as SELLABLE on the POS?" 
+        : "Mark this product as RAW MATERIAL (greyed out on POS)?";
+    
+    Swal.fire({
+        title: 'Update POS Visibility',
+        text: text,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, update it',
+        confirmButtonColor: newStatus ? '#198754' : '#dc3545'
+    }).then(result => {
+        if (result.isConfirmed) {
+            fetch('index.php?page=purchasing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'toggle_sellable=1&product_id=' + pid + '&is_sellable=' + newStatus
+            }).then(r => r.json()).then(res => {
+                if (res.status === 'success') {
+                    const p = catalog.find(item => String(item.id) === String(pid));
+                    if (p) {
+                        p.is_raw = (newStatus === 0);
+                        p.is_sellable = newStatus;
+                    }
+                    document.querySelectorAll('.js-prod').forEach(sel => {
+                        Array.from(sel.options).forEach(opt => {
+                            if (String(opt.value) === String(pid)) {
+                                opt.dataset.raw = (newStatus === 0) ? '1' : '0';
+                                opt.text = (p ? p.name : opt.text.replace(' — RAW', '')) + (newStatus === 0 ? ' — RAW' : '');
+                            }
+                        });
+                    });
+                    refreshMovementHint();
+                    AppAlert.notify({icon: 'success', text: 'POS visibility updated!'});
+                } else {
+                    AppAlert.notify({icon: 'error', text: res.message ? res.message : 'Failed to update.'});
+                }
+            });
+        }
+    });
+}
+
 function productOptions(selected, withCost) {
     return catalog.map(function (p) {
         const sel = String(p.id) === String(selected) ? ' selected' : '';
@@ -418,6 +463,8 @@ function refreshMovementHint() {
         }
         
         const raw = opt && opt.dataset.raw === '1' ? true : false;
+        const pid = opt && opt.value ? opt.value : null;
+        
         Array.from(sel.options).forEach(function (o) {
             if (!o.value) return;
             const blocked = pos && o.dataset.raw === '1';
@@ -425,11 +472,15 @@ function refreshMovementHint() {
             o.style.color = blocked ? '#aaa' : '';
         });
         if (info) {
+            const toggleLnk = pid ? ` <a href="javascript:void(0)" onclick="toggleSellable(${pid}, ${raw ? 0 : 1})" class="text-decoration-none fw-bold ms-3 border-start ps-3"><i class="bi bi-arrow-repeat"></i> Flip POS Visibility</a>` : '';
+            
             if (raw && pos) {
                 const rsn = opt.dataset.reason ? opt.dataset.reason : 'Raw food cannot go to a POS location.';
-                info.innerHTML = '<i class="bi bi-info-circle text-info"></i> ' + rsn;
+                info.innerHTML = '<span class="badge bg-danger">RAW</span> <i class="bi bi-info-circle text-info ms-1"></i> ' + rsn + toggleLnk;
             } else if (raw) {
-                info.innerHTML = '<i class="bi bi-info-circle text-info"></i> Raw item — keep in kitchen/warehouse.';
+                info.innerHTML = '<span class="badge bg-secondary">RAW</span> <i class="bi bi-info-circle text-info ms-1"></i> Raw item — keep in kitchen/warehouse.' + toggleLnk;
+            } else if (pid) {
+                info.innerHTML = '<span class="badge bg-success">SELLABLE</span> <i class="bi bi-check-circle text-success ms-1"></i> Available for checkout on POS.' + toggleLnk;
             } else {
                 info.innerHTML = '';
             }

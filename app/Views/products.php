@@ -104,7 +104,12 @@ $isEnt = $tier === 'enterprise';
                         <?php if (!empty($products)): ?>
                             <?php foreach ($products as $p): ?>
                                 <tr>
-                                    <td class="fw-bold"><?= htmlspecialchars($p['name']) ?></td>
+                                    <td class="fw-bold">
+                                        <?= htmlspecialchars($p['name']) ?>
+                                        <?php if (isset($p['is_sellable']) && (int)$p['is_sellable'] === 0): ?>
+                                            <span class="badge bg-secondary ms-1" style="font-size: 0.6rem;">RAW</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?php if (!empty($p['category_name'])): ?>
                                             <span class="badge bg-secondary"><?= htmlspecialchars($p['category_name']) ?></span>
@@ -156,6 +161,7 @@ $isEnt = $tier === 'enterprise';
                                             'cost_price' => $p['cost_price'],
                                             'price' => $p['price'],
                                             'is_active' => (int)($p['is_active'] ?? 1),
+                                            'is_sellable' => array_key_exists('is_sellable', $p) ? (int)$p['is_sellable'] : 1,
                                         ];
                                         ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary js-edit-product"
@@ -233,8 +239,15 @@ $isEnt = $tier === 'enterprise';
                         <div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" id="prodCost" class="form-control text-danger" placeholder="0.00"></div>
                         <div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" id="prodPrice" class="form-control text-success fw-bold" placeholder="0.00"></div>
                     </div>
-                    <div class="row mb-0 d-none" id="prodStatusWrap">
-                        <div class="col-12">
+                    <div class="row mb-0">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold text-muted">POS VISIBILITY</label>
+                            <select name="is_sellable" id="prodSellable" class="form-select">
+                                <option value="1">Sellable on POS</option>
+                                <option value="0">Raw Material (Hidden)</option>
+                            </select>
+                        </div>
+                        <div class="col-6 d-none" id="prodStatusCol">
                             <label class="form-label small fw-bold text-muted">STATUS</label>
                             <select name="is_active" id="prodStatus" class="form-select">
                                 <option value="1">Active</option>
@@ -449,7 +462,8 @@ $isEnt = $tier === 'enterprise';
         document.getElementById('productId').value = '';
         document.getElementById('prodModalTitle').textContent = 'Add Product';
         document.getElementById('prodSaveBtn').innerHTML = '<i class="bi bi-save"></i> Save Product';
-        document.getElementById('prodStatusWrap').classList.add('d-none');
+        document.getElementById('prodStatusCol').classList.add('d-none');
+        document.getElementById('prodSellable').value = '1';
         document.getElementById('newUnspscCode').value = '';
         document.getElementById('newUnspscChosen').textContent = 'Optional — search and select a code.';
         document.getElementById('newUnspscSearch').value = '';
@@ -500,7 +514,8 @@ $isEnt = $tier === 'enterprise';
             document.getElementById('prodCost').value = product.cost_price != null ? product.cost_price : '';
             document.getElementById('prodPrice').value = product.price != null ? product.price : '';
             document.getElementById('prodStatus').value = String(product.is_active === 0 ? 0 : 1);
-            document.getElementById('prodStatusWrap').classList.remove('d-none');
+            document.getElementById('prodStatusCol').classList.remove('d-none');
+            document.getElementById('prodSellable').value = product.is_sellable !== undefined ? String(product.is_sellable) : '1';
             setProdUnspsc(product.unspsc_code || '', product.unspsc_name || '');
             bootstrap.Modal.getOrCreateInstance(prodModalEl).show();
         });

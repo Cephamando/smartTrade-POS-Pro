@@ -25,6 +25,13 @@ final class Movement
         if (!$product) {
             return false;
         }
+        
+        // Single Source of Truth: The new is_sellable flag
+        if (array_key_exists('is_sellable', $product)) {
+            return (int)$product['is_sellable'] === 0;
+        }
+        
+        // Legacy Fallback (pre-migration)
         $cat = strtolower((string)($product['cat_type'] ?? $product['category_type'] ?? ''));
         if ($cat === 'ingredients') {
             return true;
@@ -48,9 +55,6 @@ final class Movement
         return !empty($product['zra_synced']) && !empty($product['zra_item_cd']);
     }
 
-    /**
-     * @return array{ok:bool, reason:?string}
-     */
     public static function transfer(?array $product, ?array $source, ?array $dest): array
     {
         if (!$product) {
@@ -65,7 +69,7 @@ final class Movement
         if (self::isRawProduct($product) && self::isFrontOfHouse($dest)) {
             return [
                 'ok' => false,
-                'reason' => 'Raw food cannot be transferred to a POS. Keep it in kitchen or warehouse, then produce the finished dish.',
+                'reason' => 'Raw material cannot be transferred to a POS. Keep it in kitchen or warehouse.',
             ];
         }
         if (self::requiresZra() && !self::isZraReady($product) && self::isFrontOfHouse($dest)) {
@@ -77,9 +81,6 @@ final class Movement
         return ['ok' => true, 'reason' => null];
     }
 
-    /**
-     * @return array{ok:bool, reason:?string}
-     */
     public static function receiveAt(?array $product, ?array $location): array
     {
         if (!$product || !$location) {
@@ -88,7 +89,7 @@ final class Movement
         if (self::isRawProduct($product) && self::isFrontOfHouse($location)) {
             return [
                 'ok' => false,
-                'reason' => 'Raw food must be received into kitchen or warehouse, not a POS bar or store.',
+                'reason' => 'Raw material must be received into kitchen or warehouse, not a POS bar or store.',
             ];
         }
         if (self::requiresZra() && !self::isZraReady($product) && self::isFrontOfHouse($location)) {
@@ -100,9 +101,6 @@ final class Movement
         return ['ok' => true, 'reason' => null];
     }
 
-    /**
-     * @return array{ok:bool, reason:?string}
-     */
     public static function produceTo(?array $product, ?array $dest): array
     {
         if (!$product) {
@@ -120,9 +118,6 @@ final class Movement
         return ['ok' => true, 'reason' => null];
     }
 
-    /**
-     * @return array{ok:bool, reason:?string}
-     */
     public static function sellOnPos(?array $product): array
     {
         if (self::requiresZra() && !self::isZraReady($product)) {
@@ -134,7 +129,7 @@ final class Movement
         if (self::isRawProduct($product)) {
             return [
                 'ok' => false,
-                'reason' => 'Raw food is not sold on POS. Produce the finished dish first.',
+                'reason' => 'Raw material is not sold on POS. Produce the finished dish first.',
             ];
         }
         return ['ok' => true, 'reason' => null];
@@ -158,9 +153,6 @@ final class Movement
         return $formatted === '' ? '0' : $formatted;
     }
 
-    /**
-     * @return array{ok:bool, on_hand:float, reason:?string}
-     */
     public static function canSellQty(?array $product, int $locationId, float $qtyWanted): array
     {
         if (!self::tracksOnHandStock($product)) {
@@ -190,9 +182,6 @@ final class Movement
         return $url;
     }
 
-    /**
-     * @return array{title:string,text:string,html:string,product_id:int,qty:float,dest_location_id:int,locations:list<array<string,mixed>>}|null
-     */
     public static function shortagePrompt(?array $product, int $locationId, float $wanted): ?array
     {
         $check = self::canSellQty($product, $locationId, $wanted);

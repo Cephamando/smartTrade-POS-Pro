@@ -6,6 +6,9 @@ $activeShifts = $activeShifts ?? [];
 $dates = $dates ?? [];
 $salesData = $salesData ?? [];
 $pmData = $pmData ?? [];
+
+// The header defines $currentLocationCanSell. Fall back to true if undefined.
+$canSell = $currentLocationCanSell ?? true;
 ?>
 <script src="vendor/chartjs/chart.umd.min.js"></script>
 
@@ -34,7 +37,12 @@ $pmData = $pmData ?? [];
             <?php endif; ?>
         </a>
         <?php endif; ?>
-        <a href="index.php?page=pos" class="btn btn-primary fw-bold"><i class="bi bi-cart4"></i> Go to POS</a>
+        
+        <?php if ($canSell): ?>
+            <a href="index.php?page=pos" class="btn btn-primary fw-bold"><i class="bi bi-cart4"></i> Go to POS</a>
+        <?php else: ?>
+            <button type="button" class="btn btn-secondary fw-bold" disabled title="POS disabled for this location"><i class="bi bi-cart-x"></i> POS Disabled</button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -62,14 +70,22 @@ $pmData = $pmData ?? [];
     
     <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
     <div class="<?= $topColSize ?> col-6">
+        <?php if ($canSell): ?>
         <a href="index.php?page=pos" class="text-decoration-none">
+        <?php else: ?>
+        <div class="text-decoration-none" style="cursor:not-allowed;">
+        <?php endif; ?>
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
                 <div class="card-body p-3 position-relative">
                     <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.75rem;">Unpaid Tabs</div>
                     <div class="h4 fw-bold text-warning mb-0"><?= number_format($unpaidTabs ?? 0) ?></div>
                 </div>
             </div>
+        <?php if ($canSell): ?>
         </a>
+        <?php else: ?>
+        </div>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -173,11 +189,10 @@ $pmData = $pmData ?? [];
                     <tbody>
                         <?php if(empty($activeShifts)): ?>
                         <tr><td colspan="5" class="text-center py-4 text-muted fst-italic">No active shifts currently open.</td></tr>
-                        <?php else: foreach($activeShifts as $as): 
+                        <?php else: foreach($activeShifts as$as): 
                             $start = new DateTime($as['start_time']);
-                            $now = new DateTime();
-                            $diff = $start->diff($now);
-                            $duration = $diff->format('%h hr %i min');
+                            $now = new DateTime();$diff = $start->diff($now);
+                            $duration =$diff->format('%h hr %i min');
                         ?>
                         <tr>
                             <td class="ps-4 fw-bold text-primary">

@@ -6,6 +6,16 @@ use App\Helpers\Spreadsheet;
 
 final class Product extends Model
 {
+    public static function ensureSchema(): void
+    {
+        $pdo = self::db();
+        $stmt = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'is_sellable'");
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec("ALTER TABLE products ADD COLUMN is_sellable TINYINT(1) NOT NULL DEFAULT 1");
+            $pdo->exec("UPDATE products SET is_sellable = 0 WHERE category_type = 'ingredients' OR (used_as_ingredient = 1 AND has_recipe = 0 AND price <= 0)");
+        }
+    }
+
     public static function allWithCategory(): array
     {
         Unspsc::ensureTable();
@@ -21,7 +31,7 @@ final class Product extends Model
     public static function activeSellable(): array
     {
         return self::db()->query(
-            "SELECT id, name, sku, cost_price FROM products WHERE is_active = 1 ORDER BY name ASC"
+            "SELECT id, name, sku, cost_price FROM products WHERE is_active = 1 AND is_sellable = 1 ORDER BY name ASC"
         )->fetchAll();
     }
 
@@ -60,16 +70,17 @@ final class Product extends Model
         string $taxClass,
         ?string $unspscCode,
         int $locationId,
-        string $type = 'item'
+        string $type = 'item',
+        int $isSellable = 1
     ): int {
         $pdo = self::db();
         $pdo->beginTransaction();
         try {
             $type = $type === 'service' ? 'service' : 'item';
             $stmt = $pdo->prepare(
-                'INSERT INTO products (name, category_id, price, cost_price, unit, sku, tax_class, unspsc_code, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                'INSERT INTO products (name, category_id, price, cost_price, unit, sku, tax_class, unspsc_code, type, is_sellable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            $stmt->execute([$name, $categoryId, $price, $cost, $unit, $sku, $taxClass, $unspscCode, $type]);
+            $stmt->execute([$name, $categoryId, $price, $cost, $unit, $sku, $taxClass, $unspscCode, $type, $isSellable]);
             $id = (int)$pdo->lastInsertId();
             $pdo->prepare('INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, 0)')
                 ->execute([$locationId, $id]);
@@ -96,13 +107,14 @@ final class Product extends Model
         string $taxClass,
         ?string $unspscCode,
         string $type = 'item',
-        int $isActive = 1
+        int $isActive = 1,
+        int $isSellable = 1
     ): void {
         $type = $type === 'service' ? 'service' : 'item';
         $isActive = $isActive ? 1 : 0;
         self::db()->prepare(
-            'UPDATE products SET name=?, category_id=?, price=?, cost_price=?, unit=?, sku=?, tax_class=?, unspsc_code=?, type=?, is_active=? WHERE id=?'
-        )->execute([$name, $categoryId, $price, $cost, $unit, $sku, $taxClass, $unspscCode, $type, $isActive, $id]);
+            'UPDATE products SET name=?, category_id=?, price=?, cost_price=?, unit=?, sku=?, tax_class=?, unspsc_code=?, type=?, is_active=?, is_sellable=? WHERE id=?'
+        )->execute([$name, $categoryId, $price, $cost, $unit, $sku, $taxClass, $unspscCode, $type, $isActive, $isSellable, $id]);
     }
 
     public static function csvHeaders(): array
