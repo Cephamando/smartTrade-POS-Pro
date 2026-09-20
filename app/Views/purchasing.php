@@ -1,9 +1,37 @@
 <?php
 $tab = $tab ?? 'inquiry';
 $bayPrefill = is_array($bayPrefill ?? null) ? $bayPrefill : [];
-$grvVendorId = (int)($bayPrefill['vendor_id'] ?? $receiveOrder['vendor_id'] ?? 0);
-$grvLocationId = (int)($bayPrefill['location_id'] ?? $receiveOrder['location_id'] ?? $currentLocId ?? 0);
-$grvRef = (string)($bayPrefill['ref'] ?? $receiveOrder['reference_no'] ?? '');
+
+$grvPoId = 0;
+if (!empty($bayPrefill['purchase_order_id'])) {
+    $grvPoId = (int)$bayPrefill['purchase_order_id'];
+} elseif (!empty($receiveOrder['id'])) {
+    $grvPoId = (int)$receiveOrder['id'];
+}
+
+$grvVendorId = 0;
+if (!empty($bayPrefill['vendor_id'])) {
+    $grvVendorId = (int)$bayPrefill['vendor_id'];
+} elseif (!empty($receiveOrder['vendor_id'])) {
+    $grvVendorId = (int)$receiveOrder['vendor_id'];
+}
+
+$grvLocationId = 0;
+if (!empty($bayPrefill['location_id'])) {
+    $grvLocationId = (int)$bayPrefill['location_id'];
+} elseif (!empty($receiveOrder['location_id'])) {
+    $grvLocationId = (int)$receiveOrder['location_id'];
+} elseif (!empty($currentLocId)) {
+    $grvLocationId = (int)$currentLocId;
+}
+
+$grvRef = '';
+if (!empty($bayPrefill['ref'])) {
+    $grvRef = (string)$bayPrefill['ref'];
+} elseif (!empty($receiveOrder['reference_no'])) {
+    $grvRef = (string)$receiveOrder['reference_no'];
+}
+
 $productsJson = [];
 foreach ($products as $p) {
     $raw = \App\Helpers\Movement::isRawProduct($p);
@@ -253,10 +281,10 @@ foreach ($locations as $l) {
             <div class="row g-3 mb-3">
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">PURCHASE ORDER</label>
-                    <select name="purchase_order_id" id="poSelect" class="form-select">
+                    <select name="purchase_order_id" id="poSelect" class="form-select" onchange="updatePoSelection(this.value)">
                         <option value="">Walk-in / no PO</option>
                         <?php foreach ($openOrders as $o): ?>
-                            <option value="<?= (int)$o['id'] ?>" <?= ((int)($receiveOrder['id'] ?? 0) === (int)$o['id']) ? 'selected' : '' ?>>
+                            <option value="<?= (int)$o['id'] ?>" <?= ($grvPoId === (int)$o['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars(($o['reference_no'] ?: ('#' . $o['id'])) . ' — ' . $o['vendor_name']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -309,10 +337,22 @@ const inquiryPrefill = <?= json_encode($editInquiry['items'] ?? []) ?>;
 const orderPrefill = <?= json_encode($editOrder['items'] ?? $receiveOrder['items'] ?? []) ?>;
 const bayPrefillItems = <?= json_encode(($bayPrefill ?? [])['items'] ?? []) ?>;
 
+function updatePoSelection(poId) {
+    let url = new URL(window.location.href);
+    url.searchParams.set('tab', 'received');
+    if (poId) {
+        url.searchParams.set('receive_order', poId);
+    } else {
+        url.searchParams.delete('receive_order');
+    }
+    window.location.href = url.toString();
+}
+
 function productOptions(selected, withCost) {
     return catalog.map(function (p) {
         const sel = String(p.id) === String(selected) ? ' selected' : '';
-        const raw = p.is_raw ? ' data-raw="1" data-reason="' + (p.reason || '').replace(/"/g, '&quot;') + '"' : '';
+        const pReason = p.reason ? p.reason : '';
+        const raw = p.is_raw ? ' data-raw="1" data-reason="' + pReason.replace(/"/g, '&quot;') + '"' : '';
         const label = p.name + (p.is_raw ? ' — RAW' : '');
         const cost = withCost ? ' data-cost="' + p.cost + '"' : '';
         return '<option value="' + p.id + '"' + sel + raw + cost + '>' + label + '</option>';
@@ -325,9 +365,11 @@ function addLine(containerId, withCost, preset) {
     const idx = wrap.children.length;
     const row = document.createElement('div');
     row.className = 'row g-2 mb-2 align-items-center purchase-line';
-    const pid = preset ? (preset.product_id || '') : '';
-    const qty = preset ? (preset.quantity || preset.qty || '') : '';
-    const cost = preset ? (preset.unit_cost || preset.cost_price || preset.cost || '') : '';
+    
+    const pid = preset ? (preset.product_id ? preset.product_id : '') : '';
+    const qty = preset ? (preset.quantity ? preset.quantity : (preset.qty ? preset.qty : '')) : '';
+    const cost = preset ? (preset.unit_cost ? preset.unit_cost : (preset.cost_price ? preset.cost_price : (preset.cost ? preset.cost : ''))) : '';
+    
     let html = '<div class="' + (withCost ? 'col-6' : 'col-8') + '"><select name="items[' + idx + '][product_id]" class="form-select form-select-sm js-prod" required><option value="">Select…</option>'
         + productOptions(pid, withCost) + '</select></div>';
     html += '<div class="col-3"><input type="number" step="0.01" min="0.01" name="items[' + idx + '][qty]" class="form-control form-control-sm" required placeholder="Qty" value="' + qty + '"></div>';
@@ -341,7 +383,13 @@ function addLine(containerId, withCost, preset) {
     row.querySelector('.js-prod').addEventListener('change', function () {
         const opt = this.options[this.selectedIndex];
         const costEl = row.querySelector('.js-cost');
-        if (costEl && opt && opt.dataset.cost) costEl.value = opt.dataset.cost;
+        if (costEl) {
+            if (opt) {
+                if (opt.dataset.cost) {
+                    costEl.value = opt.dataset.cost;
+                }
+            }
+        }
         refreshMovementHint();
     });
     refreshMovementHint();
@@ -349,18 +397,27 @@ function addLine(containerId, withCost, preset) {
 
 function locIsPos(id) {
     const loc = locationsMeta.find(function (l) { return String(l.id) === String(id); });
-    return !!(loc && loc.is_pos);
+    return loc && loc.is_pos ? true : false;
 }
 
 function refreshMovementHint() {
-    const locEl = document.getElementById('grvLocation') || document.querySelector('select[name="location_id"]');
+    let locEl = document.getElementById('grvLocation');
+    if (!locEl) {
+        locEl = document.querySelector('select[name="location_id"]');
+    }
     const warn = document.getElementById('moveWarn');
     if (!locEl) return;
     const pos = locIsPos(locEl.value);
     document.querySelectorAll('.js-prod').forEach(function (sel) {
         const opt = sel.options[sel.selectedIndex];
-        const info = sel.closest('.purchase-line, tr') ? sel.closest('.purchase-line, tr').querySelector('.js-line-info') : null;
-        const raw = opt && opt.dataset.raw === '1';
+        let info = null;
+        if (sel.closest('.purchase-line')) {
+            info = sel.closest('.purchase-line').querySelector('.js-line-info');
+        } else if (sel.closest('tr')) {
+            info = sel.closest('tr').querySelector('.js-line-info');
+        }
+        
+        const raw = opt && opt.dataset.raw === '1' ? true : false;
         Array.from(sel.options).forEach(function (o) {
             if (!o.value) return;
             const blocked = pos && o.dataset.raw === '1';
@@ -369,7 +426,8 @@ function refreshMovementHint() {
         });
         if (info) {
             if (raw && pos) {
-                info.innerHTML = '<i class="bi bi-info-circle text-info"></i> ' + (opt.dataset.reason || 'Raw food cannot go to a POS location.');
+                const rsn = opt.dataset.reason ? opt.dataset.reason : 'Raw food cannot go to a POS location.';
+                info.innerHTML = '<i class="bi bi-info-circle text-info"></i> ' + rsn;
             } else if (raw) {
                 info.innerHTML = '<i class="bi bi-info-circle text-info"></i> Raw item — keep in kitchen/warehouse.';
             } else {
@@ -379,7 +437,11 @@ function refreshMovementHint() {
         if (raw && pos) sel.value = '';
     });
     if (warn) {
-        warn.classList.toggle('d-none', !pos);
+        if (pos) {
+            warn.classList.remove('d-none');
+        } else {
+            warn.classList.add('d-none');
+        }
         warn.innerHTML = pos
             ? '<i class="bi bi-info-circle"></i> This location is a POS. Raw food lines are disabled. Receive those into kitchen or warehouse instead.'
             : '';
@@ -391,29 +453,50 @@ document.addEventListener('DOMContentLoaded', function () {
     const orderBox = document.getElementById('orderLines');
     const grvBox = document.getElementById('grvLines');
     if (inquiryBox) {
-        if (inquiryPrefill.length) inquiryPrefill.forEach(function (r) { addLine('inquiryLines', false, r); });
-        else addLine('inquiryLines');
+        if (inquiryPrefill.length) { 
+            inquiryPrefill.forEach(function (r) { addLine('inquiryLines', false, r); }); 
+        } else { 
+            addLine('inquiryLines'); 
+        }
     }
     if (orderBox) {
-        if (orderPrefill.length && <?= json_encode($tab === 'orders') ?>) orderPrefill.forEach(function (r) { addLine('orderLines', true, r); });
-        else if (<?= json_encode($tab === 'orders') ?>) addLine('orderLines', true);
+        if (orderPrefill.length) {
+            if (<?= json_encode($tab === 'orders') ?>) { 
+                orderPrefill.forEach(function (r) { addLine('orderLines', true, r); }); 
+            }
+        } else {
+            if (<?= json_encode($tab === 'orders') ?>) { 
+                addLine('orderLines', true); 
+            }
+        }
     }
     if (grvBox) {
         if (bayPrefillItems.length) {
             bayPrefillItems.forEach(function (r) {
                 addLine('grvLines', true, { product_id: r.product_id, quantity: r.qty, unit_cost: r.cost });
             });
-        } else if (orderPrefill.length && <?= json_encode($tab === 'received') ?>) {
-            orderPrefill.forEach(function (r) {
-                const remain = Math.max(0, parseFloat(r.quantity || 0) - parseFloat(r.received_qty || 0));
-                if (remain > 0) addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost });
-            });
+        } else if (orderPrefill.length) {
+            if (<?= json_encode($tab === 'received') ?>) {
+                orderPrefill.forEach(function (r) {
+                    const rQty = r.quantity ? r.quantity : 0;
+                    const rRec = r.received_qty ? r.received_qty : 0;
+                    const remain = Math.max(0, parseFloat(rQty) - parseFloat(rRec));
+                    if (remain > 0) { 
+                        addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost }); 
+                    }
+                });
+            }
         } else {
             addLine('grvLines', true);
         }
     }
-    const loc = document.getElementById('grvLocation') || document.querySelector('select[name="location_id"]');
-    if (loc) loc.addEventListener('change', refreshMovementHint);
+    let loc = document.getElementById('grvLocation');
+    if (!loc) {
+        loc = document.querySelector('select[name="location_id"]');
+    }
+    if (loc) {
+        loc.addEventListener('change', refreshMovementHint);
+    }
     refreshMovementHint();
 });
 </script>
