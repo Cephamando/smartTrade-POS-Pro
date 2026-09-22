@@ -1,4 +1,5 @@
--- Adminer 6.0.1 MySQL 8.3.0 dump
+-- Adminer 5.5.1 MySQL 8.3.0 dump
+
 SET NAMES utf8;
 SET time_zone = '+00:00';
 SET foreign_key_checks = 0;
@@ -102,6 +103,7 @@ DROP TABLE IF EXISTS `grvs`;
 CREATE TABLE `grvs` (
   `id` int NOT NULL AUTO_INCREMENT,
   `vendor_id` int NOT NULL,
+  `purchase_order_id` int DEFAULT NULL,
   `location_id` int NOT NULL,
   `received_by` int NOT NULL,
   `total_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
@@ -190,16 +192,18 @@ CREATE TABLE `locations` (
   `can_receive_from_vendor` tinyint(1) DEFAULT '0',
   `address` text,
   `phone` varchar(50) DEFAULT '555-0000',
+  `can_receive` tinyint(1) NOT NULL DEFAULT '0',
+  `pending_edits` text,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_vendor`, `address`, `phone`) VALUES
-(1, 'main bar', 'store',  1,  0,  '', '555-0000'),
-(2, 'outside bar',  'store',  1,  0,  '', '555-0000'),
-(3, 'Kitchen',  'warehouse',  1,  0,  '', '555-0000'),
-(4, 'Main Warehouse', 'warehouse',  1,  0,  '', '555-0000'),
-(5, 'mini storeroom', 'store',  1,  0,  '', '555-0000'),
-(6, 'HQ', 'warehouse',  1,  0,  '', '555-0000');
+INSERT INTO `locations` (`id`, `name`, `type`, `can_sell`, `can_receive_from_vendor`, `address`, `phone`, `can_receive`, `pending_edits`) VALUES
+(1, 'main bar', 'store',  1,  0,  '', '555-0000', 0,  NULL),
+(2, 'outside bar',  'store',  1,  0,  '', '555-0000', 0,  NULL),
+(3, 'Kitchen',  'warehouse',  1,  0,  '', '555-0000', 1,  NULL),
+(4, 'Main Warehouse', 'warehouse',  0,  0,  '', '555-0000', 1,  NULL),
+(5, 'mini storeroom', 'store',  0,  0,  '', '555-0000', 0,  NULL),
+(6, 'HQ', 'warehouse',  0,  0,  '', '555-0000', 1,  NULL);
 
 DROP TABLE IF EXISTS `members`;
 CREATE TABLE `members` (
@@ -236,6 +240,7 @@ CREATE TABLE `product_recipes` (
   KEY `parent_idx` (`parent_product_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+
 DROP TABLE IF EXISTS `products`;
 CREATE TABLE `products` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -252,131 +257,132 @@ CREATE TABLE `products` (
   `unspsc_code` varchar(20) DEFAULT NULL COMMENT 'UNSPSC 8-digit Commodity Code',
   `zra_synced` tinyint(1) DEFAULT '0' COMMENT '1 if synced to ZRA',
   `zra_item_cd` varchar(100) DEFAULT NULL,
+  `is_sellable` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`id`),
   UNIQUE KEY `sku` (`sku`),
   KEY `category_id` (`category_id`),
   CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `category_id`, `is_active`, `type`, `is_open_price`, `tax_class`, `unspsc_code`, `zra_synced`, `zra_item_cd`) VALUES
-(1, 'Hunters Gold/Dry', NULL, 50.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000001'),
-(2, 'Savanna Dry',  NULL, 55.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000002'),
-(3, 'Flying fish can',  NULL, 40.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000003'),
-(4, 'Flying fish bottle', NULL, 30.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000004'),
-(5, 'Brutal fruit can', NULL, 40.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000005'),
-(6, 'Brutal fruit bottle',  NULL, 30.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000006'),
-(7, 'Belgravia Can',  NULL, 60.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000007'),
-(8, 'Belgravia bottle', NULL, 60.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000008'),
-(9, 'Castle lager', NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000009'),
-(10,  'Mosi lager', NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000010'),
-(11,  'Black label',  NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000011'),
-(12,  'Castle light can', NULL, 40.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000012'),
-(13,  'Castle light bottle',  NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000013'),
-(14,  'Heiniken Malt',  NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000014'),
-(15,  'Heiniken Silver',  NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000015'),
-(16,  'Corona', NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000016'),
-(17,  'Budweiser',  NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000017'),
-(18,  'Windhoek lager', NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000018'),
-(19,  'Windhoek draft', NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000019'),
-(20,  'Stella Artois',  NULL, 35.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000020'),
-(21,  'STILL WATER',  NULL, 10.00,  0.00, 'EA', 3,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000021'),
-(22,  'Mango',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000022'),
-(23,  'Orange', NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000023'),
-(24,  'Cranberry',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000024'),
-(25,  'Red grape',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000025'),
-(26,  'Apple',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000026'),
-(27,  'Fruitcana',  NULL, 15.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000027'),
-(28,  'Coke Zero',  NULL, 20.00,  10.00,  'EA', 5,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000028'),
-(29,  'Coke/Fanta/Sprite bottle', NULL, 15.00,  0.00, 'EA', 5,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000029'),
-(30,  'Coke/Fanta/Sprite Disposable', NULL, 20.00,  0.00, 'EA', 5,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000030'),
-(31,  'Jameson cocktail', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000031'),
-(32,  'White Russian',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000032'),
-(33,  'Classic Daquiri',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000033'),
-(34,  'Strawberry Daquiri', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000034'),
-(35,  'Tom Collins',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000035'),
-(36,  'Sex on the beach', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000036'),
-(37,  'Whisky Sour',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000037'),
-(38,  'Gin Sour', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000038'),
-(39,  'Martini (Vodka, Gin, Espresso)', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000039'),
-(40,  'Margarita',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000040'),
-(41,  'Cosmopolitan', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000041'),
-(42,  'Mojito', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000042'),
-(43,  'Pina Colada',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000043'),
-(44,  'Long Island',  NULL, 200.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000044'),
-(45,  'Sparkling waters delight', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000045'),
-(46,  'Virgin Mojito',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000046'),
-(47,  'Virgin Daquiri', NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000047'),
-(48,  'Sunset Island',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000048'),
-(49,  'Virgin Captain Colada',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000049'),
-(50,  'Malawi shandy',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000050'),
-(51,  'Rocky Shandy', NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000051'),
-(52,  'Brothers mocktails', NULL, 25.00,  0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202308', 1,  'STP0000052'),
-(53,  'Ginger ale', NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000053'),
-(54,  'Tonic water',  NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000054'),
-(55,  'Soda Water', NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000055'),
-(56,  'Lemonade', NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000056'),
-(57,  'Glenfiddich 15', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000057'),
-(58,  'Glenfiddich 12', NULL, 80.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000058'),
-(59,  'Chivas 12',  NULL, 1000.00,  0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000059'),
-(60,  'J & B',  NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000060'),
-(61,  'Jameson blackbarrel',  NULL, 1200.00,  0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000061'),
-(62,  'Jameson Original', NULL, 850.00, 0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000062'),
-(63,  'Jameson Castmate', NULL, 1000.00,  0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000063'),
-(64,  'Jack Daniels', NULL, 60.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000064'),
-(65,  'Southern Comfort', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000065'),
-(66,  'Gordons',  NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000066'),
-(67,  'Gordons Pink', NULL, 500.00, 0.00, 'EA', 10, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000067'),
-(68,  'Beefeater',  NULL, 600.00, 0.00, 'EA', 10, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000068'),
-(69,  'Beefeater Pink', NULL, 600.00, 0.00, 'EA', 10, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000069'),
-(70,  'Henessy',  NULL, 1400.00,  0.00, 'EA', 11, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000070'),
-(71,  'Remmy Martin', NULL, 1950.00,  0.00, 'EA', 11, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000071'),
-(72,  'Amarula',  NULL, 50.00,  1000.00,  'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000072'),
-(73,  'Wild Africa',  NULL, 700.00, 0.00, 'EA', 12, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000073'),
-(74,  'Strawberry lips',  NULL, 550.00, 0.00, 'EA', 12, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000074'),
-(75,  'Amarula small',  NULL, 250.00, 0.00, 'EA', 12, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000075'),
-(76,  'Klipdrift',  NULL, 40.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000076'),
-(77,  'Klipdrift Premium',  NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000077'),
-(78,  'KWV5', NULL, 600.00, 0.00, 'EA', 13, 1,  'item', 0,  'A',  '50202203', 1,  'STP0000078'),
-(79,  'Absolut Vodka',  NULL, 800.00, 0.00, 'EA', 14, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000079'),
-(80,  'Grey Goose', NULL, 1250.00,  0.00, 'EA', 14, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000080'),
-(81,  'Ciroc',  NULL, 1400.00,  0.00, 'EA', 14, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000081'),
-(82,  'Captain Morgan dark rum',  NULL, 700.00, 0.00, 'EA', 15, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000082'),
-(83,  'Captain Morgan spiced Rum',  NULL, 700.00, 0.00, 'EA', 15, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000083'),
-(84,  'Four Cousins', NULL, 250.00, 0.00, 'EA', 17, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000084'),
-(85,  'Cronier',  NULL, 450.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000085'),
-(86,  'Nederberg',  NULL, 400.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000086'),
-(87,  'KWV',  NULL, 400.00, 0.00, 'EA', 17, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000087'),
-(88,  'Fat bastard Golden Reserve', NULL, 600.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000088'),
-(89,  'Fat bastard Merlot', NULL, 500.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000089'),
-(90,  'Sunkissed',  NULL, 300.00, 0.00, 'EA', 17, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000090'),
-(91,  'Robertson',  NULL, 350.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000091'),
-(92,  'Four Cousins red', NULL, 50.00,  0.00, 'EA', 18, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000092'),
-(93,  'Overmeer', NULL, 50.00,  0.00, 'EA', 18, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000093'),
-(94,  'Chateau Delrei', NULL, 50.00,  0.00, 'EA', 18, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000094'),
-(95,  'Jameson black barrel', NULL, 80.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000095'),
-(96,  'Jameson whisky', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000096'),
-(97,  'Absolute Vodka', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000097'),
-(98,  'Tequila',  NULL, 55.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000098'),
-(99,  'Jagermeister', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000099'),
-(100, 'Blow Job', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000100'),
-(101, 'Jager bomb', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000101'),
-(102, 'Hennessy', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000102'),
-(103, 'Captain Morgan', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000103'),
-(104, 'J.C Le Roux',  NULL, 600.00, 0.00, 'EA', 20, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000104'),
-(105, 'Moet Nector',  NULL, 2600.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000105'),
-(106, 'Moet Brut',  NULL, 3000.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000106'),
-(107, 'Verve Clicquot', NULL, 3600.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000107'),
-(108, 'Verve Rich', NULL, 3800.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000108'),
-(109, 'All Flavours Shisha',  NULL, 150.00, 0.00, 'EA', 22, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000109'),
-(110, 'CHICKEN WRAP', 'CWR001', 170.00, 100.00, 'EA', 24, 1,  'item', 0,  'A',  '50112011', 1,  'CWR001'),
-(111, 'BEFF BURGER',  'BBGR001',  65.00,  30.00,  'EA', 24, 1,  'item', 0,  'A',  '50111516', 1,  'BBGR001'),
-(112, 'POTATO SALADS',  'PTT001', 45.00,  0.00, 'EA', 23, 1,  'item', 0,  'A',  '50193201', 1,  'PTT001'),
-(113, 'POTATOES', 'PT001',  0.00, 150.00, 'EA', 23, 1,  'item', 0,  'A',  '50405700', 1,  'PT001'),
-(114, 'CHIKEN', 'CKNR001',  0.00, 120.00, 'EA', 23, 1,  'item', 0,  'A',  '50112010', 1,  'CKNR001'),
-(115, 'COOKING OIL',  'OIL001', 0.00, 200.00, 'Ltr',  23, 1,  'item', 0,  'A',  '50151520', 1,  'OIL001'),
-(116, 'Tip / Service charge', 'ZRA-TIP',  0.00, 0.00, 'EA', NULL, 0,  'service',  1,  'A',  '50202201', 1,  'ZRA-TIP');
-
-
+INSERT INTO `products` (`id`, `name`, `sku`, `price`, `cost_price`, `unit`, `category_id`, `is_active`, `type`, `is_open_price`, `tax_class`, `unspsc_code`, `zra_synced`, `zra_item_cd`, `is_sellable`) VALUES
+(1, 'Hunters Gold/Dry', NULL, 50.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000001', 1),
+(2, 'Savanna Dry',  NULL, 55.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000002', 1),
+(3, 'Flying fish can',  NULL, 40.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000003', 1),
+(4, 'Flying fish bottle', NULL, 30.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000004', 1),
+(5, 'Brutal fruit can', NULL, 40.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000005', 1),
+(6, 'Brutal fruit bottle',  NULL, 30.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000006', 1),
+(7, 'Belgravia Can',  NULL, 60.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000007', 1),
+(8, 'Belgravia bottle', NULL, 60.00,  0.00, 'EA', 1,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000008', 1),
+(9, 'Castle lager', NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000009', 1),
+(10,  'Mosi lager', NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000010', 1),
+(11,  'Black label',  NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000011', 1),
+(12,  'Castle light can', NULL, 40.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000012', 1),
+(13,  'Castle light bottle',  NULL, 30.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000013', 1),
+(14,  'Heiniken Malt',  NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000014', 1),
+(15,  'Heiniken Silver',  NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000015', 1),
+(16,  'Corona', NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000016', 1),
+(17,  'Budweiser',  NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000017', 1),
+(18,  'Windhoek lager', NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000018', 1),
+(19,  'Windhoek draft', NULL, 45.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000019', 1),
+(20,  'Stella Artois',  NULL, 35.00,  0.00, 'EA', 2,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000020', 1),
+(21,  'STILL WATER',  NULL, 10.00,  0.00, 'EA', 3,  1,  'item', 0,  'A',  '50202301', 1,  'STP0000021', 1),
+(22,  'Mango',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000022', 1),
+(23,  'Orange', NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000023', 1),
+(24,  'Cranberry',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000024', 1),
+(25,  'Red grape',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000025', 1),
+(26,  'Apple',  NULL, 50.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000026', 1),
+(27,  'Fruitcana',  NULL, 15.00,  0.00, 'EA', 4,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000027', 1),
+(28,  'Coke Zero',  NULL, 20.00,  10.00,  'EA', 5,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000028', 1),
+(29,  'Coke/Fanta/Sprite bottle', NULL, 15.00,  0.00, 'EA', 5,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000029', 1),
+(30,  'Coke/Fanta/Sprite Disposable', NULL, 20.00,  0.00, 'EA', 5,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000030', 1),
+(31,  'Jameson cocktail', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000031', 1),
+(32,  'White Russian',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000032', 1),
+(33,  'Classic Daquiri',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000033', 1),
+(34,  'Strawberry Daquiri', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000034', 1),
+(35,  'Tom Collins',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000035', 1),
+(36,  'Sex on the beach', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000036', 1),
+(37,  'Whisky Sour',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000037', 1),
+(38,  'Gin Sour', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000038', 1),
+(39,  'Martini (Vodka, Gin, Espresso)', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000039', 1),
+(40,  'Margarita',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000040', 1),
+(41,  'Cosmopolitan', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000041', 1),
+(42,  'Mojito', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000042', 1),
+(43,  'Pina Colada',  NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000043', 1),
+(44,  'Long Island',  NULL, 200.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000044', 1),
+(45,  'Sparkling waters delight', NULL, 150.00, 0.00, 'EA', 6,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000045', 1),
+(46,  'Virgin Mojito',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000046', 1),
+(47,  'Virgin Daquiri', NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000047', 1),
+(48,  'Sunset Island',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000048', 1),
+(49,  'Virgin Captain Colada',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000049', 1),
+(50,  'Malawi shandy',  NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000050', 1),
+(51,  'Rocky Shandy', NULL, 100.00, 0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000051', 1),
+(52,  'Brothers mocktails', NULL, 25.00,  0.00, 'EA', 7,  1,  'item', 0,  'A',  '50202308', 1,  'STP0000052', 1),
+(53,  'Ginger ale', NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000053', 1),
+(54,  'Tonic water',  NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000054', 1),
+(55,  'Soda Water', NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000055', 1),
+(56,  'Lemonade', NULL, 25.00,  0.00, 'EA', 8,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000056', 1),
+(57,  'Glenfiddich 15', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000057', 1),
+(58,  'Glenfiddich 12', NULL, 80.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000058', 1),
+(59,  'Chivas 12',  NULL, 1000.00,  0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000059', 1),
+(60,  'J & B',  NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000060', 1),
+(61,  'Jameson blackbarrel',  NULL, 1200.00,  0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000061', 1),
+(62,  'Jameson Original', NULL, 850.00, 0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000062', 1),
+(63,  'Jameson Castmate', NULL, 1000.00,  0.00, 'EA', 9,  1,  'item', 0,  'A',  '50202201', 1,  'STP0000063', 1),
+(64,  'Jack Daniels', NULL, 60.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000064', 1),
+(65,  'Southern Comfort', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000065', 1),
+(66,  'Gordons',  NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000066', 1),
+(67,  'Gordons Pink', NULL, 500.00, 0.00, 'EA', 10, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000067', 1),
+(68,  'Beefeater',  NULL, 600.00, 0.00, 'EA', 10, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000068', 1),
+(69,  'Beefeater Pink', NULL, 600.00, 0.00, 'EA', 10, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000069', 1),
+(70,  'Henessy',  NULL, 1400.00,  0.00, 'EA', 11, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000070', 1),
+(71,  'Remmy Martin', NULL, 1950.00,  0.00, 'EA', 11, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000071', 1),
+(72,  'Amarula',  NULL, 50.00,  1000.00,  'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000072', 1),
+(73,  'Wild Africa',  NULL, 700.00, 0.00, 'EA', 12, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000073', 1),
+(74,  'Strawberry lips',  NULL, 550.00, 0.00, 'EA', 12, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000074', 1),
+(75,  'Amarula small',  NULL, 250.00, 0.00, 'EA', 12, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000075', 1),
+(76,  'Klipdrift',  NULL, 40.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000076', 1),
+(77,  'Klipdrift Premium',  NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000077', 1),
+(78,  'KWV5', NULL, 600.00, 0.00, 'EA', 13, 1,  'item', 0,  'A',  '50202203', 1,  'STP0000078', 1),
+(79,  'Absolut Vodka',  NULL, 800.00, 0.00, 'EA', 14, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000079', 1),
+(80,  'Grey Goose', NULL, 1250.00,  0.00, 'EA', 14, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000080', 1),
+(81,  'Ciroc',  NULL, 1400.00,  0.00, 'EA', 14, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000081', 1),
+(82,  'Captain Morgan dark rum',  NULL, 700.00, 0.00, 'EA', 15, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000082', 1),
+(83,  'Captain Morgan spiced Rum',  NULL, 700.00, 0.00, 'EA', 15, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000083', 1),
+(84,  'Four Cousins', NULL, 250.00, 0.00, 'EA', 17, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000084', 1),
+(85,  'Cronier',  NULL, 450.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000085', 1),
+(86,  'Nederberg',  NULL, 400.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000086', 1),
+(87,  'KWV',  NULL, 400.00, 0.00, 'EA', 17, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000087', 1),
+(88,  'Fat bastard Golden Reserve', NULL, 600.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000088', 1),
+(89,  'Fat bastard Merlot', NULL, 500.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000089', 1),
+(90,  'Sunkissed',  NULL, 300.00, 0.00, 'EA', 17, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000090', 1),
+(91,  'Robertson',  NULL, 350.00, 0.00, 'EA', 16, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000091', 1),
+(92,  'Four Cousins red', NULL, 50.00,  0.00, 'EA', 18, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000092', 1),
+(93,  'Overmeer', NULL, 50.00,  0.00, 'EA', 18, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000093', 1),
+(94,  'Chateau Delrei', NULL, 50.00,  0.00, 'EA', 18, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000094', 1),
+(95,  'Jameson black barrel', NULL, 80.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000095', 1),
+(96,  'Jameson whisky', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000096', 1),
+(97,  'Absolute Vodka', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000097', 1),
+(98,  'Tequila',  NULL, 55.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000098', 1),
+(99,  'Jagermeister', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000099', 1),
+(100, 'Blow Job', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000100', 1),
+(101, 'Jager bomb', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000101', 1),
+(102, 'Hennessy', NULL, 100.00, 0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000102', 1),
+(103, 'Captain Morgan', NULL, 50.00,  0.00, 'EA', 19, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000103', 1),
+(104, 'J.C Le Roux',  NULL, 600.00, 0.00, 'EA', 20, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000104', 1),
+(105, 'Moet Nector',  NULL, 2600.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000105', 1),
+(106, 'Moet Brut',  NULL, 3000.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000106', 1),
+(107, 'Verve Clicquot', NULL, 3600.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000107', 1),
+(108, 'Verve Rich', NULL, 3800.00,  0.00, 'EA', 21, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000108', 1),
+(109, 'All Flavours Shisha',  NULL, 150.00, 0.00, 'EA', 22, 1,  'item', 0,  'A',  '50202201', 1,  'STP0000109', 1),
+(110, 'CHICKEN WRAP', 'CWR001', 170.00, 100.00, 'EA', 24, 1,  'item', 0,  'A',  '50112011', 1,  'CWR001', 1),
+(111, 'BEFF BURGER',  'BBGR001',  65.00,  30.00,  'EA', 24, 1,  'item', 0,  'A',  '50111516', 1,  'BBGR001',  1),
+(112, 'POTATO SALADS',  'PTT001', 45.00,  0.00, 'EA', 23, 1,  'item', 0,  'A',  '50193201', 1,  'PTT001', 1),
+(113, 'POTATOES', 'PT001',  0.00, 150.00, 'EA', 23, 1,  'item', 0,  'A',  '50405700', 1,  'PT001',  0),
+(114, 'CHIKEN', 'CKNR001',  0.00, 120.00, 'EA', 23, 1,  'item', 0,  'A',  '50112010', 1,  'CKNR001',  0),
+(115, 'COOKING OIL',  'OIL001', 0.00, 200.00, 'Ltr',  23, 1,  'item', 0,  'A',  '50151520', 1,  'OIL001', 0),
+(116, 'Tip / Service charge', 'ZRA-TIP',  0.00, 0.00, 'EA', NULL, 0,  'service',  1,  'A',  '50202201', 1,  'ZRA-TIP',  1),
+(117, 'Mojo', NULL, 7.00, 4.00, '330ml',  3,  1,  'item', 0,  'A',  '50202306', 1,  'STP0000117', 1),
+(118, 'PORK', 'PORK-001', 80.00,  50.00,  'KG', 23, 1,  'item', 0,  'A',  '50111514', 0,  'PORK-001', 1);
 
 DROP TABLE IF EXISTS `purchase_inquiries`;
 CREATE TABLE `purchase_inquiries` (
@@ -435,6 +441,7 @@ CREATE TABLE `purchase_orders` (
   KEY `idx_po_status` (`status`),
   KEY `idx_po_vendor` (`vendor_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 DROP TABLE IF EXISTS `receiving_dock_items`;
 CREATE TABLE `receiving_dock_items` (
@@ -520,16 +527,6 @@ CREATE TABLE `restaurant_tables` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-INSERT INTO `restaurant_tables` (`id`, `location_id`, `zone_name`, `table_name`, `capacity`) VALUES
-(1, 1,  'Main Dining',  'Table 1',  4),
-(2, 1,  'Main Dining',  'Table 2',  4),
-(3, 1,  'Main Dining',  'Table 3',  6),
-(4, 1,  'Main Dining',  'Table 4',  2),
-(5, 1,  'Patio / Outside',  'Patio 1',  4),
-(6, 1,  'Patio / Outside',  'Patio 2',  4),
-(7, 1,  'VIP Bar',  'Bar Stool A',  1),
-(8, 1,  'VIP Bar',  'Bar Stool B',  1),
-(9, 2,  'outsite',  'Oustside table 1', 4);
 
 DROP TABLE IF EXISTS `sale_items`;
 CREATE TABLE `sale_items` (
@@ -621,17 +618,17 @@ INSERT INTO `settings` (`setting_key`, `setting_value`) VALUES
 ('theme_accent',  '#683e0d'),
 ('theme_cart',  '#3e2723'),
 ('theme_color', '#230d06'),
-('vsdc_bhfNm',  'Mazabuka-2'),
-('vsdc_default_unspsc', ''),
-('vsdc_device_installed', '0'),
-('vsdc_last_class_dt',  '0'),
-('vsdc_last_code_dt', '0'),
+('vsdc_bhfNm',  'Mazabuka-'),
+('vsdc_default_unspsc', '50202201'),
+('vsdc_device_installed', '1'),
+('vsdc_last_class_dt',  '20231215000000'),
+('vsdc_last_code_dt', '20260913172454'),
 ('vsdc_last_invc_no', '0'),
 ('vsdc_last_sale_no', '0'),
 ('vsdc_last_sar_no',  '0'),
-('vsdc_mrcNo',  ''),
-('vsdc_sdcId',  ''),
-('vsdc_taxprNm',  '');
+('vsdc_mrcNo',  'WIS00004268  '),
+('vsdc_sdcId',  'SDC0060001122'),
+('vsdc_taxprNm',  'MANDO NGOMA CHISHIMBA');
 
 DROP TABLE IF EXISTS `shifts`;
 CREATE TABLE `shifts` (
@@ -771,7 +768,28 @@ INSERT INTO `vendors` (`id`, `name`, `contact_person`, `phone`, `is_active`) VAL
 (2, 'Zambeef',  'Sales Rep',  NULL, 1),
 (3, 'Tiger Animal Feeds', 'Mrs. Banda', NULL, 1),
 (4, 'Shoprite', 'Maybin', '12345678', 1),
-(5, 'PRAV', 'PAVIN',  '097',  1);
+(5, 'PRAV', 'PAVIN',  '097',  1),
+(6, 'V-SIAS Inspection',  'Site inspection',  '', 1);
+
+DROP TABLE IF EXISTS `vsias_sync_log`;
+CREATE TABLE `vsias_sync_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tracking_code` varchar(64) NOT NULL,
+  `line_key` varchar(190) NOT NULL,
+  `product_id` int DEFAULT NULL,
+  `zra_status` varchar(32) DEFAULT NULL,
+  `zra_message` text,
+  `booked` tinyint(1) NOT NULL DEFAULT '0',
+  `grv_id` int DEFAULT NULL,
+  `transfer_id` int DEFAULT NULL,
+  `dock_id` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_vsias_track_line` (`tracking_code`,`line_key`),
+  KEY `idx_vsias_track` (`tracking_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 
 DROP TABLE IF EXISTS `zra_item_classes`;
 CREATE TABLE `zra_item_classes` (
@@ -1107,7 +1125,7 @@ INSERT INTO `zra_standard_codes` (`id`, `code_class`, `code_class_name`, `code`,
 (300, '10', 'Quantity Unit',  'LK', 'link', NULL, '2026-09-12 06:28:47'),
 (301, '10', 'Quantity Unit',  'LTR',  'Litre',  NULL, '2026-09-12 06:28:47'),
 (302, '10', 'Quantity Unit',  'M',  'Metre',  NULL, '2026-09-12 06:28:47'),
-(303, '10', 'Quantity Unit',  'M2', 'Square metre', NULL, '2026-09-12 08:13:29'),
+(303, '10', 'Quantity Unit',  'M2', 'Square metre', NULL, '2026-09-13 17:24:50'),
 (304, '10', 'Quantity Unit',  'M3', 'Cubic Metre',  NULL, '2026-09-12 06:28:47'),
 (305, '10', 'Quantity Unit',  'MGM',  'milligram',  NULL, '2026-09-12 06:28:47'),
 (306, '10', 'Quantity Unit',  'MTR',  'metre',  NULL, '2026-09-12 06:28:47'),
@@ -1130,7 +1148,7 @@ INSERT INTO `zra_standard_codes` (`id`, `code_class`, `code_class_name`, `code`,
 (323, '10', 'Quantity Unit',  'PL', 'Pallet', NULL, '2026-09-12 06:28:47'),
 (324, '10', 'Quantity Unit',  'EACH', 'Each', NULL, '2026-09-12 06:28:47'),
 (325, '10', 'Quantity Unit',  'Ft', 'Feet', NULL, '2026-09-12 06:28:47'),
-(326, '10', 'Quantity Unit',  'MM', 'Millilitre', NULL, '2026-09-12 08:13:29'),
+(326, '10', 'Quantity Unit',  'MM', 'Millilitre', NULL, '2026-09-13 17:24:50'),
 (327, '10', 'Quantity Unit',  'In', 'Inches', NULL, '2026-09-12 06:28:47'),
 (328, '10', 'Quantity Unit',  'Oz', 'Ounce',  NULL, '2026-09-12 06:28:47'),
 (329, '10', 'Quantity Unit',  'YR', 'Year', NULL, '2026-09-12 06:28:47'),
@@ -1743,25 +1761,6 @@ INSERT INTO `zra_standard_codes` (`id`, `code_class`, `code_class_name`, `code`,
 (938, '71', 'Manufacturer status',  '01', 'Manufacturer', NULL, '2026-09-12 06:28:49'),
 (939, '71', 'Manufacturer status',  '02', 'Not a Manufacturer', NULL, '2026-09-12 06:28:49');
 
-DROP TABLE IF EXISTS `vsias_sync_log`;
-CREATE TABLE `vsias_sync_log` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `tracking_code` varchar(64) NOT NULL,
-  `line_key` varchar(190) NOT NULL,
-  `product_id` int DEFAULT NULL,
-  `zra_status` varchar(32) DEFAULT NULL,
-  `zra_message` text,
-  `booked` tinyint(1) NOT NULL DEFAULT '0',
-  `grv_id` int DEFAULT NULL,
-  `transfer_id` int DEFAULT NULL,
-  `dock_id` int DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_vsias_track_line` (`tracking_code`,`line_key`),
-  KEY `idx_vsias_track` (`tracking_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 DROP TABLE IF EXISTS `zra_sync_log`;
 CREATE TABLE `zra_sync_log` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -1774,4 +1773,5 @@ CREATE TABLE `zra_sync_log` (
   KEY `idx_entity` (`entity_type`,`entity_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 2026-09-12 14:39:21 UTC
+
+-- 2026-09-20 22:35:53 UTC
