@@ -1,3 +1,55 @@
+<?php
+// Intelligent Category Styler
+function getCategoryStyle($name) {
+    $n = strtolower($name);
+    
+    // Drinks & Beverages
+    if (strpos($n, 'beverage') !== false || strpos($n, 'drink') !== false || strpos($n, 'softie') !== false || strpos($n, 'water') !== false || strpos($n, 'juice') !== false) {
+        return ['icon' => 'bi-cup-straw', 'grad' => 'linear-gradient(135deg, #4ea8de, #4361ee)', 'glow' => 'rgba(67, 97, 238, 0.3)'];
+    } elseif (strpos($n, 'beer') !== false || strpos($n, 'lager') !== false || strpos($n, 'cider') !== false || strpos($n, 'ale') !== false) {
+        return ['icon' => 'bi-cup', 'grad' => 'linear-gradient(135deg, #ffd43b, #f59f00)', 'glow' => 'rgba(245, 159, 0, 0.3)'];
+    } elseif (strpos($n, 'wine') !== false || strpos($n, 'cream') !== false || strpos($n, 'champagne') !== false) {
+        return ['icon' => 'bi-cup-fill', 'grad' => 'linear-gradient(135deg, #e599f7, #9c36b5)', 'glow' => 'rgba(156, 54, 181, 0.3)'];
+    } elseif (strpos($n, 'whiskey') !== false || strpos($n, 'spirit') !== false || strpos($n, 'tot') !== false || strpos($n, 'vodka') !== false || strpos($n, 'gin') !== false) {
+        return ['icon' => 'bi-droplet-half', 'grad' => 'linear-gradient(135deg, #ff922b, #d9480f)', 'glow' => 'rgba(217, 72, 15, 0.3)'];
+    } elseif (strpos($n, 'coffee') !== false || strpos($n, 'tea') !== false || strpos($n, 'hot') !== false) {
+        return ['icon' => 'bi-cup-hot-fill', 'grad' => 'linear-gradient(135deg, #8d6e63, #5c2b29)', 'glow' => 'rgba(92, 43, 41, 0.3)'];
+    }
+    
+    // Food & Meals (Expanded Matchers)
+    elseif (strpos($n, 'breakfast') !== false) {
+        return ['icon' => 'bi-brightness-alt-high-fill', 'grad' => 'linear-gradient(135deg, #fcc419, #f08c00)', 'glow' => 'rgba(240, 140, 0, 0.3)'];
+    } elseif (strpos($n, 'burger') !== false || strpos($n, 'sandwich') !== false) {
+        return ['icon' => 'bi-hdd-stack-fill', 'grad' => 'linear-gradient(135deg, #ff8787, #e03131)', 'glow' => 'rgba(224, 49, 49, 0.3)'];
+    } elseif (strpos($n, 'pizza') !== false || strpos($n, 'pasta') !== false) {
+        return ['icon' => 'bi-pie-chart-fill', 'grad' => 'linear-gradient(135deg, #ff6b6b, #c92a2a)', 'glow' => 'rgba(201, 42, 42, 0.3)'];
+    } elseif (strpos($n, 'salad') !== false) {
+        return ['icon' => 'bi-flower1', 'grad' => 'linear-gradient(135deg, #69db7c, #2f9e44)', 'glow' => 'rgba(47, 158, 68, 0.3)'];
+    } elseif (strpos($n, 'soup') !== false) {
+        return ['icon' => 'bi-cup-hot-fill', 'grad' => 'linear-gradient(135deg, #ffa94d, #e8590c)', 'glow' => 'rgba(232, 89, 12, 0.3)'];
+    } elseif (strpos($n, 'platter') !== false || strpos($n, 'matebeto') !== false) {
+        return ['icon' => 'bi-collection-fill', 'grad' => 'linear-gradient(135deg, #d4a373, #a98467)', 'glow' => 'rgba(169, 132, 103, 0.3)'];
+    } elseif (strpos($n, 'snack') !== false || strpos($n, 'starter') !== false || strpos($n, 'crisp') !== false) {
+        return ['icon' => 'bi-egg-fried', 'grad' => 'linear-gradient(135deg, #ffc078, #f08c00)', 'glow' => 'rgba(240, 140, 0, 0.3)'];
+    } elseif (strpos($n, 'extra') !== false || strpos($n, 'side') !== false || strpos($n, 'ingredient') !== false) {
+        return ['icon' => 'bi-plus-circle-fill', 'grad' => 'linear-gradient(135deg, #20c997, #08a375)', 'glow' => 'rgba(8, 163, 117, 0.3)'];
+    } elseif (strpos($n, 'braai') !== false || strpos($n, 'meat') !== false || strpos($n, 'grill') !== false || strpos($n, 'steak') !== false) {
+        return ['icon' => 'bi-fire', 'grad' => 'linear-gradient(135deg, #ff8787, #e03131)', 'glow' => 'rgba(224, 49, 49, 0.3)'];
+    } elseif (strpos($n, 'food') !== false || strpos($n, 'meal') !== false || strpos($n, 'main') !== false) {
+        return ['icon' => 'bi-basket2-fill', 'grad' => 'linear-gradient(135deg, #51cf66, #2b8a3e)', 'glow' => 'rgba(43, 138, 62, 0.3)'];
+    }
+    
+    // Leisure & Other
+    elseif (strpos($n, 'shisha') !== false || strpos($n, 'hookah') !== false || strpos($n, 'flavor') !== false) {
+        return ['icon' => 'bi-wind', 'grad' => 'linear-gradient(135deg, #9775fa, #7048e8)', 'glow' => 'rgba(112, 72, 232, 0.3)'];
+    } elseif (strpos($n, 'cigar') !== false || strpos($n, 'smoke') !== false || strpos($n, 'vape') !== false) {
+        return ['icon' => 'bi-cloud-haze2-fill', 'grad' => 'linear-gradient(135deg, #adb5bd, #495057)', 'glow' => 'rgba(73, 80, 87, 0.3)'];
+    }
+    
+    // Default Fallback
+    return ['icon' => 'bi-tag-fill', 'grad' => 'linear-gradient(135deg, #868e96, #495057)', 'glow' => 'rgba(73, 80, 87, 0.3)'];
+}
+?>
 <!DOCTYPE html> 
 <html lang="en">
 <head>
@@ -16,10 +68,72 @@
         #headerPosLabel, #headerLocIcon { color: var(--pos-accent-color) !important; }
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
         .product-section { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .cat-card { background: #fff; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px 10px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: bold; color: #333; display: flex; flex-direction: column; align-items: center; justify-content: center; user-select: none; }
-        .cat-card:hover { border-color: var(--pos-accent-color) !important; transform: translateY(-3px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
-        .cat-card.active { background: var(--pos-cart-color) !important; border-color: var(--pos-accent-color) !important; color: #fff; }
-        .cat-icon { font-size: 2rem; margin-bottom: 8px; }
+        
+        /* Modern Soft-Glow Category Cards */
+        .cat-card-modern {
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 16px;
+            padding: 16px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            position: relative;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+            height: 100%;
+        }
+        .cat-card-modern:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 25px var(--cat-glow);
+            border-color: transparent;
+        }
+        .cat-card-modern:active {
+            transform: scale(0.96);
+        }
+        .cat-icon-container {
+            width: 54px;
+            height: 54px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.6rem;
+            margin-bottom: 12px;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .cat-card-modern:hover .cat-icon-container {
+            transform: scale(1.1);
+        }
+        .cat-label {
+            font-weight: 800;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            color: #495057;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+        .cat-sub-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.05);
+            color: #adb5bd;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 8px;
+            transition: 0.3s;
+        }
+        .cat-card-modern:hover .cat-sub-badge {
+            background: var(--cat-glow);
+            color: #495057;
+        }
+
         .product-list-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
         .product-list { flex: 1 1 auto; overflow-y: auto; padding: 15px; }
         .pagination-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #ddd; padding: 10px 15px; display: flex; justify-content: center; align-items: center; gap: 15px; }
@@ -61,13 +175,7 @@
         @media (max-width: 991px) { .cart-panel { flex: 0 0 300px; width: 300px; } .pos-header-actions .btn { font-size: 0.8rem; } }
         @media (max-width: 768px) {
             .workspace { flex-direction: column; overflow: hidden; }
-            .product-section {
-                flex: 1 1 auto;
-                min-height: 0;
-                overflow-y: auto;
-                -webkit-overflow-scrolling: touch;
-                padding-bottom: 120px;
-            }
+            .product-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 120px; }
             .pos-sticky-tools { position: sticky; top: 0; z-index: 20; }
             .pos-filter-bar { position: static; flex-direction: column; flex-wrap: nowrap; gap: 8px; }
             .pos-search { flex: 1 1 auto; width: 100%; font-size: 1rem; height: 44px; }
@@ -76,29 +184,12 @@
             .pos-cat-grid { flex: 0 0 auto !important; overflow: visible !important; }
             .product-list-wrapper { flex: 0 0 auto !important; overflow: visible !important; min-height: auto; }
             .product-list { overflow: visible !important; flex: none !important; }
-            .cat-card { padding: 16px 8px; }
-            .cat-icon { font-size: 1.65rem; }
-            .cart-scrim {
-                display: none;
-                position: absolute;
-                inset: 0;
-                background: rgba(17, 17, 17, 0.4);
-                z-index: 1025;
-            }
+            .cat-card-modern { padding: 12px 6px; }
+            .cat-icon-container { width: 44px; height: 44px; font-size: 1.3rem; margin-bottom: 8px; }
+            .cat-label { font-size: 0.65rem; }
+            .cart-scrim { display: none; position: absolute; inset: 0; background: rgba(17, 17, 17, 0.4); z-index: 1025; }
             .workspace.cart-open .cart-scrim { display: block; }
-            .cart-panel {
-                position: absolute;
-                left: 0; right: 0; bottom: 0;
-                width: 100%;
-                flex: none;
-                height: auto;
-                max-height: none;
-                min-height: 0;
-                border-left: 0;
-                border-top: 4px solid var(--pos-cart-color) !important;
-                z-index: 1030;
-                box-shadow: 0 -10px 28px rgba(0,0,0,0.2);
-            }
+            .cart-panel { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; flex: none; height: auto; max-height: none; min-height: 0; border-left: 0; border-top: 4px solid var(--pos-cart-color) !important; z-index: 1030; box-shadow: 0 -10px 28px rgba(0,0,0,0.2); }
             .cart-panel.expanded { max-height: min(68vh, 560px); }
             .cart-panel:not(.expanded) .cart-items { display: none; }
             .cart-panel:not(.expanded) .cart-footer .btn-group,
@@ -249,25 +340,37 @@
             <div id="main-category-grid" class="p-3 bg-white pos-cat-grid">
                 <div class="row g-3">
                     <div class="col-4 col-md-3 col-lg-2">
-                        <div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('all', 'All Items')">
-                            <i class="bi bi-grid-fill cat-icon text-secondary"></i>
-                            <span class="small text-uppercase">All Items</span>
+                        <div class="cat-card-modern" onclick="filterItems('all', 'All Items')" style="--cat-glow: rgba(108, 117, 125, 0.3);">
+                            <div class="cat-icon-container" style="background: linear-gradient(135deg, #adb5bd, #6c757d); box-shadow: 0 4px 10px rgba(108, 117, 125, 0.3);">
+                                <i class="bi bi-grid-3x3-gap-fill"></i>
+                            </div>
+                            <span class="cat-label">ALL ITEMS</span>
                         </div>
                     </div>
                     <?php foreach($mainCats as $cat): ?>
-                        <?php $hasSubs = isset($subCatsByParent[$cat['id']]); ?>
+                        <?php 
+                        $hasSubs = isset($subCatsByParent[$cat['id']]); 
+                        $style = getCategoryStyle($cat['name']);
+                        $icon = $hasSubs ? 'bi-folder-fill' : $style['icon'];
+                        ?>
                         <div class="col-4 col-md-3 col-lg-2">
-                            <div class="cat-card h-100 shadow-sm <?= $hasSubs ? 'border-info bg-info bg-opacity-10' : '' ?>" 
+                            <div class="cat-card-modern" 
+                                 style="--cat-glow: <?= $style['glow'] ?>;"
                                  onclick="<?= $hasSubs ? "showSubCategories('{$cat['id']}', '".htmlspecialchars(addslashes($cat['name']))."')" : "filterItems('{$cat['id']}', '".htmlspecialchars(addslashes($cat['name']))."')" ?>">
-                                <i class="bi <?= $hasSubs ? 'bi-folder-fill text-info' : 'bi-tags text-warning' ?> cat-icon"></i>
-                                <span class="small text-uppercase <?= $hasSubs ? 'fw-bold text-info' : '' ?>"><?= htmlspecialchars($cat['name']) ?></span>
+                                <?php if($hasSubs): ?><span class="cat-sub-badge"><i class="bi bi-layers-half"></i></span><?php endif; ?>
+                                <div class="cat-icon-container" style="background: <?= $style['grad'] ?>; box-shadow: 0 4px 10px <?= $style['glow'] ?>;">
+                                    <i class="bi <?= $icon ?>"></i>
+                                </div>
+                                <span class="cat-label"><?= htmlspecialchars($cat['name']) ?></span>
                             </div>
                         </div>
                     <?php endforeach; ?>
                     <div class="col-4 col-md-3 col-lg-2">
-                        <div class="cat-card h-100 text-warning border-warning bg-dark shadow-sm" onclick="switchTab('services', 'Services')">
-                            <i class="bi bi-stars cat-icon"></i>
-                            <span class="small text-uppercase">SERVICES</span>
+                        <div class="cat-card-modern" onclick="switchTab('services', 'Services')" style="--cat-glow: rgba(0, 0, 0, 0.3); background: linear-gradient(145deg, #343a40, #212529);">
+                            <div class="cat-icon-container" style="background: linear-gradient(135deg, #ffc107, #fd7e14); box-shadow: 0 4px 15px rgba(253, 126, 20, 0.4);">
+                                <i class="bi bi-stars"></i>
+                            </div>
+                            <span class="cat-label text-warning">SERVICES</span>
                         </div>
                     </div>
                 </div>
@@ -412,7 +515,7 @@
             <div id="online-tab-data-<?= $tid ?>">
                 <table class="table align-middle mb-4">
                 <?php 
-                $allReady = true; // NEW: Track if entire order is finished cooking
+                $allReady = true;
                 foreach($items as $i): 
                     $statusBadge = ''; 
                     if($i['status']=='pending') { $statusBadge = '<span class="badge bg-danger">KITCHEN</span>'; $allReady = false; } 
@@ -889,19 +992,6 @@
                 refund_sale_item_id: String(inv.sale_item_id)
             });
         });
-        function posCartAdd(fields) {
-            const body = new FormData();
-            body.set('ajax', '1');
-            Object.keys(fields).forEach(function (k) { body.set(k, fields[k]); });
-            fetch('index.php?page=pos', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                body: body
-            }).then(posCartParse).then(applyCartResponse).catch(function () {
-                AppAlert.notify({ icon: 'error', text: 'Unable to update the cart.' });
-            });
-        }
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
         function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) onlineOpt.selected = true; } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
@@ -909,10 +999,68 @@
         const subCategoriesMap = <?= json_encode($subCatsByParent) ?>;
         const catParents = <?= json_encode($catParents) ?>;
         const catNames = <?= json_encode($catNames) ?>;
-        const iconMap = {'whiskey bottles': 'bi-droplet-half', 'whiskey tots': 'bi-cup', 'ciders': 'bi-cup-straw', 'wines and creams': 'bi-cup-fill', 'softies': 'bi-cup-straw', 'lagers': 'bi-cup-straw', 'mixers': 'bi-cup-straw', 'mineral water': 'bi-water'};
+        
+        // Match JS mapping to PHP theme styling
+        function getCatStyleJS(name) {
+            let n = name.toLowerCase();
+            
+            if (n.includes('beverage') || n.includes('drink') || n.includes('softie') || n.includes('water') || n.includes('juice')) return {i:'bi-cup-straw', g:'linear-gradient(135deg, #4ea8de, #4361ee)', s:'rgba(67, 97, 238, 0.3)'};
+            if (n.includes('beer') || n.includes('lager') || n.includes('cider') || n.includes('ale')) return {i:'bi-cup', g:'linear-gradient(135deg, #ffd43b, #f59f00)', s:'rgba(245, 159, 0, 0.3)'};
+            if (n.includes('wine') || n.includes('cream') || n.includes('champagne')) return {i:'bi-cup-fill', g:'linear-gradient(135deg, #e599f7, #9c36b5)', s:'rgba(156, 54, 181, 0.3)'};
+            if (n.includes('whiskey') || n.includes('spirit') || n.includes('tot') || n.includes('vodka') || n.includes('gin')) return {i:'bi-droplet-half', g:'linear-gradient(135deg, #ff922b, #d9480f)', s:'rgba(217, 72, 15, 0.3)'};
+            if (n.includes('coffee') || n.includes('tea') || n.includes('hot')) return {i:'bi-cup-hot-fill', g:'linear-gradient(135deg, #8d6e63, #5c2b29)', s:'rgba(92, 43, 41, 0.3)'};
+            
+            if (n.includes('breakfast')) return {i:'bi-brightness-alt-high-fill', g:'linear-gradient(135deg, #fcc419, #f08c00)', s:'rgba(240, 140, 0, 0.3)'};
+            if (n.includes('burger') || n.includes('sandwich')) return {i:'bi-hdd-stack-fill', g:'linear-gradient(135deg, #ff8787, #e03131)', s:'rgba(224, 49, 49, 0.3)'};
+            if (n.includes('pizza') || n.includes('pasta')) return {i:'bi-pie-chart-fill', g:'linear-gradient(135deg, #ff6b6b, #c92a2a)', s:'rgba(201, 42, 42, 0.3)'};
+            if (n.includes('salad')) return {i:'bi-flower1', g:'linear-gradient(135deg, #69db7c, #2f9e44)', s:'rgba(47, 158, 68, 0.3)'};
+            if (n.includes('soup')) return {i:'bi-cup-hot-fill', g:'linear-gradient(135deg, #ffa94d, #e8590c)', s:'rgba(232, 89, 12, 0.3)'};
+            if (n.includes('platter') || n.includes('matebeto')) return {i:'bi-collection-fill', g:'linear-gradient(135deg, #d4a373, #a98467)', s:'rgba(169, 132, 103, 0.3)'};
+            if (n.includes('snack') || n.includes('starter') || n.includes('crisp')) return {i:'bi-egg-fried', g:'linear-gradient(135deg, #ffc078, #f08c00)', s:'rgba(240, 140, 0, 0.3)'};
+            if (n.includes('extra') || n.includes('side') || n.includes('ingredient')) return {i:'bi-plus-circle-fill', g:'linear-gradient(135deg, #20c997, #08a375)', s:'rgba(8, 163, 117, 0.3)'};
+            if (n.includes('braai') || n.includes('meat') || n.includes('grill') || n.includes('steak')) return {i:'bi-fire', g:'linear-gradient(135deg, #ff8787, #e03131)', s:'rgba(224, 49, 49, 0.3)'};
+            if (n.includes('food') || n.includes('meal') || n.includes('main')) return {i:'bi-basket2-fill', g:'linear-gradient(135deg, #51cf66, #2b8a3e)', s:'rgba(43, 138, 62, 0.3)'};
+            
+            if (n.includes('shisha') || n.includes('hookah') || n.includes('flavor')) return {i:'bi-wind', g:'linear-gradient(135deg, #9775fa, #7048e8)', s:'rgba(112, 72, 232, 0.3)'};
+            if (n.includes('cigar') || n.includes('smoke') || n.includes('vape')) return {i:'bi-cloud-haze2-fill', g:'linear-gradient(135deg, #adb5bd, #495057)', s:'rgba(73, 80, 87, 0.3)'};
+            
+            return {i:'bi-tag-fill', g:'linear-gradient(135deg, #868e96, #495057)', s:'rgba(73, 80, 87, 0.3)'};
+        }
 
         function showMainGrid() { document.getElementById('main-category-grid').style.display = 'block'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'none'; document.getElementById('drilldown-header').style.display = 'none'; document.getElementById('search').value = ''; currentCat = 'all'; applyFilters(); }
-        function showSubCategories(categoryId, categoryName) { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'none'; let container = document.getElementById('subCategoryContainer'); let parentOfCurrent = catParents[categoryId] || null; let parentName = parentOfCurrent && catNames[parentOfCurrent] ? escapeJS(catNames[parentOfCurrent]) : ''; let safeCatName = escapeJS(categoryName); let backAction = parentOfCurrent ? `showSubCategories('${parentOfCurrent}', '${parentName}')` : `showMainGrid()`; container.innerHTML = `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card h-100 shadow-sm border-secondary" onclick="filterItems('${categoryId}', 'All ${safeCatName}', true, '${categoryId}', '${safeCatName}')"><i class="bi bi-grid cat-icon text-secondary"></i><span class="small text-uppercase">All ${categoryName}</span></div></div>`; let subs = subCategoriesMap[categoryId] || []; subs.forEach(sub => { let hasSubs = subCategoriesMap[sub.id] && subCategoriesMap[sub.id].length > 0; let safeSubName = escapeJS(sub.name); if (hasSubs) { container.innerHTML += `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card h-100 shadow-sm border-info bg-info bg-opacity-10" onclick="showSubCategories('${sub.id}', '${safeSubName}')"><i class="bi bi-folder-fill cat-icon text-info"></i><span class="small text-uppercase fw-bold text-info">${sub.name}</span></div></div>`; } else { let icon = iconMap[sub.name.toLowerCase()] || 'bi-arrow-return-right'; container.innerHTML += `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card h-100 shadow-sm border-info" onclick="filterItems('${sub.id}', '${safeSubName}', true, '${categoryId}', '${safeCatName}')"><i class="bi ${icon} cat-icon text-info"></i><span class="small text-uppercase">${sub.name}</span></div></div>`; } }); document.getElementById('sub-category-grid').style.display = 'block'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = categoryName; document.getElementById('backBtn').setAttribute('onclick', backAction); }
+        
+        function showSubCategories(categoryId, categoryName) { 
+            document.getElementById('main-category-grid').style.display = 'none'; 
+            document.getElementById('product-list-wrapper').style.display = 'none'; 
+            let container = document.getElementById('subCategoryContainer'); 
+            let parentOfCurrent = catParents[categoryId] || null; 
+            let parentName = parentOfCurrent && catNames[parentOfCurrent] ? escapeJS(catNames[parentOfCurrent]) : ''; 
+            let safeCatName = escapeJS(categoryName); 
+            let backAction = parentOfCurrent ? `showSubCategories('${parentOfCurrent}', '${parentName}')` : `showMainGrid()`; 
+            
+            // All X Return Card
+            container.innerHTML = `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card-modern" style="--cat-glow: rgba(108, 117, 125, 0.3);" onclick="filterItems('${categoryId}', 'All ${safeCatName}', true, '${categoryId}', '${safeCatName}')"><div class="cat-icon-container" style="background: linear-gradient(135deg, #adb5bd, #6c757d); box-shadow: 0 4px 10px rgba(108, 117, 125, 0.3);"><i class="bi bi-arrow-return-right"></i></div><span class="cat-label">ALL ${categoryName}</span></div></div>`; 
+            
+            let subs = subCategoriesMap[categoryId] || []; 
+            subs.forEach(sub => { 
+                let hasSubs = subCategoriesMap[sub.id] && subCategoriesMap[sub.id].length > 0; 
+                let safeSubName = escapeJS(sub.name); 
+                let style = getCatStyleJS(sub.name);
+                let iconStr = hasSubs ? 'bi-folder-fill' : style.i;
+                let badgeStr = hasSubs ? `<span class="cat-sub-badge"><i class="bi bi-layers-half"></i></span>` : '';
+                
+                if (hasSubs) { 
+                    container.innerHTML += `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card-modern has-subs" style="--cat-glow: ${style.s};" onclick="showSubCategories('${sub.id}', '${safeSubName}')">${badgeStr}<div class="cat-icon-container" style="background: ${style.g}; box-shadow: 0 4px 10px ${style.s};"><i class="bi ${iconStr}"></i></div><span class="cat-label">${sub.name}</span></div></div>`; 
+                } else { 
+                    container.innerHTML += `<div class="col-4 col-md-3 col-lg-2"><div class="cat-card-modern" style="--cat-glow: ${style.s};" onclick="filterItems('${sub.id}', '${safeSubName}', true, '${categoryId}', '${safeCatName}')">${badgeStr}<div class="cat-icon-container" style="background: ${style.g}; box-shadow: 0 4px 10px ${style.s};"><i class="bi ${iconStr}"></i></div><span class="cat-label">${sub.name}</span></div></div>`; 
+                } 
+            }); 
+            document.getElementById('sub-category-grid').style.display = 'block'; 
+            document.getElementById('drilldown-header').style.display = 'flex'; 
+            document.getElementById('currentCategoryLabel').innerText = categoryName; 
+            document.getElementById('backBtn').setAttribute('onclick', backAction); 
+        }
+
         function filterItems(id, name, fromSub = false, parentId = null, parentName = '') { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = name; if (fromSub && parentId) { document.getElementById('backBtn').setAttribute('onclick', `showSubCategories('${parentId}', '${escapeJS(parentName)}')`); } else { document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); } currentCat = id.toString(); document.getElementById('items-grid').style.display = 'flex'; document.getElementById('services-grid').style.display = 'none'; document.getElementById('paginationBar').style.display = 'flex'; applyFilters(); }
         function switchTab(tab, name) { document.getElementById('main-category-grid').style.display = 'none'; document.getElementById('sub-category-grid').style.display = 'none'; document.getElementById('product-list-wrapper').style.display = 'flex'; document.getElementById('drilldown-header').style.display = 'flex'; document.getElementById('currentCategoryLabel').innerText = name; document.getElementById('backBtn').setAttribute('onclick', 'showMainGrid()'); document.getElementById('items-grid').style.display = 'none'; document.getElementById('services-grid').style.display = 'flex'; document.getElementById('paginationBar').style.display = 'none'; }
         function printTabBill(saleId) { document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=" + saleId + "&is_bill=1&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); }
