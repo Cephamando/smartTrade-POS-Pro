@@ -91,14 +91,16 @@ foreach ($locations as $l) {
                     <input type="hidden" name="inquiry_id" value="<?= (int)($editInquiry['id'] ?? 0) ?>">
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">VENDOR</label>
-                        <select name="vendor_id" class="form-select">
+                        <select name="vendor_id" class="form-select" onchange="toggleCustomVendor(this)">
                             <option value="">To be assigned</option>
+                            <option value="custom" class="fw-bold text-primary">+ New Informal / Once-off Vendor</option>
                             <?php foreach ($vendors as $v): ?>
                                 <option value="<?= (int)$v['id'] ?>" <?= ((int)($editInquiry['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($v['name']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <input type="text" name="custom_vendor_name" class="form-control mt-2" placeholder="Enter custom vendor name..." style="display:none;" id="customVendorInput_inquiry">
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-7">
@@ -185,14 +187,16 @@ foreach ($locations as $l) {
                     <input type="hidden" name="order_id" value="<?= (int)($editOrder['id'] ?? 0) ?>">
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">VENDOR</label>
-                        <select name="vendor_id" class="form-select" required>
+                        <select name="vendor_id" class="form-select" required onchange="toggleCustomVendor(this)">
                             <option value="">Select vendor…</option>
+                            <option value="custom" class="fw-bold text-primary">+ New Informal / Once-off Vendor</option>
                             <?php foreach ($vendors as $v): ?>
                                 <option value="<?= (int)$v['id'] ?>" <?= ((int)($editOrder['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($v['name']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <input type="text" name="custom_vendor_name" class="form-control mt-2" placeholder="Enter custom vendor name..." style="display:none;" id="customVendorInput_order">
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-7">
@@ -292,14 +296,16 @@ foreach ($locations as $l) {
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">VENDOR</label>
-                    <select name="vendor_id" id="grvVendor" class="form-select" required>
+                    <select name="vendor_id" id="grvVendor" class="form-select" required onchange="toggleCustomVendor(this)">
                         <option value="">Select vendor…</option>
+                        <option value="custom" class="fw-bold text-primary">+ New Informal / Once-off Vendor</option>
                         <?php foreach ($vendors as $v): ?>
                             <option value="<?= (int)$v['id'] ?>" <?= ($grvVendorId === (int)$v['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($v['name']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <input type="text" name="custom_vendor_name" class="form-control mt-2" placeholder="Enter custom vendor name..." style="display:none;" id="customVendorInput_received">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">RECEIVE INTO</label>
@@ -337,6 +343,21 @@ const inquiryPrefill = <?= json_encode($editInquiry['items'] ?? []) ?>;
 const orderPrefill = <?= json_encode($editOrder['items'] ?? $receiveOrder['items'] ?? []) ?>;
 const bayPrefillItems = <?= json_encode(($bayPrefill ?? [])['items'] ?? []) ?>;
 
+// Custom Vendor Field Toggle
+function toggleCustomVendor(selectObj) {
+    const inputId = selectObj.name === 'vendor_id' ? (selectObj.closest('form').querySelector('input[name="custom_vendor_name"]').id) : '';
+    if (!inputId) return;
+    const inputEl = document.getElementById(inputId);
+    if (selectObj.value === 'custom') {
+        inputEl.style.display = 'block';
+        inputEl.setAttribute('required', 'required');
+    } else {
+        inputEl.style.display = 'none';
+        inputEl.removeAttribute('required');
+        inputEl.value = '';
+    }
+}
+
 function updatePoSelection(poId) {
     let url = new URL(window.location.href);
     url.searchParams.set('tab', 'received');
@@ -351,10 +372,10 @@ function updatePoSelection(poId) {
 function toggleSellable(pid, currentIsSellable) {
     if (!pid) return;
     const newStatus = currentIsSellable ? 0 : 1;
-    const text = newStatus 
-        ? "Mark this product as SELLABLE on the POS?" 
+    const text = newStatus
+        ? "Mark this product as SELLABLE on the POS?"
         : "Mark this product as RAW MATERIAL (greyed out on POS)?";
-    
+
     Swal.fire({
         title: 'Update POS Visibility',
         text: text,
@@ -410,11 +431,11 @@ function addLine(containerId, withCost, preset) {
     const idx = wrap.children.length;
     const row = document.createElement('div');
     row.className = 'row g-2 mb-2 align-items-center purchase-line';
-    
+
     const pid = preset ? (preset.product_id ? preset.product_id : '') : '';
     const qty = preset ? (preset.quantity ? preset.quantity : (preset.qty ? preset.qty : '')) : '';
     const cost = preset ? (preset.unit_cost ? preset.unit_cost : (preset.cost_price ? preset.cost_price : (preset.cost ? preset.cost : ''))) : '';
-    
+
     let html = '<div class="' + (withCost ? 'col-6' : 'col-8') + '"><select name="items[' + idx + '][product_id]" class="form-select form-select-sm js-prod" required><option value="">Select…</option>'
         + productOptions(pid, withCost) + '</select></div>';
     html += '<div class="col-3"><input type="number" step="0.01" min="0.01" name="items[' + idx + '][qty]" class="form-control form-control-sm" required placeholder="Qty" value="' + qty + '"></div>';
@@ -461,10 +482,10 @@ function refreshMovementHint() {
         } else if (sel.closest('tr')) {
             info = sel.closest('tr').querySelector('.js-line-info');
         }
-        
+
         const raw = opt && opt.dataset.raw === '1' ? true : false;
         const pid = opt && opt.value ? opt.value : null;
-        
+
         Array.from(sel.options).forEach(function (o) {
             if (!o.value) return;
             const blocked = pos && o.dataset.raw === '1';
@@ -473,7 +494,7 @@ function refreshMovementHint() {
         });
         if (info) {
             const toggleLnk = pid ? ` <a href="javascript:void(0)" onclick="toggleSellable(${pid}, ${raw ? 0 : 1})" class="text-decoration-none fw-bold ms-3 border-start ps-3"><i class="bi bi-arrow-repeat"></i> Flip POS Visibility</a>` : '';
-            
+
             if (raw && pos) {
                 const rsn = opt.dataset.reason ? opt.dataset.reason : 'Raw food cannot go to a POS location.';
                 info.innerHTML = '<span class="badge bg-danger">RAW</span> <i class="bi bi-info-circle text-info ms-1"></i> ' + rsn + toggleLnk;
@@ -504,20 +525,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const orderBox = document.getElementById('orderLines');
     const grvBox = document.getElementById('grvLines');
     if (inquiryBox) {
-        if (inquiryPrefill.length) { 
-            inquiryPrefill.forEach(function (r) { addLine('inquiryLines', false, r); }); 
-        } else { 
-            addLine('inquiryLines'); 
+        if (inquiryPrefill.length) {
+            inquiryPrefill.forEach(function (r) { addLine('inquiryLines', false, r); });
+        } else {
+            addLine('inquiryLines');
         }
     }
     if (orderBox) {
         if (orderPrefill.length) {
-            if (<?= json_encode($tab === 'orders') ?>) { 
-                orderPrefill.forEach(function (r) { addLine('orderLines', true, r); }); 
+            if (<?= json_encode($tab === 'orders') ?>) {
+                orderPrefill.forEach(function (r) { addLine('orderLines', true, r); });
             }
         } else {
-            if (<?= json_encode($tab === 'orders') ?>) { 
-                addLine('orderLines', true); 
+            if (<?= json_encode($tab === 'orders') ?>) {
+                addLine('orderLines', true);
             }
         }
     }
@@ -532,8 +553,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     const rQty = r.quantity ? r.quantity : 0;
                     const rRec = r.received_qty ? r.received_qty : 0;
                     const remain = Math.max(0, parseFloat(rQty) - parseFloat(rRec));
-                    if (remain > 0) { 
-                        addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost }); 
+                    if (remain > 0) {
+                        addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost });
                     }
                 });
             }

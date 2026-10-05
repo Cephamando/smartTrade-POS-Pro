@@ -22,14 +22,14 @@ final class PurchasingController extends Controller
                 try {
                     $pid = (int)$_POST['product_id'];
                     $sellable = (int)$_POST['is_sellable'];
-                    
+
                     // Auto-migrate schema on first use
                     $stmt = $this->pdo()->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'is_sellable'");
                     if ((int)$stmt->fetchColumn() === 0) {
                         $this->pdo()->exec("ALTER TABLE products ADD COLUMN is_sellable TINYINT(1) NOT NULL DEFAULT 1");
                         $this->pdo()->exec("UPDATE products SET is_sellable = 0 WHERE category_type = 'ingredients' OR (used_as_ingredient = 1 AND has_recipe = 0 AND price <= 0)");
                     }
-                    
+
                     $update = $this->pdo()->prepare("UPDATE products SET is_sellable = ? WHERE id = ?");
                     $update->execute([$sellable, $pid]);
                     echo json_encode(['status' => 'success']);
@@ -40,10 +40,20 @@ final class PurchasingController extends Controller
             }
 
             try {
+                // Feature 1: Handle Custom/Informal Vendors on the fly
+                $vendorId = $_POST['vendor_id'] ?? null;
+                if ($vendorId === 'custom' && !empty($_POST['custom_vendor_name'])) {
+                    $customName = trim((string)$_POST['custom_vendor_name']);
+                    Vendor::create($customName, 'Informal / Once-off', '');
+                    $vendorId = (int)$this->pdo()->lastInsertId();
+                } else {
+                    $vendorId = !empty($vendorId) ? (int)$vendorId : null;
+                }
+
                 if (isset($_POST['save_inquiry'])) {
                     $id = Purchase::saveInquiry(
                         !empty($_POST['inquiry_id']) ? (int)$_POST['inquiry_id'] : null,
-                        !empty($_POST['vendor_id']) ? (int)$_POST['vendor_id'] : null,
+                        $vendorId,
                         (int)$_POST['location_id'],
                         $this->userId(),
                         (string)($_POST['status'] ?? 'draft'),
@@ -66,7 +76,7 @@ final class PurchasingController extends Controller
                     $id = Purchase::saveOrder(
                         !empty($_POST['order_id']) ? (int)$_POST['order_id'] : null,
                         !empty($_POST['inquiry_id']) ? (int)$_POST['inquiry_id'] : null,
-                        (int)($_POST['vendor_id'] ?? 0),
+                        (int)$vendorId,
                         (int)$_POST['location_id'],
                         $this->userId(),
                         trim((string)($_POST['reference_no'] ?? '')),
@@ -84,9 +94,8 @@ final class PurchasingController extends Controller
                 if (isset($_POST['process_grv'])) {
                     $items = $_POST['items'] ?? [];
                     $locId = (int)($_POST['location_id'] ?? 0);
-                    $vendorId = (int)($_POST['vendor_id'] ?? 0);
                     $orderId = !empty($_POST['purchase_order_id']) ? (int)$_POST['purchase_order_id'] : null;
-                    if ($locId <= 0 || $vendorId <= 0) {
+                    if ($locId <= 0 || !$vendorId) {
                         throw new \Exception('Select a vendor and receiving location.');
                     }
                     $grvId = Purchase::receive(
