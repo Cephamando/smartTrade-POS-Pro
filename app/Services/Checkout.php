@@ -169,6 +169,7 @@ final class Checkout
             }
         }
 
+        $session['completed_sale_id'] = $settleTabId;
         if ($status === 'paid') {
             $session['last_sale_id'] = $settleTabId;
             $fiscalizeAfterCommit = $settleTabId;
@@ -276,6 +277,7 @@ final class Checkout
             }
         }
         $clearCartAfterCommit = true;
+        $session['completed_sale_id'] = (int)$saleId;
         if ($status === 'paid') {
             $session['last_sale_id'] = $saleId;
             $fiscalizeAfterCommit = (int)$saleId;
@@ -284,10 +286,6 @@ final class Checkout
         $session['swal_msg'] = "Transaction complete.";
     }
 
-    /**
-     * Credit notes must cite a real Smart Invoice. Fiscalize those originals first
-     * so ZRA is not pointed at an unrelated later sale of the same product.
-     */
     private function prepareOriginalInvoicesForRefund(array $session): void
     {
         $origSaleIds = [];

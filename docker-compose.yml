@@ -5,12 +5,10 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
     ports:
-      - "${APP_PORT:-8090}:80"
-      - "${APP_PORT_HTTPS:-8443}:443"
+      # We ONLY expose 8090 to localhost, forcing traffic to go through your Nginx reverse proxy
+      - "127.0.0.1:${APP_PORT:-8090}:80"
     volumes:
       - ./:/var/www/html
-      - ./docker/apache/ssl.conf:/etc/apache2/sites-available/ssl.conf
-      - ./odeliazm.com-ssl-bundle:/etc/apache2/ssl:ro
     restart: always
     environment:
       APP_ENV: ${APP_ENV}
@@ -25,15 +23,16 @@ services:
       ZRA_PORTAL_URL: ${ZRA_PORTAL_URL:-}
       VSIAS_URL: ${VSIAS_URL:-http://localhost:8095}
       VSIAS_INTERNAL_URL: ${VSIAS_INTERNAL_URL:-http://host.docker.internal:8095}
-      VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-vsias_pro_bridge_change_me}
+      VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-bbc8efdd47865d4f449ea3b95a38a278}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       db:
-        condition: service_healthy   # ✅ Wait for MySQL to be READY, not just started
+        condition: service_healthy
     networks:
       - smartTradePOS-net
-    command: sh -c "a2enmod ssl && a2enmod headers && a2enmod rewrite && a2ensite ssl.conf && apache2-foreground"
+    # Removed SSL mods because Nginx will handle SSL termination
+    command: sh -c "a2enmod headers && a2enmod rewrite && apache2-foreground"
 
   db:
     container_name: smartTradePOS_db
@@ -46,17 +45,16 @@ services:
       MYSQL_PASSWORD: ${DB_PASS}
       MYSQL_ROOT_HOST: "%"
       TZ: ${TZ}
-    ports:
-      - "${DB_PORT_EXTERNAL:-8091}:3306"
+    # REMOVED port mapping: 3306 is now only accessible internally to other containers
     volumes:
       - db_data:/var/lib/mysql
       - ./docker/mysql/smartTradePOS_db.sql:/docker-entrypoint-initdb.d/01-smartTradePOS_db.sql
-    healthcheck:                                          # ✅ Addedhealthcheck
+    healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASS}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s   # Give MySQL time to initialize on first run
+      start_period: 30s
     networks:
       - smartTradePOS-net
 
@@ -70,42 +68,13 @@ services:
       - 1.1.1.1
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "${VSDC_PORT:-8080}:8080"
+    # REMOVED port mapping: 8080 is now only accessible internally to the PHP container
     volumes:
       - ./api:/opt/zra-api:ro
       - ./docker/vsdc/entrypoint.sh:/usr/local/bin/vsdc-entrypoint.sh:ro
       - vsdc_webapps:/usr/local/tomcat/webapps
     command: ["bash", "/usr/local/bin/vsdc-entrypoint.sh"]
     restart: always
-    networks:
-      - smartTradePOS-net
-
-  phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: smartTradePOS_pma
-    restart: always
-    ports:
-      - "${PHPMYADMIN_PORT:-8092}:80"
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-      UPLOAD_LIMIT: 64M
-    depends_on:
-      db:
-        condition: service_healthy   # ✅ Same fix
-    networks:
-      - smartTradePOS-net
-
-  adminer:
-    image: adminer
-    container_name: smartTradePOS_adminer
-    restart: always
-    ports:
-      - "${ADMINER_PORT:-8093}:8080"
-    depends_on:
-      db:
-        condition: service_healthy   # ✅ Same fix
     networks:
       - smartTradePOS-net
 
