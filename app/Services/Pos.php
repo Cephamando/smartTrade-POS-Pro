@@ -530,6 +530,26 @@ final class Pos
         $session['swal_msg'] = $notice['text'] ?? '';
     }
 
+    public function cartState(array $session, int $locationId, string $tier): array
+    {
+        return $this->cartAjaxResponse($session, $locationId, $tier, null);
+    }
+
+    public function onHandForSale(int $saleId, int $locationId): array
+    {
+        $stmt = $this->pdo->prepare('SELECT DISTINCT product_id FROM sale_items WHERE sale_id = ?');
+        $stmt->execute([$saleId]);
+        $onHand = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_COLUMN) as $productId) {
+            $productId = (int)$productId;
+            if ($productId <= 0) {
+                continue;
+            }
+            $onHand[(string)$productId] = \App\Models\Inventory::quantity($productId, $locationId);
+        }
+        return $onHand;
+    }
+
     private function cartMutationResult(array &$session, int $locationId, string $tier, bool $ajax, ?array $notice): array
     {
         if ($ajax) {

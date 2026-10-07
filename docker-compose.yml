@@ -25,7 +25,8 @@ services:
       ZRA_PORTAL_URL: ${ZRA_PORTAL_URL:-}
       VSIAS_URL: ${VSIAS_URL:-http://localhost:8095}
       VSIAS_INTERNAL_URL: ${VSIAS_INTERNAL_URL:-http://host.docker.internal:8095}
-      VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-vsias_pro_bridge_change_me}
+      VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-vsias_pro_bridge_change_me} 
+      # e5a6da46e8e1a90c1b51d5245677e70a
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

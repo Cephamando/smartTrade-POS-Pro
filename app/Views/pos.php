@@ -893,6 +893,87 @@ function getCategoryStyle($name) {
             e.stopPropagation();
             posCartSubmit(form, e.submitter);
         }, true);
+        function applyOnHand(map) {
+            if (!map) return;
+            Object.keys(map).forEach(function (pid) {
+                document.querySelectorAll('.item[data-product-id="' + pid + '"]').forEach(function (el) {
+                    el.dataset.onHand = String(map[pid]);
+                });
+            });
+        }
+        function refreshPosPanels() {
+            return fetch('index.php?page=pos', { credentials: 'same-origin' })
+                .then(function (r) { return r.text(); })
+                .then(function (html) {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    ['tabsModal', 'hiddenTabTemplates', 'floorplanModal', 'onlineTabsModal', 'hiddenOnlineTabTemplates', 'endShiftModal'].forEach(function (id) {
+                        const next = doc.getElementById(id);
+                        const current = document.getElementById(id);
+                        if (next && current) current.replaceWith(document.importNode(next, true));
+                    });
+                })
+                .catch(function () {});
+        }
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (!form || form.id !== 'checkoutForm') return;
+            if (form.classList.contains('js-confirm-form') && form.dataset.swalConfirmed !== '1') return;
+            e.preventDefault();
+            e.stopPropagation();
+            const body = new FormData(form);
+            body.set('ajax', '1');
+            const btn = document.getElementById('btnCheckoutSubmit');
+            if (btn) btn.disabled = true;
+            fetch('index.php?page=pos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                body: body
+            }).then(posCartParse).then(function (data) {
+                if (btn) btn.disabled = false;
+                form.dataset.swalConfirmed = '';
+                if (!data || data.status === 'error') {
+                    AppAlert.notify({ icon: 'error', text: (data && data.msg) || 'Unable to complete checkout.' });
+                    return;
+                }
+                applyOnHand(data.on_hand);
+                applyCartResponse(data);
+                const refundToggle = document.getElementById('refundToggle');
+                if (refundToggle && refundToggle.checked) {
+                    refundToggle.checked = false;
+                    toggleRefundMode();
+                }
+                const nameInput = form.querySelector('[name="customer_name"]');
+                if (nameInput && !nameInput.readOnly) nameInput.value = 'Walk-in';
+                const checkoutEl = document.getElementById('checkoutModal');
+                if (checkoutEl && window.bootstrap) {
+                    const modal = bootstrap.Modal.getInstance(checkoutEl);
+                    if (modal) modal.hide();
+                }
+                refreshPosPanels();
+                if (data.sale_id) {
+                    const frame = document.getElementById('receiptFrame');
+                    if (frame) {
+                        frame.src = 'about:blank';
+                        setTimeout(function () {
+                            frame.src = 'index.php?page=receipt&sale_id=' + data.sale_id + '&_cb=' + Date.now();
+                        }, 100);
+                    }
+                    safeModalShow('receiptModal');
+                }
+                if (data.msg) {
+                    AppAlert.notify({
+                        icon: data.swal_type || 'success',
+                        text: data.msg,
+                        timer: data.sale_id ? 2200 : undefined
+                    });
+                }
+            }).catch(function () {
+                if (btn) btn.disabled = false;
+                form.dataset.swalConfirmed = '';
+                AppAlert.notify({ icon: 'error', text: 'Unable to complete checkout.' });
+            });
+        }, true);
         function isPosRefundMode() {
             const toggle = document.getElementById('refundToggle');
             return !!(toggle && toggle.checked);
