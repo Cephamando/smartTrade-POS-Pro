@@ -1,53 +1,89 @@
-<?php 
+<?php
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 $topColSize = in_array($tier, ['pro', 'pro+', 'enterprise']) ? 'col-md-3' : 'col-md-4';
 $midColSize = in_array($tier, ['pro+', 'enterprise']) ? 'col-md-4' : 'col-md-6';
-$activeShifts = $activeShifts ?? [];
-$dates = $dates ?? [];
-$salesData = $salesData ?? [];
-$pmData = $pmData ?? [];
+$activeShifts =$activeShifts ?? [];
+$dates =$dates ?? [];
+$salesData =$salesData ?? [];
+$pmData =$pmData ?? [];
 
 // The header defines $currentLocationCanSell. Fall back to true if undefined.
-$canSell = $currentLocationCanSell ?? true;
+$canSell =$currentLocationCanSell ?? true;
 ?>
 <script src="vendor/chartjs/chart.umd.min.js"></script>
 
 <style>
     .hover-card-zoom { transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; }
     .hover-card-zoom:hover { transform: scale(1.03); box-shadow: 0 10px 20px rgba(25,135,84,0.15) !important; z-index: 10; }
+    
+    /* Horizontal Scrolling for Financial Cards on Mobile */
+    .dashboard-stats-wrapper {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+        scrollbar-width: thin;
+    }
+    .dashboard-stats-wrapper::-webkit-scrollbar { height: 6px; }
+    .dashboard-stats-wrapper::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+    .stat-card-col {
+        flex: 0 0 auto;
+        width: 75%;
+        max-width: 300px;
+        margin-right: 0.75rem;
+    }
+    @media (min-width: 768px) {
+        .dashboard-stats-wrapper {
+            flex-wrap: wrap;
+            overflow-x: visible;
+            padding-bottom: 0;
+            margin-right: -0.5rem;
+            margin-left: -0.5rem;
+        }
+        .stat-card-col {
+            flex: 1 0 0%;
+            width: auto;
+            max-width: none;
+            padding-right: 0.5rem;
+            padding-left: 0.5rem;
+            margin-right: 0;
+        }
+    }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
     <div>
         <h3 class="fw-bold mb-0"><i class="bi bi-speedometer2"></i> Dashboard</h3>
         <span class="text-muted small">Overview for <strong class="text-dark"><?= htmlspecialchars($dashLocName ?? 'All') ?></strong></span>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
-        <button class="btn btn-warning fw-bold position-relative" onclick="showPickupModal()">
+        <button class="btn btn-warning fw-bold position-relative flex-grow-1 flex-md-grow-0" onclick="showPickupModal()">
             <i class="bi bi-tv"></i> Pickup Screen
             <span id="readyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">0</span>
         </button>
         <?php endif; ?>
         <?php if (!empty($canSeeVsiasApprovals)): ?>
-        <a class="btn btn-info fw-bold position-relative text-white js-vsias-inspect" href="<?= htmlspecialchars($vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
+        <a class="btn btn-info fw-bold position-relative text-white js-vsias-inspect flex-grow-1 flex-md-grow-0" href="<?= htmlspecialchars($vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
             <i class="bi bi-clipboard-check"></i> Approvals
             <?php if (!empty($vsiasPending)): ?>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int)$vsiasPending ?></span>
             <?php endif; ?>
         </a>
         <?php endif; ?>
-        
+
         <?php if ($canSell): ?>
-            <a href="index.php?page=pos" class="btn btn-primary fw-bold"><i class="bi bi-cart4"></i> Go to POS</a>
+            <a href="index.php?page=pos" class="btn btn-primary fw-bold flex-grow-1 flex-md-grow-0"><i class="bi bi-cart4"></i> Go to POS</a>
         <?php else: ?>
-            <button type="button" class="btn btn-secondary fw-bold" disabled title="POS disabled for this location"><i class="bi bi-cart-x"></i> POS Disabled</button>
+            <button type="button" class="btn btn-secondary fw-bold flex-grow-1 flex-md-grow-0" disabled title="POS disabled for this location"><i class="bi bi-cart-x"></i> POS Disabled</button>
         <?php endif; ?>
     </div>
 </div>
 
-<div class="row g-2 mb-3">
-    <div class="<?= $topColSize ?> col-6">
+<div class="dashboard-stats-wrapper">
+    <div class="stat-card-col">
         <a href="index.php?page=reports" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
                 <div class="card-body p-3">
@@ -57,7 +93,7 @@ $canSell = $currentLocationCanSell ?? true;
             </div>
         </a>
     </div>
-    <div class="<?= $topColSize ?> col-6">
+    <div class="stat-card-col">
         <a href="index.php?page=reports" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
                 <div class="card-body p-3">
@@ -67,9 +103,9 @@ $canSell = $currentLocationCanSell ?? true;
             </div>
         </a>
     </div>
-    
+
     <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
-    <div class="<?= $topColSize ?> col-6">
+    <div class="stat-card-col">
         <?php if ($canSell): ?>
         <a href="index.php?page=pos" class="text-decoration-none">
         <?php else: ?>
@@ -89,7 +125,7 @@ $canSell = $currentLocationCanSell ?? true;
     </div>
     <?php endif; ?>
 
-    <div class="<?= $topColSize ?> col-6">
+    <div class="stat-card-col">
         <a href="index.php?page=inventory" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
                 <div class="card-body p-3">
@@ -117,7 +153,7 @@ $canSell = $currentLocationCanSell ?? true;
             </div>
         </div>
     </div>
-    
+
     <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
     <div class="<?= $midColSize ?>">
         <div class="card shadow-sm h-100 border-warning">
@@ -181,7 +217,7 @@ $canSell = $currentLocationCanSell ?? true;
                         <tr>
                             <th class="ps-4 small text-muted text-uppercase">Employee</th>
                             <th class="small text-muted text-uppercase">Role</th>
-                            <th class="small text-muted text-uppercase">Workstation</th>
+                            <th class="small text-muted text-uppercase d-none d-sm-table-cell">Workstation</th>
                             <th class="small text-muted text-uppercase">Time Online</th>
                             <th class="text-end pe-4 small text-muted text-uppercase">Action</th>
                         </tr>
@@ -189,7 +225,7 @@ $canSell = $currentLocationCanSell ?? true;
                     <tbody>
                         <?php if(empty($activeShifts)): ?>
                         <tr><td colspan="5" class="text-center py-4 text-muted fst-italic">No active shifts currently open.</td></tr>
-                        <?php else: foreach($activeShifts as$as): 
+                        <?php else: foreach($activeShifts as$as):
                             $start = new DateTime($as['start_time']);
                             $now = new DateTime();$diff = $start->diff($now);
                             $duration =$diff->format('%h hr %i min');
@@ -200,10 +236,10 @@ $canSell = $currentLocationCanSell ?? true;
                                 <?= htmlspecialchars($as['cashier_name']) ?>
                             </td>
                             <td><span class="badge bg-secondary"><?= htmlspecialchars(strtoupper($as['role'])) ?></span></td>
-                            <td><?= htmlspecialchars($as['location_name']) ?></td>
+                            <td class="d-none d-sm-table-cell"><?= htmlspecialchars($as['location_name']) ?></td>
                             <td><span class="text-dark fw-bold"><i class="bi bi-clock-history text-muted"></i> <?= $duration ?></span></td>
                             <td class="text-end pe-4">
-                                <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick='showShiftDetails(<?= json_encode($as) ?>)'>View Status</button>
+                                <button class="btn btn-sm btn-outline-primary fw-bold px-3 shadow-sm" onclick='showShiftDetails(<?= json_encode($as) ?>)'>View</button>
                             </td>
                         </tr>
                         <?php endforeach; endif; ?>
@@ -228,11 +264,11 @@ $canSell = $currentLocationCanSell ?? true;
                     </div>
                     <div>
                         <h4 class="mb-1 fw-bold text-dark" id="sdName">Name</h4>
-                        <span class="badge bg-dark" id="sdRole">Role</span> 
+                        <span class="badge bg-dark" id="sdRole">Role</span>
                         <span class="text-muted small ms-2 fw-bold" id="sdLoc"><i class="bi bi-geo-alt-fill text-warning"></i> Location</span>
                     </div>
                 </div>
-                
+
                 <div class="row g-3">
                     <div class="col-6">
                         <div class="card border-0 shadow-sm h-100">
@@ -250,7 +286,7 @@ $canSell = $currentLocationCanSell ?? true;
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-6">
                         <div class="card border-0 shadow-sm h-100 border-bottom border-success border-4 hover-card-zoom" onclick="loadShiftSales()">
                             <div class="card-body p-3 text-center bg-white rounded">
@@ -259,7 +295,7 @@ $canSell = $currentLocationCanSell ?? true;
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="col-6">
                         <div class="card border-0 shadow-sm h-100 border-bottom border-warning border-4">
                             <div class="card-body p-3 text-center bg-warning bg-opacity-10">
@@ -360,11 +396,11 @@ function checkDashboardReadyOrders() {
     .then(r => r.json())
     .then(data => {
         const badge = document.getElementById('readyBadge');
-        if(badge && data && data.count > 0) { 
-            badge.innerText = data.count; 
-            badge.style.display = 'block'; 
-        } else if (badge) { 
-            badge.style.display = 'none'; 
+        if(badge && data && data.count > 0) {
+            badge.innerText = data.count;
+            badge.style.display = 'block';
+        } else if (badge) {
+            badge.style.display = 'none';
         }
     }).catch(e => console.error('Dashboard Badge Error:', e));
 }
@@ -385,24 +421,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const payData = <?= json_encode($pmData) ?>;
-    
+
     new Chart(document.getElementById('paymentChart').getContext('2d'), {
         type: 'bar',
         data: {
             labels: Object.keys(payData),
-            datasets: [{ 
+            datasets: [{
                 label: 'Total (ZMW)',
-                data: Object.values(payData), 
+                data: Object.values(payData),
                 backgroundColor: ['#0d6efd', '#ffc107', '#dc3545', '#6c757d', '#198754'],
                 borderRadius: 4
             }]
         },
-        options: { 
-            indexAxis: 'y', 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { 
-                legend: { display: false } 
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
             },
             scales: {
                 x: { beginAtZero: true }
@@ -415,39 +451,39 @@ let currentShiftData = null;
 
 function showShiftDetails(shift) {
     currentShiftData = shift;
-    
+
     document.getElementById('sdName').innerText = shift.cashier_name;
     document.getElementById('sdRole').innerText = shift.role.toUpperCase();
     document.getElementById('sdLoc').innerText = shift.location_name;
-    
+
     let d = new Date(shift.start_time);
     document.getElementById('sdStart').innerText = d.toLocaleDateString([], {month: 'short', day: '2-digit', year: 'numeric'}) + ' - ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    
+
     let startCash = parseFloat(shift.starting_cash) || 0;
     let totalSales = parseFloat(shift.total_sales) || 0;
     let cashSales = parseFloat(shift.current_cash_sales) || 0;
     let expenses = parseFloat(shift.expenses) || 0;
-    
+
     let expected = (startCash + cashSales) - expenses;
-    
+
     document.getElementById('sdFloat').innerText = 'ZMW ' + startCash.toFixed(2);
     document.getElementById('sdSales').innerText = 'ZMW ' + totalSales.toFixed(2);
     document.getElementById('sdExpected').innerText = 'ZMW ' + expected.toFixed(2);
-    
+
     new bootstrap.Modal(document.getElementById('shiftDetailsModal')).show();
 }
 
 function loadShiftSales() {
     if(!currentShiftData) return;
-    
+
     let mainModal = bootstrap.Modal.getInstance(document.getElementById('shiftDetailsModal'));
     if(mainModal) mainModal.hide();
-    
+
     let tbody = document.getElementById('shiftSalesTableBody');
     tbody.innerHTML = '<tr><td colspan="3" class="text-center py-5"><div class="spinner-border text-success" role="status"></div></td></tr>';
-    
+
     new bootstrap.Modal(document.getElementById('shiftSalesModal')).show();
-    
+
     fetch('index.php?action=get_shift_sales&shift_id=' + currentShiftData.id)
         .then(r => {
             if (!r.ok) throw new Error('Network response was not ok');
@@ -459,7 +495,7 @@ function loadShiftSales() {
                 tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-4">Database Error: ${data.error}</td></tr>`;
                 return;
             }
-            
+
             tbody.innerHTML = '';
             if(data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted fst-italic">No paid transactions recorded yet.</td></tr>';
@@ -468,7 +504,7 @@ function loadShiftSales() {
                     let d = new Date(sale.created_at);
                     let time = d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     let pmColor = sale.payment_method.includes('Cash') ? 'text-success' : 'text-primary';
-                    
+
                     tbody.innerHTML += `
                     <tr>
                         <td class="ps-3"><small class="fw-bold text-muted">${time}</small></td>
@@ -493,7 +529,7 @@ function loadShiftSales() {
 function backToShiftStatus() {
     let salesModal = bootstrap.Modal.getInstance(document.getElementById('shiftSalesModal'));
     if(salesModal) salesModal.hide();
-    
+
     setTimeout(() => {
         new bootstrap.Modal(document.getElementById('shiftDetailsModal')).show();
     }, 400);
@@ -505,7 +541,7 @@ function viewShiftSaleBreakdown(saleId) {
 
     document.getElementById('shiftModalSaleIdBadge').innerText = '#' + saleId;
     document.getElementById('shiftSaleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted"><div class="spinner-border text-info spinner-border-sm me-2"></div> Fetching data...</td></tr>';
-    
+
     setTimeout(() => {
         new bootstrap.Modal(document.getElementById('shiftSaleBreakdownModal')).show();
     }, 400);
@@ -528,9 +564,9 @@ function viewShiftSaleBreakdown(saleId) {
                 let statusBadge = '';
                 if (i.status === 'voided') statusBadge = ' <span class="badge bg-danger">VOID</span>';
                 else if (i.status === 'refunded') statusBadge = ' <span class="badge bg-warning text-dark">REFUNDED</span>';
-                
+
                 let priceClass = parseFloat(i.price) < 0 ? 'text-danger' : 'text-dark';
-                
+
                 tbody.innerHTML += `
                     <tr>
                         <td class="ps-4 fw-bold text-secondary">${i.name} ${statusBadge}</td>
@@ -550,7 +586,7 @@ function viewShiftSaleBreakdown(saleId) {
 function backToShiftSales() {
     let breakdownModal = bootstrap.Modal.getInstance(document.getElementById('shiftSaleBreakdownModal'));
     if(breakdownModal) breakdownModal.hide();
-    
+
     setTimeout(() => {
         new bootstrap.Modal(document.getElementById('shiftSalesModal')).show();
     }, 400);

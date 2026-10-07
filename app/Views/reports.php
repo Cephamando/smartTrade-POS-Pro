@@ -22,6 +22,92 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
     .loy-metric-sub { font-size: 0.75rem; color: #6c757d; }
     
     .table-responsive { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 15px; }
+    .loy-report-pills { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .loy-report-pills::-webkit-scrollbar { display: none; }
+    .loy-report-pills .nav-link { white-space: nowrap; }
+    .report-table-wrap { margin-left: 1rem; margin-right: 1rem; }
+
+    /* Tablet: keep the toolbar on one or two tidy rows */
+    @media screen and (max-width: 991.98px) {
+        .loyverse-controls { padding: 12px; }
+        .loy-filter-group.loy-filter-date { flex: 1 1 100%; justify-content: space-between; margin-right: 0 !important; }
+        .loy-filter-group.loy-filter-date .loy-filter-input { min-width: 0; flex: 1 1 auto; }
+        .loy-filter-group.loy-filter-date > .position-relative { flex: 1 1 auto; }
+        .loy-filter-group.loy-filter-select { flex: 1 1 calc(50% - 5px); margin-right: 0 !important; }
+        .loy-filter-group.loy-filter-select .loy-filter-input { width: 100%; min-width: 0; text-align: left; }
+        .loy-filter-actions { flex: 1 1 100%; margin-left: 0 !important; }
+        .loy-filter-actions .btn { width: 100%; }
+        .loy-metric-tab { padding: 14px 12px; }
+        .loy-metric-value { font-size: 1.35rem; }
+    }
+
+    /* Phone: stack filters, 2-column metrics, card rows instead of wide tables */
+    @media screen and (max-width: 767.98px) {
+        .loyverse-controls { margin-left: -1rem; margin-right: -1rem; border-radius: 0; }
+        .loy-filter-group.loy-filter-select { flex: 1 1 100%; }
+        .loy-filter-group.loy-filter-allday { display: none; }
+        .loy-metric-tabs {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 0;
+            margin-left: -1rem;
+            margin-right: -1rem;
+            gap: 1px;
+            background: #e0e0e0;
+            border-bottom: 0;
+        }
+        .loy-metric-tab { background: #fff; padding: 14px 12px; border-bottom-width: 3px; }
+        .loy-metric-tab:last-child { grid-column: 1 / -1; }
+        .loy-metric-value { font-size: 1.2rem; font-weight: 600; }
+        .loy-metric-title { font-size: 0.75rem; }
+        .loy-report-pills { padding-left: 0.25rem !important; padding-right: 0.25rem !important; }
+        .report-table-wrap { margin-left: 0; margin-right: 0; padding: 10px !important; }
+        .report-table-wrap .dataTables_wrapper .dataTables_filter { width: 100%; }
+        .report-table-wrap .dataTables_wrapper .dataTables_filter label { width: 100%; }
+        .report-table-wrap .dataTables_wrapper .dataTables_filter input { width: 100% !important; margin-left: 0 !important; }
+        .report-table-wrap .dataTables_wrapper .dataTables_paginate { width: 100%; display: flex; justify-content: center; }
+        .report-table-wrap .dataTables_wrapper .dataTables_paginate .pagination { flex-wrap: wrap; justify-content: center; }
+        .report-table-wrap .dataTables_wrapper .dataTables_info { width: 100%; text-align: center; padding-top: 0.5rem; }
+        .report-table-wrap .dt-foot { flex-direction: column; gap: 0.5rem; }
+
+        table.report-cards thead { display: none; }
+        table.report-cards, table.report-cards tbody, table.report-cards tr, table.report-cards td { display: block; width: 100%; }
+        table.report-cards { border-top: 0 !important; }
+        table.report-cards tr {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            margin-bottom: 0.65rem;
+            padding: 0.35rem 0.75rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        table.report-cards tbody tr:hover > * { --bs-table-accent-bg: transparent; }
+        table.report-cards td {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            border: 0;
+            border-bottom: 1px dashed #eef0f2;
+            padding: 0.5rem 0;
+            text-align: right !important;
+        }
+        table.report-cards td:last-child { border-bottom: 0; }
+        table.report-cards td::before {
+            content: attr(data-label);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #6c757d;
+            font-weight: 600;
+            text-align: left;
+            flex: 0 0 auto;
+        }
+        table.report-cards td[data-label=""]::before { display: none; }
+        table.report-cards td.report-card-title { font-size: 1rem; }
+        table.report-cards td.report-card-actions { justify-content: flex-end; gap: 0.5rem; }
+        table.report-cards td.report-card-actions .btn { flex: 1 1 auto; }
+    }
     
     @media print {
         @page { margin: 10mm; size: portrait; }
@@ -64,22 +150,22 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
     <input type="hidden" name="page" value="reports">
     <input type="hidden" name="type" value="<?= htmlspecialchars($reportType) ?>">
     
-    <div class="loy-filter-group me-3">
-        <button type="button" class="loy-filter-btn" onclick="shiftDate(-1)"><i class="bi bi-chevron-left"></i></button>
+    <div class="loy-filter-group loy-filter-date me-3">
+        <button type="button" class="loy-filter-btn" onclick="shiftDate(-1)" aria-label="Previous period"><i class="bi bi-chevron-left"></i></button>
         <div class="position-relative" style="display:flex; align-items:center;">
             <i class="bi bi-calendar3 position-absolute ms-2" style="color: #6c757d; pointer-events: none; z-index: 5;"></i>
             <input type="text" id="loyDateRange" class="loy-filter-input ps-4" style="cursor: pointer; background: transparent;" readonly value="<?= date('j M Y', strtotime($startDate)) ?> to <?= date('j M Y', strtotime($endDate)) ?>">
             <input type="hidden" name="start" id="actualStart" value="<?= htmlspecialchars($startDate) ?>">
             <input type="hidden" name="end" id="actualEnd" value="<?= htmlspecialchars($endDate) ?>">
         </div>
-        <button type="button" class="loy-filter-btn" onclick="shiftDate(1)"><i class="bi bi-chevron-right"></i></button>
+        <button type="button" class="loy-filter-btn" onclick="shiftDate(1)" aria-label="Next period"><i class="bi bi-chevron-right"></i></button>
     </div>
     
-    <div class="loy-filter-group me-2">
+    <div class="loy-filter-group loy-filter-allday me-2">
         <button type="button" class="loy-filter-btn"><i class="bi bi-clock"></i> All day <i class="bi bi-caret-down-fill ms-1" style="font-size:0.7em;"></i></button>
     </div>
     
-    <div class="loy-filter-group me-2">
+    <div class="loy-filter-group loy-filter-select me-2">
         <select name="location" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()" style="appearance:none; padding-right:30px; background: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path d=\"M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\"/></svg>') no-repeat right 10px center; background-size: 10px;">
             <option value="" <?= ($locationId === '' || $locationId === null) ? 'selected' : '' ?>>All stores</option>
             <?php foreach (($locations ?? []) as $l): ?>
@@ -88,7 +174,7 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
         </select>
     </div>
     
-    <div class="loy-filter-group position-relative">
+    <div class="loy-filter-group loy-filter-select position-relative">
         <select name="employee_id" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()" style="appearance:none; padding-left:35px; padding-right:30px; background: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path d=\"M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\"/></svg>') no-repeat right 10px center; background-size: 10px;">
             <option value="">All employees</option>
             <?php foreach (($employees ?? []) as $e): ?>
@@ -98,7 +184,7 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
         <i class="bi bi-person-fill position-absolute" style="margin-top:7px; margin-left:12px; color:#6c757d; pointer-events:none;"></i>
     </div>
 
-    <div class="ms-auto d-flex gap-2">
+    <div class="ms-auto d-flex gap-2 loy-filter-actions">
         <button type="button" onclick="printMasterReport()" class="btn btn-outline-dark bg-white shadow-sm border-secondary"><i class="bi bi-printer"></i> Export</button>
     </div>
 </form>
@@ -154,7 +240,7 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
     </div>
 </div>
 
-<ul class="nav nav-pills mb-3 px-3 no-print" style="gap:10px;">
+<ul class="nav nav-pills loy-report-pills mb-3 px-3 no-print" style="gap:10px;">
     <li class="nav-item">
         <a class="nav-link rounded-pill border <?= $reportType == 'sales' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=sales&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Receipts</a>
     </li>
@@ -169,8 +255,8 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
     </li>
 </ul>
 
-<div class="table-responsive p-3 bg-white mx-3">
-    <table id="reportsTable" class="table table-hover mb-0 align-middle w-100" style="border-top: 1px solid #dee2e6;">
+<div class="table-responsive report-table-wrap p-3 bg-white">
+    <table id="reportsTable" class="table table-hover report-cards mb-0 align-middle w-100" style="border-top: 1px solid #dee2e6;">
 
         <?php if($reportType === 'sales'): ?>
         <thead class="table-light text-muted small text-uppercase">
@@ -186,17 +272,17 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
         <tbody>
             <?php foreach($reportData as $row): ?>
             <tr style="cursor:pointer;" onclick="if(!event.target.closest('button') && !event.target.closest('a')) viewSaleBreakdown(<?= $row['id'] ?>)">
-                <td class="fw-bold text-dark">#<?= $row['id'] ?> 
+                <td class="fw-bold text-dark report-card-title" data-label="Receipt">#<?= $row['id'] ?> 
                     <?php if($row['final_total'] < 0 || strtolower($row['payment_status'])=='refunded'): ?><span class="badge bg-danger ms-2">Refund</span><?php endif; ?>
                 </td>
-                <td class="text-muted"><?= date('d.m.Y H:i', strtotime($row['created_at'])) ?></td>
-                <td><?= htmlspecialchars($row['cashier'] ?? 'Admin') ?></td>
-                <td><?= htmlspecialchars($row['location']) ?></td>
-                <td class="fw-bold">ZMW <?= number_format($row['final_total'], 2) ?></td>
-                <td class="text-end no-print">
+                <td class="text-muted" data-label="Date"><?= date('d.m.Y H:i', strtotime($row['created_at'])) ?></td>
+                <td data-label="Employee"><?= htmlspecialchars($row['cashier'] ?? 'Admin') ?></td>
+                <td data-label="Store"><?= htmlspecialchars($row['location']) ?></td>
+                <td class="fw-bold" data-label="Total">ZMW <?= number_format($row['final_total'], 2) ?></td>
+                <td class="text-end no-print report-card-actions" data-label="">
                     <button onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= $row['id'] ?>')" class="btn btn-sm btn-light border"><i class="bi bi-receipt"></i> View</button>
                     <?php if(strtolower($row['payment_status']) == 'paid' && (float)$row['final_total'] > 0 && $canRefundSales): ?>
-                    <a href="index.php?page=refund_items&sale_id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></a>
+                    <a href="index.php?page=refund_items&sale_id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger ms-1" title="Refund"><i class="bi bi-arrow-counterclockwise"></i><span class="d-md-none ms-1">Refund</span></a>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -210,8 +296,8 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
         <tbody>
             <?php foreach($reportData as $row): ?>
             <tr>
-                <td class="fw-bold"><?= htmlspecialchars($row['name'] ?? '') ?></td><td class="text-muted"><?= htmlspecialchars($row['sku'] ?? '') ?></td>
-                <td class="text-center"><?= $row['qty_sold'] ?></td><td class="text-end fw-bold">ZMW <?= number_format($row['revenue'], 2) ?></td>
+                <td class="fw-bold report-card-title" data-label="Item"><?= htmlspecialchars($row['name'] ?? '') ?></td><td class="text-muted" data-label="SKU"><?= htmlspecialchars($row['sku'] ?? '') ?></td>
+                <td class="text-center" data-label="Items sold"><?= $row['qty_sold'] ?></td><td class="text-end fw-bold" data-label="Gross sales">ZMW <?= number_format($row['revenue'], 2) ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>
@@ -223,9 +309,9 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
         <tbody>
             <?php foreach($reportData as $row): ?>
             <tr>
-                <td class="fw-bold text-dark"><?= htmlspecialchars($row['category_name'] ?: 'Uncategorized') ?></td>
-                <td class="text-center"><?= $row['qty_sold'] ?></td>
-                <td class="text-end fw-bold">ZMW <?= number_format($row['revenue'], 2) ?></td>
+                <td class="fw-bold text-dark report-card-title" data-label="Category"><?= htmlspecialchars($row['category_name'] ?: 'Uncategorized') ?></td>
+                <td class="text-center" data-label="Items sold"><?= $row['qty_sold'] ?></td>
+                <td class="text-end fw-bold" data-label="Gross sales">ZMW <?= number_format($row['revenue'], 2) ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>
@@ -249,10 +335,10 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
             if ($taxableSales > 0):
             ?>
             <tr style="cursor:pointer; transition: 0.2s;" onclick="viewTaxDetails('Value Added Tax', '16%')" onmouseover="this.classList.add('bg-light')" onmouseout="this.classList.remove('bg-light')">
-                <td class="fw-bold text-primary">Value Added Tax (VAT) <i class="bi bi-box-arrow-up-right ms-1 small"></i></td>
-                <td>16%</td>
-                <td class="text-center">ZMW <?= number_format($taxableSales, 2) ?></td>
-                <td class="text-end fw-bold text-success">ZMW <?= number_format($taxAmount, 2) ?></td>
+                <td class="fw-bold text-primary report-card-title" data-label="Tax">Value Added Tax (VAT) <i class="bi bi-box-arrow-up-right ms-1 small"></i></td>
+                <td data-label="Rate">16%</td>
+                <td class="text-center" data-label="Taxable sales">ZMW <?= number_format($taxableSales, 2) ?></td>
+                <td class="text-end fw-bold text-success" data-label="Tax amount">ZMW <?= number_format($taxAmount, 2) ?></td>
             </tr>
             <?php endif; ?>
         </tbody>
@@ -264,17 +350,17 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
 
 <!-- Receipt Viewer Modal (Bumped z-index to overlay tax modal) -->
 <div class="modal fade" id="reportModal" tabindex="-1" style="z-index: 1060;">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-dark text-white"><h5 class="modal-title">Receipt</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body p-0" style="height: 500px;"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div>
+            <div class="modal-body p-0" style="height: min(500px, 70vh);"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div>
             <div class="modal-footer border-0 bg-light"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-success fw-bold" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer"></i> Print Receipt</button></div>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="saleBreakdownModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg border-success border-top border-4">
             <div class="modal-header bg-light">
                 <h5 class="modal-title fw-bold text-dark">Receipt <span id="modalSaleIdBadge" class="text-success ms-1"></span></h5>
@@ -302,13 +388,13 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
 </div>
 
 <div class="modal fade" id="taxDrilldownModal" tabindex="-1" style="z-index: 1055;">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-md-down">
         <div class="modal-content border-0 shadow-lg border-primary border-top border-4">
             <div class="modal-header bg-light">
                 <h5 class="modal-title fw-bold text-dark"><i class="bi bi-calculator text-primary me-2"></i> Tax Breakdown: <span id="taxModalName"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-4">
+            <div class="modal-body p-3 p-md-4">
                 <div class="table-responsive p-0 shadow-none">
                     <table id="taxDrilldownTable" class="table table-hover align-middle mb-0 w-100 border-top">
                         <thead class="table-light text-muted small text-uppercase">
@@ -347,7 +433,7 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
                 "search": "",
                 "searchPlaceholder": "Filter records..."
             },
-            "dom": '<"d-flex justify-content-end align-items-center mb-3"f>rt<"d-flex justify-content-between mt-3"ip>'
+            "dom": '<"d-flex justify-content-end align-items-center mb-3"f>rt<"d-flex flex-wrap justify-content-between align-items-center mt-3 dt-foot"ip>'
         });
         $('.dataTables_filter input').addClass('form-control shadow-sm border-secondary rounded-pill ps-3');
 
