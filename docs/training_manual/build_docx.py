@@ -53,6 +53,12 @@ FIGURES: dict[str, list] = {
         ("tm-06-pos-grid.png", "The live POS: categories on the left, the Order panel with CHARGE, ADD TO TAB, CLEAR and LOST STOCK on the right."),
         ("tm-07-pos-payment.png", "The Payment window: tip, customer name, Single/Split pay, method, tendered and change."),
     ],
+    "Scenario 2.6a": [
+        ("tm-48-pos-tip.png", "Tip a paid receipt: search the receipt, enter the tip, choose how it was paid and who gets it."),
+    ],
+    "Scenario 2.6b": [
+        ("tm-47-pos-surcharge.png", "The Payment window with a surcharge reason selected: the total, the foreign-currency equivalents and the tendered amount all update."),
+    ],
     "Scenario 2.13": [
         ("tm-07b-pos-end-shift.png", "End Shift: counted cash, variance reason and manager authorization."),
     ],
@@ -86,6 +92,7 @@ FIGURES: dict[str, list] = {
     ],
     "Scenario 5.3.2": [
         ("tm-12-purchase-orders.png", "Purchasing: Purchase Orders tab."),
+        ("tm-46-grv-packs.png", "Goods Received in packs: 10 packs of 24 at K240 become 240 units at K10.00; 48 units with pack size 12 become 4 packs at K72."),
     ],
     "Scenario 5.3.4": [
         ("tm-11-receiving-bay.png", "Receiving Bay: V-SIAS consignments waiting to be booked."),
@@ -98,6 +105,22 @@ FIGURES: dict[str, list] = {
     ],
     "Scenario 5.5.1": [
         ("tm-13-reports.png", "Master Reports: date range, store and employee filters, the five tiles and the Receipts tab."),
+    ],
+    "Scenario 5.5.2a": [
+        ("tm-40-tips-report.png", "Master Reports → Tips & Surcharges: tiles, surcharges by reason, and tips per staff member."),
+    ],
+    "Scenario 5.9.3": [
+        ("tm-43-payroll-run.png", "A draft pay run: editable days, basic and tips per employee; PAYE, NAPSA, NHIMA and net pay recalculated."),
+    ],
+    "Scenario 5.10.1": [
+        (("tm-44-shop-menu.png", "tm-45-shop-order.png"),
+         "The customer portal on a phone: the menu with Add buttons (left) and an order's status tracker (right)."),
+    ],
+    "Scenario 7.1a": [
+        ("tm-41-surcharge-reasons.png", "POS surcharge reasons: add a reason with a fixed amount or a percent; edit, hide or delete from the table."),
+    ],
+    "Scenario 7.1c": [
+        ("tm-42-currency.png", "Currency settings: live kwacha rates, currencies shown on the POS, house rates and the quick converter."),
     ],
     "Scenario 5.5.6": [
         ("tm-32-phone-reports.png", "Master Reports on a phone: full-width filters, two-column tiles, scrolling tab pills."),

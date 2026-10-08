@@ -139,6 +139,14 @@ Single pay methods:
 
 **Tip** accepts an amount or 5%, 10%, or 15% of the total.
 
+**Surcharge** adds an extra charge to the bill with a reason — for example a guest who finishes a meal and then asks for it to be packed. Pick the reason from the drop-down in the payment window; each reason carries its own default amount or percentage, which you can change for this sale. **Other** lets you type a reason. The surcharge prints on the receipt as its own line, is included in the ZRA invoice, and is listed by reason in Master Reports. Administrators maintain the list under **Management → POS Surcharge Reasons** (name, default amount or percent, order, active).
+
+**Flutterwave (Card / Mobile Money)** appears as a payment method when the gateway is switched on under **Payments & Currency**. Choose it, then either **Send MoMo prompt** to the guest's phone (MTN, Airtel, Zamtel) or **Card / other** to open the Flutterwave window. The sale completes once Flutterwave confirms; the gateway reference is kept with the sale. When test keys are in use the button shows **TEST MODE**.
+
+**Foreign currency** — tap **Paying with foreign cash?** in the payment window, pick USD, ZAR, EUR, GBP (or any currency enabled under Currency settings), and type the amount the guest hands over. The kwacha equivalent fills in as the tendered amount and change is shown in ZMW. Rates come from a live feed and are refreshed on the schedule set in **Payments & Currency**; the amount due is also shown in the enabled currencies for reference.
+
+**Tip after payment.** When a guest leaves a tip after the bill has already been paid, use the green **Tip** button in the POS toolbar (also **Tip a receipt** in the POS menu; waiters use the same POS screen). Search for the receipt by number, ZRA invoice number, customer, amount, or the staff member who served, tap it, enter the tip (or 5% / 10% / 15% / round up), choose how it was paid and who it goes to, and save. The receipt and its ZRA invoice do not change. Cash tips are counted in the shift's drawer; all tips show on the X-Read, the Z-Read, the shift print, and the **Tips & Surcharges** report tab.
+
 ### 5.4 Members (Pro and above)
 
 Register people under **Management** is not the member list. Open the members screen (linked from the dashboard staff area and from `index.php?page=members`).
@@ -291,8 +299,12 @@ A request before you commit to a supplier.
 Posting a GRV adds the accepted quantities to stock at the receiving location and writes a stock log. You need a location that is allowed to receive goods.
 
 - Receive against a purchase order, or receive lines that arrived without one.
-- Enter the supplier reference.
+- Enter the supplier reference and, if needed, a note.
 - If the consignment came from the receiving bay, the dock is attached and cleared when the GRV posts.
+
+Each line has **Product**, **Unit** (filled from the product, editable), **Pack size**, **Packs**, **Qty (units)**, **Pack price**, **Unit price**, and **Line total**. The numbers calculate each other: type 3 packs of 24 at K240 a pack and the line shows 72 units at K10.00 each, total K720. Type a unit quantity instead and the pack count follows. Change the unit price and the pack price updates. The footer totals the units and the amount. Stock moves in units; the unit price becomes the product's new cost price. The same table is used for purchase orders.
+
+Below the form, **Recent goods received** lists past GRVs; tap one to see its lines (pack, unit, cost and totals) and who posted it.
 
 ### 8.4 Receiving bay
 
@@ -421,6 +433,7 @@ One serial is one keystore and one receipt sequence. Keep a single live till PC 
 | **Items** | Each product sold: name, SKU, items sold, gross sales. Sorted by revenue. | — |
 | **Categories** | Each category: items sold, gross sales. Products without a category show as Uncategorized. | — |
 | **Taxes** | VAT at 16%: taxable sales and tax amount, worked back from paid totals. | Opens the tax drilldown: every receipt in the period with its taxable amount and tax. **Print Breakdown** prints only that list. |
+| **Tips & Surcharges** | Tiles for tips on receipts, tips added after payment (with the cash part), all tips, and surcharges. A table of surcharges by reason, then one row per staff member: paid receipts, tips on receipts, tips after payment (count and cash), and the total credited to them. | — |
 
 Each table has a **Filter records** search box and pages of 50 rows.
 
@@ -463,19 +476,74 @@ Add a person with full name, username, role, primary workstation, and password. 
 
 Any signed-in user can open Change Password. Enter the current password, the new one, and a confirmation. When the system forced the change, Cancel is hidden until it is updated.
 
-### 14.3 System Settings (developer)
+### 14.3 System Settings (administrator and developer)
 
-**Management → System Settings.**
+**Management → System Settings.** The page has five tabs.
+
+**General**
 
 - **Business name** — navbar and receipt title.
 - **Receipt header** — extra lines (TPIN, slogan, address).
 - **Receipt footer** — the thank-you line.
 - **Colours** — main header, accent (borders and icons), and cart header. The POS picks these up on the next load.
-- **License tier** and **lockout date** — see section 2. A lockout date in the past turns on read-only mode as soon as you save.
+- **License tier** and **lockout date** (developer only) — see section 2. A lockout date in the past turns on read-only mode as soon as you save.
+
+**POS surcharges** — the list the POS offers. Add a name, a default amount and/or percent, a sort order, and whether it is active. Edit, switch off, or delete from the table. Deleting does not change past sales.
+
+**Payments (Flutterwave)** — switch the gateway on, paste the **public key**, **secret key**, **encryption key**, and **webhook secret hash** from your Flutterwave dashboard (test keys begin with `FLWPUBK_TEST` / `FLWSECK_TEST` and put the POS in test mode). **Test keys** checks that the keys are accepted. Copy the **webhook URL** shown on the page into the Flutterwave dashboard so confirmations also reach the shop when a guest's browser closes early. The page lists the sandbox test cards and numbers.
+
+**Currency** — switch the converter on, choose which currencies the POS shows (USD, ZAR, EUR, GBP, and others), and how often rates refresh. Live rates are pulled against the kwacha and cached. You may fix a **house rate** for any currency; it overrides the live rate. **Refresh live rates now** fetches immediately. The quick converter on the tab converts any amount between enabled currencies.
+
+**Customer ordering** — the customer portal (section 16): switch it on, pick the location that fulfils web orders, title and intro text, contact phone, minimum order, delivery fee, and which options customers get (pay at counter, pay online, delivery). **Open page** shows the live portal.
+
+### 14.4 Searching in drop-downs
+
+Every drop-down in the system can be searched. Click or tap it and type: the list narrows as you type and matches more than the visible label — products match on SKU and barcode, vendors on contact name and phone, ingredients on unit and SKU, staff on username and full name. Use the arrow keys and Enter, or tap the match. Clear the box to see the full list again.
 
 ---
 
-## 15. Who uses which screen
+## 15. Payroll (administrator and manager)
+
+**Management → Payroll.** Four tabs.
+
+**Employees.** Add a person: name, NRC, NAPSA and NHIMA numbers, TPIN, job title, location, the POS login they use (so tips can be pulled in), **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. Tick exemptions when a worker is not registered for NAPSA or NHIMA. Switch people off instead of deleting them when they leave.
+
+**Components.** Earnings (housing, transport, overtime, commission…) and deductions (loan, advance, uniform…). Each is a fixed amount or a percent of basic pay, taxable or not, and active or not. Active components appear on every employee form so you can set a standing amount per person.
+
+**Statutory rules.** Zambian PAYE bands (editable upper limits and rates), NAPSA rate and monthly cap, NHIMA rate, standard working days a month, and whether tips are included in pay and whether they are taxed. A quick PAYE check lets you type a gross figure and see the tax.
+
+**Pay runs.**
+
+1. **New run**: title, period start and end, pay date. Every active employee gets a slip. Tips the staff member earned on the POS in that period (on receipts and after payment) are pulled in automatically when tips are enabled.
+2. Open the run and edit **days worked**, **basic**, or **tips** per person; add one-off **adjustments** (extra earnings or deductions). **Recalculate** reworks every slip.
+3. **Approve** locks the figures. **Mark paid** books the net pay as an expense and stamps the pay date. **Reopen** returns an approved run to draft. Draft runs can be deleted.
+4. **Print payslips** prints the whole run or a single slip: earnings, deductions, employer NAPSA and NHIMA, net pay.
+
+How a slip is worked out: basic (pro-rated for days or hours when the pay type calls for it) + allowances (+ tips if included) = gross. NAPSA employee share is 5% of gross up to the cap, and is deducted before tax. PAYE is applied to gross less NAPSA (and less non-taxable allowances) using the bands. NHIMA is 1% of basic. Net = gross − NAPSA − NHIMA − PAYE − other deductions. The employer's matching NAPSA and NHIMA appear separately and are not deducted from the worker.
+
+---
+
+## 16. Customer ordering portal (Enterprise)
+
+Customers order from their phone at **`index.php?page=shop`** (link it from your website or print the address as a QR code). The portal uses the shop's colours and the title set under **System Settings → Customer ordering**.
+
+**Customer side**
+
+- Browse the menu with search and category chips. Only sellable items that are in stock (or have a recipe) at the fulfilling location are shown.
+- Add to the basket, change quantities, then **Checkout**: pickup or delivery (address and fee), a pickup time, notes, and **pay at counter** or **pay online** (Flutterwave).
+- First-time customers **register** with name, Zambian mobile number, and a PIN/password; returning customers sign in. If the number is already a loyalty member the accounts are linked.
+- **My orders** shows every order and its status (received → preparing → ready → collected / handed over), refreshing on its own.
+
+**Shop side**
+
+- New orders appear on the POS **Web Orders** button at the fulfilling location, with a **PAID ONLINE** or **PAY AT COUNTER** badge, the order number, pickup/delivery, phone, and time.
+- Pay-at-counter orders are pulled into the normal sale flow and charged like a tab.
+- Paid orders need no payment: once the kitchen marks everything ready, **Hand Over (Paid)** completes the sale and fiscalizes it.
+- Stock is deducted when the order is placed. Online orders are counted with everything else in reports and the Z-Read.
+
+---
+
+## 17. Who uses which screen
 
 | Screen | Developer | Admin | Manager | Head chef | Chef | Cashier, bartender, waiter |
 |---|---|---|---|---|---|---|
@@ -490,7 +558,10 @@ Any signed-in user can open Change Password. Enter the current password, the new
 | Recipe consumption | Yes | Yes | Yes | Yes | | |
 | ZRA | Yes | Yes | Enterprise menu | | | |
 | Users, locations | Yes | Yes | Yes | | | |
-| System settings, license | Yes | | | | | |
+| Payroll | Yes | Yes | Yes | | | |
+| System settings (surcharges, payments, currency, portal) | Yes | Yes | | | | |
+| License tier | Yes | | | | | |
+| Tip after payment | Yes | Yes | Yes | | | Yes |
 | Members, audit trail | Yes | Yes | Yes | | | |
 | Pickup | Yes | Yes | Yes | | | Yes |
 
@@ -498,7 +569,30 @@ Empty cells mean that role is sent back to their home page if they open the addr
 
 ---
 
-## 16. Common sequences
+## 18. Common sequences
+
+**Guest tips after paying**
+
+1. The bill is paid and the receipt printed.
+2. Guest hands the waiter K20. Waiter taps **Tip**, searches the receipt, enters 20, Cash, credits themselves, saves.
+3. The X-Read and Z-Read show the tip; the Tips & Surcharges report credits it to the waiter; payroll can pull it into the pay run.
+
+**Guest asks to pack after eating**
+
+1. Before charging, open the payment window and pick the surcharge reason **Take-away packaging** (or whatever the administrator named it). Adjust the amount if needed.
+2. Charge as usual. The receipt shows the surcharge line.
+
+**Online order, paid online**
+
+1. Customer orders and pays on their phone. The POS Web Orders badge goes up; the order shows **PAID ONLINE**.
+2. Kitchen prepares; items are marked ready.
+3. Cashier opens the order and taps **Hand Over (Paid)**.
+
+**Month-end payroll**
+
+1. Payroll → Pay runs → New run for the month.
+2. Correct days worked and tips, add any one-off adjustments, Recalculate.
+3. Approve, print payslips, pay the staff, Mark paid.
 
 **New cashier, first sale**
 

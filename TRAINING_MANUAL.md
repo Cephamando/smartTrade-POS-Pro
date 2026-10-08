@@ -244,6 +244,65 @@ Situation: total ZMW 180. Customer pays ZMW 100 by Airtel Money and the rest by 
 
 *Expected result:* the receipt shows Mrs Banda and a tip line.
 
+### Scenario 2.6a — Tip given after the bill is paid (Must pass)
+
+Situation: Mrs Banda paid and left. Five minutes later she comes back and hands the cashier ZMW 20 "for the service".
+
+1. Tap the green **Tip** button in the POS toolbar.
+2. In **Find the receipt**, type **Banda** (or the receipt number, the amount, or the cashier's name). Tap the matching receipt.
+
+*Expected result:* the receipt's number, time, total, and server appear in the grey box. The amount field and quick buttons (5%, 10%, 15%, Round up) become active.
+
+3. Enter **20**, **Paid by** Cash, **Credit to** the cashier who served. Save.
+
+*Expected result:* "Tip recorded". The original receipt and its ZRA invoice are unchanged. The X-Read now shows a **Tips after payment** line and the expected cash is 20 higher.
+
+4. Try to tip the same way with the amount empty, or without choosing a receipt.
+
+*Expected result:* the form refuses; nothing is saved.
+
+### Scenario 2.6b — Surcharge with a reason (Must pass)
+
+Situation: a guest finishes a meal and asks for the leftovers to be packed.
+
+1. Ring the sale. In the payment window, open the **Surcharge** drop-down and pick **Takeaway packaging** (the administrator's list; type to search it).
+
+*Expected result:* the surcharge amount fills with that reason's default and the total due goes up by the same amount.
+
+2. Change the amount to **8**. Complete the sale.
+
+*Expected result:* the receipt shows a **Surcharge — Takeaway packaging** line of ZMW 8. On Master Reports → **Tips & Surcharges**, the reason appears with 1 receipt and ZMW 8.
+
+3. Ring another sale, choose **Other**, type **Late-night service**, amount 15.
+
+*Expected result:* the typed reason prints on the receipt and shows in the report under its own name.
+
+### Scenario 2.6c — Paying with foreign cash (when Currency is enabled)
+
+Situation: a tourist pays a ZMW 198 bill with a USD 20 note.
+
+1. In the payment window, tap **Paying with foreign cash?**. Choose **USD**, type **20**.
+
+*Expected result:* the kwacha equivalent (about ZMW 396 at a rate near 19.8) fills the **Total tendered** box and the change is shown in ZMW. The small line under the total shows the amount due in the enabled currencies.
+
+2. Complete the sale.
+
+*Expected result:* the receipt is in kwacha; the sale is a normal cash sale in reports.
+
+### Scenario 2.6d — Card or mobile money through Flutterwave (when Payments is enabled)
+
+1. Ring a sale. Choose **Flutterwave (Card / Mobile Money)**.
+
+*Expected result:* a panel appears with **Mobile money** and **Card** buttons. If test keys are in use the panel is marked **TEST MODE**.
+
+2. Mobile money: pick the network, type the guest's number, **Send prompt**.
+
+*Expected result:* status changes to **Waiting for the customer**; the guest approves on the phone; the panel turns green "Flutterwave confirmed the payment". Tap **Complete transaction**.
+
+3. Card: tap **Pay by card**; a Flutterwave window opens. In the sandbox use the test card shown in Settings → Payments.
+
+*Expected result:* the window closes on success, the panel turns green, and Complete finishes the sale. A declined card shows **Declined**; take another payment method.
+
 ### Scenario 2.7 — Member sale (Pro and above)
 
 1. Attach the training member (search by phone).
@@ -318,6 +377,9 @@ Situation: 17:00. Actual cash counted is ZMW 1,180; expected is ZMW 1,200.
 | C3 | Explains why a tile is grey and why + stops | |
 | C4 | Completes cash with correct change, card, mobile money, and a split | |
 | C5 | Attaches a member and applies 10% | |
+| C5a | Records a tip against an already-paid receipt and finds it on the X-Read | |
+| C5b | Adds a surcharge with the right reason and explains where it shows | |
+| C5c | Takes foreign cash and gives change in kwacha (if enabled) | |
 | C6 | Logs a payout with reason and manager auth | |
 | C7 | Logs lost stock and shows it in Stock Levels, not in Receipts | |
 | C8 | Returns against the original invoice with a reason, and explains why a free-standing return is wrong | |
@@ -604,9 +666,13 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 
 *Expected result:* Goods Received opens with the order loaded.
 
-5. Accept 240, supplier reference **INV-554**. Post.
+5. On the GRV line, set **Pack size** 24, **Packs** 10, **Pack price** 240. Supplier reference **INV-554**. Post.
 
-*Expected result:* Warehouse stock of Mosi +240. Audit trail shows a GRV row. The PO is marked received.
+*Expected result:* as you type, **Qty (units)** becomes 240, **Unit price** K10.00, **Line total** K2,400, and the footer shows 240 units / K2,400. After posting, Warehouse stock of Mosi +240, the product's cost price is K10.00, the audit trail shows a GRV row, and the PO is marked received. The GRV appears under **Recent goods received**; tap it to see the packs, units, and prices.
+
+5a. Start another GRV line for Fanta: type **Qty (units)** 48 with pack size 12, then type **Unit price** 6.
+
+*Expected result:* Packs becomes 4 and Pack price becomes 72. Changing the pack price back to 60 makes the unit price 5.00. The numbers always agree with each other.
 
 6. Try to receive into **Main Bar**.
 
@@ -697,6 +763,16 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 
 *Expected result:* both dates move back one day and the page reloads.
 
+#### Scenario 5.5.2a — Tips and surcharges by staff
+
+1. Open the **Tips & Surcharges** tab.
+
+*Expected result:* four tiles — tips on receipts, tips after payment (with the cash part), all tips, surcharges. A table lists surcharges by reason (Takeaway packaging and Late-night service from 2.6b). Below it, one row per staff member with their receipts, tips on receipts, tips after payment, and total.
+
+2. Find the cashier from 2.6a.
+
+*Expected result:* their **Tips after payment** column shows 1 (cash 20.00) and their total includes it. This is the figure Payroll pulls in when tips are included in pay.
+
 4. Tap the date range and pick the whole week.
 
 *Expected result:* the range shows the two dates and the report covers the week.
@@ -775,6 +851,110 @@ Situation: closing the day.
 
 *Expected result:* T7 appears green on the POS floor plan at Restaurant.
 
+### 5.8 Searchable drop-downs (all screens)
+
+#### Scenario 5.8.1 — Find without scrolling
+
+1. **Goods Received**: click the **Product** box on a line and type **mos**.
+
+*Expected result:* the list narrows to Mosi while you type. Type the product's SKU or barcode instead — it still finds it.
+
+2. **Vendors** box: type part of the contact person's name or phone.
+
+*Expected result:* the vendor is found even though only the company name is displayed.
+
+3. **Users & Staff** → primary workstation box: type **ware**.
+
+*Expected result:* Warehouse is the only option left. Press Enter to pick it; press Esc or clear the text to see everything again.
+
+### 5.9 Payroll
+
+Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
+
+#### Scenario 5.9.1 — Statutory rules
+
+1. **Management → Payroll → Statutory rules**.
+
+*Expected result:* PAYE bands 0–5,100 at 0%, to 7,100 at 20%, to 9,200 at 30%, above at 37%; NAPSA 5% capped; NHIMA 1%; 26 working days; tips included in pay but not taxed (tick **Tax tips** if your accountant says otherwise).
+
+2. In **Quick PAYE check** type **8,000**.
+
+*Expected result:* PAYE 670 on a taxable 8,000 (0 + 400 + 270). Nothing is saved by the check.
+
+#### Scenario 5.9.2 — Components and employee (Must pass)
+
+1. **Components → Add**: **Housing allowance**, earning, fixed, 500, taxable. Add **Staff loan**, deduction, fixed, 0 (amount set per person).
+2. **Employees → Add**: the training cashier. Link to the `train_cashier` login, pay type **Monthly**, basic **8,000**, NRC, NAPSA and NHIMA numbers, bank. Under standing components set Housing 500 and Staff loan 500. Save.
+
+*Expected result:* the employee is listed as active with their pay type and basic.
+
+#### Scenario 5.9.3 — Pay run (Must pass)
+
+1. **Pay runs → New run**: title **Training month**, this calendar month, pay date the 25th. Create.
+
+*Expected result:* the run opens in **Draft** with one slip per active employee. The cashier's **Tips** box already holds the tips from 2.6 and 2.6a.
+
+2. Set the cashier's **Days worked** to 26. **Recalculate**.
+
+*Expected result (without tips):* gross 8,500 (8,000 + 500 housing); NAPSA employee 425; taxable 8,075; PAYE 692.50; NHIMA 80; loan 500; **net 6,802.50**. Employer NAPSA 425 and NHIMA 80 are shown separately.
+
+3. Set days worked to 13 and recalculate.
+
+*Expected result:* basic halves to 4,000 and everything below it reworks.
+
+4. Tap **Adjustments** on the slip, add an earning **Overtime 300**, apply, recalculate.
+
+*Expected result:* gross rises by 300; the slip lists Overtime as its own line.
+
+5. **Approve**.
+
+*Expected result:* the inputs lock; **Mark paid** and **Reopen** appear. **Delete** is gone.
+
+6. **Print payslips**.
+
+*Expected result:* one page per employee with earnings, deductions, employer contributions, and net pay. Printing a single slip works from the slip row.
+
+7. **Mark paid**.
+
+*Expected result:* status **Paid**, and an expense for the total net pay is booked at the run's location.
+
+8. Try to delete a paid run.
+
+*Expected result:* refused; only drafts can be deleted.
+
+### 5.10 Online ordering portal (Enterprise)
+
+#### Scenario 5.10.1 — Switch it on
+
+1. **Management → System Settings → Online ordering**. Enable, pick **Main Bar** as the fulfilling location, title **Training Café Online**, delivery fee 25, tick pay at counter and delivery. Save. **Open page**.
+
+*Expected result:* a mobile-styled page in the shop's colours with the menu. Only sellable items in stock at Main Bar appear.
+
+#### Scenario 5.10.2 — Customer orders (play the customer)
+
+1. Add 2 × Fanta and 1 × Mosi. Open the basket, **Checkout**.
+2. **Register**: name **Jane Customer**, phone **0977 123 456**, PIN **1234**.
+
+*Expected result:* registration refuses a number that is not a Zambian mobile (must start 07/09 and be 10 digits). After registering, you are back at checkout.
+
+3. Choose **Delivery**, type an address, **Pay at counter**, place the order.
+
+*Expected result:* "Order received" with the order number and a status tracker; the total includes the delivery fee. **My orders** lists it.
+
+#### Scenario 5.10.3 — Shop receives it
+
+1. On the POS at Main Bar, the **Web Orders** badge shows 1. Open it.
+
+*Expected result:* the order shows **PAY AT COUNTER**, order type Delivery, phone and time, and the lines. Stock for Fanta and Mosi has already gone down.
+
+2. Pull it into the sale and charge as cash.
+
+*Expected result:* a normal receipt; the customer's tracker moves to **handed over**.
+
+3. Repeat 5.10.2 with **Pay online** (Flutterwave test keys needed).
+
+*Expected result:* the customer pays in the Flutterwave window; the POS shows **PAID ONLINE**. When the items are ready, **Hand Over (Paid)** replaces Checkout and completes the sale without taking money.
+
 ### Assessment — manager
 
 | # | Checkpoint | Pass |
@@ -791,6 +971,10 @@ Situation: closing the day.
 | M10 | Refunds from reports with a ZRA reason | |
 | M11 | Produces a Z-Read per station and checks the ZRA pending queue | |
 | M12 | Knows which of their actions need the developer's approval | |
+| M13 | Posts a GRV in packs and explains units, unit price, and line total | |
+| M14 | Reads the Tips & Surcharges tab and reconciles it with the X-Read | |
+| M15 | Creates an employee, runs payroll, checks PAYE/NAPSA/NHIMA, prints payslips | |
+| M16 | Receives a web order on the POS and hands over a prepaid one | |
 
 ---
 
@@ -892,6 +1076,30 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 2. Change the three colours.
 
 *Expected result:* the POS picks them up on the next load.
+
+### Scenario 7.1a — Surcharge reasons (administrator or developer)
+
+1. **Management → POS Surcharge Reasons**. Add **Takeaway packaging**, default amount 10. Add **Late-night service**, default 5%. Save each.
+
+*Expected result:* both appear in the table and in the POS surcharge drop-down on the next sale. Switching one **off** hides it from the POS without deleting past sales that used it.
+
+### Scenario 7.1b — Payments (Flutterwave test keys)
+
+1. **Management → Payments & Currency → Payments**. Enable, paste the **test** public, secret, encryption keys and the webhook hash. Save. **Test keys**.
+
+*Expected result:* "Keys accepted" and the badge **TEST MODE**. Copy the webhook URL into the Flutterwave dashboard. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of saved keys are shown on the page.
+
+### Scenario 7.1c — Currency
+
+1. **Currency** tab. Enable, tick USD, ZAR, EUR, GBP, refresh every 60 minutes. **Refresh now**.
+
+*Expected result:* the table shows live kwacha rates and the time they were fetched. Set a **house rate** for USD (e.g. 20.00) and save.
+
+*Expected result:* the USD row shows the house rate as the one in use; the POS converts with it (scenario 2.6c). Remove it to go back to live.
+
+2. In the quick converter type **100 USD → ZMW**.
+
+*Expected result:* the kwacha amount at the rate in use.
 
 ### Scenario 7.2 — Approve a location edit
 
@@ -1024,6 +1232,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 ### Monthly (manager + developer)
 
+- [ ] Payroll run created, tips checked, approved, payslips printed, marked paid
 - [ ] Full stock take
 - [ ] Recipe Consumption against production
 - [ ] User list reviewed; leavers deactivated
