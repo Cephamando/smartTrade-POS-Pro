@@ -209,12 +209,10 @@ final class Purchase extends Model
         $total = 0;
         $clean = [];
         foreach ($items as $item) {
-            $pid = (int)($item['product_id'] ?? 0);
-            $qty = (float)($item['qty'] ?? 0);
-            $cost = (float)($item['cost'] ?? 0);
-            if ($pid > 0 && $qty > 0) {
-                $clean[] = [$pid, $qty, $cost];
-                $total += $qty * $cost;
+            $line = Grv::normaliseLine((array)$item);
+            if ($line) {
+                $clean[] = $line;
+                $total += $line['line_total'];
             }
         }
         if (!$clean) {
@@ -234,10 +232,10 @@ final class Purchase extends Model
             $id = (int)$pdo->lastInsertId();
         }
         $ins = $pdo->prepare(
-            'INSERT INTO purchase_order_items (order_id, product_id, quantity, received_qty, unit_cost) VALUES (?, ?, ?, 0, ?)'
+            'INSERT INTO purchase_order_items (order_id, product_id, quantity, received_qty, unit_cost, unit, pack_size, pack_qty, pack_cost, line_total) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)'
         );
-        foreach ($clean as $row) {
-            $ins->execute([$id, $row[0], $row[1], $row[2]]);
+        foreach ($clean as $l) {
+            $ins->execute([$id, $l['product_id'], $l['qty'], $l['cost'], $l['unit'], $l['pack_size'], $l['pack_qty'], $l['pack_cost'], $l['line_total']]);
         }
         if ($inquiryId) {
             self::setInquiryStatus($inquiryId, 'converted');
@@ -299,26 +297,29 @@ final class Purchase extends Model
         int $userId,
         string $ref,
         array $items,
-        ?int $orderId = null
+        ?int $orderId = null,
+        string $notes = ''
     ): int {
         self::ensureSchema();
         $location = Location::find($locId);
+        $lines = [];
         foreach ($items as $item) {
-            $pid = (int)($item['product_id'] ?? 0);
-            $qty = (float)($item['qty'] ?? 0);
-            if ($pid <= 0 || $qty <= 0) {
+            $line = Grv::normaliseLine((array)$item);
+            if (!$line) {
                 continue;
             }
+            $pid = $line['product_id'];
             $check = Movement::receiveAt(Product::movementContext($pid), $location);
             if (!$check['ok']) {
                 $name = Product::movementContext($pid)['name'] ?? ('#' . $pid);
                 throw new \Exception($name . ': ' . $check['reason']);
             }
+            $lines[] = $line;
         }
-        $grvId = Grv::process($vendorId, $locId, $userId, $ref, $items);
+        $grvId = Grv::process($vendorId, $locId, $userId, $ref, $lines, $notes);
         if ($orderId) {
             self::db()->prepare('UPDATE grvs SET purchase_order_id = ? WHERE id = ?')->execute([$orderId, $grvId]);
-            self::applyReceiptToOrder($orderId, $items);
+            self::applyReceiptToOrder($orderId, $lines);
         }
         return $grvId;
     }

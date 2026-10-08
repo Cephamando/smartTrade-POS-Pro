@@ -253,7 +253,31 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
     <li class="nav-item">
         <a class="nav-link rounded-pill border <?= $reportType == 'taxes' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=taxes&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Taxes</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill border <?= $reportType == 'tips' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=tips&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Tips & Surcharges</a>
+    </li>
 </ul>
+
+<?php if ($reportType === 'tips' && !empty($tipsReport)): $tt = $tipsReport['totals']; ?>
+<div class="row g-3 px-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card border-0 shadow-sm border-start border-4 border-success"><div class="card-body py-2"><div class="small text-muted fw-bold">Tips on receipts</div><div class="fs-5 fw-bold">ZMW <?= number_format($tt['receipt_tips'], 2) ?></div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card border-0 shadow-sm border-start border-4 border-info"><div class="card-body py-2"><div class="small text-muted fw-bold">Tips after payment</div><div class="fs-5 fw-bold">ZMW <?= number_format($tt['post_tips'], 2) ?></div><div class="small text-muted">cash ZMW <?= number_format($tt['post_cash'], 2) ?></div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card border-0 shadow-sm border-start border-4 border-dark"><div class="card-body py-2"><div class="small text-muted fw-bold">All tips</div><div class="fs-5 fw-bold">ZMW <?= number_format($tt['receipt_tips'] + $tt['post_tips'], 2) ?></div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card border-0 shadow-sm border-start border-4 border-warning"><div class="card-body py-2"><div class="small text-muted fw-bold">Surcharges</div><div class="fs-5 fw-bold">ZMW <?= number_format($tt['surcharges'], 2) ?></div><div class="small text-muted"><?= (int)$tt['surcharge_count'] ?> receipt(s)</div></div></div></div>
+</div>
+<div class="px-3 mb-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-bold"><i class="bi bi-plus-slash-minus"></i> Surcharges by reason</div>
+        <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light small text-uppercase text-muted"><tr><th>Reason</th><th class="text-center">Receipts</th><th class="text-end">Total</th></tr></thead>
+            <tbody>
+            <?php if (!$tipsReport['surcharges']): ?><tr><td colspan="3" class="text-center text-muted py-3">No surcharges in this period.</td></tr><?php endif; ?>
+            <?php foreach ($tipsReport['surcharges'] as $r): ?><tr><td class="fw-bold"><?= htmlspecialchars($r['reason']) ?></td><td class="text-center"><?= (int)$r['cnt'] ?></td><td class="text-end fw-bold">ZMW <?= number_format((float)$r['total'], 2) ?></td></tr><?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="table-responsive report-table-wrap p-3 bg-white">
     <table id="reportsTable" class="table table-hover report-cards mb-0 align-middle w-100" style="border-top: 1px solid #dee2e6;">
@@ -341,6 +365,23 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
                 <td class="text-end fw-bold text-success" data-label="Tax amount">ZMW <?= number_format($taxAmount, 2) ?></td>
             </tr>
             <?php endif; ?>
+        </tbody>
+
+        <?php elseif($reportType === 'tips'): ?>
+        <thead class="table-light text-muted small text-uppercase">
+            <tr><th>Staff member</th><th class="text-center">Paid receipts</th><th class="text-end">Tips on receipts</th><th class="text-center">Tips after payment</th><th class="text-end">After-payment total</th><th class="text-end">All tips</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach($reportData as $row): ?>
+            <tr>
+                <td class="fw-bold text-dark report-card-title" data-label="Staff"><?= htmlspecialchars($row['staff']) ?></td>
+                <td class="text-center" data-label="Receipts"><?= (int)$row['receipts'] ?></td>
+                <td class="text-end" data-label="Tips on receipts">ZMW <?= number_format($row['receipt_tips'], 2) ?></td>
+                <td class="text-center" data-label="Tips after payment"><?= (int)$row['post_count'] ?><?= $row['post_cash'] > 0 ? ' <span class="text-muted small">(cash ' . number_format($row['post_cash'], 2) . ')</span>' : '' ?></td>
+                <td class="text-end" data-label="After-payment total">ZMW <?= number_format($row['post_tips'], 2) ?></td>
+                <td class="text-end fw-bold text-success" data-label="All tips">ZMW <?= number_format($row['total'], 2) ?></td>
+            </tr>
+            <?php endforeach; ?>
         </tbody>
         <?php endif; ?>
     </table>

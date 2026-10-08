@@ -50,13 +50,31 @@
         <div class="flex"><small>  - Includes Tip:</small> <small><?= number_format($pb['total_tips'], 2) ?></small></div>
         <?php endif; ?>
     <?php endforeach; endif; ?>
+    <?php if(!empty($surcharges['total'])): ?>
+    <div class="flex"><small>  - Includes surcharges (<?= (int)$surcharges['count'] ?>):</small> <small><?= number_format($surcharges['total'], 2) ?></small></div>
+    <?php endif; ?>
     <div class="line"></div>
     <div class="flex bold"><span>GRAND TOTAL:</span> <span>ZMW <?= number_format($grandTotal, 2) ?></span></div>
+
+    <?php $pt = $postTips ?? ['total' => 0, 'cash' => 0, 'by_method' => [], 'by_staff' => []]; if(($pt['total'] ?? 0) > 0): ?>
+    <div class="line"></div>
+    <h4>TIPS AFTER PAYMENT</h4>
+    <?php foreach($pt['by_method'] as $m => $amt): ?>
+    <div class="flex"><span><?= htmlspecialchars((string)$m) ?></span> <span><?= number_format($amt, 2) ?></span></div>
+    <?php endforeach; ?>
+    <div class="flex bold"><span>Total tips:</span> <span><?= number_format($pt['total'], 2) ?></span></div>
+    <?php foreach($pt['by_staff'] as $staff => $row): ?>
+    <div class="flex"><small>  - <?= htmlspecialchars((string)$staff) ?> (<?= (int)$row['count'] ?>)</small> <small><?= number_format($row['amount'], 2) ?></small></div>
+    <?php endforeach; ?>
+    <?php endif; ?>
     
     <div class="line"></div>
     <h4>CASH MANAGEMENT</h4>
     <div class="flex"><span>Opening Float:</span> <span><?= number_format($shift['starting_cash'], 2) ?></span></div>
     <div class="flex"><span>Cash Sales:</span> <span>+ <?= number_format($cashSales, 2) ?></span></div>
+    <?php if(($pt['cash'] ?? 0) > 0): ?>
+    <div class="flex"><span>Cash tips in till:</span> <span>+ <?= number_format($pt['cash'], 2) ?></span></div>
+    <?php endif; ?>
     
     <?php if(!empty($expenses)): ?>
         <br>

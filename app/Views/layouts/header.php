@@ -56,6 +56,8 @@ if (isset($pdo)) {
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
+    <link rel="stylesheet" href="vendor/tom-select/tom-select.bootstrap5.min.css">
+    <link rel="stylesheet" href="css/select-search.css?v=1">
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="js/app-alerts.js?v=20260905b"></script>
@@ -381,6 +383,9 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts & X-Reads</a></li>
                         <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
+                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
+                        <li><a class="dropdown-item fw-bold text-success<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
+                        <?php endif; ?>
 
                         <li>
                             <a class="dropdown-item<?= $navItem('locations') ?>" href="index.php?page=locations">
@@ -395,9 +400,11 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                         <li><a class="dropdown-item<?= $navItem('tables') ?>" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Table Settings</a></li>
                         <?php endif; ?>
 
-                        <?php if($role === 'dev'): ?>
+                        <?php if (in_array($role, ['admin', 'dev'], true)): ?>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold text-danger<?= $navItem('settings') ?>" href="index.php?page=settings"><i class="bi bi-gear-fill"></i> System Settings</a></li>
+                        <li><a class="dropdown-item<?= $navItem('settings', 'surcharges') ?>" href="index.php?page=settings&tab=surcharges"><i class="bi bi-plus-slash-minus"></i> POS Surcharge Reasons</a></li>
+                        <li><a class="dropdown-item<?= $navItem('settings', 'payments') ?>" href="index.php?page=settings&tab=payments"><i class="bi bi-credit-card-2-front"></i> Payments & Currency</a></li>
                         <?php endif; ?>
                     </ul>
                 </li>

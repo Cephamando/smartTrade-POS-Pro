@@ -80,11 +80,19 @@
                         <span class="fw-bold">Net Product Sales:</span> <span class="fw-bold">ZMW <?= number_format($metrics['net_sales'] ?? 0, 2) ?></span>
                     </div>
                     <div class="d-flex justify-content-between mb-2 text-info">
-                        <span>Tips Collected:</span> <span>+ ZMW <?= number_format($metrics['total_tips'] ?? 0, 2) ?></span>
+                        <span>Surcharges (packaging, delivery…):</span> <span>+ ZMW <?= number_format($metrics['total_surcharges'] ?? 0, 2) ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 text-info">
+                        <span>Tips Collected (on receipts):</span> <span>+ ZMW <?= number_format($metrics['total_tips'] ?? 0, 2) ?></span>
                     </div>
                     <div class="d-flex justify-content-between bg-light p-2 rounded border border-dark mt-3">
                         <span class="fw-bold text-dark text-uppercase">Total Receipts:</span> <span class="fw-bold text-dark">ZMW <?= number_format($metrics['total_collected'] ?? 0, 2) ?></span>
                     </div>
+                    <?php if (($metrics['post_tips'] ?? 0) > 0): ?>
+                    <div class="d-flex justify-content-between mt-2 small text-muted" title="Recorded after payment; not part of the receipts total. Cash portion is in the drawer.">
+                        <span><i class="bi bi-piggy-bank"></i> Tips after payment (cash ZMW <?= number_format($metrics['post_tips_cash'] ?? 0, 2) ?>):</span> <span>ZMW <?= number_format($metrics['post_tips'], 2) ?></span>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

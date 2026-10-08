@@ -60,6 +60,8 @@ function getCategoryStyle($name) {
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <link rel="stylesheet" href="css/pos-keyboard.css?v=5">
+    <link rel="stylesheet" href="vendor/tom-select/tom-select.bootstrap5.min.css">
+    <link rel="stylesheet" href="css/select-search.css?v=1">
     <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         :root { --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>; --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>; --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>; }
@@ -240,9 +242,10 @@ function getCategoryStyle($name) {
             <?php endif; ?>
             <?php if ($activeShiftId): ?>
                 <button type="button" class="btn btn-warning text-dark btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="bi bi-cash-stack"></i> Payout</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold" onclick="openTipModal()"><i class="bi bi-piggy-bank"></i> Tip</button>
                 <button type="button" onclick="showShiftReport(<?= $activeShiftId ?>)" class="btn btn-outline-light btn-sm fw-bold"><i class="bi bi-printer"></i> X-Read</button>
             <?php endif; ?>
-            <?php if ($tier === 'enterprise'): ?>
+            <?php if ($tier === 'enterprise' || !empty($portalOn)): ?>
                 <button type="button" class="btn btn-outline-primary btn-sm fw-bold position-relative" data-bs-toggle="modal" data-bs-target="#onlineTabsModal">
                     <i class="bi bi-cloud-download"></i> Web Orders
                     <?php if (!empty($onlineTabs)): ?>
@@ -274,9 +277,10 @@ function getCategoryStyle($name) {
                     <?php endif; ?>
                     <?php if ($activeShiftId): ?>
                     <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#expenseModal"><i class="bi bi-cash-stack"></i> Payout</button></li>
+                    <li><button type="button" class="dropdown-item" onclick="openTipModal()"><i class="bi bi-piggy-bank"></i> Tip a receipt</button></li>
                     <li><button type="button" class="dropdown-item" onclick="showShiftReport(<?= $activeShiftId ?>)"><i class="bi bi-printer"></i> X-Read</button></li>
                     <?php endif; ?>
-                    <?php if ($tier === 'enterprise'): ?>
+                    <?php if ($tier === 'enterprise' || !empty($portalOn)): ?>
                     <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#onlineTabsModal"><i class="bi bi-cloud-download"></i> Web Orders</button></li>
                     <?php endif; ?>
                     <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
@@ -491,10 +495,11 @@ function getCategoryStyle($name) {
                                 <p class="text-muted text-center mt-4 fw-bold">No pending web orders.</p>
                             <?php else: ?>
                                 <?php foreach($onlineTabs as $ot): ?>
-                                    <button class="list-group-item list-group-item-action bg-warning-subtle" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
-                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <span class="badge bg-danger">PENDING</span></div>
-                                        <div class="small text-muted">ID: <?= htmlspecialchars($ot['external_id']) ?></div>
-                                        <div class="small fw-bold">ZMW <?= number_format($ot['total_amount'],2) ?></div>
+                                    <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; ?>
+                                    <button class="list-group-item list-group-item-action <?= $otPaid ? 'bg-success-subtle' : 'bg-warning-subtle' ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
+                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">PAY AT COUNTER</span>' ?></div>
+                                        <div class="small text-muted">#<?= (int)$ot['id'] ?> · <?= htmlspecialchars($ot['external_id'] ?? '') ?><?= !empty($ot['order_type']) ? ' · ' . strtoupper(htmlspecialchars($ot['order_type'])) : '' ?><?= !empty($ot['customer_phone']) ? ' · ' . htmlspecialchars($ot['customer_phone']) : '' ?></div>
+                                        <div class="small fw-bold">ZMW <?= number_format((float)($ot['final_total'] ?: $ot['total_amount']), 2) ?> <span class="text-muted fw-normal"><?= date('H:i', strtotime($ot['created_at'])) ?></span></div>
                                     </button>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -511,8 +516,16 @@ function getCategoryStyle($name) {
     
     <div id="hiddenOnlineTabTemplates" style="display:none;">
         <?php foreach($onlineTabItems as $tid => $items): ?>
-            <?php $tabCustomerName = ''; $tabTotal = 0; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; break; } } ?>
+            <?php $tabCustomerName = ''; $tabTotal = 0; $tabRow = null; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; $tabRow = $t; break; } } $tabPaid = $tabRow && ($tabRow['payment_status'] ?? '') === 'paid'; ?>
             <div id="online-tab-data-<?= $tid ?>">
+                <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']))): ?>
+                <div class="alert <?= $tabPaid ? 'alert-success' : 'alert-warning' ?> py-2 small mb-3">
+                    <?php if ($tabPaid): ?><strong><i class="bi bi-patch-check-fill"></i> Paid online</strong><?= !empty($tabRow['gateway_ref']) ? ' · ref ' . htmlspecialchars($tabRow['gateway_ref']) : '' ?> · <?php else: ?><strong>Pay at counter</strong> · <?php endif; ?>
+                    <?= !empty($tabRow['order_type']) ? '<strong>' . strtoupper(htmlspecialchars($tabRow['order_type'])) . '</strong>' : '' ?>
+                    <?= !empty($tabRow['customer_phone']) ? ' · <i class="bi bi-telephone"></i> ' . htmlspecialchars($tabRow['customer_phone']) : '' ?>
+                    <?= !empty($tabRow['order_notes']) ? '<div class="mt-1"><i class="bi bi-chat-left-text"></i> ' . htmlspecialchars($tabRow['order_notes']) . '</div>' : '' ?>
+                </div>
+                <?php endif; ?>
                 <table class="table align-middle mb-4">
                 <?php 
                 $allReady = true;
@@ -531,7 +544,12 @@ function getCategoryStyle($name) {
                 <div class="row g-2 mt-3">
                     <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
                     <div class="col-6">
-                        <?php if ($allReady): ?>
+                        <?php if ($allReady && $tabPaid): ?>
+                            <form method="POST" class="js-confirm-form" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="Payment was already taken online. This closes the order and prints to ZRA." data-swal-confirm="Hand over" data-swal-icon="question">
+                                <input type="hidden" name="complete_prepaid_order" value="<?= $tid ?>">
+                                <button class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-bag-check"></i> Hand Over (Paid)</button>
+                            </form>
+                        <?php elseif ($allReady): ?>
                             <button type="button" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
                                 <i class="bi bi-cash-coin"></i> Checkout Order
                             </button>
@@ -665,7 +683,25 @@ function getCategoryStyle($name) {
                     <input type="hidden" name="checkout" value="1">
         <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
         <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
-        <div class="text-center mb-4"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small></div>
+        <div class="text-center mb-3"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small>
+            <?php if (!empty($fx['enabled']) && !empty($fx['rates'])): ?>
+            <div class="small text-muted mt-1" id="fxDisplay" title="Live rates<?= !empty($fx['updated_at']) ? ' · updated ' . htmlspecialchars((string)$fx['updated_at']) : '' ?>"></div>
+            <?php endif; ?>
+        </div>
+        <?php if (!empty($surchargeReasons)): ?>
+        <div class="input-group mb-2" id="surchargeGroup">
+            <span class="input-group-text bg-light fw-bold">Surcharge</span>
+            <select name="surcharge_reason_id" id="surchargeReason" class="form-select" data-placeholder="No surcharge" onchange="onSurchargeReasonChange()">
+                <option value="">No surcharge</option>
+                <?php foreach ($surchargeReasons as $sr): ?>
+                <option value="<?= (int)$sr['id'] ?>" data-amount="<?= htmlspecialchars((string)$sr['default_amount']) ?>" data-percent="<?= htmlspecialchars((string)$sr['default_percent']) ?>"><?= htmlspecialchars($sr['name']) ?><?= (float)$sr['default_percent'] > 0 ? ' (' . rtrim(rtrim((string)$sr['default_percent'], '0'), '.') . '%)' : ((float)$sr['default_amount'] > 0 ? ' (K' . number_format((float)$sr['default_amount'], 2) . ')' : '') ?></option>
+                <?php endforeach; ?>
+                <option value="other">Other reason…</option>
+            </select>
+            <input type="number" step="0.01" min="0" name="surcharge_amount" id="surchargeInput" class="form-control" placeholder="0.00" style="max-width:120px" oninput="onSurchargeChange()">
+        </div>
+        <input type="text" name="surcharge_reason_other" id="surchargeOther" class="form-control mb-2" placeholder="Describe the surcharge (e.g. extra packaging)" style="display:none;">
+        <?php endif; ?>
         <div id="refundAuthSection" class="p-3 bg-dark rounded shadow-sm border border-danger mb-4" style="display:none;">
             <label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION REQUIRED</label>
             <label class="form-label small fw-bold text-white" for="rfdRsnCd">ZRA refund reason</label>
@@ -680,20 +716,57 @@ function getCategoryStyle($name) {
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" min="0" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" oninput="onTipChange()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= ($tier === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-        <div id="singleSection"><div class="mb-3"><select name="payment_method" class="form-select form-select-lg fw-bold"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option>
-        
+        <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option>
+        <?php if (!empty($flwEnabled)): ?>
+        <option value="Flutterwave">Flutterwave (Card / Mobile Money)<?= !empty($flwTestMode) ? ' — TEST' : '' ?></option>
+        <?php endif; ?>
         <?php if ($tier === 'enterprise'): ?>
         <option value="Online">Online Delivery App</option>
         <?php endif; ?>
 
-        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div></div>
+        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div>
+        <?php if (!empty($flwEnabled)): ?>
+        <div id="gatewayPanel" class="p-3 rounded border border-primary bg-light mb-3" style="display:none;">
+            <input type="hidden" name="gateway_tx_ref" id="gatewayTxRef" value="">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold text-primary"><i class="bi bi-credit-card-2-front"></i> Flutterwave<?= !empty($flwTestMode) ? ' <span class="badge bg-warning text-dark">TEST MODE</span>' : '' ?></span>
+                <span id="gatewayStatus" class="badge bg-secondary">Not started</span>
+            </div>
+            <div class="row g-2 align-items-end">
+                <div class="col-7"><label class="form-label small fw-bold text-muted mb-1">CUSTOMER PHONE</label><input type="tel" id="gwPhone" class="form-control" placeholder="097xxxxxxx" inputmode="tel"></div>
+                <div class="col-5"><label class="form-label small fw-bold text-muted mb-1">NETWORK</label><select id="gwNetwork" class="form-select no-search"><option value="MTN">MTN</option><option value="AIRTEL">Airtel</option><option value="ZAMTEL">Zamtel</option></select></div>
+                <div class="col-6"><button type="button" class="btn btn-primary w-100 fw-bold" id="gwMomoBtn" onclick="gatewayMomo()"><i class="bi bi-phone-vibrate"></i> Send MoMo prompt</button></div>
+                <div class="col-6"><button type="button" class="btn btn-outline-primary w-100 fw-bold" id="gwCardBtn" onclick="gatewayCard()"><i class="bi bi-credit-card"></i> Card / other</button></div>
+            </div>
+            <div class="small text-muted mt-2" id="gatewayHint">The customer approves on their phone, or pays in the Flutterwave window. The sale completes once Flutterwave confirms.</div>
+        </div>
+        <?php endif; ?>
+        </div>
         <div id="splitSection" style="display:none;" class="p-3 bg-light rounded border border-secondary mb-3">
             <label class="form-label small fw-bold text-dark mb-2"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT DETAILS</label>
             <div id="splitRows"></div>
             <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold mt-2" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add payment method</button>
             <div class="small text-muted mt-2">Choose a method or <strong>Other</strong> and type a custom name (bank transfer, cheque, voucher…).</div>
         </div>
-        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" inputmode="decimal" oninput="tenderedTouched = true; calcResult()" onkeyup="calcResult()"></div><div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div>
+        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" inputmode="decimal" oninput="tenderedTouched = true; clearForeignTender(); calcResult()" onkeyup="calcResult()"></div>
+            <?php if (!empty($fx['enabled']) && !empty($fx['rates'])): ?>
+            <div class="mt-2" id="fxTenderBox">
+                <a href="javascript:void(0)" class="small fw-bold text-decoration-none" onclick="toggleFxTender()"><i class="bi bi-currency-exchange"></i> Paying with foreign cash?</a>
+                <div class="row g-2 mt-1" id="fxTenderRow" style="display:none;">
+                    <div class="col-5"><select id="fxCurrency" class="form-select no-search" onchange="onFxTenderChange()">
+                        <?php foreach ($fx['rates'] as $code => $r): ?>
+                        <option value="<?= htmlspecialchars($code) ?>" data-zmw="<?= htmlspecialchars((string)$r['zmw_per_unit']) ?>"><?= htmlspecialchars($code) ?> · K<?= number_format((float)$r['zmw_per_unit'], 2) ?></option>
+                        <?php endforeach; ?>
+                    </select></div>
+                    <div class="col-7"><input type="number" step="0.01" min="0" id="fxAmount" class="form-control" placeholder="Foreign amount" inputmode="decimal" oninput="onFxTenderChange()"></div>
+                    <div class="col-12 small text-muted" id="fxTenderInfo">Enter the foreign amount; the kwacha equivalent fills in as tendered. Change is given in ZMW.</div>
+                </div>
+                <input type="hidden" name="tender_currency" id="tenderCurrency" value="">
+                <input type="hidden" name="tender_fx_amount" id="tenderFxAmount" value="">
+                <input type="hidden" name="tender_fx_rate" id="tenderFxRate" value="">
+            </div>
+            <?php endif; ?>
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top"><div class="small fw-bold text-uppercase text-muted" id="resultLabel">Change Due</div><div class="fs-4 fw-bold text-dark" id="resultValue">ZMW 0.00</div></div></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -705,6 +778,70 @@ function getCategoryStyle($name) {
 
     <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" class="js-confirm-form" data-swal-title="Authorize this payout?" data-swal-text="This amount is deducted from the expected drawer total immediately." data-swal-confirm="Authorize" data-swal-cancel="Cancel" data-swal-icon="warning" data-swal-confirm-color="#fd7e14"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This amount is deducted from the expected drawer total immediately.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
     
+    <div class="modal fade" id="tipModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+            <div class="modal-content border-0 shadow-lg border-top border-success border-4">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold text-dark"><i class="bi bi-piggy-bank text-success"></i> Tip a paid receipt</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3 p-md-4">
+                    <div class="alert alert-success small py-2 mb-3"><i class="bi bi-info-circle"></i> Use this when a guest leaves a tip <strong>after</strong> the bill was paid. The receipt and its ZRA invoice stay unchanged; the tip is credited to the staff member who served and, for cash, counted in this shift's drawer.</div>
+                    <label class="form-label small fw-bold text-muted mb-1">FIND THE RECEIPT</label>
+                    <div class="input-group mb-2">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" id="tipSearch" class="form-control" placeholder="Receipt #, ZRA no., customer, amount or staff…" autocomplete="off" oninput="tipSearchDebounced()">
+                    </div>
+                    <div id="tipResults" class="list-group mb-3 shadow-sm" style="max-height: 220px; overflow-y: auto;"></div>
+                    <div id="tipSelected" class="border rounded p-3 bg-light mb-3" style="display:none;">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div><div class="fw-bold fs-5" id="tipSelLabel"></div><div class="small text-muted" id="tipSelMeta"></div></div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTipReceipt()">Change</button>
+                        </div>
+                    </div>
+                    <form id="tipForm" onsubmit="return submitTip(event)">
+                        <input type="hidden" name="add_tip" value="1">
+                        <input type="hidden" name="ajax" value="1">
+                        <input type="hidden" name="tip_sale_id" id="tipSaleId" value="">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-5">
+                                <label class="form-label small fw-bold text-muted mb-1">TIP AMOUNT</label>
+                                <div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" min="0.01" name="tip_value" id="tipValue" class="form-control fw-bold text-success" required placeholder="0.00" inputmode="decimal"></div>
+                                <div class="btn-group w-100 mt-1" role="group">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="tipPercent(0.05)">5%</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="tipPercent(0.10)">10%</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="tipPercent(0.15)">15%</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="tipRoundUp()">Round up</button>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">PAID BY</label>
+                                <select name="tip_method" id="tipMethod" class="form-select no-search">
+                                    <?php foreach (($tipMethods ?? ['Cash']) as $m): ?><option value="<?= htmlspecialchars($m) ?>"><?= htmlspecialchars($m) ?></option><?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1">CREDIT TO</label>
+                                <?php if ($isManager && !empty($staffUsers)): ?>
+                                <select name="tip_staff_id" id="tipStaff" class="form-select" data-placeholder="Server on the receipt">
+                                    <option value="">Server on the receipt</option>
+                                    <?php foreach ($staffUsers as $su): ?><option value="<?= (int)$su['id'] ?>" data-role="<?= htmlspecialchars($su['role']) ?>" data-location="<?= htmlspecialchars((string)($su['location_name'] ?? '')) ?>"><?= htmlspecialchars($su['full_name'] ?: $su['username']) ?></option><?php endforeach; ?>
+                                </select>
+                                <?php else: ?>
+                                <input type="text" class="form-control" id="tipStaffReadonly" value="Server on the receipt" readonly>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-12">
+                                <input type="text" name="tip_note" class="form-control" placeholder="Note (optional) — e.g. table 4, birthday party">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 fw-bold py-3 mt-3 shadow-sm" id="tipSubmitBtn" disabled><i class="bi bi-check2-circle"></i> RECORD TIP</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="endShiftModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg border-top border-danger border-4">
@@ -770,6 +907,8 @@ function getCategoryStyle($name) {
 
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/pos-keyboard.js?v=5"></script>
+    <script src="vendor/tom-select/tom-select.complete.min.js"></script>
+    <script src="js/select-search.js?v=1"></script>
     <script>
         window.posCartBalance = <?= json_encode((float)($balance ?? 0)) ?>;
         function formatPosQty(qty) {
@@ -1074,7 +1213,7 @@ function getCategoryStyle($name) {
             });
         });
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
-        function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) onlineOpt.selected = true; } }); }
+        function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) { onlineOpt.selected = true; if (pmSelect.tomselect) pmSelect.tomselect.setValue(onlineOpt.value, true); } } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
         let currentCat = 'all';
         const subCategoriesMap = <?= json_encode($subCatsByParent) ?>;
@@ -1164,6 +1303,7 @@ function getCategoryStyle($name) {
             let nameInput = document.querySelector('[name="customer_name"]');
             if (!isTabMode) { baseTotal = window.posCartBalance || 0; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = <?= json_encode((string)($_SESSION['current_customer'] ?? 'Walk-in')) ?>; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
             currentTotal = baseTotal; tenderedTouched = false; document.getElementById('tipInput').value = '';
+            resetSurcharge(); resetGateway(); clearForeignTender(true);
             resetSplitRows();
             const checkoutForm = document.getElementById('checkoutForm');
             if (checkoutForm) checkoutForm.dataset.swalConfirmed = '';
@@ -1174,8 +1314,181 @@ function getCategoryStyle($name) {
         function openSettleModal(tabId, total, customerName, pt = 0) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('tabsModal', '', function() { initCheckout(true, total, customerName, pt, tabId); }); }
         function markCollected(itemId, saleId) { AppAlert.confirm({ title: 'Mark collected?', text: 'This item will be handed to the customer.', confirmText: 'Collected', cancelText: 'Cancel', icon: 'question', confirmColor: '#198754' }).then(function (ok) { if (!ok) return; fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'mark_collected=1&item_id=' + itemId }).then(r => r.json()).then(data => { if (data.status === 'success') { if (data.print_receipt) { document.getElementById('receiptFrame').src = "index.php?page=receipt&sale_id=" + data.sale_id + "&collection_only=" + data.item_id + "&_t=" + new Date().getTime(); safeModalShow('receiptModal'); } const activeRow = document.getElementById('tabDetailContainer').querySelector('#item-row-' + itemId); if(activeRow) activeRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; const templateRow = document.getElementById('hiddenTabTemplates').querySelector('#item-row-' + itemId); if(templateRow) templateRow.querySelector('.text-end').innerHTML = '<span class="badge bg-success">COLLECTED</span>'; } else if (data.status === 'redirect_pickup') { AppAlert.confirm({ icon: 'info', title: 'Collect at pickup', text: data.msg || 'This order is ready on the pickup screen.', confirmText: 'Open pickup', cancelText: 'Close' }).then((ok) => { if (ok) { switchModal('tabsModal', '', showPickupModal); } }); } else { AppAlert.notify({ icon: 'error', title: 'Unable to collect', text: data.msg || 'This action could not be completed.' }); } }); }); }
         function currentTip() { return parseFloat(document.getElementById('tipInput').value) || 0; }
-        function amountDue() { return currentTotal + currentTip(); }
+        function currentSurcharge() { const el = document.getElementById('surchargeInput'); if (!el || currentTotal < 0) return 0; return Math.max(0, parseFloat(el.value) || 0); }
+        function amountDue() { return currentTotal + currentTip() + currentSurcharge(); }
         function isSplitPay() { let el = document.getElementById('modeSplit'); return !!(el && el.checked); }
+
+        // ---- Surcharge (reasons managed in Settings → POS surcharges)
+        function resetSurcharge() {
+            const sel = document.getElementById('surchargeReason'); const amt = document.getElementById('surchargeInput'); const other = document.getElementById('surchargeOther');
+            if (!sel) return;
+            sel.value = ''; if (sel.tomselect) sel.tomselect.clear(true);
+            amt.value = ''; other.value = ''; other.style.display = 'none'; other.required = false;
+            document.getElementById('surchargeGroup').style.display = currentTotal < 0 ? 'none' : '';
+        }
+        function onSurchargeReasonChange() {
+            const sel = document.getElementById('surchargeReason'); const amt = document.getElementById('surchargeInput'); const other = document.getElementById('surchargeOther');
+            const opt = sel.options[sel.selectedIndex];
+            if (!sel.value) { amt.value = ''; other.style.display = 'none'; other.required = false; }
+            else if (sel.value === 'other') { other.style.display = ''; other.required = true; other.focus(); }
+            else {
+                other.style.display = 'none'; other.required = false;
+                const pct = parseFloat(opt.dataset.percent) || 0; const fixed = parseFloat(opt.dataset.amount) || 0;
+                amt.value = pct > 0 ? (Math.max(0, currentTotal) * pct / 100).toFixed(2) : (fixed > 0 ? fixed.toFixed(2) : amt.value);
+                if (!amt.value) amt.focus();
+            }
+            tenderedTouched = false; updateDisplays();
+        }
+        function onSurchargeChange() {
+            const sel = document.getElementById('surchargeReason');
+            if (currentSurcharge() > 0 && !sel.value) { sel.value = 'other'; if (sel.tomselect) sel.tomselect.setValue('other', true); onSurchargeReasonChange(); return; }
+            tenderedTouched = false; updateDisplays();
+        }
+
+        // ---- Live currency display + foreign cash tender
+        const fxRates = <?= json_encode(array_map(fn($r) => (float)$r['zmw_per_unit'], ($fx['rates'] ?? []))) ?>;
+        function renderFx(due) {
+            const box = document.getElementById('fxDisplay'); if (!box) return;
+            const parts = [];
+            Object.keys(fxRates).slice(0, 4).forEach(function (code) { const z = fxRates[code]; if (z > 0) parts.push('≈ ' + code + ' ' + (Math.max(0, due) / z).toFixed(2)); });
+            box.textContent = parts.join('   ·   ');
+        }
+        function toggleFxTender() { const row = document.getElementById('fxTenderRow'); if (!row) return; row.style.display = row.style.display === 'none' ? '' : 'none'; if (row.style.display === '') { document.getElementById('fxAmount').focus(); } else { clearForeignTender(true); updateDisplays(); } }
+        function onFxTenderChange() {
+            const sel = document.getElementById('fxCurrency'); const amt = parseFloat(document.getElementById('fxAmount').value) || 0;
+            const z = parseFloat(sel.options[sel.selectedIndex].dataset.zmw) || 0;
+            const info = document.getElementById('fxTenderInfo');
+            if (amt <= 0 || z <= 0) { clearForeignTender(); info.textContent = 'Enter the foreign amount; the kwacha equivalent fills in as tendered. Change is given in ZMW.'; calcResult(); return; }
+            const zmw = Math.round(amt * z * 100) / 100;
+            document.getElementById('tenderedInput').value = zmw.toFixed(2); tenderedTouched = true;
+            document.getElementById('tenderCurrency').value = sel.value; document.getElementById('tenderFxAmount').value = amt.toFixed(2); document.getElementById('tenderFxRate').value = z;
+            const due = amountDue(); const need = Math.max(0, due - zmw);
+            info.innerHTML = sel.value + ' ' + amt.toFixed(2) + ' × K' + z.toFixed(4) + ' = <strong>ZMW ' + zmw.toFixed(2) + '</strong>' + (need > 0 ? ' · still short by ZMW ' + need.toFixed(2) + ' (≈ ' + sel.value + ' ' + (need / z).toFixed(2) + ')' : '');
+            calcResult();
+        }
+        function clearForeignTender(hideRow) {
+            ['tenderCurrency', 'tenderFxAmount', 'tenderFxRate'].forEach(function (id) { const el = document.getElementById(id); if (el) el.value = ''; });
+            if (hideRow) { const row = document.getElementById('fxTenderRow'); if (row) row.style.display = 'none'; const a = document.getElementById('fxAmount'); if (a) a.value = ''; }
+        }
+
+        // ---- Flutterwave gateway (hosted checkout popup or mobile money push)
+        let gwPollTimer = null;
+        function resetGateway() {
+            const panel = document.getElementById('gatewayPanel'); if (!panel) return;
+            panel.style.display = 'none'; document.getElementById('gatewayTxRef').value = '';
+            setGatewayStatus('Not started', 'secondary'); if (gwPollTimer) { clearInterval(gwPollTimer); gwPollTimer = null; }
+            document.getElementById('gwMomoBtn').disabled = false; document.getElementById('gwCardBtn').disabled = false;
+            const btn = document.getElementById('btnCheckoutSubmit'); if (btn) btn.disabled = false;
+        }
+        function setGatewayStatus(text, color) { const b = document.getElementById('gatewayStatus'); if (b) { b.textContent = text; b.className = 'badge bg-' + color; } }
+        function onPaymentMethodChange() {
+            const pm = document.getElementById('paymentMethodSelect').value; const panel = document.getElementById('gatewayPanel');
+            if (panel) {
+                if (pm === 'Flutterwave') {
+                    panel.style.display = ''; document.getElementById('tenderedInput').value = amountDue().toFixed(2); tenderedTouched = true;
+                    const btn = document.getElementById('btnCheckoutSubmit'); if (btn && !document.getElementById('gatewayTxRef').value) btn.disabled = true;
+                    const ph = document.getElementById('gwPhone'); if (ph && !ph.value) ph.focus();
+                } else { resetGateway(); tenderedTouched = false; }
+            }
+            calcResult();
+        }
+        function gatewayPost(action, data) {
+            const body = new URLSearchParams(data);
+            return fetch('index.php?page=flutterwave&action=' + action, { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: body }).then(r => r.json());
+        }
+        function gatewayMomo() {
+            const phone = document.getElementById('gwPhone').value.trim(); const network = document.getElementById('gwNetwork').value;
+            if (phone.replace(/\D/g, '').length < 9) { AppAlert.notify({ icon: 'warning', text: 'Enter the customer\'s mobile money number first.' }); return; }
+            document.getElementById('gwMomoBtn').disabled = true; setGatewayStatus('Sending prompt…', 'info');
+            gatewayPost('momo', { amount: amountDue().toFixed(2), phone: phone, network: network, name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
+                if (res.status !== 'ok') { setGatewayStatus('Failed', 'danger'); document.getElementById('gwMomoBtn').disabled = false; AppAlert.notify({ icon: 'error', text: res.msg || 'Could not start the mobile money payment.' }); return; }
+                document.getElementById('gatewayTxRef').value = res.tx_ref;
+                document.getElementById('gatewayHint').textContent = res.message || 'Prompt sent. Ask the customer to approve on their phone.';
+                if (res.redirect) { window.open(res.redirect, 'flwpay', 'width=520,height=720'); }
+                setGatewayStatus('Waiting for customer…', 'warning'); startGatewayPoll(res.tx_ref);
+            }).catch(function () { setGatewayStatus('Failed', 'danger'); document.getElementById('gwMomoBtn').disabled = false; });
+        }
+        function gatewayCard() {
+            document.getElementById('gwCardBtn').disabled = true; setGatewayStatus('Opening checkout…', 'info');
+            const popup = window.open('', 'flwpay', 'width=520,height=720');
+            gatewayPost('init', { amount: amountDue().toFixed(2), phone: document.getElementById('gwPhone').value.trim(), name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
+                if (res.status !== 'ok') { if (popup) popup.close(); setGatewayStatus('Failed', 'danger'); document.getElementById('gwCardBtn').disabled = false; AppAlert.notify({ icon: 'error', text: res.msg || 'Could not open Flutterwave checkout.' }); return; }
+                document.getElementById('gatewayTxRef').value = res.tx_ref;
+                if (popup) popup.location.href = res.link; else window.open(res.link, 'flwpay');
+                setGatewayStatus('Waiting for payment…', 'warning'); startGatewayPoll(res.tx_ref);
+            }).catch(function () { if (popup) popup.close(); setGatewayStatus('Failed', 'danger'); document.getElementById('gwCardBtn').disabled = false; });
+        }
+        function startGatewayPoll(txRef) {
+            if (gwPollTimer) clearInterval(gwPollTimer);
+            let ticks = 0;
+            gwPollTimer = setInterval(function () {
+                ticks++;
+                fetch('index.php?page=flutterwave&action=status&tx_ref=' + encodeURIComponent(txRef), { credentials: 'same-origin' }).then(r => r.json()).then(function (res) {
+                    if (res.payment_status === 'successful') { gatewayConfirmed(txRef, res.amount); }
+                    else if (res.payment_status === 'failed') { clearInterval(gwPollTimer); gwPollTimer = null; setGatewayStatus('Declined', 'danger'); document.getElementById('gwMomoBtn').disabled = false; document.getElementById('gwCardBtn').disabled = false; AppAlert.notify({ icon: 'error', text: 'Flutterwave reported the payment as failed. Try again or take another payment method.' }); }
+                    else if (ticks > 90) { clearInterval(gwPollTimer); gwPollTimer = null; setGatewayStatus('Timed out', 'secondary'); document.getElementById('gwMomoBtn').disabled = false; document.getElementById('gwCardBtn').disabled = false; }
+                }).catch(function () {});
+            }, 4000);
+        }
+        function gatewayConfirmed(txRef, amount) {
+            if (gwPollTimer) { clearInterval(gwPollTimer); gwPollTimer = null; }
+            document.getElementById('gatewayTxRef').value = txRef;
+            setGatewayStatus('Paid ZMW ' + Number(amount || amountDue()).toFixed(2), 'success');
+            document.getElementById('gatewayHint').innerHTML = '<span class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Flutterwave confirmed the payment. Tap COMPLETE TRANSACTION to finish the receipt.</span>';
+            const btn = document.getElementById('btnCheckoutSubmit'); if (btn) btn.disabled = false;
+            document.getElementById('tenderedInput').value = amountDue().toFixed(2); calcResult();
+        }
+        window.addEventListener('message', function (ev) {
+            const d = ev.data || {};
+            if (d.type !== 'flw_payment' || !d.tx_ref) return;
+            if (d.status === 'successful') gatewayConfirmed(d.tx_ref, d.amount);
+            else if (d.status === 'failed') { setGatewayStatus('Declined', 'danger'); document.getElementById('gwCardBtn').disabled = false; document.getElementById('gwMomoBtn').disabled = false; }
+        });
+
+        // ---- Post-payment tips
+        let tipSearchTimer = null; let tipSelectedReceipt = null;
+        function openTipModal() { tipSelectedReceipt = null; clearTipReceipt(); document.getElementById('tipSearch').value = ''; document.getElementById('tipValue').value = ''; safeModalShow('tipModal'); tipSearchNow(); }
+        function tipSearchDebounced() { clearTimeout(tipSearchTimer); tipSearchTimer = setTimeout(tipSearchNow, 250); }
+        function tipSearchNow() {
+            const q = document.getElementById('tipSearch').value.trim();
+            const box = document.getElementById('tipResults'); box.innerHTML = '<div class="list-group-item small text-muted">Searching…</div>';
+            fetch('index.php?page=pos', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' }, body: 'lookup_tip_receipts=1&ajax=1&q=' + encodeURIComponent(q) })
+                .then(r => r.json()).then(function (res) {
+                    const rows = (res && res.receipts) || [];
+                    if (!rows.length) { box.innerHTML = '<div class="list-group-item small text-muted">No paid receipts match. Try the receipt number or the customer name.</div>'; return; }
+                    box.innerHTML = rows.map(function (r) {
+                        return '<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" onclick=\'selectTipReceipt(' + JSON.stringify(r).replace(/\'/g, '&#39;') + ')\'>'
+                            + '<div><div class="fw-bold">' + r.label + ' <span class="fw-normal text-muted">· ' + (r.customer || 'Walk-in') + '</span></div><div class="small text-muted">' + r.time + ' · ' + r.method + ' · served by ' + (r.staff || '—') + (r.tips_so_far > 0 ? ' · tipped K' + r.tips_so_far.toFixed(2) + ' already' : '') + '</div></div>'
+                            + '<span class="fw-bold">K' + r.total.toFixed(2) + '</span></button>';
+                    }).join('');
+                }).catch(function () { box.innerHTML = '<div class="list-group-item small text-danger">Could not load receipts.</div>'; });
+        }
+        function selectTipReceipt(r) {
+            tipSelectedReceipt = r;
+            document.getElementById('tipSaleId').value = r.id;
+            document.getElementById('tipSelLabel').textContent = r.label + ' · K' + r.total.toFixed(2);
+            document.getElementById('tipSelMeta').textContent = (r.customer || 'Walk-in') + ' · ' + r.time + ' · ' + r.method + ' · served by ' + (r.staff || '—');
+            document.getElementById('tipSelected').style.display = ''; document.getElementById('tipResults').style.display = 'none';
+            document.getElementById('tipSubmitBtn').disabled = false;
+            const staffSel = document.getElementById('tipStaff'); if (staffSel) { staffSel.value = ''; if (staffSel.tomselect) staffSel.tomselect.clear(true); }
+            document.getElementById('tipValue').focus();
+        }
+        function clearTipReceipt() { tipSelectedReceipt = null; document.getElementById('tipSaleId').value = ''; document.getElementById('tipSelected').style.display = 'none'; document.getElementById('tipResults').style.display = ''; document.getElementById('tipSubmitBtn').disabled = true; }
+        function tipPercent(p) { if (!tipSelectedReceipt) return; document.getElementById('tipValue').value = (tipSelectedReceipt.total * p).toFixed(2); }
+        function tipRoundUp() { if (!tipSelectedReceipt) return; const t = tipSelectedReceipt.total; const up = Math.ceil(t / 10) * 10; document.getElementById('tipValue').value = Math.max(0, up - t).toFixed(2); }
+        function submitTip(e) {
+            e.preventDefault();
+            if (!tipSelectedReceipt) { AppAlert.notify({ icon: 'warning', text: 'Pick the receipt first.' }); return false; }
+            const form = document.getElementById('tipForm'); const btn = document.getElementById('tipSubmitBtn'); btn.disabled = true;
+            fetch('index.php?page=pos', { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: new FormData(form) }).then(r => r.json()).then(function (res) {
+                btn.disabled = false;
+                if (!res || res.status !== 'ok') { AppAlert.notify({ icon: 'error', text: (res && res.msg) || 'Unable to record the tip.' }); return; }
+                const m = bootstrap.Modal.getInstance(document.getElementById('tipModal')); if (m) m.hide();
+                AppAlert.notify({ icon: 'success', text: res.msg });
+                refreshPosPanels();
+            }).catch(function () { btn.disabled = false; AppAlert.notify({ icon: 'error', text: 'Unable to record the tip.' }); });
+            return false;
+        }
         function toggleDiscount() { let chk = document.getElementById('discountToggle'); if(chk && chk.checked) { currentTotal = baseTotal * 0.90; document.getElementById('discountLabel').style.display = 'block'; } else { currentTotal = baseTotal; document.getElementById('discountLabel').style.display = 'none'; } tenderedTouched = false; updateDisplays(); }
         function updateDisplays() {
             let due = amountDue();
@@ -1183,6 +1496,8 @@ function getCategoryStyle($name) {
             if (!isSplitPay() && !tenderedTouched) {
                 document.getElementById('tenderedInput').value = due.toFixed(2);
             }
+            renderFx(due);
+            const fxAmt = document.getElementById('fxAmount'); if (fxAmt && fxAmt.value) onFxTenderChange();
             calcResult();
         }
         function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); document.getElementById('tenderedInput').value = "0.00"; tenderedTouched = true; } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); } calcResult(); }

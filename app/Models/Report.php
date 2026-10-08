@@ -15,6 +15,64 @@ final class Report extends Model
         return $stmt->fetch() ?: [];
     }
 
+    /**
+     * Tips per staff member (on the receipt + after payment) and surcharges by reason.
+     * @return array{staff: array, surcharges: array, totals: array}
+     */
+    public static function tipsAndSurcharges(string $start, string $end, $locationId): array
+    {
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        $staff = [];
+        $stmt = self::db()->prepare(
+            "SELECT s.user_id, COALESCE(u.full_name, u.username, 'Unknown') AS staff, COUNT(*) AS receipts,
+                    COALESCE(SUM(s.tip_amount), 0) AS receipt_tips
+             FROM sales s LEFT JOIN users u ON u.id = s.user_id
+             WHERE s.created_at BETWEEN ? AND ?" . $locSql . " AND s.payment_status = 'paid'
+             GROUP BY s.user_id, u.full_name, u.username"
+        );
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll() as $r) {
+            $staff[(int)$r['user_id']] = ['staff' => $r['staff'], 'receipts' => (int)$r['receipts'], 'receipt_tips' => (float)$r['receipt_tips'], 'post_tips' => 0.0, 'post_count' => 0, 'post_cash' => 0.0];
+        }
+        $tips = Tip::forRange(substr($start, 0, 10), substr($end, 0, 10), (int)$locationId);
+        foreach ($tips['rows'] as $t) {
+            $uid = (int)($t['staff_user_id'] ?? 0);
+            if (!isset($staff[$uid])) {
+                $staff[$uid] = ['staff' => $t['staff_name'] ?? ($t['staff_username'] ?? 'Unassigned'), 'receipts' => 0, 'receipt_tips' => 0.0, 'post_tips' => 0.0, 'post_count' => 0, 'post_cash' => 0.0];
+            }
+            $staff[$uid]['post_tips'] += (float)$t['amount'];
+            $staff[$uid]['post_count']++;
+            if (strtolower((string)$t['payment_method']) === 'cash') {
+                $staff[$uid]['post_cash'] += (float)$t['amount'];
+            }
+        }
+        foreach ($staff as &$row) {
+            $row['total'] = $row['receipt_tips'] + $row['post_tips'];
+        }
+        unset($row);
+        usort($staff, fn($a, $b) => $b['total'] <=> $a['total']);
+
+        $sc = self::db()->prepare(
+            "SELECT COALESCE(NULLIF(surcharge_reason, ''), 'Unspecified') AS reason, COUNT(*) AS cnt, SUM(surcharge_amount) AS total
+             FROM sales s WHERE created_at BETWEEN ? AND ?" . $locSql . " AND payment_status = 'paid' AND surcharge_amount > 0
+             GROUP BY reason ORDER BY total DESC"
+        );
+        $sc->execute($params);
+        $surcharges = $sc->fetchAll();
+
+        return [
+            'staff' => $staff,
+            'surcharges' => $surcharges,
+            'totals' => [
+                'receipt_tips' => array_sum(array_column($staff, 'receipt_tips')),
+                'post_tips' => $tips['total'],
+                'post_cash' => $tips['cash'],
+                'surcharges' => array_sum(array_map(fn($r) => (float)$r['total'], $surcharges)),
+                'surcharge_count' => array_sum(array_map(fn($r) => (int)$r['cnt'], $surcharges)),
+            ],
+        ];
+    }
+
     public static function refundStats(string $start, string $end, $locationId): array
     {
         [$params, $locSql] = self::rangeParams($start, $end, $locationId);
@@ -157,11 +215,15 @@ final class Report extends Model
         $grossItemSales = array_sum(array_column($productBreakdown, 'amount'));
 
         $stmt = $pdo->prepare(
-            "SELECT COUNT(id) as total_transactions, SUM(subtotal) as net_sales, SUM(tip_amount) as total_tips, SUM(final_total) as total_collected
+            "SELECT COUNT(id) as total_transactions, SUM(subtotal) as net_sales, SUM(tip_amount) as total_tips, SUM(final_total) as total_collected,
+                    COALESCE(SUM(surcharge_amount), 0) as total_surcharges
              FROM sales WHERE created_at >= ? AND created_at <= ? AND location_id = ? AND payment_status = 'paid'"
         );
         $stmt->execute($params);
         $metrics = $stmt->fetch();
+        $postTips = Tip::forRange(substr((string)$params[0], 0, 10), substr((string)$params[1], 0, 10), (int)$params[2]);
+        $metrics['post_tips'] = $postTips['total'];
+        $metrics['post_tips_cash'] = $postTips['cash'];
 
         $stmt = $pdo->prepare(
             'SELECT payment_method, final_total, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2, split_payments
@@ -227,6 +289,7 @@ final class Report extends Model
             'paymentMethods' => $paymentMethods,
             'categoriesBreakdown' => $categoriesBreakdown,
             'expenses' => $expenses,
+            'postTips' => $postTips,
         ];
     }
 
@@ -314,6 +377,23 @@ final class Report extends Model
         );
         $stmt->execute([$shiftId]);
 
+        $productBreakdown = $stmt->fetchAll();
+
+        $surcharges = ['total' => 0.0, 'count' => 0, 'by_reason' => []];
+        try {
+            $sc = self::db()->prepare(
+                "SELECT COALESCE(surcharge_reason, 'Surcharge') AS reason, SUM(surcharge_amount) AS amount, COUNT(*) AS cnt
+                 FROM sales WHERE shift_id = ? AND payment_status = 'paid' AND surcharge_amount > 0 GROUP BY surcharge_reason ORDER BY amount DESC"
+            );
+            $sc->execute([$shiftId]);
+            foreach ($sc->fetchAll() as $row) {
+                $surcharges['by_reason'][] = $row;
+                $surcharges['total'] += (float)$row['amount'];
+                $surcharges['count'] += (int)$row['cnt'];
+            }
+        } catch (\Throwable $e) {
+        }
+
         return [
             'paymentBreakdown' => $paymentBreakdown,
             'grandTotal' => $grandTotal,
@@ -321,7 +401,9 @@ final class Report extends Model
             'expenses' => $expenses,
             'totalExpenses' => $totalExpenses,
             'categoriesBreakdown' => $categoriesBreakdown,
-            'productBreakdown' => $stmt->fetchAll(),
+            'productBreakdown' => $productBreakdown,
+            'postTips' => Tip::forShift($shiftId),
+            'surcharges' => $surcharges,
         ];
     }
 

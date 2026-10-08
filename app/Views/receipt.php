@@ -11,7 +11,12 @@ $displayTotal = 0;
 foreach($items as $i) { $displayTotal += ($i['price'] * $i['quantity']); }
 $previousBalance = $sale['final_total'] - $displayTotal;
 $tipAmt = (float)($sale['tip_amount'] ?? 0);
-$calcDisc = ($displayTotal + $tipAmt) - (float)$sale['final_total'];
+$surchargeAmt = (float)($sale['surcharge_amount'] ?? 0);
+$surchargeReason = (string)($sale['surcharge_reason'] ?? '');
+$postTips = [];
+try { $postTips = \App\Models\Tip::forSale((int)$sale['id']); } catch (\Throwable $e) { $postTips = []; }
+$postTipTotal = array_sum(array_map(fn($t) => (float)$t['amount'], $postTips));
+$calcDisc = ($displayTotal + $tipAmt + $surchargeAmt) - (float)$sale['final_total'];
 if ($calcDisc < 0.01) {
     $calcDisc = 0;
 }
@@ -35,7 +40,7 @@ foreach ($items as $i) {
         $vatSplit['exempt'] += $incl;
     }
 }
-$stdIncl += $tipAmt;
+$stdIncl += $tipAmt + $surchargeAmt;
 $vatSplit['vat'] = round($stdIncl - ($stdIncl / 1.16), 2);
 $vatSplit['excl'] = round($stdIncl - $vatSplit['vat'] + $vatSplit['zero'] + $vatSplit['exempt'], 2);
 $vatSplit['zero'] = round($vatSplit['zero'], 2);
@@ -191,6 +196,9 @@ if ($isIncremental) {
                         <?php if ($vatSplit['exempt'] > 0.004): ?>
                         <tr><td class="small">Incl. exempt:</td><td class="amount"><?= number_format($vatSplit['exempt'], 2) ?></td></tr>
                         <?php endif; ?>
+                        <?php if($surchargeAmt > 0): ?>
+                        <tr><td>Incl. surcharge<?= $surchargeReason !== '' ? ' (' . htmlspecialchars($surchargeReason) . ')' : '' ?>:</td><td class="amount"><?= number_format($surchargeAmt, 2) ?></td></tr>
+                        <?php endif; ?>
                         <?php if($tipAmt > 0): ?>
                         <tr><td>Incl. tip/service:</td><td class="amount"><?= number_format($tipAmt, 2) ?></td></tr>
                         <?php endif; ?>
@@ -214,8 +222,17 @@ if ($isIncremental) {
                     <tr><td>Paid Via:</td><td class="amount fw-bold"><?= htmlspecialchars($sale['payment_method']) ?></td></tr>
                     <?php endif; ?>
                     <?php if(isset($sale['amount_tendered']) && $sale['amount_tendered'] > 0 && (stripos($sale['payment_method'], 'cash') !== false || $sale['payment_method'] === 'Split')): ?>
+                    <?php if(!empty($sale['tender_currency']) && (float)($sale['tender_fx_amount'] ?? 0) > 0): ?>
+                    <tr><td>Foreign cash:</td><td class="amount"><?= htmlspecialchars($sale['tender_currency']) ?> <?= number_format((float)$sale['tender_fx_amount'], 2) ?> @ <?= number_format((float)$sale['tender_fx_rate'], 4) ?></td></tr>
+                    <?php endif; ?>
                     <tr><td>Tendered:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>
                     <tr><td>Change:</td><td class="amount fw-bold">ZMW <?= number_format($sale['change_due'], 2) ?></td></tr>
+                    <?php endif; ?>
+                    <?php if(!empty($sale['gateway_ref'])): ?>
+                    <tr><td>Gateway ref:</td><td class="amount small"><?= htmlspecialchars($sale['gateway_ref']) ?></td></tr>
+                    <?php endif; ?>
+                    <?php if($postTipTotal > 0): ?>
+                    <tr><td>Tip after payment:</td><td class="amount fw-bold">ZMW <?= number_format($postTipTotal, 2) ?></td></tr>
                     <?php endif; ?>
                     <?php if($sale['payment_status'] === 'pending' && $sale['amount_tendered'] > 0): ?>
                     <tr><td>Paid So Far:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>

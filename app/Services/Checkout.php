@@ -32,6 +32,15 @@ final class Checkout
         [$sm1, $sa1, $sm2, $sa2] = splitLegacyPair($splitLegs);
         $splitJson = $splitLegs ? json_encode($splitLegs) : null;
         $amountTendered = isset($post['amount_tendered']) ? (float)$post['amount_tendered'] : 0;
+        [$surcharge, $surchargeReason] = $this->resolveSurcharge($post);
+        $gatewayTxRef = trim((string)($post['gateway_tx_ref'] ?? ''));
+        $gateway = null;
+        if ($pm === 'Flutterwave') {
+            if ($gatewayTxRef === '') {
+                throw new \Exception('Take the Flutterwave payment first, then complete the sale.');
+            }
+            $gateway = new Flutterwave($this->pdo);
+        }
 
         if ($settleTabId > 0) {
             $stmtCheckOnline = $this->pdo->prepare("SELECT split_group_id FROM sales WHERE id = ?");
@@ -59,7 +68,22 @@ final class Checkout
         if (isset($post['apply_discount']) && $post['apply_discount'] == '1') {
             $checkTotal *= 0.9;
         }
-        $checkTotal += $tip;
+        if ($checkTotal < 0) {
+            $surcharge = 0.0;
+            $surchargeReason = null;
+        }
+        $checkTotal += $tip + $surcharge;
+
+        if ($gateway !== null) {
+            $tx = $gateway->verify($gatewayTxRef);
+            if (($tx['status'] ?? '') !== 'successful') {
+                throw new \Exception('Flutterwave has not confirmed payment ' . $gatewayTxRef . ' yet (' . ($tx['status'] ?? 'unknown') . '). Wait for the customer to approve, then try again.');
+            }
+            if ((float)$tx['amount'] + 0.005 < $checkTotal) {
+                throw new \Exception('The Flutterwave payment (ZMW ' . number_format((float)$tx['amount'], 2) . ') is less than the amount due.');
+            }
+            $amountTendered = $checkTotal;
+        }
 
         $rfdRsnCd = $checkTotal < 0
             ? \ZraVsdcClient::normalizeRefundReasonCode((string)($post['rfd_rsn_cd'] ?? '07'))
@@ -80,9 +104,14 @@ final class Checkout
         }
 
         if ($settleTabId > 0) {
-            $this->settleTab($post, $session, $shiftId, $settleTabId, $tip, $pm, $amountTendered, $sm1, $sa1, $sm2, $sa2, $splitJson, $fiscalizeAfterCommit);
+            $this->settleTab($post, $session, $shiftId, $settleTabId, $tip, $pm, $amountTendered, $sm1, $sa1, $sm2, $sa2, $splitJson, $fiscalizeAfterCommit, $surcharge, $surchargeReason);
         } else {
-            $this->newSale($post, $session, $shiftId, $locationId, $userId, $tip, $pm, $amountTendered, $sm1, $sa1, $sm2, $sa2, $splitJson, $fiscalizeAfterCommit, $clearCartAfterCommit);
+            $this->newSale($post, $session, $shiftId, $locationId, $userId, $tip, $pm, $amountTendered, $sm1, $sa1, $sm2, $sa2, $splitJson, $fiscalizeAfterCommit, $clearCartAfterCommit, $surcharge, $surchargeReason);
+        }
+
+        $savedSaleId = (int)($session['completed_sale_id'] ?? 0);
+        if ($savedSaleId > 0) {
+            $this->storeTenderExtras($post, $savedSaleId, $gateway, $gatewayTxRef, $checkTotal);
         }
 
         if ($rfdRsnCd !== '' && $fiscalizeAfterCommit > 0) {
@@ -118,7 +147,9 @@ final class Checkout
         $sm2,
         $sa2,
         $splitJson,
-        int &$fiscalizeAfterCommit
+        int &$fiscalizeAfterCommit,
+        float $surcharge = 0.0,
+        ?string $surchargeReason = null
     ): void {
         $stmtOrig = $this->pdo->prepare("SELECT split_group_id FROM sales WHERE id = ?");
         $stmtOrig->execute([$settleTabId]);
@@ -131,7 +162,7 @@ final class Checkout
         if (isset($post['apply_discount']) && $post['apply_discount'] == '1') {
             $total *= 0.9;
         }
-        $finalTotal = $total + $tip;
+        $finalTotal = $total + $tip + $surcharge;
         $stmtPT = $this->pdo->prepare("SELECT amount_tendered FROM sales WHERE id = ?");
         $stmtPT->execute([$settleTabId]);
         $prevTendered = (float)$stmtPT->fetchColumn();
@@ -141,8 +172,8 @@ final class Checkout
         $saleStatus = ($status === 'paid') ? 'completed' : 'pending';
         $changeDue = ($cumulativeTendered > $finalTotal) ? ($cumulativeTendered - $finalTotal) : 0;
 
-        $this->pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ?, split_payments = ? WHERE id = ?")
-            ->execute([$shiftId, $saleStatus, $total, $tip, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $splitJson, $settleTabId]);
+        $this->pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, surcharge_amount = ?, surcharge_reason = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ?, split_payments = ? WHERE id = ?")
+            ->execute([$shiftId, $saleStatus, $total, $tip, $surcharge, $surchargeReason, $finalTotal, $pm, $status, $cumulativeTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $splitJson, $settleTabId]);
 
         if ($saleStatus === 'completed') {
             $this->pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$settleTabId]);
@@ -193,7 +224,9 @@ final class Checkout
         $sa2,
         $splitJson,
         int &$fiscalizeAfterCommit,
-        bool &$clearCartAfterCommit
+        bool &$clearCartAfterCommit,
+        float $surcharge = 0.0,
+        ?string $surchargeReason = null
     ): void {
         if (empty($session['cart']) || !is_array($session['cart'])) {
             throw new \Exception("The cart is empty.");
@@ -205,13 +238,13 @@ final class Checkout
         if (isset($post['apply_discount']) && $post['apply_discount'] == '1') {
             $total *= 0.9;
         }
-        $finalTotal = $total + $tip;
+        $finalTotal = $total + $tip + $surcharge;
         $customerName = $post['customer_name'] ?? 'Walk-in';
 
         $status = ($amountTendered >= $finalTotal && $pm !== 'Pending') ? 'paid' : 'pending';
         $changeDue = ($amountTendered > $finalTotal) ? ($amountTendered - $finalTotal) : 0;
-        $stmt = $this->pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2, split_payments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$locationId, $userId, $shiftId, $total, $tip, $finalTotal, $pm, $status, $customerName, $amountTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $splitJson]);
+        $stmt = $this->pdo->prepare("INSERT INTO sales (location_id, user_id, shift_id, subtotal, tip_amount, surcharge_amount, surcharge_reason, final_total, payment_method, payment_status, customer_name, amount_tendered, change_due, split_method_1, split_amount_1, split_method_2, split_amount_2, split_payments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$locationId, $userId, $shiftId, $total, $tip, $surcharge, $surchargeReason, $finalTotal, $pm, $status, $customerName, $amountTendered, $changeDue, $sm1, $sa1, $sm2, $sa2, $splitJson]);
         $saleId = $this->pdo->lastInsertId();
 
         foreach ($session['cart'] as $item) {
@@ -284,6 +317,57 @@ final class Checkout
         }
         $session['swal_type'] = 'success';
         $session['swal_msg'] = "Transaction complete.";
+    }
+
+    /** @return array{0: float, 1: ?string} */
+    private function resolveSurcharge(array $post): array
+    {
+        $amount = round(max(0, (float)($post['surcharge_amount'] ?? 0)), 2);
+        if ($amount <= 0) {
+            return [0.0, null];
+        }
+        $reason = '';
+        $reasonId = (int)($post['surcharge_reason_id'] ?? 0);
+        if ($reasonId > 0) {
+            $row = \App\Models\SurchargeReason::find($reasonId);
+            $reason = $row ? (string)$row['name'] : '';
+        }
+        if ($reason === '') {
+            $reason = trim((string)($post['surcharge_reason_other'] ?? $post['surcharge_reason'] ?? ''));
+        }
+        if ($reason === '') {
+            throw new \Exception('Choose a reason for the surcharge.');
+        }
+        return [$amount, mb_substr($reason, 0, 120)];
+    }
+
+    private function storeTenderExtras(array $post, int $saleId, ?Flutterwave $gateway, string $gatewayTxRef, float $due): void
+    {
+        $cur = strtoupper(trim((string)($post['tender_currency'] ?? '')));
+        $fxAmount = (float)($post['tender_fx_amount'] ?? 0);
+        $fxRate = (float)($post['tender_fx_rate'] ?? 0);
+        $gatewayRef = null;
+        if ($gateway !== null && $gatewayTxRef !== '') {
+            $tx = $gateway->claimForSale($gatewayTxRef, $due, $saleId);
+            $gatewayRef = $gatewayTxRef . (!empty($tx['flw_ref']) ? ' / ' . $tx['flw_ref'] : '');
+        }
+        $hasFx = preg_match('/^[A-Z]{3}$/', $cur) && $cur !== 'ZMW' && $fxAmount > 0 && $fxRate > 0;
+        if (!$hasFx && $gatewayRef === null) {
+            return;
+        }
+        try {
+            $this->pdo->prepare(
+                'UPDATE sales SET tender_currency = ?, tender_fx_amount = ?, tender_fx_rate = ?, gateway_ref = COALESCE(?, gateway_ref) WHERE id = ?'
+            )->execute([
+                $hasFx ? $cur : null,
+                $hasFx ? round($fxAmount, 2) : null,
+                $hasFx ? round($fxRate, 6) : null,
+                $gatewayRef,
+                $saleId,
+            ]);
+        } catch (\Throwable $e) {
+            // columns are added by Schema::ensure on the next request
+        }
     }
 
     private function prepareOriginalInvoicesForRefund(array $session): void

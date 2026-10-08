@@ -582,6 +582,7 @@ class ZraVsdcClient
             return ['resultCd' => 'skipped', 'resultMsg' => 'No fiscalizable line items'];
         }
         $saleItems = $this->appendTipLine($saleData, $saleItems);
+        $saleItems = $this->appendSurchargeLine($saleData, $saleItems);
         if (abs((float)$saleData['final_total']) < 0.005 && !$this->linesAreRefund($saleItems)) {
             $this->markSaleSkipped($saleId, 'Zero-value sale is not sent to ZRA');
             return ['resultCd' => 'skipped', 'resultMsg' => 'Zero-value sale is not sent to ZRA'];
@@ -1287,30 +1288,43 @@ class ZraVsdcClient
     private function appendTipLine(array $sale, array $items): array
     {
         $tip = round(abs((float)($sale['tip_amount'] ?? 0)), 2);
-        if ($tip < 0.01) {
+        return $this->appendServiceLine($items, 'ZRA-TIP', 'Tip / Service charge', $tip);
+    }
+
+    /** Surcharges (packaging, delivery, corkage…) are a taxable service line on the invoice. */
+    private function appendSurchargeLine(array $sale, array $items): array
+    {
+        $amount = round(abs((float)($sale['surcharge_amount'] ?? 0)), 2);
+        $reason = trim((string)($sale['surcharge_reason'] ?? ''));
+        return $this->appendServiceLine($items, 'ZRA-SURCHARGE', 'Surcharge' . ($reason !== '' ? ' - ' . $reason : ''), $amount);
+    }
+
+    private function appendServiceLine(array $items, string $sku, string $label, float $amount): array
+    {
+        if ($amount < 0.01) {
             return $items;
         }
         foreach ($items as $line) {
-            $sku = strtoupper((string)($line['sku'] ?? ''));
+            $lineSku = strtoupper((string)($line['sku'] ?? ''));
             $code = strtoupper((string)($line['zra_item_cd'] ?? ''));
-            if ($sku === 'ZRA-TIP' || $code === 'ZRA-TIP') {
+            if ($lineSku === $sku || $code === $sku) {
                 return $items;
             }
         }
-        $product = $this->ensureTipProduct();
+        $product = $this->ensureServiceProduct($sku, $label);
         $items[] = [
             'product_id' => (int)$product['id'],
-            'name' => $product['name'] ?: 'Tip / Service charge',
-            'sku' => $product['sku'] ?: 'ZRA-TIP',
+            'name' => $label,
+            'sku' => $product['sku'] ?: $sku,
             'tax_class' => $product['tax_class'] ?? 'A',
             'unspsc_code' => $product['unspsc_code'] ?? null,
-            'zra_item_cd' => $product['zra_item_cd'] ?: 'ZRA-TIP',
+            'zra_item_cd' => $product['zra_item_cd'] ?: $sku,
             'zra_synced' => $product['zra_synced'] ?? 0,
             'type' => 'service',
             'is_active' => 1,
-            'catalog_price' => $tip,
+            'catalog_price' => $amount,
             'quantity' => 1,
-            'price' => $tip,
+            'price' => $amount,
             'status' => 'completed',
         ];
         return $items;
@@ -1318,29 +1332,35 @@ class ZraVsdcClient
 
     private function ensureTipProduct(): array
     {
+        return $this->ensureServiceProduct('ZRA-TIP', 'Tip / Service charge');
+    }
+
+    private function ensureServiceProduct(string $sku, string $name): array
+    {
         $this->ensureProductColumns();
-        $stmt = $this->pdo->prepare("SELECT * FROM products WHERE sku = 'ZRA-TIP' LIMIT 1");
-        $stmt->execute();
+        $stmt = $this->pdo->prepare('SELECT * FROM products WHERE sku = ? LIMIT 1');
+        $stmt->execute([$sku]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row) {
             return $row;
         }
+        $baseName = $sku === 'ZRA-SURCHARGE' ? 'Surcharge' : $name;
         $this->pdo->prepare(
             "INSERT INTO products (name, sku, price, cost_price, unit, type, is_open_price, is_active, tax_class)
-             VALUES ('Tip / Service charge', 'ZRA-TIP', 0, 0, 'EA', 'service', 1, 0, 'A')"
-        )->execute();
+             VALUES (?, ?, 0, 0, 'EA', 'service', 1, 0, 'A')"
+        )->execute([$baseName, $sku]);
         $id = (int)$this->pdo->lastInsertId();
         $stmt = $this->pdo->prepare("SELECT * FROM products WHERE id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
             'id' => $id,
-            'name' => 'Tip / Service charge',
-            'sku' => 'ZRA-TIP',
+            'name' => $baseName,
+            'sku' => $sku,
             'tax_class' => 'A',
             'type' => 'service',
             'is_active' => 0,
             'zra_synced' => 0,
-            'zra_item_cd' => 'ZRA-TIP',
+            'zra_item_cd' => $sku,
             'unspsc_code' => null,
             'price' => 0,
         ];

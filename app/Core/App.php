@@ -56,6 +56,7 @@ final class App
     private function loadSettings(): void
     {
         $this->settings = Setting::all();
+        Schema::ensure(Database::connection(), $this->settings);
         define('LICENSE_TIER', strtolower($this->settings['license_tier'] ?? 'lite'));
         define('APP_NAME', $this->settings['business_name'] ?? 'OdeliaPOS');
         define('THEME_COLOR', $this->settings['theme_color'] ?? '#3e2723');
@@ -189,7 +190,7 @@ final class App
         }
 
         if (isset($_SESSION['user_id']) && !in_array($userRole, ['admin', 'manager', 'dev'], true)) {
-            $allowedCommon = ['receipt', 'logout', 'pickup', 'print_shift', 'end_shift_action'];
+            $allowedCommon = ['receipt', 'logout', 'pickup', 'print_shift', 'end_shift_action', 'flutterwave', 'currency', 'shop'];
             if (in_array($userRole, ['chef', 'head_chef'], true) && in_array(LICENSE_TIER, ['pro+', 'enterprise'], true)) {
                 $allowed = array_merge($allowedCommon, ['kitchen', 'kds', 'menu', 'inventory']);
                 if (!in_array($page, $allowed, true)) {

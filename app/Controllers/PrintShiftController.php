@@ -15,7 +15,8 @@ final class PrintShiftController extends Controller
             die('Shift not found.');
         }
         $data = Report::printShift($shiftId);
-        $data['expectedCash'] = (float)$shift['starting_cash'] + (float)$data['cashSales'] - (float)$data['totalExpenses'];
+        $data['expectedCash'] = (float)$shift['starting_cash'] + (float)$data['cashSales'] - (float)$data['totalExpenses']
+            + (float)($data['postTips']['cash'] ?? 0);
         $this->render(array_merge($data, [
             'shiftId' => $shiftId,
             'shift' => $shift,

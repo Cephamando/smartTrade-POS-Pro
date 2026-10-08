@@ -184,7 +184,7 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
             <select name="ingredient_id[]" class="form-select fw-bold" required>
                 <option value="">Select ingredient from inventory...</option>
                 <?php foreach($allIngredients as $ing): ?>
-                    <option value="<?= $ing['id'] ?>"><?= htmlspecialchars($ing['name']) ?> (<?= htmlspecialchars($ing['unit']) ?>)</option>
+                    <option value="<?= $ing['id'] ?>" data-unit="<?= htmlspecialchars((string)$ing['unit']) ?>" data-sku="<?= htmlspecialchars((string)($ing['sku'] ?? '')) ?>"><?= htmlspecialchars($ing['name']) ?> (<?= htmlspecialchars($ing['unit']) ?>)</option>
                 <?php endforeach; ?>
             </select>
         </div>

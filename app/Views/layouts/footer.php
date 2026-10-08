@@ -11,6 +11,8 @@
 
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="vendor/flatpickr/flatpickr.min.js"></script>
+    <script src="vendor/tom-select/tom-select.complete.min.js"></script>
+    <script src="js/select-search.js?v=1"></script>
     <script>
         if (window.flatpickr) {
             document.querySelectorAll('input.datepicker, input[type="date"]').forEach(function (el) {

@@ -39,6 +39,8 @@ foreach ($products as $p) {
         'id' => (int)$p['id'],
         'name' => $p['name'],
         'sku' => $p['sku'] ?? '',
+        'unit' => $p['unit'] ?? '',
+        'barcode' => $p['barcode'] ?? '',
         'cost' => (float)($p['cost_price'] ?? 0),
         'is_raw' => $raw,
         'reason' => $raw ? 'Raw food must stay in kitchen or warehouse, not a POS bar or store.' : '',
@@ -95,7 +97,7 @@ foreach ($locations as $l) {
                             <option value="">To be assigned</option>
                             <option value="custom" class="fw-bold text-primary">+ New Informal / Once-off Vendor</option>
                             <?php foreach ($vendors as $v): ?>
-                                <option value="<?= (int)$v['id'] ?>" <?= ((int)($editInquiry['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
+                                <option value="<?= (int)$v['id'] ?>" data-contact="<?= htmlspecialchars((string)($v['contact_person'] ?? '')) ?>" data-phone="<?= htmlspecialchars((string)($v['phone'] ?? '')) ?>" <?= ((int)($editInquiry['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($v['name']) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -191,7 +193,7 @@ foreach ($locations as $l) {
                             <option value="">Select vendor…</option>
                             <option value="custom" class="fw-bold text-primary">+ New Informal / Once-off Vendor</option>
                             <?php foreach ($vendors as $v): ?>
-                                <option value="<?= (int)$v['id'] ?>" <?= ((int)($editOrder['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
+                                <option value="<?= (int)$v['id'] ?>" data-contact="<?= htmlspecialchars((string)($v['contact_person'] ?? '')) ?>" data-phone="<?= htmlspecialchars((string)($v['phone'] ?? '')) ?>" <?= ((int)($editOrder['vendor_id'] ?? 0) === (int)$v['id']) ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($v['name']) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -222,7 +224,15 @@ foreach ($locations as $l) {
                         <label class="form-label small fw-bold text-muted mb-0">ORDER LINES</label>
                         <button type="button" class="btn btn-sm btn-outline-success" onclick="addLine('orderLines', true)"><i class="bi bi-plus"></i> Line</button>
                     </div>
-                    <div id="orderLines"></div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-1 purchase-table">
+                            <thead class="table-light small text-muted">
+                                <tr><th style="min-width:180px">Product</th><th style="width:60px">Unit</th><th style="width:80px">Pack size</th><th style="width:80px">Packs</th><th style="width:100px">Qty</th><th style="width:110px">Pack price</th><th style="width:110px">Unit price</th><th style="width:110px" class="text-end">Total</th><th style="width:36px"></th></tr>
+                            </thead>
+                            <tbody id="orderLines"></tbody>
+                            <tfoot class="fw-bold"><tr><td colspan="4" class="text-end text-muted small">TOTALS</td><td><span class="js-total-units" data-for="orderLines">0</span></td><td colspan="2" class="text-end text-muted small">ZMW</td><td class="text-end"><span class="js-total-amount" data-for="orderLines">0.00</span></td><td></td></tr></tfoot>
+                        </table>
+                    </div>
                     <button class="btn btn-success w-100 fw-bold mt-3">Save order</button>
                 </form>
             </div>
@@ -300,7 +310,7 @@ foreach ($locations as $l) {
                         <option value="">Select vendor…</option>
                         <option value="custom" class="fw-bold text-primary">+ New Informal / Once-off Vendor</option>
                         <?php foreach ($vendors as $v): ?>
-                            <option value="<?= (int)$v['id'] ?>" <?= ($grvVendorId === (int)$v['id']) ? 'selected' : '' ?>>
+                            <option value="<?= (int)$v['id'] ?>" data-contact="<?= htmlspecialchars((string)($v['contact_person'] ?? '')) ?>" data-phone="<?= htmlspecialchars((string)($v['phone'] ?? '')) ?>" <?= ($grvVendorId === (int)$v['id']) ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($v['name']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -323,15 +333,101 @@ foreach ($locations as $l) {
                 </div>
             </div>
             <div id="moveWarn" class="alert alert-warning d-none py-2 small"></div>
-            <div class="row g-2 mb-1 small fw-bold text-muted">
-                <div class="col-6">Product</div>
-                <div class="col-3">Qty</div>
-                <div class="col-2">Unit cost</div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-1 purchase-table">
+                    <thead class="table-light small text-muted">
+                        <tr>
+                            <th style="min-width:220px">Product</th>
+                            <th style="width:70px">Unit</th>
+                            <th style="width:90px" title="Units in one pack, e.g. 24 for a crate">Pack size</th>
+                            <th style="width:90px" title="Number of packs received">Packs</th>
+                            <th style="width:110px">Qty (units)</th>
+                            <th style="width:120px" title="Price of one pack — unit price is worked out automatically">Pack price</th>
+                            <th style="width:120px">Unit price</th>
+                            <th style="width:120px" class="text-end">Line total</th>
+                            <th style="width:40px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="grvLines"></tbody>
+                    <tfoot class="fw-bold">
+                        <tr>
+                            <td colspan="4" class="text-end text-muted small">TOTALS</td>
+                            <td><span class="js-total-units" data-for="grvLines">0</span></td>
+                            <td colspan="2" class="text-end text-muted small">ZMW</td>
+                            <td class="text-end fs-6"><span class="js-total-amount" data-for="grvLines">0.00</span></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
-            <div id="grvLines"></div>
-            <button type="button" class="btn btn-outline-secondary fw-bold mt-2" onclick="addLine('grvLines', true)"><i class="bi bi-plus"></i> Add item</button>
-            <button class="btn btn-warning fw-bold float-end">Process GRV</button>
+            <div class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" onclick="addLine('grvLines', true)"><i class="bi bi-plus"></i> Add item</button>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" name="grv_notes" class="form-control form-control-sm" maxlength="500" placeholder="Notes (damaged cartons, short delivery, …)">
+                </div>
+            </div>
+            <div class="text-end mt-3">
+                <button class="btn btn-warning fw-bold px-4">Process GRV</button>
+            </div>
         </form>
+    </div>
+</div>
+
+<?php if (!empty($grvView)): ?>
+<div class="card shadow-sm border-0 mt-4" id="grvDetail">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-bold">GRV #<?= (int)$grvView['id'] ?> · <?= htmlspecialchars($grvView['vendor_name'] ?? '') ?> → <?= htmlspecialchars($grvView['location_name'] ?? '') ?></span>
+        <span class="small text-muted"><?= htmlspecialchars((string)$grvView['created_at']) ?> · <?= htmlspecialchars($grvView['username'] ?? '') ?> <?= $grvView['reference_no'] ? '· Ref ' . htmlspecialchars($grvView['reference_no']) : '' ?></span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light small"><tr><th>Product</th><th>Unit</th><th class="text-end">Pack size</th><th class="text-end">Packs</th><th class="text-end">Qty</th><th class="text-end">Pack price</th><th class="text-end">Unit price</th><th class="text-end">Line total</th></tr></thead>
+            <tbody>
+            <?php foreach ($grvView['items'] as $gi): ?>
+                <tr>
+                    <td><?= htmlspecialchars($gi['product_name']) ?> <span class="text-muted small"><?= htmlspecialchars($gi['sku'] ?? '') ?></span></td>
+                    <td><?= htmlspecialchars($gi['unit'] ?: ($gi['product_unit'] ?? '')) ?></td>
+                    <td class="text-end"><?= (float)$gi['pack_size'] != 1 ? rtrim(rtrim(number_format((float)$gi['pack_size'], 4, '.', ''), '0'), '.') : '—' ?></td>
+                    <td class="text-end"><?= $gi['pack_qty'] !== null ? rtrim(rtrim(number_format((float)$gi['pack_qty'], 4, '.', ''), '0'), '.') : '—' ?></td>
+                    <td class="text-end"><?= rtrim(rtrim(number_format((float)$gi['quantity'], 4, '.', ''), '0'), '.') ?></td>
+                    <td class="text-end"><?= $gi['pack_cost'] !== null ? number_format((float)$gi['pack_cost'], 2) : '—' ?></td>
+                    <td class="text-end"><?= number_format((float)$gi['unit_cost'], 2) ?></td>
+                    <td class="text-end fw-bold"><?= number_format((float)($gi['line_total'] ?: $gi['quantity'] * $gi['unit_cost']), 2) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+            <tfoot class="fw-bold"><tr><td colspan="7" class="text-end">TOTAL</td><td class="text-end">ZMW <?= number_format((float)$grvView['total_cost'], 2) ?></td></tr></tfoot>
+        </table>
+    </div>
+    <?php if (!empty($grvView['notes'])): ?><div class="card-footer small text-muted"><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars($grvView['notes']) ?></div><?php endif; ?>
+</div>
+<?php endif; ?>
+
+<div class="card shadow-sm border-0 mt-4">
+    <div class="card-header bg-white fw-bold"><i class="bi bi-clock-history"></i> Recent goods received</div>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <thead class="table-light small"><tr><th>#</th><th>Date</th><th>Vendor</th><th>Into</th><th>Ref</th><th class="text-end">Lines</th><th class="text-end">Units</th><th class="text-end">Total</th><th>By</th><th></th></tr></thead>
+            <tbody>
+            <?php if (empty($grvHistory)): ?><tr><td colspan="10" class="text-center text-muted py-3">No goods received yet.</td></tr><?php endif; ?>
+            <?php foreach ($grvHistory as $g): ?>
+                <tr>
+                    <td class="fw-bold">#<?= (int)$g['id'] ?></td>
+                    <td class="text-nowrap small"><?= htmlspecialchars(date('d M Y H:i', strtotime((string)$g['created_at']))) ?></td>
+                    <td><?= htmlspecialchars($g['vendor_name'] ?? '') ?></td>
+                    <td><?= htmlspecialchars($g['location_name'] ?? '') ?></td>
+                    <td class="small"><?= htmlspecialchars($g['reference_no'] ?? '') ?><?= $g['purchase_order_id'] ? ' <span class="badge bg-light text-dark border">PO #' . (int)$g['purchase_order_id'] . '</span>' : '' ?></td>
+                    <td class="text-end"><?= (int)$g['line_count'] ?></td>
+                    <td class="text-end"><?= rtrim(rtrim(number_format((float)$g['unit_count'], 2, '.', ''), '0'), '.') ?></td>
+                    <td class="text-end fw-bold"><?= number_format((float)$g['total_cost'], 2) ?></td>
+                    <td class="small"><?= htmlspecialchars($g['username'] ?? '') ?></td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="index.php?page=purchasing&tab=received&grv_id=<?= (int)$g['id'] ?>#grvDetail"><i class="bi bi-eye"></i></a></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 <?php endif; ?>
@@ -403,6 +499,7 @@ function toggleSellable(pid, currentIsSellable) {
                                 opt.text = (p ? p.name : opt.text.replace(' — RAW', '')) + (newStatus === 0 ? ' — RAW' : '');
                             }
                         });
+                        if (window.SelectSearch) SelectSearch.refresh(sel);
                     });
                     refreshMovementHint();
                     AppAlert.notify({icon: 'success', text: 'POS visibility updated!'});
@@ -414,51 +511,130 @@ function toggleSellable(pid, currentIsSellable) {
     });
 }
 
+function escAttr(s) { return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
 function productOptions(selected, withCost) {
     return catalog.map(function (p) {
         const sel = String(p.id) === String(selected) ? ' selected' : '';
         const pReason = p.reason ? p.reason : '';
-        const raw = p.is_raw ? ' data-raw="1" data-reason="' + pReason.replace(/"/g, '&quot;') + '"' : '';
+        const raw = p.is_raw ? ' data-raw="1" data-reason="' + escAttr(pReason) + '"' : '';
         const label = p.name + (p.is_raw ? ' — RAW' : '');
         const cost = withCost ? ' data-cost="' + p.cost + '"' : '';
-        return '<option value="' + p.id + '"' + sel + raw + cost + '>' + label + '</option>';
+        // data-sku / data-barcode / data-unit are picked up by the searchable dropdown as extra filters.
+        return '<option value="' + p.id + '"' + sel + raw + cost + ' data-unit="' + escAttr(p.unit) + '" data-sku="' + escAttr(p.sku) + '" data-barcode="' + escAttr(p.barcode) + '">' + label + '</option>';
     }).join('');
 }
 
+let lineSeq = 0;
+function num(v) { const n = parseFloat(v); return isFinite(n) ? n : 0; }
+function fmt(n, d) { return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: d === undefined ? 2 : d, maximumFractionDigits: d === undefined ? 2 : d }); }
+function trimNum(n) { return String(Math.round(num(n) * 10000) / 10000); }
+
+/**
+ * Receiving / order line with auto-calculations:
+ *   packs × pack size → qty · pack price ÷ pack size → unit price · qty × unit price → line total
+ */
 function addLine(containerId, withCost, preset) {
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
-    const idx = wrap.children.length;
-    const row = document.createElement('div');
-    row.className = 'row g-2 mb-2 align-items-center purchase-line';
+    const idx = lineSeq++;
+    preset = preset || {};
+    const pid = preset.product_id ? preset.product_id : '';
+    const qty = preset.quantity ? preset.quantity : (preset.qty ? preset.qty : '');
+    const cost = preset.unit_cost ? preset.unit_cost : (preset.cost_price ? preset.cost_price : (preset.cost ? preset.cost : ''));
+    const packSize = preset.pack_size && num(preset.pack_size) > 0 ? preset.pack_size : 1;
+    const packQty = preset.pack_qty ? preset.pack_qty : '';
+    const packCost = preset.pack_cost ? preset.pack_cost : '';
+    const unit = preset.unit ? preset.unit : (pid ? ((catalog.find(function (p) { return String(p.id) === String(pid); }) || {}).unit || '') : '');
+    const n = 'items[' + idx + ']';
 
-    const pid = preset ? (preset.product_id ? preset.product_id : '') : '';
-    const qty = preset ? (preset.quantity ? preset.quantity : (preset.qty ? preset.qty : '')) : '';
-    const cost = preset ? (preset.unit_cost ? preset.unit_cost : (preset.cost_price ? preset.cost_price : (preset.cost ? preset.cost : ''))) : '';
-
-    let html = '<div class="' + (withCost ? 'col-6' : 'col-8') + '"><select name="items[' + idx + '][product_id]" class="form-select form-select-sm js-prod" required><option value="">Select…</option>'
-        + productOptions(pid, withCost) + '</select></div>';
-    html += '<div class="col-3"><input type="number" step="0.01" min="0.01" name="items[' + idx + '][qty]" class="form-control form-control-sm" required placeholder="Qty" value="' + qty + '"></div>';
-    if (withCost) {
-        html += '<div class="col-2"><input type="number" step="0.01" name="items[' + idx + '][cost]" class="form-control form-control-sm js-cost" placeholder="Cost" value="' + cost + '"></div>';
+    if (!withCost) {
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-center purchase-line';
+        row.innerHTML = '<div class="col-8"><select name="' + n + '[product_id]" class="form-select form-select-sm js-prod" required><option value="">Select…</option>' + productOptions(pid, false) + '</select></div>'
+            + '<div class="col-3"><input type="number" step="0.01" min="0.01" name="' + n + '[qty]" class="form-control form-control-sm" required placeholder="Qty" value="' + escAttr(qty) + '"></div>'
+            + '<div class="col-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.purchase-line\').remove()"><i class="bi bi-trash"></i></button></div>'
+            + '<div class="col-12 small text-muted js-line-info"></div>';
+        wrap.appendChild(row);
+        row.querySelector('.js-prod').addEventListener('change', refreshMovementHint);
+        refreshMovementHint();
+        return;
     }
-    html += '<div class="col-1"><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest(\'.purchase-line\').remove()"><i class="bi bi-trash"></i></button></div>';
-    html += '<div class="col-12 small text-muted js-line-info"></div>';
-    row.innerHTML = html;
-    wrap.appendChild(row);
-    row.querySelector('.js-prod').addEventListener('change', function () {
+
+    const tr = document.createElement('tr');
+    tr.className = 'purchase-line';
+    tr.innerHTML =
+        '<td><select name="' + n + '[product_id]" class="form-select form-select-sm js-prod" required><option value="">Select…</option>' + productOptions(pid, true) + '</select><div class="small text-muted js-line-info"></div></td>'
+        + '<td><input type="text" name="' + n + '[unit]" class="form-control form-control-sm js-unit" maxlength="20" placeholder="ea" value="' + escAttr(unit) + '"></td>'
+        + '<td><input type="number" step="any" min="0.0001" name="' + n + '[pack_size]" class="form-control form-control-sm js-pack-size" value="' + escAttr(packSize) + '"></td>'
+        + '<td><input type="number" step="any" min="0" name="' + n + '[pack_qty]" class="form-control form-control-sm js-pack-qty" placeholder="—" value="' + escAttr(packQty) + '"></td>'
+        + '<td><input type="number" step="any" min="0.0001" name="' + n + '[qty]" class="form-control form-control-sm js-qty fw-bold" required placeholder="0" value="' + escAttr(qty) + '"></td>'
+        + '<td><input type="number" step="0.01" min="0" name="' + n + '[pack_cost]" class="form-control form-control-sm js-pack-cost" placeholder="—" value="' + escAttr(packCost) + '"></td>'
+        + '<td><input type="number" step="0.0001" min="0" name="' + n + '[cost]" class="form-control form-control-sm js-cost" placeholder="0.00" value="' + escAttr(cost) + '"></td>'
+        + '<td class="text-end fw-bold text-nowrap js-line-total">0.00</td>'
+        + '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" title="Remove line"><i class="bi bi-trash"></i></button></td>';
+    wrap.appendChild(tr);
+
+    const el = function (c) { return tr.querySelector(c); };
+    const recalcTotal = function () {
+        const total = num(el('.js-qty').value) * num(el('.js-cost').value);
+        el('.js-line-total').textContent = fmt(total);
+        recalcTotals(containerId);
+    };
+    el('.js-prod').addEventListener('change', function () {
         const opt = this.options[this.selectedIndex];
-        const costEl = row.querySelector('.js-cost');
-        if (costEl) {
-            if (opt) {
-                if (opt.dataset.cost) {
-                    costEl.value = opt.dataset.cost;
-                }
+        if (opt && opt.value) {
+            if (opt.dataset.cost && num(opt.dataset.cost) > 0 && !num(el('.js-cost').value)) {
+                el('.js-cost').value = opt.dataset.cost;
+            }
+            if (opt.dataset.unit && !el('.js-unit').value) {
+                el('.js-unit').value = opt.dataset.unit;
+            }
+            if (num(el('.js-pack-cost').value) > 0 && num(el('.js-pack-size').value) > 0) {
+                el('.js-cost').value = trimNum(num(el('.js-pack-cost').value) / num(el('.js-pack-size').value));
             }
         }
+        recalcTotal();
         refreshMovementHint();
     });
+    // packs or pack size → qty; pack price or pack size → unit price
+    const fromPacks = function () {
+        const ps = num(el('.js-pack-size').value) || 1;
+        const pq = num(el('.js-pack-qty').value);
+        const pc = num(el('.js-pack-cost').value);
+        if (pq > 0) el('.js-qty').value = trimNum(pq * ps);
+        if (pc > 0) el('.js-cost').value = trimNum(pc / ps);
+        recalcTotal();
+    };
+    el('.js-pack-size').addEventListener('input', fromPacks);
+    el('.js-pack-qty').addEventListener('input', fromPacks);
+    el('.js-pack-cost').addEventListener('input', fromPacks);
+    // qty typed directly → packs; unit price typed directly → pack price
+    el('.js-qty').addEventListener('input', function () {
+        const ps = num(el('.js-pack-size').value) || 1;
+        if ((el('.js-pack-qty').value !== '' || ps > 1) && ps > 0) el('.js-pack-qty').value = trimNum(num(this.value) / ps);
+        recalcTotal();
+    });
+    el('.js-cost').addEventListener('input', function () {
+        const ps = num(el('.js-pack-size').value) || 1;
+        if (el('.js-pack-cost').value !== '' || ps > 1) el('.js-pack-cost').value = trimNum(num(this.value) * ps);
+        recalcTotal();
+    });
+    el('button').addEventListener('click', function () { tr.remove(); recalcTotals(containerId); refreshMovementHint(); });
+
+    recalcTotal();
     refreshMovementHint();
+}
+
+function recalcTotals(containerId) {
+    let units = 0, amount = 0;
+    document.querySelectorAll('#' + containerId + ' tr.purchase-line').forEach(function (tr) {
+        const q = num(tr.querySelector('.js-qty').value);
+        units += q;
+        amount += q * num(tr.querySelector('.js-cost').value);
+    });
+    document.querySelectorAll('.js-total-units[data-for="' + containerId + '"]').forEach(function (e) { e.textContent = fmt(units, units % 1 ? 2 : 0); });
+    document.querySelectorAll('.js-total-amount[data-for="' + containerId + '"]').forEach(function (e) { e.textContent = fmt(amount); });
 }
 
 function locIsPos(id) {
@@ -507,6 +683,7 @@ function refreshMovementHint() {
             }
         }
         if (raw && pos) sel.value = '';
+        if (window.SelectSearch) SelectSearch.refresh(sel);
     });
     if (warn) {
         if (pos) {
@@ -554,7 +731,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     const rRec = r.received_qty ? r.received_qty : 0;
                     const remain = Math.max(0, parseFloat(rQty) - parseFloat(rRec));
                     if (remain > 0) {
-                        addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost });
+                        const ps = num(r.pack_size) > 0 ? num(r.pack_size) : 1;
+                        addLine('grvLines', true, { product_id: r.product_id, quantity: remain, unit_cost: r.unit_cost, unit: r.unit, pack_size: ps, pack_qty: ps !== 1 ? trimNum(remain / ps) : '', pack_cost: r.pack_cost });
                     }
                 });
             }

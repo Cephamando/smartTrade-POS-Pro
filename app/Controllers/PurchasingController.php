@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\Grv;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Purchase;
@@ -104,7 +105,8 @@ final class PurchasingController extends Controller
                         $this->userId(),
                         (string)($_POST['ref_number'] ?? ''),
                         $items,
-                        $orderId
+                        $orderId,
+                        trim((string)($_POST['grv_notes'] ?? ''))
                     );
                     $dockId = (int)($_POST['dock_id'] ?? 0);
                     if ($dockId > 0) {
@@ -170,6 +172,8 @@ final class PurchasingController extends Controller
             'editOrder' => $editOrder,
             'receiveOrder' => $receiveOrder,
             'bayPrefill' => $bayPrefill,
+            'grvHistory' => $tab === 'received' ? Grv::recent() : [],
+            'grvView' => ($tab === 'received' && !empty($_GET['grv_id'])) ? Grv::find((int)$_GET['grv_id']) : null,
             'vendors' => Vendor::active(),
             'locations' => Location::all(),
             'products' => Product::activeItems(),

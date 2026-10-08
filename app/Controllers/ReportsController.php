@@ -93,7 +93,7 @@ final class ReportsController extends Controller
         $locationId = $_GET['location'] ?? '';
         $employeeId = $_GET['employee_id'] ?? '';
         $reportType = $_GET['type'] ?? 'sales';
-        if (!in_array($reportType, ['sales', 'items', 'categories', 'taxes'], true)) {
+        if (!in_array($reportType, ['sales', 'items', 'categories', 'taxes', 'tips'], true)) {
             $reportType = 'sales';
         }
 
@@ -158,6 +158,12 @@ final class ReportsController extends Controller
             $reportData = $stmt->fetchAll();
         }
         
+        $tipsReport = null;
+        if ($reportType === 'tips') {
+            $tipsReport = Report::tipsAndSurcharges($startDate, $endDate, $locationId);
+            $reportData = $tipsReport['staff'];
+        }
+
         $metrics = Report::metrics($startDate, $endDate, $locationId);
         $refundStats = Report::refundStats($startDate, $endDate, $locationId);
         $voidStats = Report::voidStats($startDate, $endDate, $locationId);
@@ -172,6 +178,7 @@ final class ReportsController extends Controller
             'refundStats' => $refundStats,
             'voidStats' => $voidStats,
             'reportData' => $reportData,
+            'tipsReport' => $tipsReport,
             'locations' => Location::all(),
             'employees' => $employees,
         ]);

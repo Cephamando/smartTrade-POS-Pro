@@ -41,4 +41,9 @@ return [
     'change_password' => [],
     'zra' => [],
     'unspsc' => [],
+    'payroll' => [],
+    'payslip' => ['standalone' => true],
+    'flutterwave' => ['auth' => false, 'standalone' => true],
+    'currency' => ['auth' => false, 'standalone' => true],
+    'shop' => ['auth' => false, 'standalone' => true],
 ];

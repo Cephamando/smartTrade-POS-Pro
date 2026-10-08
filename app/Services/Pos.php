@@ -70,6 +70,69 @@ final class Pos
                 'invoices' => \App\Models\Sale::refundableInvoicesForProduct($productId, $locationId),
             ]];
         }
+        if (!empty($post['lookup_tip_receipts'])) {
+            $rows = \App\Models\Tip::searchReceipts($locationId, (string)($post['q'] ?? ''), $isManager, $userId);
+            return ['json' => ['status' => 'ok', 'receipts' => array_map(static function (array $r): array {
+                return [
+                    'id' => (int)$r['id'],
+                    'label' => '#' . $r['id'] . ($r['zra_rcpt_no'] ? ' · ZRA ' . $r['zra_rcpt_no'] : ''),
+                    'customer' => (string)($r['customer_name'] ?? ''),
+                    'total' => (float)$r['final_total'],
+                    'method' => (string)$r['payment_method'],
+                    'staff' => (string)($r['full_name'] ?: $r['username']),
+                    'staff_id' => (int)$r['user_id'],
+                    'time' => date('d M H:i', strtotime((string)$r['created_at'])),
+                    'tips_so_far' => (float)$r['tips_so_far'],
+                ];
+            }, $rows)]];
+        }
+        if (isset($post['add_tip'])) {
+            try {
+                $tipId = \App\Models\Tip::record(
+                    (int)($post['tip_sale_id'] ?? 0),
+                    (float)($post['tip_value'] ?? 0),
+                    (string)($post['tip_method'] ?? 'Cash'),
+                    $isManager && !empty($post['tip_staff_id']) ? (int)$post['tip_staff_id'] : null,
+                    $userId,
+                    $activeShiftId ? (int)$activeShiftId : null,
+                    $locationId,
+                    (string)($post['tip_note'] ?? '')
+                );
+                $msg = 'Tip of ZMW ' . number_format((float)$post['tip_value'], 2) . ' recorded on receipt #' . (int)$post['tip_sale_id'] . '.';
+                if ($ajax) {
+                    return ['json' => ['status' => 'ok', 'msg' => $msg, 'tip_id' => $tipId]];
+                }
+                $session['swal_type'] = 'success';
+                $session['swal_msg'] = $msg;
+            } catch (\Throwable $e) {
+                if ($ajax) {
+                    return ['json' => ['status' => 'error', 'msg' => $e->getMessage()]];
+                }
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = $e->getMessage();
+            }
+            return ['redirect' => true];
+        }
+
+        // Web order already paid online (Flutterwave on the customer portal): just hand it over.
+        if (isset($post['complete_prepaid_order'])) {
+            $saleId = (int)$post['complete_prepaid_order'];
+            $stmt = $this->pdo->prepare("SELECT id, payment_status, status FROM sales WHERE id = ? AND payment_method = 'Online'");
+            $stmt->execute([$saleId]);
+            $sale = $stmt->fetch();
+            if (!$sale || $sale['payment_status'] !== 'paid' || $sale['status'] !== 'pending') {
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = 'That order is not a prepaid web order.';
+                return ['redirect' => true];
+            }
+            $this->pdo->prepare("UPDATE sales SET status = 'completed', shift_id = COALESCE(shift_id, ?), user_id = ? WHERE id = ?")
+                ->execute([$activeShiftId ?: null, $userId, $saleId]);
+            $this->pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected', status = 'ready' WHERE sale_id = ? AND status NOT IN ('voided','refunded')")->execute([$saleId]);
+            $zra = fiscalizePaidSale($this->pdo, $saleId);
+            $session['swal_type'] = 'success';
+            $session['swal_msg'] = 'Web order #' . $saleId . ' handed over.' . $zra;
+            return ['redirect' => true];
+        }
 
         if (isset($post['add_item'])) {
             if (!$activeShiftId) {
@@ -218,9 +281,12 @@ final class Pos
 
         $onlineTabs = [];
         $onlineTabItems = [];
-        if ($tier === 'enterprise') {
+        $sysSettings = Setting::all();
+        $portalOn = ($sysSettings['shop_enabled'] ?? '0') === '1';
+        if ($tier === 'enterprise' || $portalOn) {
             $onlineTabs = $this->pdo->query(
-                "SELECT id, total_amount, customer_name, split_group_id as external_id, created_at
+                "SELECT id, total_amount, final_total, customer_name, customer_phone, split_group_id as external_id, created_at,
+                        payment_status, order_type, order_notes, order_source, gateway_ref
                  FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY created_at DESC"
             )->fetchAll();
             foreach ($onlineTabs as $ot) {
@@ -248,7 +314,14 @@ final class Pos
             'activeShiftId' => $activeShiftId,
             'expectedShiftCash' => $expectedShiftCash,
             'pendingShift' => $activeShiftId ? null : Shift::pendingForUser($userId, $locationId),
-            'sysSettings' => Setting::all(),
+            'sysSettings' => $sysSettings,
+            'surchargeReasons' => \App\Models\SurchargeReason::all(true),
+            'tipMethods' => \App\Models\Tip::METHODS,
+            'staffUsers' => $isManager ? User::activeStaff() : [],
+            'fx' => $this->fxForPos($sysSettings),
+            'flwEnabled' => (new Flutterwave($this->pdo, $sysSettings))->enabled(),
+            'flwTestMode' => (new Flutterwave($this->pdo, $sysSettings))->isTestMode(),
+            'portalOn' => $portalOn,
             'categories' => Category::all(),
             'products' => Product::posCatalog($locationId),
             'services' => Product::activeServices(),
@@ -262,6 +335,20 @@ final class Pos
             'cartStock' => $this->cartStockMap($session, $locationId),
             'cartQtyByProduct' => $this->cartQtyByProduct($session),
         ];
+    }
+
+    /** Rates for the payment window; never block the POS if the rate service is down. */
+    private function fxForPos(array $settings): array
+    {
+        $fx = new Currency($this->pdo, $settings);
+        if (!$fx->enabled()) {
+            return ['enabled' => false, 'rates' => [], 'updated_at' => null];
+        }
+        try {
+            return ['enabled' => true] + $fx->rates();
+        } catch (\Throwable $e) {
+            return ['enabled' => true, 'rates' => [], 'updated_at' => null, 'error' => $e->getMessage()];
+        }
     }
 
     private function markCollected(array $post, string $tier): array

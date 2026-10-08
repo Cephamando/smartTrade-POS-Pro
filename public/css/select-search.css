@@ -1,0 +1,19 @@
+/* Tom Select sizing to match Bootstrap .form-select-sm / -lg and app styling */
+.ts-wrapper.single .ts-control { padding-right: 2rem; min-height: calc(1.5em + 0.75rem + 2px); }
+.ts-wrapper.ts-sm .ts-control { padding: 0.25rem 1.75rem 0.25rem 0.5rem; font-size: 0.875rem; min-height: calc(1.5em + 0.5rem + 2px); border-radius: 0.25rem; }
+.ts-wrapper.ts-lg .ts-control { padding: 0.5rem 2.25rem 0.5rem 1rem; font-size: 1.25rem; font-weight: 700; min-height: calc(1.5em + 1rem + 2px); border-radius: 0.5rem; }
+.ts-wrapper.ts-lg .ts-dropdown { font-size: 1.05rem; }
+.ts-dropdown { z-index: 2000; }
+.ts-dropdown .ts-sub { font-size: 0.75rem; color: #6c757d; line-height: 1.1; margin-top: 2px; }
+.ts-dropdown .active .ts-sub { color: #495057; }
+.ts-dropdown .no-results { padding: 0.5rem 0.75rem; color: #6c757d; font-style: italic; }
+.ts-dropdown .optgroup-header { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d; }
+.ts-wrapper.form-select { padding: 0; background-image: none; border: 0; }
+.ts-wrapper.single.input-active .ts-control, .ts-wrapper.focus .ts-control { border-color: #86b7fe; box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25); }
+.ts-wrapper.border-danger .ts-control { border-color: #dc3545 !important; }
+.ts-wrapper .ts-control input { font-size: inherit; }
+.ts-wrapper.disabled .ts-control { background: #e9ecef; }
+.ts-dropdown .option[aria-disabled="true"] { color: #adb5bd; }
+.input-group .ts-wrapper { flex: 1 1 auto; width: 1%; }
+.input-group .ts-wrapper:not(:last-child) .ts-control { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.input-group .ts-wrapper:not(:first-child) .ts-control { border-top-left-radius: 0; border-bottom-left-radius: 0; }

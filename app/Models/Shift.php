@@ -193,6 +193,14 @@ final class Shift extends Model
         $expected = $startingCash + (float)$stmtCash->fetchColumn();
         $stmtExp = self::db()->prepare('SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE shift_id = ?');
         $stmtExp->execute([$shiftId]);
-        return $expected - (float)$stmtExp->fetchColumn();
+        $expected -= (float)$stmtExp->fetchColumn();
+        // Cash tips recorded after payment go into the same drawer.
+        try {
+            $stmtTips = self::db()->prepare("SELECT COALESCE(SUM(amount), 0) FROM sale_tips WHERE shift_id = ? AND payment_method = 'Cash'");
+            $stmtTips->execute([$shiftId]);
+            $expected += (float)$stmtTips->fetchColumn();
+        } catch (\Throwable $e) {
+        }
+        return $expected;
     }
 }
