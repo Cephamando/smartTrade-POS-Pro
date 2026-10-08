@@ -140,7 +140,7 @@ final class ShopController extends Controller
 
     // ------------------------------------------------------------------ catalogue & cart
 
-    private function locationId(): int
+    private function shopLocationId(): int
     {
         $id = (int)($this->settings['shop_location_id'] ?? 0);
         if ($id <= 0) {
@@ -152,7 +152,7 @@ final class ShopController extends Controller
     /** @return array{0: array, 1: array} categories, sellable products with availability */
     private function menu(): array
     {
-        $loc = $this->locationId();
+        $loc = $this->shopLocationId();
         $stmt = $this->pdo()->prepare(
             "SELECT p.id, p.name, p.sku, p.price, p.unit, p.category_id, c.name AS category, c.type AS cat_type,
                     COALESCE(i.quantity, 0) AS on_hand,
@@ -202,7 +202,7 @@ final class ShopController extends Controller
             throw new \RuntimeException('Your basket is empty.');
         }
         $pdo = $this->pdo();
-        $loc = $this->locationId();
+        $loc = $this->shopLocationId();
         $orderType = ($p['order_type'] ?? 'pickup') === 'delivery' && ($this->settings['shop_delivery'] ?? '1') === '1' ? 'delivery' : 'pickup';
         $payMode = ($p['pay_mode'] ?? 'counter') === 'online' ? 'online' : 'counter';
         if ($payMode === 'online' && (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($pdo, $this->settings))->enabled())) {
