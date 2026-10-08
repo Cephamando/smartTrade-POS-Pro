@@ -1,6 +1,6 @@
 # smartTrade POS Pro — user guide
 
-This guide is for people who sell, cook, count stock, buy, and close the day. Installation, Docker, and backups are in [README.md](README.md). ZRA go-live is in [ZRA_GO_LIVE.md](ZRA_GO_LIVE.md).
+This guide is for people who sell, cook, count stock, buy, and close the day. Installation, Docker, and backups are in [README.md](README.md). ZRA go-live is in [ZRA_GO_LIVE.md](ZRA_GO_LIVE.md). Step-by-step training exercises, one per role, are in [TRAINING_MANUAL.md](TRAINING_MANUAL.md).
 
 The name in the navbar is the business name from System Settings. The badge next to it is the license tier (`LITE`, `PRO`, `PRO+`, or `ENTERPRISE`). This shop is seeded as **enterprise**.
 
@@ -18,7 +18,9 @@ Open the POS in a browser at `http://localhost:8090` on the shop PC, or at the P
 3. If the account is flagged to change its password, the Change Password screen blocks everything else until the new password is saved. New passwords must be at least 6 characters.
 4. **Logout** is on the right of the navbar (or **Exit** on the POS for staff who are not managers).
 
-The navbar (managers and above) has Dashboard, Inventory, Management, Kitchen Display (Pro+ and Enterprise), and Launch POS. The chip with a pin is the current workstation. The chip with a bell is pending V-SIAS approvals.
+The navbar (managers and above) has Dashboard, Inventory, Management, Kitchen Display (Pro+ and Enterprise), and Launch POS. The page you are on is highlighted in yellow: the top-level link gets an underline, the parent menu (Inventory or Management) lights up, and the exact entry inside the menu is marked. The chip with a pin is the current workstation. The chip with a bell is pending V-SIAS approvals and opens the approvals panel inside the page. The chip with a badge is your username and role.
+
+**On a phone or tablet** (screens narrower than 1200px) the navbar collapses. A green **POS** button sits next to **Menu** so a cashier reaches the till in one tap. **Menu** opens a scrolling panel: Inventory and Management expand like an accordion (only one open at a time), and the panel closes itself after you pick a page. Workstation, user, and Logout become full-width chips at the bottom of the panel.
 
 Critical actions open a confirm dialog (SweetAlert) before they run: deleting a user, ending a shift, sending a batch to the POS, pushing a sale to ZRA, clearing the cart, and similar steps. Adding an item, changing quantity, and moving between pages do not ask.
 
@@ -114,6 +116,10 @@ Until that approval, the screen says the shift is pending. **Go to Dashboard** i
 **Customer name** defaults to Walk-in. Type a name when the receipt should say who it was.
 
 **On-screen keyboard** is on by default (the yellow Keyboard button). Turn it off on a till that has a hardware keyboard.
+
+**In-stock** filter hides products that have no quantity at this station, so the grid shows only what you can actually sell.
+
+**Lost stock** (Pro and above) writes off what is in the cart as waste instead of selling it: breakages, spoiled food, a spilt drink. It needs manager authorization. Stock goes down, no sale is recorded, and the audit trail shows a waste row.
 
 **Payout** (while a shift is open) records cash taken from the drawer. It needs an amount, a reason, and manager authorization. The amount comes off the expected drawer total immediately.
 
@@ -319,9 +325,9 @@ Three tabs:
 
 **Cancel** stops a transfer that should not continue.
 
-**Approvals** (bell, and Management → Site inspection) opens V-SIAS Pro’s pending list for administrators, managers, and developers. The badge is the number still unsigned. If the inspection panel stays blank, use **Open in new tab**.
+**Approvals** (bell, dashboard button, and Management → Site inspection) opens V-SIAS Pro’s pending list in a panel over the current page for administrators, managers, and developers. The badge is the number still unsigned. The first time, V-SIAS asks you to sign in with your V-SIAS account. If the panel stays blank or says the content is blocked, use **Open in new tab**.
 
-V-SIAS itself runs separately (port 8095). The POS only opens it and receives the approved handoff.
+V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted system it is `vsias.odeliazm.com`. The POS only opens it and receives the approved handoff.
 
 ---
 
@@ -368,6 +374,18 @@ You will see TPIN, branch ID, device serial (from the shop’s configuration, ma
 
 A successful test with the same SDC ID you had before means the keys are still there. An empty SDC ID after the device was previously initialized means the local keystore is gone. Do not click Initialize on that serial. Restore the backup or register a new serial (see the go-live guide).
 
+**Reading the status card and the red/amber message**
+
+| Message | Meaning | What to do |
+|---|---|---|
+| Local VSDC is reachable (green) | The fiscal device answers. | Nothing. |
+| Tomcat is up, but the Smart Invoice app is not deployed (404) | The device software is running but the Smart Invoice program inside it is missing. | Call support. The WAR file must be placed in the `api` folder and the `vsdc` container restarted. Do not click Initialize. |
+| Local VSDC unreachable / CURL error (999) | The device container is stopped. | Call support to start the `vsdc` container. |
+| 902 This device is installed | ZRA already knows this serial. Normal after the first handshake. | Carry on. If **Sync standard codes** then gives 899, see the go-live guide. |
+| 899 | The device has no API keys for this serial. | A new serial must be registered on the ZRA portal. Do not retry Initialize. |
+| 910 Parameter error | A field ZRA did not like, most often a customer TPIN or a class code. | Read the hint under the message. Fix the product or the customer, then Push again. |
+| 931 | A credit note would exceed the original invoice. | Do not retry. Refund against the right receipt. |
+
 ### 11.2 What fiscalizing does
 
 Paid sales fiscalize on their own. The unfiscalized list is the exception queue: pending or failed, with the last error under the status badge.
@@ -384,16 +402,31 @@ One serial is one keystore and one receipt sequence. Keep a single live till PC 
 
 ## 12. Reports
 
-**Management → Master Reports.** Set start date, end date, and location (or all locations), then **Apply**. **Print** prints the current tab.
+**Management → Master Reports.**
 
-Summary cards on the page cover revenue and the other totals for that filter.
+**Filter bar** (top of the page):
 
-| Tab | What it lists |
-|---|---|
-| **Sales Ledger** | Each paid sale. Open a row for the line breakdown and, for managers, a refund. |
-| **Live Itemized Sales** | One row per line sold, with the parent sale. |
-| **Product Performance** | Quantity and value by product. |
-| **Audit & Refunds** | Refunds and related audit rows in the same period. |
+- **Date range.** Tap the dates to open a calendar and pick a start and end day. The **‹** and **›** arrows shift the whole range one day back or forward. The report reloads as soon as the range changes.
+- **All stores** or one workstation.
+- **All employees** or one cashier. Receipts and Taxes match on the cashier who rang the sale; Items and Categories match on the user who owns the sale.
+- **Export** prints the current tab with a header (category, period, generated time).
+
+**Summary tiles** under the filter bar: **Gross sales**, **Refunds**, **Discounts**, **Net sales**, **Gross profit**. They recalculate from the rows the filter returned. Net sales is paid sales; refunds are credit notes and refunded tickets; gross sales is the two added back together. Gross profit is an estimate at 45% of net sales when product cost is not in the figures, so treat it as a guide, not an accounting number.
+
+**Tabs**
+
+| Tab | What it lists | Tap a row |
+|---|---|---|
+| **Receipts** | Each sale in the period: receipt number, date and time, employee, store, total. Refunds carry a red **Refund** badge. | Opens the line breakdown (item, qty, total; voided and refunded lines are labelled). **View** opens the printable receipt. The red arrow icon starts a refund (administrators, managers, developers; paid sales with a positive total only). |
+| **Items** | Each product sold: name, SKU, items sold, gross sales. Sorted by revenue. | — |
+| **Categories** | Each category: items sold, gross sales. Products without a category show as Uncategorized. | — |
+| **Taxes** | VAT at 16%: taxable sales and tax amount, worked back from paid totals. | Opens the tax drilldown: every receipt in the period with its taxable amount and tax. **Print Breakdown** prints only that list. |
+
+Each table has a **Filter records** search box and pages of 50 rows.
+
+**On a phone** the filter bar stacks, the five tiles form a two-column grid, the tab pills scroll sideways, and each table row becomes a card with labelled values and full-width buttons. The receipt and breakdown windows open full screen.
+
+Reports show the shop’s sales ledger. They are not the ZRA VAT return; that is filed on the ZRA portal from the invoices Smart Invoice already sent.
 
 The dashboard charts (sales over recent days, payment mix, active shifts) are a short view of the same shop. Today’s sales and transaction counts link here.
 
@@ -403,13 +436,18 @@ The dashboard charts (sales over recent days, payment mix, active shifts) are a 
 
 Administrators, managers, and developers.
 
-- **Today’s sales** and **transactions** for the workstation you are on.
-- **Unpaid tabs** (Pro and above).
-- **Low stock** and shortcuts into inventory, goods received, and transfers.
-- **Kitchen & menu** shortcuts on Pro+ and Enterprise.
+- **Today’s sales** and **transactions** for the workstation you are on. Both open Master Reports.
+- **Unpaid tabs** (Pro and above). Opens the POS when this station can sell.
+- **Low stock** opens Stock Levels.
+- **Inventory** shortcuts: Receiving Bay, Goods Received, Manage Products, Stock Audit.
+- **Kitchen & menu** shortcuts on Pro+ and Enterprise: KDS, Meal Production, Menu Builder.
+- **Staff & users** shortcuts: Manage Users, View Shifts, Members.
+- **7-day sales trend** and **payment mix** charts.
 - **Active shifts**: who is open, their role, and a button into that shift’s sales.
 - **Pickup screen** and **Approvals** when your role and tier include them.
 - **Go to POS** when this location can sell.
+
+On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 ---
 
