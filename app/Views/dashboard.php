@@ -2,13 +2,17 @@
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 $topColSize = in_array($tier, ['pro', 'pro+', 'enterprise']) ? 'col-md-3' : 'col-md-4';
 $midColSize = in_array($tier, ['pro+', 'enterprise']) ? 'col-md-4' : 'col-md-6';
-$activeShifts =$activeShifts ?? [];
-$dates =$dates ?? [];
+$activeShifts = $activeShifts ?? [];
+$dates = $dates ?? [];
 $salesData =$salesData ?? [];
 $pmData =$pmData ?? [];
 
 // The header defines $currentLocationCanSell. Fall back to true if undefined.
 $canSell =$currentLocationCanSell ?? true;
+
+// Ensure V-SIAS URL is fetched and cleaned for the dashboard link
+$vsiasPendingUrl =$vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl();
+$vsiasPendingUrl = preg_replace('#^https?://[^/]+(:\d+)?#', 'https://vsias.odeliazm.com', (string)$vsiasPendingUrl);
 ?>
 <script src="vendor/chartjs/chart.umd.min.js"></script>
 
@@ -66,7 +70,7 @@ $canSell =$currentLocationCanSell ?? true;
         </button>
         <?php endif; ?>
         <?php if (!empty($canSeeVsiasApprovals)): ?>
-        <a class="btn btn-info fw-bold position-relative text-white js-vsias-inspect flex-grow-1 flex-md-grow-0" href="<?= htmlspecialchars($vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
+        <a href="#" class="btn btn-info fw-bold position-relative text-white flex-grow-1 flex-md-grow-0" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
             <i class="bi bi-clipboard-check"></i> Approvals
             <?php if (!empty($vsiasPending)): ?>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int)$vsiasPending ?></span>
