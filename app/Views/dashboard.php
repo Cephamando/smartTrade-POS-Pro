@@ -10,9 +10,7 @@ $pmData =$pmData ?? [];
 // The header defines $currentLocationCanSell. Fall back to true if undefined.
 $canSell =$currentLocationCanSell ?? true;
 
-// Ensure V-SIAS URL is fetched and cleaned for the dashboard link
-$vsiasPendingUrl =$vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl();
-$vsiasPendingUrl = preg_replace('#^https?://[^/]+(:\d+)?#', 'https://vsias.odeliazm.com', (string)$vsiasPendingUrl);
+$vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl();
 ?>
 <script src="vendor/chartjs/chart.umd.min.js"></script>
 

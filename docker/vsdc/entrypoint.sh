@@ -23,14 +23,36 @@ else
 fi
 
 DEST_WAR="/usr/local/tomcat/webapps/sandboxvsdc.war"
-SRC_WAR="/opt/zra-api/sandboxvsdc1.0.8.0.war"
-if [ -f "$SRC_WAR" ]; then
-    if [ ! -f "$DEST_WAR" ] || ! cmp -s "$SRC_WAR" "$DEST_WAR"; then
-        cp -f "$SRC_WAR" "$DEST_WAR"
-        echo "Copied sandboxvsdc.war"
-    else
-        echo "WAR unchanged; keeping exploded sandboxvsdc"
+# Context path is the WAR filename. Prefer the versioned sandbox build, then
+# api/sandboxvsdc.war (the name kept in this repo), then any other sandbox WAR.
+SRC_WAR=""
+for candidate in \
+    /opt/zra-api/sandboxvsdc1.0.8.0.war \
+    /opt/zra-api/sandboxvsdc.war \
+    /opt/zra-api/sandboxvsdc*.war \
+    /opt/zra-api/vsdc.war
+do
+    if [ -f "$candidate" ]; then
+        SRC_WAR="$candidate"
+        break
     fi
+done
+
+if [ -z "$SRC_WAR" ]; then
+    echo "ERROR: No VSDC WAR in /opt/zra-api. Place sandboxvsdc.war in the api/ folder."
+    echo "Tomcat will start, but /sandboxvsdc/* will return HTTP 404."
+elif [ ! -f "$DEST_WAR" ] || ! cmp -s "$SRC_WAR" "$DEST_WAR"; then
+    # A changed WAR must replace the exploded app. Leaving the old directory
+    # makes Tomcat keep serving it (or nothing) and the API stays on 404.
+    # Unchanged bytes keep the exploded app so the device keystore survives.
+    if [ -f "$DEST_WAR" ]; then
+        rm -rf /usr/local/tomcat/webapps/sandboxvsdc
+        echo "WAR bytes changed; replacing exploded sandboxvsdc"
+    fi
+    cp -f "$SRC_WAR" "$DEST_WAR"
+    echo "Copied $(basename "$SRC_WAR") to sandboxvsdc.war"
+else
+    echo "WAR unchanged; keeping exploded sandboxvsdc"
 fi
 
 exec catalina.sh run

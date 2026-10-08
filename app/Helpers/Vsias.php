@@ -84,7 +84,25 @@ final class Vsias
 
     public static function pendingApprovalsUrl(): string
     {
-        return self::baseUrl() . '/handoffs?status=pending_review';
+        return self::frameUrl(self::baseUrl() . '/handoffs?status=pending_review');
+    }
+
+    /**
+     * Production POS pages live on odeliazm.com and must iframe the public V-SIAS host.
+     * Anywhere else (this WSL box, a LAN IP) the iframe has to stay on VSIAS_URL.
+     * The page CSP only allows those origins, so a hardcoded production host is blocked.
+     */
+    public static function frameUrl(string $url): string
+    {
+        $host = self::requestHost();
+        $onProduction = $host === 'odeliazm.com' || str_ends_with($host, '.odeliazm.com');
+        if (!$onProduction) {
+            return $url;
+        }
+        $parts = parse_url($url);
+        $path = (string)($parts['path'] ?? '');
+        $query = isset($parts['query']) && $parts['query'] !== '' ? '?' . $parts['query'] : '';
+        return 'https://vsias.odeliazm.com' . $path . $query;
     }
 
     /**

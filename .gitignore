@@ -18,6 +18,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+~$*
 my assets/
 my assets.zip
 myStuff/

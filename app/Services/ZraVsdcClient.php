@@ -138,14 +138,17 @@ class ZraVsdcClient
 
     public function ping(): array
     {
-        $ch = curl_init(rtrim($this->baseUrl, '/') . '/');
+        // GET on a POST-only servlet returns 405 when the WAR is deployed.
+        // A missing context returns Tomcat's HTML 404, which must not count as "up".
+        $url = rtrim($this->baseUrl, '/') . '/initializer/selectInitInfo';
+        $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_TIMEOUT => 10,
-            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FOLLOWLOCATION => false,
         ]);
-        curl_exec($ch);
+        $body = curl_exec($ch);
         $error = curl_error($ch);
         $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
@@ -153,10 +156,19 @@ class ZraVsdcClient
         if ($error) {
             return ['ok' => false, 'http' => $http, 'message' => $error, 'layer' => 'local'];
         }
+        if ($http === 404 || $this->isTomcatNotFound((string)$body)) {
+            return [
+                'ok' => false,
+                'http' => $http ?: 404,
+                'message' => 'Tomcat is up, but the Smart Invoice app is not deployed',
+                'layer' => 'local',
+            ];
+        }
+        $ok = $http > 0 && $http < 500;
         return [
-            'ok' => $http > 0 && $http < 500,
+            'ok' => $ok,
             'http' => $http,
-            'message' => ($http > 0 && $http < 500) ? 'Local VSDC is reachable' : 'Local VSDC returned HTTP ' . $http,
+            'message' => $ok ? 'Local VSDC is reachable' : 'Local VSDC returned HTTP ' . $http,
             'layer' => 'local',
         ];
     }
@@ -169,11 +181,18 @@ class ZraVsdcClient
     {
         $ping = $this->ping();
         if (empty($ping['ok'])) {
+            $pingMsg = (string)($ping['message'] ?? 'connection refused');
+            if ((int)($ping['http'] ?? 0) === 404 || str_contains($pingMsg, 'not deployed')) {
+                return [
+                    'resultCd' => '404',
+                    'resultMsg' => $pingMsg,
+                ];
+            }
             return [
                 'resultCd' => '999',
-                'resultMsg' => 'Local VSDC unreachable: ' . ($ping['message'] ?? 'connection refused'),
+                'resultMsg' => 'Local VSDC unreachable: ' . $pingMsg,
                 'layer' => 'local',
-                'hint' => 'The Tomcat container is not accepting HTTP. Place the sandbox WAR in api/ (or api/sandboxvsdc/) and run: docker compose up -d --force-recreate vsdc',
+                'hint' => 'The Tomcat container is not accepting HTTP. Place the sandbox WAR in api/ and run: docker compose up -d --force-recreate vsdc',
             ];
         }
 
@@ -196,6 +215,14 @@ class ZraVsdcClient
             return [
                 'layer' => 'local',
                 'hint' => 'smartTradePOS cannot reach the vsdc container at ' . $this->baseUrl . '. Confirm `docker ps` shows vsdc as Up, then retry.',
+            ];
+        }
+
+        if ($cd === '404' || str_contains($msg, 'not deployed') || str_contains($msg, 'no handler at')) {
+            return [
+                'layer' => 'local',
+                'hint' => 'Tomcat is running, but nothing is mounted at ' . $this->baseUrl
+                    . '. Put sandboxvsdc.war in the api/ folder, then run: docker compose up -d --force-recreate vsdc. Wait until the WAR finishes exploding, then Test connection.',
             ];
         }
 
@@ -1094,9 +1121,30 @@ class ZraVsdcClient
 
         $decoded = json_decode((string)$response, true);
         if (!is_array($decoded)) {
-            return ['resultCd' => (string)$httpCode, 'resultMsg' => (string)$response, 'data' => null];
+            return [
+                'resultCd' => (string)$httpCode,
+                'resultMsg' => $this->summarizeNonJson($url, $httpCode, (string)$response),
+                'data' => null,
+            ];
         }
         return $decoded;
+    }
+
+    private function summarizeNonJson(string $url, int $httpCode, string $body): string
+    {
+        if ($httpCode === 404 || $this->isTomcatNotFound($body)) {
+            return 'VSDC has no handler at ' . $url;
+        }
+        $text = trim(preg_replace('/\s+/', ' ', strip_tags($body)) ?? '');
+        if ($text === '') {
+            return 'VSDC returned HTTP ' . $httpCode . ' with an empty body';
+        }
+        return 'VSDC returned HTTP ' . $httpCode . ': ' . mb_substr($text, 0, 240);
+    }
+
+    private function isTomcatNotFound(string $body): bool
+    {
+        return str_contains($body, 'HTTP Status 404') && str_contains($body, 'Apache Tomcat');
     }
 
     private function putSettings(array $pairs): void

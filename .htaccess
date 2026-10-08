@@ -4,10 +4,12 @@
     Header set X-Frame-Options "SAMEORIGIN"
     Header set X-Content-Type-Options "nosniff"
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-    Header set Permissions-Policy "geolocation=(), microphone=(self \"http://localhost:8095\" \"http://127.0.0.1:8095\"), camera=(self \"http://localhost:8095\" \"http://127.0.0.1:8095\")"
+    Header set Permissions-Policy "geolocation=(), microphone=(self \"http://localhost:8095\" \"http://127.0.0.1:8095\" \"https://vsias.odeliazm.com\"), camera=(self \"http://localhost:8095\" \"http://127.0.0.1:8095\" \"https://vsias.odeliazm.com\")"
     
     # OWASP Strict Content-Security-Policy (with explicit fallbacks)
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' http://localhost:8095 http://127.0.0.1:8095; child-src 'self' http://localhost:8095 http://127.0.0.1:8095;"
+    # frame-src must list every host the Approvals modal iframes. Local V-SIAS is :8095;
+    # production is https://vsias.odeliazm.com. Anything else is blocked by the browser.
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self' http://localhost:8095 http://127.0.0.1:8095 https://vsias.odeliazm.com; child-src 'self' http://localhost:8095 http://127.0.0.1:8095 https://vsias.odeliazm.com;"
     
     # OWASP Spectre & Cache Fixes
     Header unset Cross-Origin-Resource-Policy
