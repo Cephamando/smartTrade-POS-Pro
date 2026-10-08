@@ -1,5 +1,5 @@
 <?php
-$title = $settings['shop_title'] ?: ($settings['business_name'] ?? 'Order online');
+$title = ($settings['shop_title'] ?? '') ?: ($settings['business_name'] ?? 'Order online');
 $accent = $settings['theme_accent'] ?? '#ffc107';
 $dark = $settings['theme_color'] ?? '#2c2c2c';
 $money = fn($v) => 'K' . number_format((float)$v, 2);

@@ -290,7 +290,7 @@ final class ShopController extends Controller
                 'phone' => $customer['phone'],
                 'name' => $customer['name'],
                 'redirect_url' => $this->baseUrl() . '/index.php?page=shop&view=pay_return&order=' . $saleId,
-                'title' => (string)($this->settings['shop_title'] ?: ($this->settings['business_name'] ?? 'Order')),
+                'title' => (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order')),
                 'description' => 'Order #' . $saleId,
                 'sale_id' => $saleId,
                 'location_id' => $loc,
