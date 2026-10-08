@@ -296,20 +296,34 @@ function flwTest() { const out = document.getElementById('flwTestResult'); out.t
             <div class="card-footer bg-white">
                 <label class="form-label small fw-bold text-muted mb-1">QUICK CONVERTER</label>
                 <div class="input-group flex-wrap">
-                    <input type="number" step="0.01" id="cvAmount" class="form-control" value="100" oninput="cvRun()">
-                    <select id="cvFrom" class="form-select no-search" style="max-width:110px" onchange="cvRun()"><option value="ZMW">ZMW</option><?php foreach (array_keys($fxData['rates']) as $code): ?><option value="<?= htmlspecialchars($code) ?>"><?= htmlspecialchars($code) ?></option><?php endforeach; ?></select>
-                    <span class="input-group-text">→</span>
-                    <select id="cvTo" class="form-select no-search" style="max-width:110px" onchange="cvRun()"><?php foreach (array_keys($fxData['rates']) as $code): ?><option value="<?= htmlspecialchars($code) ?>"><?= htmlspecialchars($code) ?></option><?php endforeach; ?><option value="ZMW">ZMW</option></select>
-                    <span class="input-group-text fw-bold" id="cvResult">—</span>
+                    <input type="number" step="0.01" min="0" id="cvZmw" class="form-control" value="100" inputmode="decimal" oninput="cvFromZmw()" placeholder="Kwacha">
+                    <span class="input-group-text">ZMW</span>
+                    <span class="input-group-text"><i class="bi bi-arrow-left-right"></i></span>
+                    <select id="cvCode" class="form-select no-search" style="max-width:110px" onchange="cvFromZmw()"><?php foreach (array_keys($fxData['rates']) as $code): ?><option value="<?= htmlspecialchars($code) ?>"><?= htmlspecialchars($code) ?></option><?php endforeach; ?></select>
+                    <input type="number" step="0.01" min="0" id="cvFx" class="form-control" inputmode="decimal" oninput="cvFromFx()" placeholder="Amount">
                 </div>
+                <div class="small text-muted mt-1">Type either side. The other fills in at the rate above.</div>
             </div>
         </div>
     </div>
 </div>
 <script>
 function addManualRow() { const wrap = document.getElementById('manualRates'); const row = document.createElement('div'); row.className = 'row g-2 mb-2 manual-row'; row.innerHTML = '<div class="col-5"><input type="text" name="manual_code[]" class="form-control text-uppercase" maxlength="3" placeholder="USD"></div><div class="col-5"><input type="number" step="0.0001" min="0" name="manual_rate[]" class="form-control" placeholder="e.g. 27.50"></div><div class="col-2"><button type="button" class="btn btn-outline-danger w-100" onclick="this.closest(\'.manual-row\').remove()"><i class="bi bi-x"></i></button></div>'; wrap.appendChild(row); }
-function cvRun() { const a = document.getElementById('cvAmount').value || 0; const f = document.getElementById('cvFrom').value; const t = document.getElementById('cvTo').value; fetch('index.php?page=currency&action=convert&amount=' + encodeURIComponent(a) + '&from=' + f + '&to=' + t, { credentials: 'same-origin' }).then(r => r.json()).then(function (res) { document.getElementById('cvResult').textContent = res.status === 'ok' ? (t + ' ' + Number(res.result).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : (res.msg || 'n/a'); }); }
-document.addEventListener('DOMContentLoaded', cvRun);
+const cvRates = <?= json_encode(array_map(fn($r) => (float)$r['zmw_per_unit'], $fxData['rates'] ?? [])) ?>;
+let cvLock = false;
+function cvFromZmw() {
+    if (cvLock) return;
+    const z = parseFloat(cvRates[document.getElementById('cvCode').value]) || 0;
+    const zmw = parseFloat(document.getElementById('cvZmw').value) || 0;
+    cvLock = true; document.getElementById('cvFx').value = (z > 0 && zmw > 0) ? (Math.round((zmw / z) * 100) / 100).toFixed(2) : ''; cvLock = false;
+}
+function cvFromFx() {
+    if (cvLock) return;
+    const z = parseFloat(cvRates[document.getElementById('cvCode').value]) || 0;
+    const fx = parseFloat(document.getElementById('cvFx').value) || 0;
+    cvLock = true; document.getElementById('cvZmw').value = (z > 0 && fx > 0) ? (Math.round(fx * z * 100) / 100).toFixed(2) : ''; cvLock = false;
+}
+document.addEventListener('DOMContentLoaded', cvFromZmw);
 </script>
 
 <?php elseif ($tab === 'shop'): ?>

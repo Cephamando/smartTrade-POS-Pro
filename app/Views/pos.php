@@ -748,18 +748,18 @@ function getCategoryStyle($name) {
             <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold mt-2" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add payment method</button>
             <div class="small text-muted mt-2">Choose a method or <strong>Other</strong> and type a custom name (bank transfer, cheque, voucher…).</div>
         </div>
-        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" inputmode="decimal" oninput="tenderedTouched = true; clearForeignTender(); calcResult()" onkeyup="calcResult()"></div>
+        <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" inputmode="decimal" oninput="onTenderedEdited()"></div>
             <?php if (!empty($fx['enabled']) && !empty($fx['rates'])): ?>
             <div class="mt-2" id="fxTenderBox">
                 <a href="javascript:void(0)" class="small fw-bold text-decoration-none" onclick="toggleFxTender()"><i class="bi bi-currency-exchange"></i> Paying with foreign cash?</a>
                 <div class="row g-2 mt-1" id="fxTenderRow" style="display:none;">
-                    <div class="col-5"><select id="fxCurrency" class="form-select no-search" onchange="onFxTenderChange()">
+                    <div class="col-5"><select id="fxCurrency" class="form-select no-search" onchange="onFxCurrencyChange()">
                         <?php foreach ($fx['rates'] as $code => $r): ?>
                         <option value="<?= htmlspecialchars($code) ?>" data-zmw="<?= htmlspecialchars((string)$r['zmw_per_unit']) ?>"><?= htmlspecialchars($code) ?> · K<?= number_format((float)$r['zmw_per_unit'], 2) ?></option>
                         <?php endforeach; ?>
                     </select></div>
                     <div class="col-7"><input type="number" step="0.01" min="0" id="fxAmount" class="form-control" placeholder="Foreign amount" inputmode="decimal" oninput="onFxTenderChange()"></div>
-                    <div class="col-12 small text-muted" id="fxTenderInfo">Enter the foreign amount; the kwacha equivalent fills in as tendered. Change is given in ZMW.</div>
+                    <div class="col-12 small text-muted" id="fxTenderInfo">Type either amount — the other fills in at the live rate. Change is given in ZMW.</div>
                 </div>
                 <input type="hidden" name="tender_currency" id="tenderCurrency" value="">
                 <input type="hidden" name="tender_fx_amount" id="tenderFxAmount" value="">
@@ -1353,15 +1353,52 @@ function getCategoryStyle($name) {
             Object.keys(fxRates).slice(0, 4).forEach(function (code) { const z = fxRates[code]; if (z > 0) parts.push('≈ ' + code + ' ' + (Math.max(0, due) / z).toFixed(2)); });
             box.textContent = parts.join('   ·   ');
         }
-        function toggleFxTender() { const row = document.getElementById('fxTenderRow'); if (!row) return; row.style.display = row.style.display === 'none' ? '' : 'none'; if (row.style.display === '') { document.getElementById('fxAmount').focus(); } else { clearForeignTender(true); updateDisplays(); } }
-        function onFxTenderChange() {
-            const sel = document.getElementById('fxCurrency'); const amt = parseFloat(document.getElementById('fxAmount').value) || 0;
-            const z = parseFloat(sel.options[sel.selectedIndex].dataset.zmw) || 0;
+        let fxSyncing = false;
+        let fxSource = 'zmw';
+        function fxRowOpen() { const row = document.getElementById('fxTenderRow'); return !!(row && row.style.display !== 'none'); }
+        function fxRate() { const sel = document.getElementById('fxCurrency'); if (!sel || sel.selectedIndex < 0) return 0; return parseFloat(sel.options[sel.selectedIndex].dataset.zmw) || 0; }
+        function setFxHidden(code, amt, z) {
+            document.getElementById('tenderCurrency').value = amt > 0 ? code : '';
+            document.getElementById('tenderFxAmount').value = amt > 0 ? amt.toFixed(2) : '';
+            document.getElementById('tenderFxRate').value = amt > 0 ? String(z) : '';
+        }
+        function toggleFxTender() {
+            const row = document.getElementById('fxTenderRow'); if (!row) return;
+            const open = row.style.display === 'none';
+            row.style.display = open ? '' : 'none';
+            if (open) { fxSource = 'zmw'; syncFxFromZmw(); document.getElementById('fxAmount').focus(); }
+            else { clearForeignTender(true); updateDisplays(); }
+        }
+        function onTenderedEdited() {
+            tenderedTouched = true;
+            if (fxRowOpen()) { fxSource = 'zmw'; syncFxFromZmw(); }
+            else { clearForeignTender(); }
+            calcResult();
+        }
+        function onFxCurrencyChange() { fxSource = 'zmw'; syncFxFromZmw(); }
+        // Kwacha typed → selected currency fills in.
+        function syncFxFromZmw() {
+            if (!fxRowOpen() || fxSyncing) return;
+            const sel = document.getElementById('fxCurrency'); const z = fxRate();
+            const zmw = parseFloat(document.getElementById('tenderedInput').value) || 0;
             const info = document.getElementById('fxTenderInfo');
-            if (amt <= 0 || z <= 0) { clearForeignTender(); info.textContent = 'Enter the foreign amount; the kwacha equivalent fills in as tendered. Change is given in ZMW.'; calcResult(); return; }
+            if (z <= 0 || zmw <= 0) { clearForeignTender(); fxSyncing = true; document.getElementById('fxAmount').value = ''; fxSyncing = false; info.textContent = 'Type either amount — the other fills in at the live rate. Change is given in ZMW.'; return; }
+            const fx = Math.round((zmw / z) * 100) / 100;
+            fxSyncing = true; document.getElementById('fxAmount').value = fx.toFixed(2); fxSyncing = false;
+            setFxHidden(sel.value, fx, z);
+            info.innerHTML = 'ZMW ' + zmw.toFixed(2) + ' ÷ K' + z.toFixed(4) + ' = <strong>' + sel.value + ' ' + fx.toFixed(2) + '</strong>';
+        }
+        // Foreign amount typed → kwacha tendered fills in.
+        function onFxTenderChange() {
+            if (fxSyncing) return;
+            fxSource = 'fx';
+            const sel = document.getElementById('fxCurrency'); const amt = parseFloat(document.getElementById('fxAmount').value) || 0;
+            const z = fxRate();
+            const info = document.getElementById('fxTenderInfo');
+            if (amt <= 0 || z <= 0) { clearForeignTender(); info.textContent = 'Type either amount — the other fills in at the live rate. Change is given in ZMW.'; calcResult(); return; }
             const zmw = Math.round(amt * z * 100) / 100;
-            document.getElementById('tenderedInput').value = zmw.toFixed(2); tenderedTouched = true;
-            document.getElementById('tenderCurrency').value = sel.value; document.getElementById('tenderFxAmount').value = amt.toFixed(2); document.getElementById('tenderFxRate').value = z;
+            fxSyncing = true; document.getElementById('tenderedInput').value = zmw.toFixed(2); tenderedTouched = true; fxSyncing = false;
+            setFxHidden(sel.value, amt, z);
             const due = amountDue(); const need = Math.max(0, due - zmw);
             info.innerHTML = sel.value + ' ' + amt.toFixed(2) + ' × K' + z.toFixed(4) + ' = <strong>ZMW ' + zmw.toFixed(2) + '</strong>' + (need > 0 ? ' · still short by ZMW ' + need.toFixed(2) + ' (≈ ' + sel.value + ' ' + (need / z).toFixed(2) + ')' : '');
             calcResult();
@@ -1497,7 +1534,7 @@ function getCategoryStyle($name) {
                 document.getElementById('tenderedInput').value = due.toFixed(2);
             }
             renderFx(due);
-            const fxAmt = document.getElementById('fxAmount'); if (fxAmt && fxAmt.value) onFxTenderChange();
+            if (fxRowOpen()) { if (fxSource === 'fx') onFxTenderChange(); else syncFxFromZmw(); }
             calcResult();
         }
         function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); document.getElementById('tenderedInput').value = "0.00"; tenderedTouched = true; } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); } calcResult(); }

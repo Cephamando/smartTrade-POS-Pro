@@ -2,6 +2,34 @@
 $title = ($settings['shop_title'] ?? '') ?: ($settings['business_name'] ?? 'Order online');
 $accent = $settings['theme_accent'] ?? '#ffc107';
 $dark = $settings['theme_color'] ?? '#2c2c2c';
+$onAccent = (function (string $hex): string {
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) === 3) {
+        $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+    }
+    if (!preg_match('/^[0-9a-fA-F]{6}$/', $hex)) {
+        return '#1c140f';
+    }
+    $l = 0.299 * hexdec(substr($hex, 0, 2)) + 0.587 * hexdec(substr($hex, 2, 2)) + 0.114 * hexdec(substr($hex, 4, 2));
+    return $l > 165 ? '#1c140f' : '#fffaf4';
+})($accent);
+$shopIcon = function (string $cat): string {
+    $c = strtolower($cat);
+    foreach ([
+        'beer' => 'bi-cup-straw', 'cider' => 'bi-cup-straw', 'wine' => 'bi-cup', 'champagne' => 'bi-cup',
+        'cocktail' => 'bi-tropical-storm', 'mocktail' => 'bi-tropical-storm', 'shot' => 'bi-droplet',
+        'whisky' => 'bi-moisture', 'vodka' => 'bi-moisture', 'gin' => 'bi-moisture', 'rum' => 'bi-moisture',
+        'brandy' => 'bi-moisture', 'cognac' => 'bi-moisture', 'liqueur' => 'bi-moisture',
+        'food' => 'bi-egg-fried', 'meal' => 'bi-egg-fried', 'burger' => 'bi-egg-fried',
+        'juice' => 'bi-cup-hot', 'soda' => 'bi-cup-hot', 'soft' => 'bi-cup-hot', 'mixer' => 'bi-cup-hot',
+        'shisha' => 'bi-wind', 'coffee' => 'bi-cup-hot',
+    ] as $word => $icon) {
+        if (str_contains($c, $word)) {
+            return $icon;
+        }
+    }
+    return 'bi-basket3';
+};
 $money = fn($v) => 'K' . number_format((float)$v, 2);
 $cartCount = $cartCount ?? 0;
 $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&' . http_build_query($q) : '');
@@ -15,57 +43,94 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <style>
-        :root { --accent: <?= htmlspecialchars($accent) ?>; --dark: <?= htmlspecialchars($dark) ?>; }
-        body { background: #f6f6f6; padding-bottom: 90px; }
-        .shop-nav { background: var(--dark); color: #fff; }
-        .shop-nav a { color: #fff; text-decoration: none; }
-        .btn-accent { background: var(--accent); border-color: var(--accent); color: #212529; font-weight: 700; }
-        .btn-accent:hover { filter: brightness(.95); color: #212529; }
-        .cat-chip { white-space: nowrap; border-radius: 999px; }
-        .item-card { border: 0; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.08); transition: transform .1s; }
-        .item-card:active { transform: scale(.98); }
-        .item-card.unavailable { opacity: .55; }
+        :root { --accent: <?= htmlspecialchars($accent) ?>; --dark: <?= htmlspecialchars($dark) ?>; --on-accent: <?= htmlspecialchars($onAccent) ?>; --ink: #241810; --paper: #f6efe6; --card: #fffdf9; }
+        * { -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; padding-bottom: 110px; }
+        body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: radial-gradient(900px 420px at 110% -10%, color-mix(in srgb, var(--accent) 35%, transparent), transparent 60%), radial-gradient(700px 360px at -10% 0%, color-mix(in srgb, var(--dark) 12%, transparent), transparent 55%); }
+        a { color: var(--dark); }
+        .shop-nav { position: sticky; top: 0; z-index: 1040; background: color-mix(in srgb, var(--dark) 92%, #000); color: #fffaf4; backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(40, 18, 6, .18); }
+        .shop-nav a { color: #fffaf4; text-decoration: none; }
+        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; }
+        .nav-link-soft { opacity: .9; font-weight: 600; }
+        .nav-link-soft:hover { opacity: 1; }
+        .btn-accent { background: var(--accent); border: 0; color: var(--on-accent); font-weight: 700; }
+        .btn-accent:hover, .btn-accent:focus { filter: brightness(1.06); color: var(--on-accent); }
+        .shop-wrap { position: relative; max-width: 1040px; }
+        .shop-hero { margin: 18px 0 16px; padding: 28px 26px; border-radius: 28px; color: #fffaf4; background: linear-gradient(135deg, var(--dark) 0%, color-mix(in srgb, var(--dark) 62%, var(--accent)) 100%); box-shadow: 0 16px 40px rgba(40, 18, 6, .18); overflow: hidden; position: relative; }
+        .shop-hero::after { content: ""; position: absolute; right: -40px; top: -50px; width: 180px; height: 180px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 55%, transparent); }
+        .shop-hero .eyebrow { letter-spacing: .18em; text-transform: uppercase; font-size: .72rem; font-weight: 700; opacity: .8; }
+        .shop-hero h1 { font-weight: 800; letter-spacing: -.03em; margin: 6px 0 8px; position: relative; }
+        .shop-hero p { margin: 0; max-width: 36rem; opacity: .9; position: relative; }
+        .search-pill { background: var(--card); border-radius: 999px; box-shadow: 0 8px 24px rgba(40, 18, 6, .08); overflow: hidden; }
+        .search-pill .form-control, .search-pill .input-group-text { border: 0; background: transparent; }
+        .search-pill .form-control:focus { box-shadow: none; }
+        .cat-chip { white-space: nowrap; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--dark) 18%, #fff); background: var(--card); color: var(--ink); font-weight: 650; padding: .35rem .85rem; }
+        .cat-chip.active { background: var(--dark); color: #fffaf4; border-color: var(--dark); }
+        #catChips { scrollbar-width: none; }
+        #catChips::-webkit-scrollbar { display: none; }
+        .item-card { border: 0; border-radius: 22px; background: var(--card); box-shadow: 0 10px 28px rgba(40, 18, 6, .07); overflow: hidden; }
+        .item-card.unavailable { opacity: .62; }
+        .item-face { height: 92px; display: flex; align-items: flex-end; padding: 12px 14px; color: var(--on-accent); background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--dark) 35%, var(--accent))); position: relative; }
+        .item-face i { position: absolute; right: 10px; top: 8px; font-size: 3.2rem; opacity: .22; }
+        .item-face span { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
         .price { color: var(--dark); font-weight: 800; }
-        .cart-bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--dark); color: #fff; padding: 12px 16px; box-shadow: 0 -2px 10px rgba(0,0,0,.2); z-index: 1030; }
+        .cart-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 14px; width: min(680px, calc(100% - 20px)); background: var(--dark); color: #fffaf4; border-radius: 999px; padding: 8px 8px 8px 18px; box-shadow: 0 16px 40px rgba(40, 18, 6, .28); z-index: 1030; }
         .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        .step { width: 36px; height: 36px; border-radius: 50%; background: #e9ecef; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
-        .step.done { background: var(--accent); }
-        .form-control, .form-select { border-radius: 10px; }
+        .step { width: 36px; height: 36px; border-radius: 50%; background: #efe6dc; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; }
+        .step.done { background: var(--accent); color: var(--on-accent); }
+        .form-control, .form-select { border-radius: 14px; border-color: #eadfd2; background: #fff; }
+        .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--accent) 25%, transparent); }
+        .page-title { font-weight: 800; letter-spacing: -.03em; }
+        .shop-foot { position: relative; text-align: center; color: #8a7564; font-size: .85rem; padding: 8px 16px 28px; }
+        .list-group-item { border-color: #f0e6da; }
+        @media (max-width: 576px) { .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 1.7rem; } }
     </style>
 </head>
 <body>
-<nav class="shop-nav py-2 sticky-top">
-    <div class="container d-flex justify-content-between align-items-center">
-        <a href="<?= $u('menu') ?>" class="fw-bold fs-5 text-truncate"><i class="bi bi-shop"></i> <?= htmlspecialchars($title) ?></a>
-        <div class="d-flex align-items-center gap-3 small">
+<nav class="shop-nav py-2">
+    <div class="container shop-wrap d-flex justify-content-between align-items-center gap-2">
+        <a href="<?= $u('menu') ?>" class="d-flex align-items-center gap-2 text-truncate">
+            <span class="brand-mark"><?= htmlspecialchars(strtoupper(substr($title, 0, 1))) ?></span>
+            <span class="fw-bold text-truncate"><?= htmlspecialchars($title) ?></span>
+        </a>
+        <div class="d-flex align-items-center gap-3 small flex-shrink-0">
+            <a href="<?= $u('cart') ?>" class="nav-link-soft position-relative"><i class="bi bi-bag"></i><?php if ($cartCount): ?> <span class="badge rounded-pill" style="background:var(--accent);color:var(--on-accent)"><?= (int)$cartCount ?></span><?php endif; ?></a>
             <?php if ($customer): ?>
-                <a href="<?= $u('orders') ?>"><i class="bi bi-receipt"></i> <span class="d-none d-sm-inline">My orders</span></a>
-                <a href="<?= $u('account') ?>"><i class="bi bi-person-circle"></i> <span class="d-none d-sm-inline"><?= htmlspecialchars(explode(' ', $customer['name'])[0]) ?></span></a>
+                <a href="<?= $u('orders') ?>" class="nav-link-soft"><i class="bi bi-receipt"></i> <span class="d-none d-sm-inline">Orders</span></a>
+                <a href="<?= $u('account') ?>" class="nav-link-soft"><i class="bi bi-person-circle"></i> <span class="d-none d-sm-inline"><?= htmlspecialchars(explode(' ', $customer['name'])[0]) ?></span></a>
             <?php else: ?>
-                <a href="<?= $u('login') ?>"><i class="bi bi-box-arrow-in-right"></i> Sign in</a>
-                <a href="<?= $u('register') ?>" class="btn btn-accent btn-sm">Register</a>
+                <a href="<?= $u('login') ?>" class="nav-link-soft">Sign in</a>
+                <a href="<?= $u('register') ?>" class="btn btn-accent btn-sm rounded-pill px-3">Join</a>
             <?php endif; ?>
         </div>
     </div>
 </nav>
-<div class="container py-3" style="max-width: 980px">
+<div class="container py-2 shop-wrap">
 <?php if ($flash): ?>
     <div class="alert alert-<?= $flash['type'] === 'error' ? 'danger' : $flash['type'] ?> shadow-sm"><?= htmlspecialchars($flash['msg']) ?></div>
 <?php endif; ?>
 
 <?php if ($view === 'closed'): ?>
-    <div class="text-center py-5"><i class="bi bi-moon-stars fs-1 text-muted"></i><h4 class="mt-3">Online ordering is currently closed</h4><p class="text-muted"><?= !empty($settings['shop_phone']) ? 'Call us on ' . htmlspecialchars($settings['shop_phone']) : 'Please visit us in store.' ?></p></div>
+    <section class="shop-hero text-center">
+        <div class="eyebrow">Tonight's kitchen</div>
+        <h1>Online ordering is closed</h1>
+        <p class="mx-auto"><?= !empty($settings['shop_phone']) ? 'Come and see us in store, or call ' . htmlspecialchars($settings['shop_phone']) . '.' : 'Come and see us in store. We will be taking orders here again soon.' ?></p>
+    </section>
 
 <?php elseif ($view === 'menu'): ?>
-    <?php if (!empty($settings['shop_intro'])): ?><p class="text-muted mb-3"><?= htmlspecialchars($settings['shop_intro']) ?></p><?php endif; ?>
-    <div class="input-group mb-3 shadow-sm">
-        <span class="input-group-text bg-white border-0"><i class="bi bi-search"></i></span>
-        <input type="search" id="menuSearch" class="form-control border-0" placeholder="Search the menu…" oninput="filterMenu()">
+    <section class="shop-hero">
+        <div class="eyebrow">Order ahead</div>
+        <h1><?= htmlspecialchars($title) ?></h1>
+        <p><?= htmlspecialchars(($settings['shop_intro'] ?? '') ?: 'Fresh from our kitchen. Order ahead and skip the queue.') ?></p>
+    </section>
+    <div class="input-group search-pill mb-3">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" id="menuSearch" class="form-control" placeholder="Search the menu…" oninput="filterMenu()">
     </div>
     <div class="d-flex gap-2 overflow-auto pb-2 mb-3" id="catChips">
-        <button class="btn btn-sm btn-dark cat-chip active" data-cat="" onclick="pickCat(this)">All</button>
+        <button type="button" class="cat-chip active" data-cat="" onclick="pickCat(this)">All</button>
         <?php foreach ($categories as $cat => $n): ?>
-        <button class="btn btn-sm btn-outline-dark cat-chip" data-cat="<?= htmlspecialchars($cat) ?>" onclick="pickCat(this)"><?= htmlspecialchars($cat) ?> <span class="badge bg-secondary ms-1"><?= (int)$n ?></span></button>
+        <button type="button" class="cat-chip" data-cat="<?= htmlspecialchars($cat) ?>" onclick="pickCat(this)"><?= htmlspecialchars($cat) ?> <span class="opacity-75"><?= (int)$n ?></span></button>
         <?php endforeach; ?>
     </div>
     <div class="row g-3" id="menuGrid">
@@ -73,14 +138,14 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <?php foreach ($products as $p): ?>
         <div class="col-6 col-md-4 menu-item" data-cat="<?= htmlspecialchars($p['category']) ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'])) ?>">
             <div class="card item-card h-100 <?= $p['available'] ? '' : 'unavailable' ?>">
-                <div class="card-body d-flex flex-column">
-                    <div class="small text-muted"><?= htmlspecialchars($p['category']) ?></div>
+                <div class="item-face"><i class="bi <?= $shopIcon((string)$p['category']) ?>"></i><span><?= htmlspecialchars($p['category'] ?: 'Menu') ?></span></div>
+                <div class="card-body d-flex flex-column pt-3">
                     <div class="fw-bold flex-grow-1"><?= htmlspecialchars($p['name']) ?></div>
-                    <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="d-flex justify-content-between align-items-center mt-3">
                         <span class="price"><?= $money($p['price']) ?></span>
                         <?php if ($p['available']): ?>
                         <button class="btn btn-accent btn-sm rounded-pill px-3" onclick="addToCart(<?= (int)$p['id'] ?>, this)"><i class="bi bi-plus-lg"></i> Add</button>
-                        <?php else: ?><span class="badge bg-secondary">Sold out</span><?php endif; ?>
+                        <?php else: ?><span class="badge rounded-pill text-bg-secondary">Sold out</span><?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -88,19 +153,19 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <?php endforeach; ?>
     </div>
     <div class="cart-bar <?= $cartCount ? '' : 'd-none' ?>" id="cartBar">
-        <div class="container d-flex justify-content-between align-items-center" style="max-width:980px">
-            <div><span class="badge bg-light text-dark" id="cartBarCount"><?= (int)$cartCount ?></span> item(s) · <strong id="cartBarTotal"><?= $money($cartTotal) ?></strong></div>
-            <a href="<?= $u('cart') ?>" class="btn btn-accent rounded-pill px-4">View basket <i class="bi bi-arrow-right"></i></a>
+        <div class="d-flex justify-content-between align-items-center">
+            <div><span class="badge rounded-pill" style="background:var(--accent);color:var(--on-accent)" id="cartBarCount"><?= (int)$cartCount ?></span> in your bag · <strong id="cartBarTotal"><?= $money($cartTotal) ?></strong></div>
+            <a href="<?= $u('cart') ?>" class="btn btn-accent rounded-pill px-4">View bag <i class="bi bi-arrow-right"></i></a>
         </div>
     </div>
     <script>
-    function pickCat(btn) { document.querySelectorAll('.cat-chip').forEach(function (b) { b.classList.remove('active', 'btn-dark'); b.classList.add('btn-outline-dark'); }); btn.classList.add('active', 'btn-dark'); btn.classList.remove('btn-outline-dark'); filterMenu(); }
+    function pickCat(btn) { document.querySelectorAll('.cat-chip').forEach(function (b) { b.classList.remove('active'); }); btn.classList.add('active'); filterMenu(); }
     function filterMenu() { const cat = (document.querySelector('.cat-chip.active') || {}).dataset ? document.querySelector('.cat-chip.active').dataset.cat : ''; const q = (document.getElementById('menuSearch').value || '').toLowerCase().trim(); document.querySelectorAll('.menu-item').forEach(function (el) { const okCat = !cat || el.dataset.cat === cat; const okQ = !q || el.dataset.name.indexOf(q) !== -1; el.classList.toggle('d-none', !(okCat && okQ)); }); }
     function addToCart(pid, btn) { btn.disabled = true; const body = new URLSearchParams({ cart_add: pid, qty: 1, ajax: 1 }); fetch('index.php?page=shop&view=menu', { method: 'POST', body: body, credentials: 'same-origin' }).then(r => r.json()).then(function (res) { btn.disabled = false; if (res.status !== 'ok') { alert(res.msg || 'Could not add'); return; } document.getElementById('cartBar').classList.remove('d-none'); document.getElementById('cartBarCount').textContent = res.count; document.getElementById('cartBarTotal').textContent = 'K' + Number(res.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); btn.innerHTML = '<i class="bi bi-check-lg"></i> Added'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-plus-lg"></i> Add'; }, 900); }).catch(function () { btn.disabled = false; }); }
     </script>
 
 <?php elseif ($view === 'cart'): ?>
-    <h4 class="fw-bold mb-3"><i class="bi bi-basket"></i> Your basket</h4>
+    <h4 class="page-title mb-3">Your bag</h4>
     <?php if (!$cart): ?>
         <div class="text-center py-5 text-muted"><i class="bi bi-basket fs-1"></i><p class="mt-2">Nothing here yet.</p><a href="<?= $u('menu') ?>" class="btn btn-accent rounded-pill px-4">Browse the menu</a></div>
     <?php else: ?>
@@ -129,7 +194,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <?php endif; ?>
 
 <?php elseif ($view === 'checkout'): ?>
-    <h4 class="fw-bold mb-3"><i class="bi bi-bag-check"></i> Checkout</h4>
+    <h4 class="page-title mb-3">Checkout</h4>
     <?php if (!$cart): ?><div class="alert alert-warning">Your basket is empty. <a href="<?= $u('menu') ?>">Back to menu</a></div>
     <?php else: ?>
     <form method="POST" action="<?= $u('checkout') ?>" class="row g-3">
@@ -177,7 +242,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <?php endif; ?>
 
 <?php elseif ($view === 'orders'): ?>
-    <h4 class="fw-bold mb-3"><i class="bi bi-receipt"></i> My orders</h4>
+    <h4 class="page-title mb-3">My orders</h4>
     <?php if (empty($orders)): ?><div class="text-center text-muted py-5">No orders yet. <a href="<?= $u('menu') ?>">Order something tasty</a>.</div><?php endif; ?>
     <div class="list-group shadow-sm">
     <?php foreach ($orders ?? [] as $o): $live = $o['status'] === 'pending'; ?>
@@ -269,7 +334,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </div>
 <?php endif; ?>
 </div>
-<footer class="text-center text-muted small py-4"><?= htmlspecialchars($settings['business_name'] ?? '') ?><?= !empty($settings['shop_phone']) ? ' · ' . htmlspecialchars($settings['shop_phone']) : '' ?></footer>
+<footer class="shop-foot"><?= htmlspecialchars($settings['business_name'] ?? $title) ?><?= !empty($settings['shop_phone']) ? ' · ' . htmlspecialchars($settings['shop_phone']) : '' ?></footer>
 <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
 </body>
 </html>
