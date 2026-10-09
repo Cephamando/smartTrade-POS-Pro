@@ -59,7 +59,8 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .btn-accent { background: var(--accent); border: 0; color: var(--on-accent); font-weight: 700; }
         .btn-accent:hover, .btn-accent:focus { filter: brightness(1.06); color: var(--on-accent); }
         .shop-wrap { position: relative; max-width: 1180px; }
-        .shop-board { display: grid; grid-template-columns: minmax(168px, 240px) minmax(0, 1fr); gap: 18px; align-items: start; }
+        .shop-board { display: grid; grid-template-columns: minmax(168px, 240px) minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 18px; }
+        .shop-board .shop-hero { margin-top: 0; }
         .cat-panel { position: sticky; top: 72px; background: var(--card); border-radius: 22px; padding: 12px; box-shadow: 0 10px 28px rgba(40, 18, 6, .07); max-height: calc(100vh - 96px); overflow: auto; }
         .cat-panel-title { font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #8a7564; padding: 6px 10px 8px; }
         .cat-tab { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; border: 0; background: transparent; border-radius: 14px; padding: .55rem .75rem; font-weight: 650; color: var(--ink); text-align: left; }
@@ -135,12 +136,6 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </section>
 
 <?php elseif ($view === 'menu'): ?>
-    <section class="shop-hero<?= $bannerUrl !== '' ? ' has-banner' : '' ?>"<?= $bannerUrl !== '' ? ' style="background-image:linear-gradient(135deg, color-mix(in srgb, var(--dark) 78%, transparent), color-mix(in srgb, var(--dark) 55%, transparent)), url(\'' . htmlspecialchars($bannerUrl, ENT_QUOTES) . '\')"' : '' ?>>
-        <div class="eyebrow">Order ahead</div>
-        <h1><?= htmlspecialchars($title) ?></h1>
-        <p><?= htmlspecialchars(($settings['shop_intro'] ?? '') ?: 'Fresh from our kitchen. Order ahead and skip the queue.') ?></p>
-    </section>
-    <?php if ($promoUrl !== ''): ?><img class="promo-banner" src="<?= htmlspecialchars($promoUrl) ?>" alt=""><?php endif; ?>
     <?php
         $shopLocations = $shopLocations ?? [];
         $shopLocationId = (int)($shopLocationId ?? 0);
@@ -163,6 +158,12 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <button type="button" class="cat-tab" id="stockChip" data-stock="" onclick="toggleStock(this)"><span>In stock</span></button>
         </aside>
         <div>
+    <section class="shop-hero<?= $bannerUrl !== '' ? ' has-banner' : '' ?>"<?= $bannerUrl !== '' ? ' style="background-image:linear-gradient(135deg, color-mix(in srgb, var(--dark) 78%, transparent), color-mix(in srgb, var(--dark) 55%, transparent)), url(\'' . htmlspecialchars($bannerUrl, ENT_QUOTES) . '\')"' : '' ?>>
+        <div class="eyebrow">Order ahead</div>
+        <h1><?= htmlspecialchars($title) ?></h1>
+        <p><?= htmlspecialchars(($settings['shop_intro'] ?? '') ?: 'Fresh from our kitchen. Order ahead and skip the queue.') ?></p>
+    </section>
+    <?php if ($promoUrl !== ''): ?><img class="promo-banner" src="<?= htmlspecialchars($promoUrl) ?>" alt=""><?php endif; ?>
     <div class="row g-2 mb-3 align-items-center">
         <?php if (count($shopLocations) > 1): ?>
         <div class="col-12 col-md-4">
