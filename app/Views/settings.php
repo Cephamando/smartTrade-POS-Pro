@@ -415,6 +415,43 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
 ?>
 <div class="row">
     <div class="col-lg-10 mx-auto">
+        <?php $libraryImages = $libraryImages ?? []; ?>
+        <div class="card shadow-sm border-0 border-top border-4 border-primary mb-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-1"><i class="bi bi-images text-primary"></i> Image library</h5>
+                <p class="text-muted small mb-3">Upload pictures once, then use them as the logo, a banner, or a menu item photo. Files stay in the app image folder.</p>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold small text-muted" for="libraryFiles">IMAGES</label>
+                        <input type="file" id="libraryFiles" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+                        <div class="form-text">Up to 10 images at a time. JPG, PNG, WEBP, or GIF, 2.5 MB each.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-dark fw-bold w-100" id="libraryUpload"><i class="bi bi-cloud-upload"></i> Upload</button>
+                    </div>
+                </div>
+                <div id="libraryGrid" class="library-grid mt-3">
+                    <?php if (!$libraryImages): ?>
+                    <p class="text-muted small mb-0" id="libraryEmpty">No images yet.</p>
+                    <?php endif; ?>
+                    <?php foreach ($libraryImages as $image): ?>
+                    <button type="button" class="library-thumb" data-path="<?= htmlspecialchars($image['path']) ?>"><img src="<?= htmlspecialchars($image['path']) ?>" alt=""></button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseLogo" disabled>Use as logo</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseBanner" disabled>Use as shop banner</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUsePromo" disabled>Use as promo</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="libUseItem" disabled>Use on menu item</button>
+                </div>
+            </div>
+        </div>
+        <style>
+            .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; max-height: 380px; overflow: auto; }
+            .library-thumb { border: 2px solid transparent; border-radius: 12px; padding: 0; background: #f6efe6; overflow: hidden; aspect-ratio: 1; }
+            .library-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+            .library-thumb.active { border-color: #0d6efd; }
+        </style>
         <div class="card shadow-sm border-0 border-top border-4 border-warning">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-image text-warning"></i> Logo, banners, and shop photos</h5>
@@ -431,7 +468,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                         <div class="col-md-4">
                             <div class="border rounded p-3 h-100 bg-white">
                                 <label class="form-label fw-bold small text-muted"><?= $label ?></label>
-                                <div class="mb-2 rounded d-flex align-items-center justify-content-center" style="height:120px;background:#f6efe6;overflow:hidden;">
+                                <div id="brandPreview-<?= htmlspecialchars($field) ?>" class="mb-2 rounded d-flex align-items-center justify-content-center" style="height:120px;background:#f6efe6;overflow:hidden;">
                                     <?php if ($url !== ''): ?>
                                         <img src="<?= htmlspecialchars($url) ?>" alt="" style="max-width:100%;max-height:120px;object-fit:contain;">
                                     <?php else: ?>
@@ -459,17 +496,42 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
 
         <?php
         $menuPhotoMap = [];
+        $menuPhotoCatById = [];
+        $menuPhotoCats = [];
         foreach ($menuPhotos as $item) {
-            $menuPhotoMap[(string)(int)$item['id']] = \App\Helpers\Media::url((string)($item['image_path'] ?? ''));
+            $photoId = (string)(int)$item['id'];
+            $photoCat = (string)$item['cat_name'];
+            $menuPhotoMap[$photoId] = \App\Helpers\Media::url((string)($item['image_path'] ?? ''));
+            $menuPhotoCatById[$photoId] = $photoCat;
+            $menuPhotoCats[$photoCat] = ($menuPhotoCats[$photoCat] ?? 0) + 1;
         }
         ?>
         <div class="card shadow-sm border-0 border-top border-4 border-success mt-4">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-image-fill text-success"></i> Menu item photo</h5>
-                <p class="text-muted small">Choose a dish or drink, frame the picture, then save. The preview matches the online menu.</p>
+                <p class="text-muted small">Filter the menu, choose a dish or drink, frame the picture, then save. The preview matches the online menu.</p>
                 <div class="row g-4">
                     <div class="col-lg-7">
-                        <label class="form-label fw-bold small text-muted" for="menuPhotoItem">MENU ITEM</label>
+                        <div class="row g-2">
+                            <div class="col-sm-7">
+                                <label class="form-label fw-bold small text-muted" for="menuPhotoCategory">CATEGORY</label>
+                                <select id="menuPhotoCategory" class="form-select">
+                                    <option value="">All categories</option>
+                                    <?php foreach ($menuPhotoCats as $photoCat => $photoCount): ?>
+                                    <option value="<?= htmlspecialchars($photoCat) ?>"><?= htmlspecialchars($photoCat) ?> (<?= (int)$photoCount ?>)</option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-sm-5">
+                                <label class="form-label fw-bold small text-muted" for="menuPhotoStatus">PHOTO</label>
+                                <select id="menuPhotoStatus" class="form-select no-search">
+                                    <option value="">All items</option>
+                                    <option value="yes">Has a photo</option>
+                                    <option value="no">Needs a photo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <label class="form-label fw-bold small text-muted mt-3" for="menuPhotoItem">MENU ITEM</label>
                         <select id="menuPhotoItem" class="form-select">
                             <option value="">Select a menu item…</option>
                             <?php foreach ($menuPhotos as $item): ?>
@@ -477,7 +539,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                             <?php endforeach; ?>
                         </select>
                         <?php if (!$menuPhotos): ?>
-                        <div class="form-text">No active menu items yet. Add one under Menu &amp; Recipe Builder first.</div>
+                        <div class="form-text">No priced items yet. Add one under Products &amp; Menu first.</div>
                         <?php endif; ?>
                         <label class="form-label fw-bold small text-muted mt-3" for="menuPhotoFile">PHOTO</label>
                         <input type="file" id="menuPhotoFile" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
@@ -512,7 +574,10 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
 <script>
 (function () {
     var photos = <?= json_encode($menuPhotoMap, JSON_UNESCAPED_UNICODE) ?>;
+    var itemCats = <?= json_encode($menuPhotoCatById, JSON_UNESCAPED_UNICODE) ?>;
     var select = document.getElementById('menuPhotoItem');
+    var categorySelect = document.getElementById('menuPhotoCategory');
+    var statusSelect = document.getElementById('menuPhotoStatus');
     var fileInput = document.getElementById('menuPhotoFile');
     var stage = document.getElementById('menuCropStage');
     var image = document.getElementById('menuCropImage');
@@ -527,6 +592,48 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
     function selectedId() {
         return select ? String(select.value || '') : '';
     }
+
+    function itemVisible(id) {
+        if (!id) return true;
+        var cat = categorySelect ? categorySelect.value : '';
+        var status = statusSelect ? statusSelect.value : '';
+        if (cat && itemCats[id] !== cat) return false;
+        var has = !!photos[id];
+        if (status === 'yes' && !has) return false;
+        if (status === 'no' && has) return false;
+        return true;
+    }
+
+    var menuItems = Array.prototype.map.call(select.options, function (opt) {
+        return { value: opt.value, text: opt.text };
+    });
+
+    function rebuildMenuItems() {
+        var current = selectedId();
+        var keep = current && itemVisible(current);
+        if (select.tomselect) select.tomselect.destroy();
+        select.innerHTML = '';
+        menuItems.forEach(function (opt) {
+            if (opt.value && !itemVisible(opt.value)) return;
+            var el = document.createElement('option');
+            el.value = opt.value;
+            el.textContent = opt.text;
+            select.appendChild(el);
+        });
+        if (keep) {
+            select.value = current;
+        } else {
+            select.value = '';
+            if (current) {
+                clearCrop();
+                showSaved('');
+            }
+        }
+        if (window.SelectSearch) SelectSearch.init(select);
+    }
+
+    if (categorySelect) categorySelect.addEventListener('change', rebuildMenuItems);
+    if (statusSelect) statusSelect.addEventListener('change', rebuildMenuItems);
 
     function showSaved(url) {
         if (url) {
@@ -652,11 +759,25 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 photos[String(data.id)] = data.image || '';
                 clearCrop();
                 showSaved(data.image ? data.image + '?v=' + Date.now() : '');
+                rebuildMenuItems();
+                if (data.image) document.dispatchEvent(new CustomEvent('library-add', { detail: { path: String(data.image).split('?')[0] } }));
                 LiveRow.toast(data);
             }).catch(function (err) {
                 LiveRow.toast({ status: 'error', msg: err.message });
             });
         }, 'image/jpeg', 0.9);
+    });
+
+    document.addEventListener('menu-photo-assigned', function (event) {
+        var detail = event.detail || {};
+        var id = String(detail.id || '');
+        if (!id) return;
+        photos[id] = detail.image || '';
+        if (select.tomselect) select.tomselect.setValue(id, true);
+        else select.value = id;
+        clearCrop();
+        showSaved(detail.image ? detail.image + '?v=' + Date.now() : '');
+        rebuildMenuItems();
     });
 
     removeBtn.addEventListener('click', function () {
@@ -679,11 +800,170 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 photos[String(data.id)] = '';
                 clearCrop();
                 showSaved('');
+                rebuildMenuItems();
                 LiveRow.toast(data);
             }).catch(function (err) {
                 LiveRow.toast({ status: 'error', msg: err.message });
             });
         });
+    });
+})();
+</script>
+<script>
+(function () {
+    var grid = document.getElementById('libraryGrid');
+    var fileInput = document.getElementById('libraryFiles');
+    var uploadBtn = document.getElementById('libraryUpload');
+    var selected = '';
+    var useButtons = [
+        ['libUseLogo', 'logo'],
+        ['libUseBanner', 'shop_banner'],
+        ['libUsePromo', 'promo_banner'],
+        ['libUseItem', 'product']
+    ];
+
+    function toast(data) {
+        if (window.LiveRow) LiveRow.toast(data);
+    }
+
+    function setSelected(path, button) {
+        selected = path || '';
+        grid.querySelectorAll('.library-thumb').forEach(function (el) { el.classList.remove('active'); });
+        if (button) button.classList.add('active');
+        useButtons.forEach(function (pair) {
+            var el = document.getElementById(pair[0]);
+            if (el) el.disabled = !selected;
+        });
+    }
+
+    function thumb(path) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'library-thumb';
+        button.dataset.path = path;
+        var img = document.createElement('img');
+        img.src = path;
+        img.alt = '';
+        button.appendChild(img);
+        button.addEventListener('click', function () { setSelected(path, button); });
+        return button;
+    }
+
+    function paint(images) {
+        var empty = document.getElementById('libraryEmpty');
+        if (empty) empty.remove();
+        grid.innerHTML = '';
+        if (!images.length) {
+            grid.innerHTML = '<p class="text-muted small mb-0" id="libraryEmpty">No images yet.</p>';
+            setSelected('');
+            return;
+        }
+        images.forEach(function (image) {
+            grid.appendChild(thumb(image.path));
+        });
+        setSelected('');
+    }
+
+    function addPath(path) {
+        path = String(path || '').split('?')[0];
+        if (!path || grid.querySelector('[data-path="' + CSS.escape(path) + '"]')) return;
+        var empty = document.getElementById('libraryEmpty');
+        if (empty) empty.remove();
+        grid.insertBefore(thumb(path), grid.firstChild);
+    }
+
+    grid.querySelectorAll('.library-thumb').forEach(function (button) {
+        button.addEventListener('click', function () { setSelected(button.dataset.path || '', button); });
+    });
+
+    document.addEventListener('library-add', function (event) {
+        addPath(event.detail && event.detail.path);
+    });
+
+    function post(body) {
+        return fetch('index.php?page=settings', {
+            method: 'POST',
+            body: body,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' }
+        }).then(function (response) { return LiveRow.parseJson(response); }).then(function (data) {
+            if (!data || data.status !== 'success') {
+                throw new Error((data && (data.msg || data.message)) || 'Unable to save the image.');
+            }
+            return data;
+        });
+    }
+
+    uploadBtn.addEventListener('click', function () {
+        var files = fileInput.files;
+        if (!files || !files.length) {
+            toast({ status: 'error', msg: 'Choose at least one image.' });
+            return;
+        }
+        if (files.length > 10) {
+            toast({ status: 'error', msg: 'Upload up to 10 images at a time.' });
+            return;
+        }
+        var body = new FormData();
+        body.set('tab', 'branding');
+        body.set('save_library', '1');
+        body.set('ajax', '1');
+        Array.prototype.forEach.call(files, function (file) {
+            body.append('library_images[]', file);
+        });
+        uploadBtn.disabled = true;
+        post(body).then(function (data) {
+            paint(data.images || []);
+            fileInput.value = '';
+            toast(data);
+        }).catch(function (err) {
+            toast({ status: 'error', msg: err.message });
+        }).finally(function () {
+            uploadBtn.disabled = false;
+        });
+    });
+
+    function apply(target) {
+        if (!selected) return;
+        if (target === 'product') {
+            var item = document.getElementById('menuPhotoItem');
+            if (!item || !item.value) {
+                toast({ status: 'error', msg: 'Select a menu item first.' });
+                return;
+            }
+        }
+        var body = new FormData();
+        body.set('tab', 'branding');
+        body.set('use_library_image', '1');
+        body.set('ajax', '1');
+        body.set('target', target);
+        body.set('image_path', selected);
+        if (target === 'product') body.set('product_id', document.getElementById('menuPhotoItem').value);
+        post(body).then(function (data) {
+            if (target === 'product') {
+                document.dispatchEvent(new CustomEvent('menu-photo-assigned', { detail: data }));
+            } else {
+                var box = document.getElementById('brandPreview-' + (target === 'logo' ? 'logo' : target));
+                if (box) {
+                    box.innerHTML = '';
+                    var img = document.createElement('img');
+                    img.src = data.image + '?v=' + Date.now();
+                    img.alt = '';
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '120px';
+                    img.style.objectFit = 'contain';
+                    box.appendChild(img);
+                }
+            }
+            toast(data);
+        }).catch(function (err) {
+            toast({ status: 'error', msg: err.message });
+        });
+    }
+
+    useButtons.forEach(function (pair) {
+        var el = document.getElementById(pair[0]);
+        if (el) el.addEventListener('click', function () { apply(pair[1]); });
     });
 })();
 </script>

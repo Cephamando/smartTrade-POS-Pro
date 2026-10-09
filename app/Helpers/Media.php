@@ -20,21 +20,91 @@ final class Media
      */
     public static function store(string $field, string $folder): ?string
     {
-        if (!isset($_FILES[$field]) || (int)($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        if (!isset($_FILES[$field])) {
             return null;
         }
-        $file = $_FILES[$field];
-        if ((int)$file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string)$file['tmp_name'])) {
+        $files = self::fileList($_FILES[$field]);
+        if (!$files) {
+            return null;
+        }
+        return self::storeFile($files[0], $folder);
+    }
+
+    /**
+     * Store up to $max images from one file input into the shared library.
+     *
+     * @return list<string>
+     */
+    public static function storeMany(string $field, int $max = 10): array
+    {
+        $files = isset($_FILES[$field]) ? self::fileList($_FILES[$field]) : [];
+        if (!$files) {
+            throw new \RuntimeException('Choose at least one image.');
+        }
+        if (count($files) > $max) {
+            throw new \RuntimeException('Upload up to ' . $max . ' images at a time.');
+        }
+        $saved = [];
+        foreach ($files as $file) {
+            $saved[] = self::storeFile($file, 'library');
+        }
+        return $saved;
+    }
+
+    /**
+     * Images already saved for the library, branding, and menu items.
+     *
+     * @return list<array{path:string,mtime:int}>
+     */
+    public static function list(): array
+    {
+        $root = dirname(__DIR__, 2) . '/public/uploads';
+        $items = [];
+        foreach (['library', 'branding', 'products'] as $folder) {
+            $dir = $root . '/' . $folder;
+            if (!is_dir($dir)) {
+                continue;
+            }
+            foreach (scandir($dir) ?: [] as $name) {
+                if (!preg_match('/^[a-f0-9]+\.(jpg|png|webp|gif)$/', $name)) {
+                    continue;
+                }
+                $full = $dir . '/' . $name;
+                $items[] = [
+                    'path' => 'uploads/' . $folder . '/' . $name,
+                    'mtime' => (int)(@filemtime($full) ?: 0),
+                ];
+            }
+        }
+        usort($items, static fn(array $a, array $b): int => $b['mtime'] <=> $a['mtime']);
+        return $items;
+    }
+
+    public static function existing(string $relative): string
+    {
+        $url = self::url($relative);
+        if ($url === '') {
+            throw new \RuntimeException('That image is not in the library.');
+        }
+        return $url;
+    }
+
+    /**
+     * @param array{name?:string,type?:string,tmp_name?:string,error?:int,size?:int} $file
+     */
+    private static function storeFile(array $file, string $folder): string
+    {
+        if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string)($file['tmp_name'] ?? ''))) {
             throw new \RuntimeException('The image did not upload. Try a smaller file.');
         }
-        if ((int)$file['size'] > self::MAX_BYTES) {
+        if ((int)($file['size'] ?? 0) > self::MAX_BYTES) {
             throw new \RuntimeException('Images must be 2.5 MB or smaller.');
         }
         $mime = (new \finfo(FILEINFO_MIME_TYPE))->file((string)$file['tmp_name']) ?: '';
         if (!isset(self::TYPES[$mime])) {
             throw new \RuntimeException('Use a JPG, PNG, WEBP, or GIF image.');
         }
-        $folder = preg_replace('/[^a-z0-9_-]/', '', $folder) ?: 'misc';
+        $folder = preg_replace('/[^a-z0-9_-]/', '', $folder) ?: 'library';
         $dir = dirname(__DIR__, 2) . '/public/uploads/' . $folder;
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             throw new \RuntimeException('The server could not store the image. The uploads folder is not writable.');
@@ -44,6 +114,40 @@ final class Media
             throw new \RuntimeException('The image could not be saved.');
         }
         return 'uploads/' . $folder . '/' . $name;
+    }
+
+    /**
+     * @param array<string,mixed> $file
+     * @return list<array{name:string,type:string,tmp_name:string,error:int,size:int}>
+     */
+    private static function fileList(array $file): array
+    {
+        if (!is_array($file['name'] ?? null)) {
+            if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+                return [];
+            }
+            return [[
+                'name' => (string)($file['name'] ?? ''),
+                'type' => (string)($file['type'] ?? ''),
+                'tmp_name' => (string)($file['tmp_name'] ?? ''),
+                'error' => (int)($file['error'] ?? UPLOAD_ERR_NO_FILE),
+                'size' => (int)($file['size'] ?? 0),
+            ]];
+        }
+        $list = [];
+        foreach ($file['name'] as $i => $name) {
+            if ((int)($file['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $list[] = [
+                'name' => (string)$name,
+                'type' => (string)($file['type'][$i] ?? ''),
+                'tmp_name' => (string)($file['tmp_name'][$i] ?? ''),
+                'error' => (int)($file['error'][$i] ?? UPLOAD_ERR_NO_FILE),
+                'size' => (int)($file['size'][$i] ?? 0),
+            ];
+        }
+        return $list;
     }
 
     public static function delete(?string $relative): void

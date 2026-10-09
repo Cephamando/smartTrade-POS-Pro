@@ -38,6 +38,10 @@ final class SettingsController extends Controller
                     $this->saveShop();
                 } elseif (isset($_POST['save_branding'])) {
                     $this->saveBranding();
+                } elseif (isset($_POST['save_library'])) {
+                    $this->saveLibrary();
+                } elseif (isset($_POST['use_library_image'])) {
+                    $this->useLibraryImage();
                 } elseif (isset($_POST['save_product_photo'])) {
                     $this->saveProductPhoto();
                 } elseif (isset($_POST['bulk_action'])) {
@@ -74,6 +78,7 @@ final class SettingsController extends Controller
             'flwTestMode' => (new Flutterwave($this->pdo(), $settings))->isTestMode(),
             'locations' => Location::all(),
             'menuPhotos' => (($_GET['tab'] ?? '') === 'branding') ? Product::menuForPhotos() : [],
+            'libraryImages' => (($_GET['tab'] ?? '') === 'branding') ? Media::list() : [],
         ]);
     }
 
@@ -187,17 +192,14 @@ final class SettingsController extends Controller
 
     private function saveBranding(): void
     {
-        $existing = Setting::all();
         $pairs = [];
         foreach (['logo_path' => 'logo', 'shop_banner_path' => 'shop_banner', 'promo_banner_path' => 'promo_banner'] as $key => $field) {
             if (!empty($_POST['remove_' . $field])) {
-                Media::delete((string)($existing[$key] ?? ''));
                 $pairs[$key] = '';
                 continue;
             }
-            $stored = Media::store($field, 'branding');
+            $stored = Media::store($field, 'library');
             if ($stored !== null) {
-                Media::delete((string)($existing[$key] ?? ''));
                 $pairs[$key] = $stored;
             }
         }
@@ -205,6 +207,56 @@ final class SettingsController extends Controller
             Setting::save($pairs);
         }
         $this->flash('success', 'Branding images saved. They show on the menu bar, receipts, sign-in, and the online shop.');
+    }
+
+    private function saveLibrary(): void
+    {
+        $saved = Media::storeMany('library_images', 10);
+        $message = count($saved) . ' image' . (count($saved) === 1 ? '' : 's') . ' added to the library.';
+        if ($this->wantsAjax()) {
+            $this->jsonExit([
+                'status' => 'success',
+                'message' => $message,
+                'images' => Media::list(),
+            ]);
+        }
+        $this->flash('success', $message);
+    }
+
+    private function useLibraryImage(): void
+    {
+        $path = Media::existing((string)($_POST['image_path'] ?? ''));
+        $target = (string)($_POST['target'] ?? '');
+        $labels = [
+            'logo' => ['logo_path', 'Logo updated from the image library.'],
+            'shop_banner' => ['shop_banner_path', 'Shop banner updated from the image library.'],
+            'promo_banner' => ['promo_banner_path', 'Promo banner updated from the image library.'],
+        ];
+        if (isset($labels[$target])) {
+            Setting::save([$labels[$target][0] => $path]);
+            $message = $labels[$target][1];
+            $id = 0;
+        } elseif ($target === 'product') {
+            $id = (int)($_POST['product_id'] ?? 0);
+            $row = Product::menuPhotoTarget($id);
+            if (!$row) {
+                throw new \RuntimeException('Choose a menu item.');
+            }
+            Product::setImage($id, $path);
+            $message = 'Photo saved for ' . $row['name'] . '.';
+        } else {
+            throw new \RuntimeException('Choose where to use this image.');
+        }
+        if ($this->wantsAjax()) {
+            $this->jsonExit([
+                'status' => 'success',
+                'message' => $message,
+                'target' => $target,
+                'id' => $id,
+                'image' => $path,
+            ]);
+        }
+        $this->flash('success', $message);
     }
 
     private function saveProductPhoto(): void
@@ -219,7 +271,7 @@ final class SettingsController extends Controller
             $message = 'Photo removed from ' . $row['name'] . '.';
             $url = '';
         } else {
-            $stored = Media::store('product_photo', 'products');
+            $stored = Media::store('product_photo', 'library');
             if ($stored === null) {
                 throw new \RuntimeException('Crop the photo, then save it.');
             }

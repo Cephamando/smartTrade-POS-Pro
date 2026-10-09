@@ -22,13 +22,8 @@ final class Product extends Model
 
     public static function setImage(int $id, ?string $path): void
     {
-        $stmt = self::db()->prepare('SELECT image_path FROM products WHERE id = ?');
-        $stmt->execute([$id]);
-        $old = (string)$stmt->fetchColumn();
+        self::ensureSchema();
         self::db()->prepare('UPDATE products SET image_path = ? WHERE id = ?')->execute([$path, $id]);
-        if ($old !== '' && $old !== (string)$path) {
-            \App\Helpers\Media::delete($old);
-        }
     }
 
     public static function allWithCategory(): array
@@ -375,21 +370,20 @@ final class Product extends Model
         return self::db()->query('SELECT id, name, unit FROM products WHERE is_active = 1 ORDER BY name ASC')->fetchAll();
     }
 
-    /** Active food and drink items that appear on the menu and the online shop. */
+    /** Active priced items that appear on the online menu. */
     public static function menuForPhotos(): array
     {
         self::ensureSchema();
-        $types = ['food', 'meal', 'drink', 'beverage', 'cocktail'];
-        $placeholders = implode(',', array_fill(0, count($types), '?'));
-        $stmt = self::db()->prepare(
-            "SELECT p.id, p.name, p.price, p.image_path, c.name AS cat_name
+        return self::db()->query(
+            "SELECT p.id, p.name, p.price, p.image_path, COALESCE(c.name, 'Other') AS cat_name
              FROM products p
-             JOIN categories c ON p.category_id = c.id
-             WHERE c.type IN ($placeholders) AND p.is_active = 1
+             LEFT JOIN categories c ON c.id = p.category_id
+             WHERE p.is_active = 1 AND p.type = 'item'
+               AND COALESCE(p.is_sellable, 1) = 1
+               AND p.price > 0
+               AND COALESCE(p.is_open_price, 0) = 0
              ORDER BY c.name ASC, p.name ASC"
-        );
-        $stmt->execute($types);
-        return $stmt->fetchAll();
+        )->fetchAll();
     }
 
     public static function menuPhotoTarget(int $id): ?array
@@ -398,9 +392,10 @@ final class Product extends Model
         $stmt = self::db()->prepare(
             "SELECT p.id, p.name, p.image_path
              FROM products p
-             JOIN categories c ON p.category_id = c.id
-             WHERE p.id = ? AND p.is_active = 1
-               AND c.type IN ('food', 'meal', 'drink', 'beverage', 'cocktail')"
+             WHERE p.id = ? AND p.is_active = 1 AND p.type = 'item'
+               AND COALESCE(p.is_sellable, 1) = 1
+               AND p.price > 0
+               AND COALESCE(p.is_open_price, 0) = 0"
         );
         $stmt->execute([$id]);
         $row = $stmt->fetch();

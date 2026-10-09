@@ -121,7 +121,7 @@ final class ProductsController extends Controller
                     if (!empty($_POST['remove_image'])) {
                         Product::setImage($savedId, null);
                     } else {
-                        $image = Media::store('image', 'products');
+                        $image = Media::store('image', 'library');
                         if ($image !== null) {
                             Product::setImage($savedId, $image);
                         }

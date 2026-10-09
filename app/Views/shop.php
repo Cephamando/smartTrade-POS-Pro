@@ -58,7 +58,17 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .nav-link-soft:hover { opacity: 1; }
         .btn-accent { background: var(--accent); border: 0; color: var(--on-accent); font-weight: 700; }
         .btn-accent:hover, .btn-accent:focus { filter: brightness(1.06); color: var(--on-accent); }
-        .shop-wrap { position: relative; max-width: 1040px; }
+        .shop-wrap { position: relative; max-width: 1180px; }
+        .shop-board { display: grid; grid-template-columns: minmax(168px, 240px) minmax(0, 1fr); gap: 18px; align-items: start; }
+        .cat-panel { position: sticky; top: 72px; background: var(--card); border-radius: 22px; padding: 12px; box-shadow: 0 10px 28px rgba(40, 18, 6, .07); max-height: calc(100vh - 96px); overflow: auto; }
+        .cat-panel-title { font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #8a7564; padding: 6px 10px 8px; }
+        .cat-tab { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px; border: 0; background: transparent; border-radius: 14px; padding: .55rem .75rem; font-weight: 650; color: var(--ink); text-align: left; }
+        .cat-tab .count { opacity: .65; font-size: .78rem; font-weight: 700; }
+        .cat-tab.active { background: var(--dark); color: #fffaf4; }
+        .cat-tab.active .count { opacity: .8; }
+        .cat-tab:hover { background: color-mix(in srgb, var(--dark) 8%, #fff); }
+        .cat-tab.active:hover { background: var(--dark); }
+        .cat-panel hr { margin: 8px 6px; border-color: #eadfd2; opacity: 1; }
         .shop-hero { margin: 18px 0 16px; padding: 28px 26px; border-radius: 28px; color: #fffaf4; background: linear-gradient(135deg, var(--dark) 0%, color-mix(in srgb, var(--dark) 62%, var(--accent)) 100%); box-shadow: 0 16px 40px rgba(40, 18, 6, .18); overflow: hidden; position: relative; }
         .shop-hero::after { content: ""; position: absolute; right: -40px; top: -50px; width: 180px; height: 180px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 55%, transparent); }
         .shop-hero .eyebrow { letter-spacing: .18em; text-transform: uppercase; font-size: .72rem; font-weight: 700; opacity: .8; }
@@ -67,10 +77,6 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .search-pill { background: var(--card); border-radius: 999px; box-shadow: 0 8px 24px rgba(40, 18, 6, .08); overflow: hidden; }
         .search-pill .form-control, .search-pill .input-group-text { border: 0; background: transparent; }
         .search-pill .form-control:focus { box-shadow: none; }
-        .cat-chip { white-space: nowrap; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--dark) 18%, #fff); background: var(--card); color: var(--ink); font-weight: 650; padding: .35rem .85rem; }
-        .cat-chip.active { background: var(--dark); color: #fffaf4; border-color: var(--dark); }
-        #catChips { scrollbar-width: none; }
-        #catChips::-webkit-scrollbar { display: none; }
         .item-card { border: 0; border-radius: 22px; background: var(--card); box-shadow: 0 10px 28px rgba(40, 18, 6, .07); overflow: hidden; }
         .item-card.unavailable { opacity: .62; }
         .item-face { height: 92px; display: flex; align-items: flex-end; padding: 12px 14px; color: var(--on-accent); background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--dark) 35%, var(--accent))); position: relative; }
@@ -90,7 +96,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .page-title { font-weight: 800; letter-spacing: -.03em; }
         .shop-foot { position: relative; text-align: center; color: #8a7564; font-size: .85rem; padding: 8px 16px 28px; }
         .list-group-item { border-color: #f0e6da; }
-        @media (max-width: 576px) { .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 1.7rem; } }
+        @media (max-width: 576px) { .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 1.7rem; } .shop-board { grid-template-columns: minmax(118px, 42%) minmax(0, 1fr); gap: 10px; } .cat-panel { top: 64px; padding: 8px; border-radius: 16px; } .cat-tab { font-size: .82rem; padding: .45rem .5rem; } }
     </style>
 </head>
 <body>
@@ -146,6 +152,17 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             }
         }
     ?>
+    <div class="shop-board">
+        <aside class="cat-panel" aria-label="Menu categories">
+            <div class="cat-panel-title">Categories</div>
+            <button type="button" class="cat-tab active" data-cat="" onclick="pickCat(this)">All <span class="count"><?= count($products) ?></span></button>
+            <?php foreach ($categories as $cat => $n): ?>
+            <button type="button" class="cat-tab" data-cat="<?= htmlspecialchars($cat) ?>" onclick="pickCat(this)"><span><?= htmlspecialchars($cat) ?></span> <span class="count"><?= (int)$n ?></span></button>
+            <?php endforeach; ?>
+            <hr>
+            <button type="button" class="cat-tab" id="stockChip" data-stock="" onclick="toggleStock(this)"><span>In stock</span></button>
+        </aside>
+        <div>
     <div class="row g-2 mb-3 align-items-center">
         <?php if (count($shopLocations) > 1): ?>
         <div class="col-12 col-md-4">
@@ -167,17 +184,10 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div>
         </div>
     </div>
-    <div class="d-flex gap-2 overflow-auto pb-2 mb-3" id="catChips">
-        <button type="button" class="cat-chip active" data-cat="" onclick="pickCat(this)">All</button>
-        <button type="button" class="cat-chip" id="stockChip" data-stock="" onclick="toggleStock(this)">In stock</button>
-        <?php foreach ($categories as $cat => $n): ?>
-        <button type="button" class="cat-chip" data-cat="<?= htmlspecialchars($cat) ?>" onclick="pickCat(this)"><?= htmlspecialchars($cat) ?> <span class="opacity-75"><?= (int)$n ?></span></button>
-        <?php endforeach; ?>
-    </div>
     <div class="row g-3" id="menuGrid">
         <?php if (!$products): ?><div class="col-12 text-center text-muted py-5">The menu is being updated. Please check back shortly.</div><?php endif; ?>
         <?php foreach ($products as $p): ?>
-        <div class="col-6 col-md-4 menu-item" data-cat="<?= htmlspecialchars($p['category']) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
+        <div class="col-12 col-sm-6 menu-item" data-cat="<?= htmlspecialchars($p['category']) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
             <div class="card item-card h-100 <?= $p['available'] ? '' : 'unavailable' ?>">
                 <?php $photo = \App\Helpers\Media::url((string)($p['image_path'] ?? '')); ?>
                 <?php if ($photo !== ''): ?>
@@ -198,6 +208,8 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         </div>
         <?php endforeach; ?>
     </div>
+    </div>
+    </div>
     <div class="cart-bar <?= $cartCount ? '' : 'd-none' ?>" id="cartBar">
         <div class="d-flex justify-content-between align-items-center">
             <div><span class="badge rounded-pill" style="background:var(--accent);color:var(--on-accent)" id="cartBarCount"><?= (int)$cartCount ?></span> in your bag · <strong id="cartBarTotal"><?= $money($cartTotal) ?></strong></div>
@@ -205,10 +217,10 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         </div>
     </div>
     <script>
-    function pickCat(btn) { document.querySelectorAll('.cat-chip[data-cat]').forEach(function (b) { b.classList.remove('active'); }); btn.classList.add('active'); filterMenu(); }
+    function pickCat(btn) { document.querySelectorAll('.cat-tab[data-cat]').forEach(function (b) { b.classList.remove('active'); }); btn.classList.add('active'); filterMenu(); }
     function toggleStock(btn) { const on = btn.dataset.stock !== '1'; btn.dataset.stock = on ? '1' : ''; btn.classList.toggle('active', on); filterMenu(); }
     function filterMenu() {
-        const catBtn = document.querySelector('.cat-chip.active[data-cat]');
+        const catBtn = document.querySelector('.cat-tab.active[data-cat]');
         const cat = catBtn ? (catBtn.dataset.cat || '') : '';
         const stockOnly = (document.getElementById('stockChip') || {}).dataset ? document.getElementById('stockChip').dataset.stock === '1' : false;
         const words = (document.getElementById('menuSearch').value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
