@@ -418,7 +418,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         <div class="card shadow-sm border-0 border-top border-4 border-warning">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-image text-warning"></i> Logo, banners, and shop photos</h5>
-                <p class="text-muted small">Administrators and managers can replace these here. Use JPG, PNG, WEBP, or GIF, up to 2.5 MB. Photos of individual dishes and drinks are set on each product under Products &amp; Menu.</p>
+                <p class="text-muted small">Administrators and managers can replace these here. Use JPG, PNG, WEBP, or GIF, up to 2.5 MB.</p>
                 <form method="POST" action="index.php?page=settings" enctype="multipart/form-data">
                     <input type="hidden" name="tab" value="branding">
                     <input type="hidden" name="save_branding" value="1">
@@ -456,6 +456,235 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 </form>
             </div>
         </div>
+
+        <?php
+        $menuPhotoMap = [];
+        foreach ($menuPhotos as $item) {
+            $menuPhotoMap[(string)(int)$item['id']] = \App\Helpers\Media::url((string)($item['image_path'] ?? ''));
+        }
+        ?>
+        <div class="card shadow-sm border-0 border-top border-4 border-success mt-4">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-1"><i class="bi bi-image-fill text-success"></i> Menu item photo</h5>
+                <p class="text-muted small">Choose a dish or drink, frame the picture, then save. The preview matches the online menu.</p>
+                <div class="row g-4">
+                    <div class="col-lg-7">
+                        <label class="form-label fw-bold small text-muted" for="menuPhotoItem">MENU ITEM</label>
+                        <select id="menuPhotoItem" class="form-select">
+                            <option value="">Select a menu item…</option>
+                            <?php foreach ($menuPhotos as $item): ?>
+                            <option value="<?= (int)$item['id'] ?>"><?= htmlspecialchars((string)$item['cat_name']) ?> — <?= htmlspecialchars((string)$item['name']) ?> · ZMW <?= number_format((float)$item['price'], 2) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if (!$menuPhotos): ?>
+                        <div class="form-text">No active menu items yet. Add one under Menu &amp; Recipe Builder first.</div>
+                        <?php endif; ?>
+                        <label class="form-label fw-bold small text-muted mt-3" for="menuPhotoFile">PHOTO</label>
+                        <input type="file" id="menuPhotoFile" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
+                        <div class="form-text">Drag inside the frame to position the dish. Scroll or use the buttons to zoom.</div>
+                        <div id="menuCropTools" class="d-none mt-2">
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="menuCropOut"><i class="bi bi-zoom-out"></i> Zoom out</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="menuCropIn"><i class="bi bi-zoom-in"></i> Zoom in</button>
+                            </div>
+                        </div>
+                        <div id="menuCropStage" class="d-none mt-3 rounded overflow-hidden border" style="background:#1c2128;max-height:420px;">
+                            <img id="menuCropImage" alt="" style="display:block;max-width:100%;">
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <label class="form-label fw-bold small text-muted">PREVIEW ON THE MENU</label>
+                        <div id="menuPhotoPreview" class="rounded overflow-hidden border d-flex align-items-end" style="aspect-ratio:2/1;background:#f6efe6 center/cover no-repeat;">
+                            <span id="menuPhotoEmpty" class="text-muted small p-3">Select an item to see its photo.</span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <button type="button" class="btn btn-success fw-bold" id="menuPhotoSave" disabled><i class="bi bi-save"></i> Save photo</button>
+                            <button type="button" class="btn btn-outline-danger" id="menuPhotoRemove" disabled>Remove photo</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+<link rel="stylesheet" href="vendor/cropperjs/cropper.min.css">
+<script src="vendor/cropperjs/cropper.min.js"></script>
+<script>
+(function () {
+    var photos = <?= json_encode($menuPhotoMap, JSON_UNESCAPED_UNICODE) ?>;
+    var select = document.getElementById('menuPhotoItem');
+    var fileInput = document.getElementById('menuPhotoFile');
+    var stage = document.getElementById('menuCropStage');
+    var image = document.getElementById('menuCropImage');
+    var tools = document.getElementById('menuCropTools');
+    var preview = document.getElementById('menuPhotoPreview');
+    var empty = document.getElementById('menuPhotoEmpty');
+    var saveBtn = document.getElementById('menuPhotoSave');
+    var removeBtn = document.getElementById('menuPhotoRemove');
+    var cropper = null;
+    var previewTimer = null;
+
+    function selectedId() {
+        return select ? String(select.value || '') : '';
+    }
+
+    function showSaved(url) {
+        if (url) {
+            preview.style.backgroundImage = "url('" + String(url).replace(/'/g, '%27') + "')";
+            empty.classList.add('d-none');
+        } else {
+            preview.style.backgroundImage = '';
+            empty.textContent = selectedId() ? 'No photo yet. Choose one and frame it.' : 'Select an item to see its photo.';
+            empty.classList.remove('d-none');
+        }
+        removeBtn.disabled = !selectedId() || !url;
+    }
+
+    function clearCrop() {
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        image.removeAttribute('src');
+        stage.classList.add('d-none');
+        tools.classList.add('d-none');
+        saveBtn.disabled = true;
+        fileInput.value = '';
+    }
+
+    function paintLivePreview() {
+        if (!cropper) return;
+        var canvas = cropper.getCroppedCanvas({ width: 640, height: 320, imageSmoothingQuality: 'high' });
+        if (!canvas) return;
+        preview.style.backgroundImage = "url('" + canvas.toDataURL('image/jpeg', 0.85) + "')";
+        empty.classList.add('d-none');
+    }
+
+    select.addEventListener('change', function () {
+        clearCrop();
+        showSaved(photos[selectedId()] || '');
+    });
+
+    fileInput.addEventListener('change', function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        if (!selectedId()) {
+            fileInput.value = '';
+            LiveRow.toast({ status: 'error', msg: 'Select a menu item first.' });
+            return;
+        }
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+            fileInput.value = '';
+            LiveRow.toast({ status: 'error', msg: 'Use a JPG, PNG, WEBP, or GIF image.' });
+            return;
+        }
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        var reader = new FileReader();
+        reader.onload = function () {
+            image.onload = function () {
+                stage.classList.remove('d-none');
+                tools.classList.remove('d-none');
+                if (cropper) cropper.destroy();
+                cropper = new Cropper(image, {
+                    aspectRatio: 2,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    autoCropArea: 1,
+                    background: false,
+                    responsive: true,
+                    crop: function () {
+                        clearTimeout(previewTimer);
+                        previewTimer = setTimeout(paintLivePreview, 60);
+                    }
+                });
+                saveBtn.disabled = false;
+            };
+            image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    document.getElementById('menuCropIn').addEventListener('click', function () {
+        if (cropper) cropper.zoom(0.1);
+    });
+    document.getElementById('menuCropOut').addEventListener('click', function () {
+        if (cropper) cropper.zoom(-0.1);
+    });
+
+    function postPhoto(body) {
+        saveBtn.disabled = true;
+        removeBtn.disabled = true;
+        return fetch('index.php?page=settings', {
+            method: 'POST',
+            body: body,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' }
+        }).then(function (response) { return LiveRow.parseJson(response); }).then(function (data) {
+            if (!data || data.status !== 'success') {
+                throw new Error((data && (data.msg || data.message)) || 'Unable to save the photo.');
+            }
+            return data;
+        }).finally(function () {
+            saveBtn.disabled = !cropper;
+            removeBtn.disabled = !selectedId() || !photos[selectedId()];
+        });
+    }
+
+    saveBtn.addEventListener('click', function () {
+        if (!cropper || !selectedId()) return;
+        var canvas = cropper.getCroppedCanvas({ width: 1400, height: 700, imageSmoothingQuality: 'high' });
+        if (!canvas) return;
+        canvas.toBlob(function (blob) {
+            if (!blob) {
+                LiveRow.toast({ status: 'error', msg: 'The cropped photo could not be prepared.' });
+                return;
+            }
+            var body = new FormData();
+            body.set('tab', 'branding');
+            body.set('save_product_photo', '1');
+            body.set('ajax', '1');
+            body.set('product_id', selectedId());
+            body.set('product_photo', blob, 'menu-photo.jpg');
+            postPhoto(body).then(function (data) {
+                photos[String(data.id)] = data.image || '';
+                clearCrop();
+                showSaved(data.image ? data.image + '?v=' + Date.now() : '');
+                LiveRow.toast(data);
+            }).catch(function (err) {
+                LiveRow.toast({ status: 'error', msg: err.message });
+            });
+        }, 'image/jpeg', 0.9);
+    });
+
+    removeBtn.addEventListener('click', function () {
+        if (!selectedId() || !photos[selectedId()]) return;
+        AppAlert.confirm({
+            title: 'Remove this photo?',
+            text: 'The menu item stays. Only the picture is removed.',
+            confirmText: 'Remove',
+            confirmColor: '#dc3545',
+            icon: 'warning'
+        }).then(function (ok) {
+            if (!ok) return;
+            var body = new FormData();
+            body.set('tab', 'branding');
+            body.set('save_product_photo', '1');
+            body.set('ajax', '1');
+            body.set('remove_product_photo', '1');
+            body.set('product_id', selectedId());
+            postPhoto(body).then(function (data) {
+                photos[String(data.id)] = '';
+                clearCrop();
+                showSaved('');
+                LiveRow.toast(data);
+            }).catch(function (err) {
+                LiveRow.toast({ status: 'error', msg: err.message });
+            });
+        });
+    });
+})();
+</script>
 <?php endif; ?>

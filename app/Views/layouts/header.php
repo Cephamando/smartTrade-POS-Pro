@@ -61,6 +61,7 @@ if (isset($pdo)) {
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="js/app-alerts.js?v=20260905b"></script>
+    <script src="js/live-row.js?v=2"></script>
     <style>
         body { background-color: #f4f6f9; }
         .bulk-bar { background: #1c2128; color: #fffaf4; border-radius: .65rem; padding: .45rem .75rem; box-shadow: 0 8px 18px rgba(0,0,0,.15); }

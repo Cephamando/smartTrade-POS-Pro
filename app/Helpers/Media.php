@@ -36,8 +36,8 @@ final class Media
         }
         $folder = preg_replace('/[^a-z0-9_-]/', '', $folder) ?: 'misc';
         $dir = dirname(__DIR__, 2) . '/public/uploads/' . $folder;
-        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
-            throw new \RuntimeException('The server could not store the image.');
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new \RuntimeException('The server could not store the image. The uploads folder is not writable.');
         }
         $name = bin2hex(random_bytes(8)) . '.' . self::TYPES[$mime];
         if (!move_uploaded_file((string)$file['tmp_name'], $dir . '/' . $name)) {

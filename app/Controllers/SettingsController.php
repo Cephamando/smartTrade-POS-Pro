@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Helpers\Media;
 use App\Models\Location;
+use App\Models\Product;
 use App\Models\Setting;
 use App\Models\SurchargeReason;
 use App\Services\Currency;
@@ -37,12 +38,17 @@ final class SettingsController extends Controller
                     $this->saveShop();
                 } elseif (isset($_POST['save_branding'])) {
                     $this->saveBranding();
+                } elseif (isset($_POST['save_product_photo'])) {
+                    $this->saveProductPhoto();
                 } elseif (isset($_POST['bulk_action'])) {
                     $this->bulkSurcharges();
                 } else {
                     $this->saveGeneral();
                 }
             } catch (\Throwable $e) {
+                if ($this->wantsAjax()) {
+                    $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'Unable to save settings.'], 400);
+                }
                 $this->flash('error', $e->getMessage() ?: 'Unable to save settings.');
             }
             $this->redirect('settings', $tab !== 'general' ? ['tab' => $tab] : []);
@@ -67,6 +73,7 @@ final class SettingsController extends Controller
             'flwEnabled' => (new Flutterwave($this->pdo(), $settings))->enabled(),
             'flwTestMode' => (new Flutterwave($this->pdo(), $settings))->isTestMode(),
             'locations' => Location::all(),
+            'menuPhotos' => (($_GET['tab'] ?? '') === 'branding') ? Product::menuForPhotos() : [],
         ]);
     }
 
@@ -198,6 +205,37 @@ final class SettingsController extends Controller
             Setting::save($pairs);
         }
         $this->flash('success', 'Branding images saved. They show on the menu bar, receipts, sign-in, and the online shop.');
+    }
+
+    private function saveProductPhoto(): void
+    {
+        $id = (int)($_POST['product_id'] ?? 0);
+        $row = Product::menuPhotoTarget($id);
+        if (!$row) {
+            throw new \RuntimeException('Choose a menu item.');
+        }
+        if (!empty($_POST['remove_product_photo'])) {
+            Product::setImage($id, null);
+            $message = 'Photo removed from ' . $row['name'] . '.';
+            $url = '';
+        } else {
+            $stored = Media::store('product_photo', 'products');
+            if ($stored === null) {
+                throw new \RuntimeException('Crop the photo, then save it.');
+            }
+            Product::setImage($id, $stored);
+            $message = 'Photo saved for ' . $row['name'] . '.';
+            $url = Media::url($stored);
+        }
+        if ($this->wantsAjax()) {
+            $this->jsonExit([
+                'status' => 'success',
+                'message' => $message,
+                'id' => $id,
+                'image' => $url,
+            ]);
+        }
+        $this->flash('success', $message);
     }
 
     private function bulkSurcharges(): void

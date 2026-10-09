@@ -17,6 +17,17 @@ final class Recipe extends Model
         return $grouped;
     }
 
+    public static function forParent(int $parentId): array
+    {
+        $stmt = self::db()->prepare(
+            'SELECT pr.parent_product_id, pr.ingredient_product_id, pr.quantity, p.name as ingredient_name, p.unit
+             FROM product_recipes pr JOIN products p ON pr.ingredient_product_id = p.id
+             WHERE pr.parent_product_id = ?'
+        );
+        $stmt->execute([$parentId]);
+        return $stmt->fetchAll();
+    }
+
     public static function save(int $parentId, array $ingIds, array $qtys): void
     {
         $pdo = self::db();

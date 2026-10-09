@@ -42,9 +42,19 @@ final class UnspscController extends Controller
                     $this->flash('success', "UNSPSC list updated. {$result['imported']} row(s) imported ({$result['total']} total).");
                 }
                 if (isset($_POST['assign_unspsc'])) {
-                    Unspsc::assignToProduct((int)$_POST['product_id'], (string)$_POST['unspsc_code']);
-                    if (!empty($_POST['ajax'])) {
-                        $this->jsonExit(['status' => 'success']);
+                    $productId = (int)$_POST['product_id'];
+                    Unspsc::assignToProduct($productId, (string)$_POST['unspsc_code']);
+                    if ($this->wantsAjax()) {
+                        $row = Product::catalogRow($productId) ?: [];
+                        $this->jsonExit([
+                            'status' => 'success',
+                            'message' => 'UNSPSC code linked.',
+                            'product_id' => $productId,
+                            'product_name' => (string)($row['name'] ?? ''),
+                            'sku' => (string)($row['sku'] ?? ''),
+                            'unspsc_code' => (string)($row['unspsc_code'] ?? ''),
+                            'unspsc_name' => (string)($row['unspsc_name'] ?? ''),
+                        ]);
                     }
                     $this->flash('success', 'UNSPSC code linked to the product.');
                 }

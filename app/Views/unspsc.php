@@ -52,7 +52,7 @@
             <div class="card-body">
                 <h5 class="fw-bold mb-3"><i class="bi bi-link-45deg"></i> Link a product or service</h5>
                 <p class="small text-muted">Search by commodity title (for example beer, potato) or by 8-digit code, then assign it to a catalog item.</p>
-                <form method="POST">
+                <form method="POST" id="linkUnspscForm" action="index.php?page=unspsc">
                     <input type="hidden" name="assign_unspsc" value="1">
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted">PRODUCT / SERVICE</label>
@@ -74,7 +74,7 @@
                         <div id="linkUnspscResults" class="list-group mt-2 shadow-sm" style="max-height: 280px; overflow-y: auto;"></div>
                         <div class="small text-muted mt-2" id="linkUnspscChosen">No code selected.</div>
                     </div>
-                    <button class="btn btn-primary fw-bold w-100" type="submit">Assign code</button>
+                    <button class="btn btn-primary fw-bold w-100" type="submit" id="linkUnspscSubmit">Assign code</button>
                 </form>
             </div>
         </div>
@@ -229,6 +229,31 @@
         hidden.value = '';
         chosen.textContent = 'No code selected.';
         loadSearch(search.value.trim());
+    });
+
+    document.getElementById('linkUnspscForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = this;
+        LiveRow.postForm(form).then(function (data) {
+            const sel = form.querySelector('[name="product_id"]');
+            let label = data.product_name || '';
+            if (data.sku) label += ' (' + data.sku + ')';
+            if (data.unspsc_code) label += ' — ' + data.unspsc_code;
+            const value = String(data.product_id);
+            if (sel && sel.tomselect) {
+                sel.tomselect.updateOption(value, { value: value, text: label });
+            } else if (sel) {
+                const opt = sel.querySelector('option[value="' + value + '"]');
+                if (opt) opt.textContent = label;
+            }
+            chosen.textContent = data.unspsc_code
+                ? ('Linked ' + data.unspsc_code + (data.unspsc_name ? ' — ' + data.unspsc_name : '') + ' to ' + (data.product_name || 'the item') + '.')
+                : 'Code linked.';
+            results.innerHTML = '';
+            LiveRow.toast(data);
+        }).catch(function (err) {
+            LiveRow.toast({ status: 'error', msg: err.message });
+        });
     });
 })();
 </script>

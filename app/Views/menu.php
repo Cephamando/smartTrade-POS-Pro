@@ -16,7 +16,7 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
             <div class="card-body">
                 <h5 class="card-title fw-bold" id="formTitle">Add Menu Item</h5>
                 <p class="small text-muted mb-4">Create the sellable item here first.</p>
-                <form method="POST">
+                <form method="POST" id="menuItemForm" action="index.php?page=menu">
                     <input type="hidden" name="save_menu_item" value="1">
                     <input type="hidden" name="item_id" id="itemId">
                     
@@ -104,38 +104,10 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
                         </tr>
                     </thead>
                     <tbody id="menuTableBody">
-                        <?php foreach($menuItems as $m): 
+                        <?php foreach($menuItems as $m):
                             $hasRecipe = isset($recipesGrouped[$m['id']]) && count($recipesGrouped[$m['id']]) > 0;
-                        ?>
-                        <tr class="menu-row" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-category="<?= htmlspecialchars($m['cat_name']) ?>">
-                            <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$m['id'] ?>" form="bulkMenu"></td>
-                            <td class="ps-3 fw-bold">
-                                <?= htmlspecialchars($m['name']) ?>
-                                <?php if($hasRecipe): ?><span class="badge bg-info text-dark ms-2" style="font-size:0.6rem;"><i class="bi bi-diagram-3"></i> RECIPE</span><?php endif; ?>
-                                <?php if (!empty($m['unspsc_code'])): ?>
-                                    <div class="small text-muted font-monospace"><?= htmlspecialchars($m['unspsc_code']) ?><?= !empty($m['unspsc_name']) ? ' · ' . htmlspecialchars($m['unspsc_name']) : '' ?></div>
-                                <?php endif; ?>
-                            </td>
-                            <td><span class="badge bg-secondary"><?= htmlspecialchars($m['cat_name']) ?></span></td>
-                            <td class="text-end text-success fw-bold">ZMW <?= number_format($m['price'], 2) ?></td>
-                            <td class="text-end pe-3">
-                                <button class="btn btn-sm btn-outline-info fw-bold me-1" onclick="openRecipeBuilder(<?= (int)$m['id'] ?>, '<?= htmlspecialchars(addslashes($m['name'])) ?>', '<?= htmlspecialchars(addslashes((string)($m['unspsc_code'] ?? ''))) ?>', '<?= htmlspecialchars(addslashes((string)($m['unspsc_name'] ?? ''))) ?>')" title="Manage Recipe">
-                                    <i class="bi bi-cup-straw"></i> Recipe
-                                </button>
-                                <button class="btn btn-sm btn-outline-primary" onclick='editItem(<?= json_encode($m) ?>)'><i class="bi bi-pencil"></i></button>
-                                <form method="POST" class="d-inline js-confirm-form"
-                                    data-swal-title="Remove from menu?"
-                                    data-swal-text="This item will no longer appear on the POS."
-                                    data-swal-confirm="Remove"
-                                    data-swal-cancel="Cancel"
-                                    data-swal-icon="warning">
-                                    <input type="hidden" name="delete_item" value="1">
-                                    <input type="hidden" name="item_id" value="<?= $m['id'] ?>">
-                                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
+                            include __DIR__ . '/partials/menu_row.php';
+                        endforeach; ?>
                         <tr id="noResultsRow" style="display: none;">
                             <td colspan="5" class="text-center py-4 text-muted fst-italic">No menu items match your search.</td>
                         </tr>
@@ -153,7 +125,7 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
                 <h5 class="modal-title fw-bold text-dark"><i class="bi bi-diagram-3 text-info"></i> Recipe Builder: <span id="recipeItemName" class="text-primary"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST">
+            <form method="POST" id="recipeForm" action="index.php?page=menu">
                 <div class="modal-body p-4">
                     <input type="hidden" name="save_recipe" value="1">
                     <input type="hidden" name="parent_product_id" id="recipeParentId">
@@ -267,6 +239,9 @@ function resetForm() {
     document.getElementById('menuUnspscCode').value = '';
     document.getElementById('menuUnspscSearch').value = '';
     document.getElementById('menuUnspscChosen').textContent = 'Optional — required for ZRA registration.';
+    const zra = document.getElementById('menuRegisterZra');
+    if (zra) zra.checked = false;
+    syncMenuSelect('itemCat', document.getElementById('itemCat').value);
     
     document.getElementById('formTitle').innerText = "Add Menu Item";
     document.getElementById('btnSubmit').innerText = "Save Item";
@@ -322,4 +297,60 @@ bindUnspscPicker(
     document.getElementById('recipeUnspscChosen'),
     'index.php?page=menu&ajax=unspsc_search'
 );
+
+document.getElementById('menuTableBody').addEventListener('click', function (event) {
+    const edit = event.target.closest('.js-edit-menu');
+    if (edit) {
+        try {
+            editItem(JSON.parse(edit.getAttribute('data-item') || '{}'));
+        } catch (err) {}
+        return;
+    }
+    const recipe = event.target.closest('.js-open-recipe');
+    if (recipe) {
+        openRecipeBuilder(recipe.dataset.id, recipe.dataset.name || '', recipe.dataset.code || '', recipe.dataset.unspscName || '');
+    }
+});
+
+function syncMenuSelect(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = value == null ? '' : String(value);
+    if (el.tomselect) el.tomselect.setValue(el.value, true);
+}
+
+const originalEditItem = editItem;
+editItem = function (m) {
+    originalEditItem(m);
+    syncMenuSelect('itemCat', m.category_id);
+};
+
+document.getElementById('menuItemForm').addEventListener('submit', function (event) {
+    event.preventDefault();
+    const form = this;
+    LiveRow.postForm(form).then(function (data) {
+        LiveRow.upsertRow(data.html, data.id, '#menuTableBody');
+        filterMenu();
+        resetForm();
+        LiveRow.toast(data);
+    }).catch(function (err) {
+        LiveRow.toast({ status: 'error', msg: err.message });
+    });
+});
+
+document.getElementById('recipeForm').addEventListener('submit', function (event) {
+    event.preventDefault();
+    const form = this;
+    LiveRow.postForm(form).then(function (data) {
+        if (Array.isArray(data.recipes)) {
+            existingRecipes[data.id] = data.recipes;
+        }
+        LiveRow.upsertRow(data.html, data.id, '#menuTableBody');
+        filterMenu();
+        LiveRow.closeModal(form);
+        LiveRow.toast(data);
+    }).catch(function (err) {
+        LiveRow.toast({ status: 'error', msg: err.message });
+    });
+});
 </script>

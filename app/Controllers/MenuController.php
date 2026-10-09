@@ -35,9 +35,17 @@ final class MenuController extends Controller
                     (int)$_POST['category_id'],
                     (string)($_POST['unspsc_code'] ?? '')
                 );
-                $this->flash('success', $id ? 'Menu item updated.' : 'Menu item created.');
-                $this->maybeRegisterZra($productId);
+                $notice = $this->maybeRegisterZra($productId);
+                $message = $notice['message'] ?? ($id ? 'Menu item updated.' : 'Menu item created.');
+                $type = $notice['type'] ?? 'success';
+                if ($this->wantsAjax()) {
+                    $this->respondMenu($productId, $message, $type === 'error' ? 'warning' : 'success');
+                }
+                $this->flash($type, $message);
             } catch (\Throwable $e) {
+                if ($this->wantsAjax()) {
+                    $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'Unable to save the menu item.'], 400);
+                }
                 $this->flash('error', $e->getMessage() ?: 'Unable to save the menu item.');
             }
             $this->redirect('menu');
@@ -51,9 +59,17 @@ final class MenuController extends Controller
                 if ($code !== '') {
                     Unspsc::assignToProduct($parentId, $code);
                 }
-                $this->flash('success', 'Recipe saved.');
-                $this->maybeRegisterZra($parentId);
+                $notice = $this->maybeRegisterZra($parentId);
+                $message = $notice['message'] ?? 'Recipe saved.';
+                $type = $notice['type'] ?? 'success';
+                if ($this->wantsAjax()) {
+                    $this->respondMenu($parentId, $message, $type === 'error' ? 'warning' : 'success', Recipe::forParent($parentId));
+                }
+                $this->flash($type, $message);
             } catch (\Throwable $e) {
+                if ($this->wantsAjax()) {
+                    $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'Unable to save the recipe.'], 400);
+                }
                 $this->flash('error', $e->getMessage() ?: 'Unable to save the recipe.');
             }
             $this->redirect('menu');
@@ -82,32 +98,52 @@ final class MenuController extends Controller
         ]);
     }
 
-    private function maybeRegisterZra(int $productId): void
+    private function maybeRegisterZra(int $productId): ?array
     {
         if (empty($_POST['register_zra']) || $productId <= 0) {
-            return;
+            return null;
         }
         $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
         if (!in_array($tier, ['enterprise'], true) && $this->role() !== 'dev') {
-            return;
+            return null;
         }
         try {
             $product = Product::movementContext($productId);
             if (!$product) {
-                return;
+                return null;
             }
             if (empty($product['unspsc_code'])) {
-                $this->flash('error', 'Assign a UNSPSC code before registering the item with ZRA.');
-                return;
+                return ['type' => 'error', 'message' => 'Assign a UNSPSC code before registering the item with ZRA.'];
             }
             $res = (new \ZraVsdcClient($this->pdo()))->saveItem($product);
             if (($res['resultCd'] ?? '') === '000') {
-                $this->flash('success', 'Saved and registered with ZRA Smart Invoice.');
-            } else {
-                $this->flash('error', $res['resultMsg'] ?? 'ZRA registration did not complete.');
+                return ['type' => 'success', 'message' => 'Saved and registered with ZRA Smart Invoice.'];
             }
+            return ['type' => 'error', 'message' => $res['resultMsg'] ?? 'ZRA registration did not complete.'];
         } catch (\Throwable $e) {
-            $this->flash('error', 'Saved locally, but ZRA registration failed: ' . $e->getMessage());
+            return ['type' => 'error', 'message' => 'Saved locally, but ZRA registration failed: ' . $e->getMessage()];
         }
+    }
+
+    private function respondMenu(int $id, string $message, string $icon, ?array $recipes = null): never
+    {
+        $row = Product::menuRow($id);
+        if (!$row) {
+            $this->jsonExit(['status' => 'error', 'msg' => 'Saved, but the menu row could not be loaded.'], 500);
+        }
+        $payload = [
+            'status' => 'success',
+            'icon' => $icon,
+            'message' => $message,
+            'id' => $id,
+            'html' => $this->renderPartial('menu_row', [
+                'm' => $row,
+                'hasRecipe' => ((int)($row['recipe_count'] ?? 0)) > 0,
+            ]),
+        ];
+        if ($recipes !== null) {
+            $payload['recipes'] = $recipes;
+        }
+        $this->jsonExit($payload);
     }
 }

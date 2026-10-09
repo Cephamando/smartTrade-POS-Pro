@@ -73,6 +73,25 @@ class Controller
         $_SESSION['swal_msg'] = $message;
     }
 
+    protected function wantsAjax(): bool
+    {
+        if (strcasecmp((string)($_SERVER['REQUEST_METHOD'] ?? ''), 'POST') !== 0) {
+            return false;
+        }
+        if (!empty($_POST['ajax'])) {
+            return true;
+        }
+        return strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
+    }
+
+    protected function renderPartial(string $name, array $vars): string
+    {
+        extract($vars, EXTR_SKIP);
+        ob_start();
+        include APP_PATH . '/Views/partials/' . $name . '.php';
+        return (string)ob_get_clean();
+    }
+
     protected function jsonExit(array $data, int $code = 200): never
     {
         while (ob_get_level() > 0) {

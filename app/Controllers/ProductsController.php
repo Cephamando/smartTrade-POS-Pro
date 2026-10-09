@@ -46,8 +46,16 @@ final class ProductsController extends Controller
                     if ($name === '') {
                         throw new \Exception('Category name is required.');
                     }
-                    Category::create($name);
-                    $this->flash('success', "Category '$name' created.");
+                    $categoryId = Category::create($name);
+                    $message = "Category '$name' created.";
+                    if ($this->wantsAjax()) {
+                        $this->jsonExit([
+                            'status' => 'success',
+                            'message' => $message,
+                            'category' => ['id' => $categoryId, 'name' => $name],
+                        ]);
+                    }
+                    $this->flash('success', $message);
                 }
                 if (isset($_POST['save_product'])) {
                     $name = trim((string)$_POST['name']);
@@ -93,7 +101,7 @@ final class ProductsController extends Controller
                             $isActive,
                             $isSellable
                         );
-                        $this->flash('success', "Product '$name' updated.");
+                        $message = "Product '$name' updated.";
                     } else {
                         $savedId = Product::create(
                             $name,
@@ -108,7 +116,7 @@ final class ProductsController extends Controller
                             $type,
                             $isSellable
                         );
-                        $this->flash('success', "Product '$name' saved.");
+                        $message = "Product '$name' saved.";
                     }
                     if (!empty($_POST['remove_image'])) {
                         Product::setImage($savedId, null);
@@ -118,6 +126,10 @@ final class ProductsController extends Controller
                             Product::setImage($savedId, $image);
                         }
                     }
+                    if ($this->wantsAjax()) {
+                        $this->jsonCatalogRow((int)$savedId, $message);
+                    }
+                    $this->flash('success', $message);
                 }
                 if (isset($_POST['import_csv']) && isset($_FILES['csv_file'])) {
                     if (($_FILES['csv_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
@@ -131,6 +143,9 @@ final class ProductsController extends Controller
                     $this->flash('success', "Import complete. Added {$result['added']}, updated {$result['updated']}.");
                 }
             } catch (\Throwable $e) {
+                if ($this->wantsAjax()) {
+                    $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'Unable to save.'], 400);
+                }
                 $this->flash('error', $e->getMessage());
             }
             $this->redirect('products');
@@ -139,6 +154,21 @@ final class ProductsController extends Controller
         $this->render([
             'categories' => Category::all(),
             'products' => Product::allWithCategory(),
+        ]);
+    }
+
+    private function jsonCatalogRow(int $id, string $message): never
+    {
+        $row = Product::catalogRow($id);
+        if (!$row) {
+            $this->jsonExit(['status' => 'error', 'msg' => 'Saved, but the catalog row could not be loaded.'], 500);
+        }
+        $isEnt = (defined('LICENSE_TIER') ? LICENSE_TIER : 'lite') === 'enterprise';
+        $this->jsonExit([
+            'status' => 'success',
+            'message' => $message,
+            'id' => $id,
+            'html' => $this->renderPartial('product_row', ['p' => $row, 'isEnt' => $isEnt]),
         ]);
     }
 }

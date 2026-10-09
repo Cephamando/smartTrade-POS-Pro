@@ -43,6 +43,21 @@ final class Product extends Model
         )->fetchAll();
     }
 
+    public static function catalogRow(int $id): ?array
+    {
+        Unspsc::ensureTable();
+        $stmt = self::db()->prepare(
+            "SELECT p.*, c.name as category_name, z.item_cls_nm as unspsc_name
+             FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
+             LEFT JOIN zra_item_classes z ON z.item_cls_cd = p.unspsc_code
+             WHERE p.id = ?"
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public static function activeSellable(): array
     {
         return self::db()->query(
@@ -320,6 +335,22 @@ final class Product extends Model
         return $stmt->fetchAll();
     }
 
+    public static function menuRow(int $id): ?array
+    {
+        Unspsc::ensureTable();
+        $stmt = self::db()->prepare(
+            "SELECT p.*, c.name as cat_name, z.item_cls_nm as unspsc_name,
+                    (SELECT COUNT(*) FROM product_recipes WHERE parent_product_id = p.id) AS recipe_count
+             FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
+             LEFT JOIN zra_item_classes z ON z.item_cls_cd = p.unspsc_code
+             WHERE p.id = ?"
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public static function saveMenuItem(?int $id, string $name, float $price, float $cost, int $categoryId, ?string $unspscCode = null): int
     {
         $code = $unspscCode !== null && $unspscCode !== '' ? preg_replace('/\D/', '', $unspscCode) : null;
@@ -342,5 +373,37 @@ final class Product extends Model
     public static function allIngredients(): array
     {
         return self::db()->query('SELECT id, name, unit FROM products WHERE is_active = 1 ORDER BY name ASC')->fetchAll();
+    }
+
+    /** Active food and drink items that appear on the menu and the online shop. */
+    public static function menuForPhotos(): array
+    {
+        self::ensureSchema();
+        $types = ['food', 'meal', 'drink', 'beverage', 'cocktail'];
+        $placeholders = implode(',', array_fill(0, count($types), '?'));
+        $stmt = self::db()->prepare(
+            "SELECT p.id, p.name, p.price, p.image_path, c.name AS cat_name
+             FROM products p
+             JOIN categories c ON p.category_id = c.id
+             WHERE c.type IN ($placeholders) AND p.is_active = 1
+             ORDER BY c.name ASC, p.name ASC"
+        );
+        $stmt->execute($types);
+        return $stmt->fetchAll();
+    }
+
+    public static function menuPhotoTarget(int $id): ?array
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare(
+            "SELECT p.id, p.name, p.image_path
+             FROM products p
+             JOIN categories c ON p.category_id = c.id
+             WHERE p.id = ? AND p.is_active = 1
+               AND c.type IN ('food', 'meal', 'drink', 'beverage', 'cocktail')"
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
     }
 }

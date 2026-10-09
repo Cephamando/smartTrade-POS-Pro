@@ -115,76 +115,7 @@ $isEnt = $tier === 'enterprise';
                     <tbody>
                         <?php if (!empty($products)): ?>
                             <?php foreach ($products as $p): ?>
-                                <tr>
-                                    <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$p['id'] ?>" form="bulkProducts"></td>
-                                    <td class="fw-bold">
-                                        <?= htmlspecialchars($p['name']) ?>
-                                        <?php if (isset($p['is_sellable']) && (int)$p['is_sellable'] === 0): ?>
-                                            <span class="badge bg-secondary ms-1" style="font-size: 0.6rem;">RAW</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if (!empty($p['category_name'])): ?>
-                                            <span class="badge bg-secondary"><?= htmlspecialchars($p['category_name']) ?></span>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><small class="text-muted"><?= htmlspecialchars($p['sku'] ?? '-') ?></small></td>
-                                    <td><?= htmlspecialchars($p['unit'] ?: 'unit') ?></td>
-                                    <td><?= htmlspecialchars($p['type'] ?? 'item') ?></td>
-                                    <?php if ($isEnt): ?>
-                                    <td><span class="badge bg-info text-dark">Class <?= htmlspecialchars($p['tax_class'] ?? 'A') ?></span></td>
-                                    <?php endif; ?>
-                                    <td>
-                                        <button type="button" class="btn btn-link btn-sm p-0 text-start unspsc-pick no-print"
-                                            data-product-id="<?= (int)$p['id'] ?>"
-                                            data-product-name="<?= htmlspecialchars($p['name'], ENT_QUOTES) ?>">
-                                            <?php if (!empty($p['unspsc_code'])): ?>
-                                                <span class="fw-bold"><?= htmlspecialchars($p['unspsc_code']) ?></span>
-                                                <?php if (!empty($p['unspsc_name'])): ?>
-                                                    <div class="small text-muted"><?= htmlspecialchars($p['unspsc_name']) ?></div>
-                                                <?php endif; ?>
-                                            <?php else: ?>
-                                                <span class="text-muted">Assign code</span>
-                                            <?php endif; ?>
-                                        </button>
-                                    </td>
-                                    <td class="text-end text-muted"><?= number_format((float)$p['cost_price'], 2) ?></td>
-                                    <td class="text-end fw-bold text-success"><?= number_format((float)$p['price'], 2) ?></td>
-                                    <td>
-                                        <?php if (!empty($p['is_active'])): ?>
-                                            <span class="badge bg-success">Active</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-danger">Disabled</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-end no-print">
-                                        <?php
-                                        $editPayload = [
-                                            'id' => (int)$p['id'],
-                                            'name' => (string)$p['name'],
-                                            'sku' => (string)($p['sku'] ?? ''),
-                                            'category_id' => (int)($p['category_id'] ?? 0),
-                                            'unit' => (string)($p['unit'] ?: 'unit'),
-                                            'type' => (string)($p['type'] ?? 'item'),
-                                            'tax_class' => (string)($p['tax_class'] ?? 'A'),
-                                            'unspsc_code' => (string)($p['unspsc_code'] ?? ''),
-                                            'unspsc_name' => (string)($p['unspsc_name'] ?? ''),
-                                            'cost_price' => $p['cost_price'],
-                                            'price' => $p['price'],
-                                            'is_active' => (int)($p['is_active'] ?? 1),
-                                            'is_sellable' => array_key_exists('is_sellable', $p) ? (int)$p['is_sellable'] : 1,
-                                            'image_path' => \App\Helpers\Media::url((string)($p['image_path'] ?? '')),
-                                        ];
-                                        ?>
-                                        <button type="button" class="btn btn-sm btn-outline-primary js-edit-product"
-                                            data-product="<?= htmlspecialchars(json_encode($editPayload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>"
-                                            title="Edit product">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                    </td>
-                                </tr>
+                                <?php include __DIR__ . '/partials/product_row.php'; ?>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>
@@ -195,7 +126,7 @@ $isEnt = $tier === 'enterprise';
 </div>
 
 <div class="modal fade no-print" id="catModal" tabindex="-1">
-    <div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-light"><h5 class="modal-title fw-bold">Add Category</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products"><div class="modal-body"><input type="hidden" name="add_category" value="1"><div class="mb-3"><label class="form-label small fw-bold text-muted">CATEGORY NAME</label><input type="text" name="category_name" class="form-control" required></div></div><div class="modal-footer border-0"><button class="btn btn-primary w-100 fw-bold py-2 shadow-sm">Save Category</button></div></form></div></div>
+    <div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-light"><h5 class="modal-title fw-bold">Add Category</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" action="index.php?page=products" id="catForm"><div class="modal-body"><input type="hidden" name="add_category" value="1"><div class="mb-3"><label class="form-label small fw-bold text-muted">CATEGORY NAME</label><input type="text" name="category_name" class="form-control" required></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm">Save Category</button></div></form></div></div>
 </div>
 
 <div class="modal fade no-print" id="prodModal" tabindex="-1">
@@ -285,7 +216,7 @@ $isEnt = $tier === 'enterprise';
                     </div>
                 </div>
                 <div class="modal-footer border-0">
-                    <button class="btn btn-primary w-100 fw-bold py-2 shadow-sm" id="prodSaveBtn"><i class="bi bi-save"></i> Save Product</button>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold py-2 shadow-sm" id="prodSaveBtn"><i class="bi bi-save"></i> Save Product</button>
                 </div>
             </form>
         </div>
@@ -476,15 +407,21 @@ $isEnt = $tier === 'enterprise';
     );
 
     const assignModal = document.getElementById('unspscAssignModal');
-    document.querySelectorAll('.unspsc-pick').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            document.getElementById('assignProductId').value = btn.dataset.productId;
-            document.getElementById('assignProductName').textContent = btn.dataset.productName;
+    document.getElementById('catalogTable').addEventListener('click', function (event) {
+        const pick = event.target.closest('.unspsc-pick');
+        if (pick) {
+            document.getElementById('assignProductId').value = pick.dataset.productId;
+            document.getElementById('assignProductName').textContent = pick.dataset.productName;
             document.getElementById('assignUnspscSearch').value = '';
             document.getElementById('assignUnspscResults').innerHTML = '';
             bootstrap.Modal.getOrCreateInstance(assignModal).show();
             document.getElementById('assignUnspscSearch').focus();
-        });
+            return;
+        }
+        const edit = event.target.closest('.js-edit-product');
+        if (edit) {
+            openProductEditor(edit);
+        }
     });
         bindUnspscSearch(
         document.getElementById('assignUnspscSearch'),
@@ -495,17 +432,23 @@ $isEnt = $tier === 'enterprise';
             body.set('ajax', '1');
             body.set('product_id', document.getElementById('assignProductId').value);
             body.set('unspsc_code', item.item_cls_cd);
-            fetch('index.php?page=unspsc', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() })
-                .then(function (r) { return r.json(); })
+            fetch('index.php?page=unspsc', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+                body: body.toString()
+            })
+                .then(function (r) { return LiveRow.parseJson(r); })
                 .then(function (data) {
-                    if (data.status === 'success') {
-                        location.reload();
-                    } else {
-                        AppAlert.notify({ icon: 'error', text: data.msg || 'Unable to assign the code.', confirmText: 'OK' });
+                    if (data.status !== 'success') {
+                        throw new Error(data.msg || 'Unable to assign the code.');
                     }
+                    paintCatalogUnspsc(data.product_id, data.unspsc_code, data.unspsc_name);
+                    const modal = bootstrap.Modal.getInstance(assignModal);
+                    if (modal) modal.hide();
+                    LiveRow.toast(data);
                 })
-                .catch(function () {
-                    AppAlert.notify({ icon: 'error', text: 'Unable to assign the code.', confirmText: 'OK' });
+                .catch(function (err) {
+                    AppAlert.notify({ icon: 'error', text: err.message || 'Unable to assign the code.', confirmText: 'OK' });
                 });
         }
     );
@@ -530,9 +473,13 @@ $isEnt = $tier === 'enterprise';
         if (preview) { preview.classList.add('d-none'); preview.removeAttribute('src'); }
         if (removeWrap) { removeWrap.classList.add('d-none'); }
         if (removeBox) { removeBox.checked = false; }
+        syncSelect('prodCategory', '');
+        syncSelect('prodType', 'item');
+        syncSelect('prodSellable', '1');
+        syncSelect('prodStatus', '1');
         const tax = document.getElementById('prodTaxClass');
         if (tax && tax.tagName === 'SELECT') {
-            tax.value = 'A';
+            syncSelect('prodTaxClass', 'A');
         }
     }
 
@@ -549,44 +496,121 @@ $isEnt = $tier === 'enterprise';
         }
     }
 
+    function syncSelect(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const next = value == null ? '' : String(value);
+        el.value = next;
+        if (el.tomselect) {
+            el.tomselect.setValue(next, true);
+        }
+    }
+
+    function rememberCategory(cat) {
+        const filter = document.getElementById('filterCategory');
+        if (filter && !Array.prototype.some.call(filter.options, function (opt) { return opt.value === cat.name; })) {
+            filter.add(new Option(cat.name, cat.name));
+            if (filter.tomselect) {
+                filter.tomselect.addOption({ value: cat.name, text: cat.name });
+                filter.tomselect.refreshOptions(false);
+            }
+        }
+        const prod = document.getElementById('prodCategory');
+        const id = String(cat.id);
+        if (prod && !prod.querySelector('option[value="' + id + '"]')) {
+            prod.add(new Option(cat.name, id));
+            if (prod.tomselect) {
+                prod.tomselect.addOption({ value: id, text: cat.name });
+                prod.tomselect.refreshOptions(false);
+            }
+        }
+    }
+
+    function paintCatalogUnspsc(productId, code, name) {
+        const btn = document.querySelector('.unspsc-pick[data-product-id="' + String(productId).replace(/[^0-9]/g, '') + '"]');
+        if (!btn) return;
+        if (code) {
+            btn.innerHTML = '<span class="fw-bold">' + escapeUnspsc(code) + '</span>'
+                + (name ? '<div class="small text-muted">' + escapeUnspsc(name) + '</div>' : '');
+        } else {
+            btn.innerHTML = '<span class="text-muted">Assign code</span>';
+        }
+        const edit = btn.closest('tr') && btn.closest('tr').querySelector('.js-edit-product');
+        if (edit) {
+            let product = {};
+            try { product = JSON.parse(edit.getAttribute('data-product') || '{}'); } catch (e) { product = {}; }
+            product.unspsc_code = code || '';
+            product.unspsc_name = name || '';
+            edit.setAttribute('data-product', JSON.stringify(product));
+        }
+        if (window.jQuery && $.fn.DataTable.isDataTable('#catalogTable')) {
+            $('#catalogTable').DataTable().cell(btn.closest('td')).invalidate('dom').draw(false);
+        }
+        LiveRow.flash(btn.closest('tr'));
+    }
+
+    function openProductEditor(btn) {
+        let product = {};
+        try {
+            product = JSON.parse(btn.getAttribute('data-product') || '{}');
+        } catch (e) {
+            return;
+        }
+        document.getElementById('prodModalTitle').textContent = 'Edit Product';
+        document.getElementById('prodSaveBtn').innerHTML = '<i class="bi bi-save"></i> Update Product';
+        document.getElementById('productId').value = product.id || '';
+        document.getElementById('prodName').value = product.name || '';
+        document.getElementById('prodSku').value = product.sku || '';
+        syncSelect('prodCategory', product.category_id ? String(product.category_id) : '');
+        document.getElementById('prodUnit').value = product.unit || 'unit';
+        syncSelect('prodType', product.type || 'item');
+        const tax = document.getElementById('prodTaxClass');
+        if (tax) {
+            syncSelect('prodTaxClass', product.tax_class || 'A');
+        }
+        document.getElementById('prodCost').value = product.cost_price != null ? product.cost_price : '';
+        document.getElementById('prodPrice').value = product.price != null ? product.price : '';
+        syncSelect('prodStatus', String(product.is_active === 0 ? 0 : 1));
+        document.getElementById('prodStatusCol').classList.remove('d-none');
+        syncSelect('prodSellable', product.is_sellable !== undefined ? String(product.is_sellable) : '1');
+        setProdUnspsc(product.unspsc_code || '', product.unspsc_name || '');
+        const preview = document.getElementById('prodImagePreview');
+        const removeWrap = document.getElementById('prodImageRemoveWrap');
+        if (preview && product.image_path) {
+            preview.src = product.image_path;
+            preview.classList.remove('d-none');
+            if (removeWrap) { removeWrap.classList.remove('d-none'); }
+        }
+        bootstrap.Modal.getOrCreateInstance(prodModalEl).show();
+    }
+
     const prodModalEl = document.getElementById('prodModal');
     if (prodModalEl) {
         prodModalEl.addEventListener('hidden.bs.modal', resetProdForm);
     }
-    document.querySelectorAll('.js-edit-product').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            let product = {};
-            try {
-                product = JSON.parse(btn.getAttribute('data-product') || '{}');
-            } catch (e) {
-                return;
-            }
-            document.getElementById('prodModalTitle').textContent = 'Edit Product';
-            document.getElementById('prodSaveBtn').innerHTML = '<i class="bi bi-save"></i> Update Product';
-            document.getElementById('productId').value = product.id || '';
-            document.getElementById('prodName').value = product.name || '';
-            document.getElementById('prodSku').value = product.sku || '';
-            document.getElementById('prodCategory').value = product.category_id ? String(product.category_id) : '';
-            document.getElementById('prodUnit').value = product.unit || 'unit';
-            document.getElementById('prodType').value = product.type || 'item';
-            const tax = document.getElementById('prodTaxClass');
-            if (tax) {
-                tax.value = product.tax_class || 'A';
-            }
-            document.getElementById('prodCost').value = product.cost_price != null ? product.cost_price : '';
-            document.getElementById('prodPrice').value = product.price != null ? product.price : '';
-            document.getElementById('prodStatus').value = String(product.is_active === 0 ? 0 : 1);
-            document.getElementById('prodStatusCol').classList.remove('d-none');
-            document.getElementById('prodSellable').value = product.is_sellable !== undefined ? String(product.is_sellable) : '1';
-            setProdUnspsc(product.unspsc_code || '', product.unspsc_name || '');
-            const preview = document.getElementById('prodImagePreview');
-            const removeWrap = document.getElementById('prodImageRemoveWrap');
-            if (preview && product.image_path) {
-                preview.src = product.image_path;
-                preview.classList.remove('d-none');
-                if (removeWrap) { removeWrap.classList.remove('d-none'); }
-            }
-            bootstrap.Modal.getOrCreateInstance(prodModalEl).show();
+
+    document.getElementById('prodForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = this;
+        LiveRow.postForm(form).then(function (data) {
+            LiveRow.upsertRow(data.html, data.id, '#catalogTable tbody');
+            LiveRow.closeModal(form);
+            LiveRow.toast(data);
+        }).catch(function (err) {
+            LiveRow.toast({ status: 'error', msg: err.message });
+        });
+    });
+
+    document.getElementById('catForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const form = this;
+        LiveRow.postForm(form).then(function (data) {
+            if (data.category) rememberCategory(data.category);
+            form.reset();
+            LiveRow.closeModal(form);
+            LiveRow.toast(data);
+        }).catch(function (err) {
+            LiveRow.toast({ status: 'error', msg: err.message });
         });
     });
 </script>

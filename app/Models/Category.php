@@ -19,6 +19,19 @@ final class Category extends Model
         )->fetchAll();
     }
 
+    public static function findWithParent(int $id): ?array
+    {
+        $stmt = self::db()->prepare(
+            "SELECT c.*, p.name as parent_name
+             FROM categories c
+             LEFT JOIN categories p ON c.parent_id = p.id
+             WHERE c.id = ?"
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public static function findIdByName(string $name): ?int
     {
         $stmt = self::db()->prepare('SELECT id FROM categories WHERE name = ?');
