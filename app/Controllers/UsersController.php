@@ -15,6 +15,37 @@ final class UsersController extends Controller
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (($_POST['bulk_action'] ?? '') === 'delete') {
+                $deleted = 0;
+                $deactivated = 0;
+                $skipped = 0;
+                foreach ($this->postedIds() as $userId) {
+                    $target = User::findById($userId);
+                    $targetRole = $target['role'] ?? '';
+                    if ($targetRole === 'dev' || $userId === $this->userId()) {
+                        $skipped++;
+                        continue;
+                    }
+                    $result = User::deleteOrDeactivate($userId);
+                    if ($result === 'deactivated') {
+                        $deactivated++;
+                    } else {
+                        $deleted++;
+                    }
+                }
+                $parts = [];
+                if ($deleted) {
+                    $parts[] = $deleted . ' deleted';
+                }
+                if ($deactivated) {
+                    $parts[] = $deactivated . ' deactivated (they have history)';
+                }
+                if ($skipped) {
+                    $parts[] = $skipped . ' left unchanged';
+                }
+                $this->flash('success', $parts ? implode(', ', $parts) . '.' : 'Nothing was selected.');
+                $this->redirect('users');
+            }
             if (isset($_POST['add_user'])) {
                 $role = (string)$_POST['role'];
                 if ($role === 'dev' && $this->role() !== 'dev') {

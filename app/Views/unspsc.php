@@ -177,10 +177,13 @@
         const badge = item.item_cls_lvl_label
             ? '<span class="badge ' + ((item.item_cls_lvl >= 4) ? 'bg-primary' : 'bg-secondary') + '">' + escapeHtml(item.item_cls_lvl_label) + '</span>'
             : '';
+        const used = item.favourite
+            ? '<span class="badge bg-warning text-dark">Used' + (item.uses ? ' ' + escapeHtml(item.uses) : '') + '</span>'
+            : '';
         return '<div class="d-flex justify-content-between gap-2 align-items-start">'
             + '<div><strong class="font-monospace">' + escapeHtml(item.item_cls_cd) + '</strong>'
             + '<div>' + escapeHtml(item.item_cls_nm || '') + '</div>'
-            + path + '</div>' + badge + '</div>';
+            + path + '</div><div class="d-flex flex-column gap-1 align-items-end">' + used + badge + '</div></div>';
     }
 
     function render(items) {
@@ -188,6 +191,12 @@
         if (!items.length) {
             results.innerHTML = '<div class="list-group-item small text-muted">No matching codes.</div>';
             return;
+        }
+        if (items.length && items.every(function (item) { return item.favourite; })) {
+            const head = document.createElement('div');
+            head.className = 'list-group-item small fw-bold text-muted';
+            head.textContent = 'Favourites · previously used';
+            results.appendChild(head);
         }
         items.forEach(function (item) {
             const btn = document.createElement('button');
@@ -204,21 +213,22 @@
         });
     }
 
-    search.addEventListener('input', function () {
+    function loadSearch(q) {
         clearTimeout(timer);
-        const q = search.value.trim();
-        hidden.value = '';
-        chosen.textContent = 'No code selected.';
-        if (!q) {
-            results.innerHTML = '';
-            return;
-        }
         timer = setTimeout(function () {
             fetch('index.php?page=unspsc&ajax=search&q=' + encodeURIComponent(q))
                 .then(function (r) { return r.json(); })
                 .then(function (data) { render(data.results || []); })
                 .catch(function () { results.innerHTML = ''; });
-        }, 250);
+        }, q ? 250 : 0);
+    }
+    search.addEventListener('focus', function () {
+        if (!search.value.trim()) loadSearch('');
+    });
+    search.addEventListener('input', function () {
+        hidden.value = '';
+        chosen.textContent = 'No code selected.';
+        loadSearch(search.value.trim());
     });
 })();
 </script>

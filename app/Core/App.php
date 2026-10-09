@@ -100,7 +100,7 @@ final class App
         }
 
         // ALLOW VSDC & OTHER MODULE ACTIONS TO PASS THROUGH TO THE ROUTER
-        if (!in_array($action, ['check_ready_orders', 'get_shift_sales', 'get_stock_level'], true)) {
+        if (!in_array($action, ['check_ready_orders', 'live_status', 'get_shift_sales', 'get_stock_level'], true)) {
             return false; 
         }
 
@@ -117,6 +117,58 @@ final class App
             } catch (\Throwable $e) {
                 echo json_encode(['count' => 0, 'error' => $e->getMessage()]);
             }
+            return true;
+        }
+
+        if ($action === 'live_status') {
+            $locationId = (int)($_SESSION['pos_location_id'] ?? $_SESSION['location_id'] ?? 0);
+            $userId = (int)($_SESSION['user_id'] ?? 0);
+            $role = (string)($_SESSION['role'] ?? '');
+            $isManager = in_array($role, ['admin', 'manager', 'dev'], true);
+            session_write_close();
+            $out = [
+                'pickup' => 0,
+                'web_orders' => 0,
+                'tabs_open' => 0,
+                'tabs_unsettled' => 0,
+                'approvals' => 0,
+                'web_ids' => '',
+                'tab_ids' => '',
+            ];
+            try {
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.location_id = ? AND si.status = 'ready' AND si.fulfillment_status = 'uncollected'");
+                $stmt->execute([$locationId]);
+                $out['pickup'] = (int)$stmt->fetchColumn();
+
+                $tabSql = "SELECT DISTINCT s.id, s.payment_status FROM sales s JOIN sale_items si ON s.id = si.sale_id WHERE s.location_id = ? AND si.status NOT IN ('voided', 'refunded') AND (s.payment_status = 'pending' OR si.fulfillment_status = 'uncollected')";
+                $params = [$locationId];
+                if (!$isManager && $userId > 0) {
+                    $tabSql .= ' AND s.user_id = ?';
+                    $params[] = $userId;
+                }
+                $stmt = $pdo->prepare($tabSql);
+                $stmt->execute($params);
+                $tabIds = [];
+                foreach ($stmt->fetchAll() as $row) {
+                    $tabIds[] = (int)$row['id'];
+                    if (($row['payment_status'] ?? '') !== 'paid') {
+                        $out['tabs_unsettled']++;
+                    }
+                }
+                $out['tabs_open'] = count($tabIds);
+                $out['tab_ids'] = implode(',', $tabIds);
+
+                $webIds = $pdo->query("SELECT id FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY id DESC")->fetchAll(\PDO::FETCH_COLUMN);
+                $out['web_orders'] = count($webIds);
+                $out['web_ids'] = implode(',', array_map('intval', $webIds));
+
+                if (\App\Helpers\Vsias::enabled()) {
+                    $out['approvals'] = \App\Helpers\Vsias::pendingApprovalCount();
+                }
+            } catch (\Throwable $e) {
+                $out['error'] = $e->getMessage();
+            }
+            echo json_encode($out);
             return true;
         }
 

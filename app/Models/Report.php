@@ -4,9 +4,9 @@ namespace App\Models;
 
 final class Report extends Model
 {
-    public static function metrics(string $start, string $end, $locationId): array
+    public static function metrics(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $stmt = self::db()->prepare(
             "SELECT SUM(final_total) as total_revenue, SUM(tip_amount) as total_tips, COUNT(*) as trans_count, AVG(final_total) as avg_ticket
              FROM sales s WHERE created_at BETWEEN ? AND ?" . $locSql . " AND payment_status = 'paid'"
@@ -19,9 +19,9 @@ final class Report extends Model
      * Tips per staff member (on the receipt + after payment) and surcharges by reason.
      * @return array{staff: array, surcharges: array, totals: array}
      */
-    public static function tipsAndSurcharges(string $start, string $end, $locationId): array
+    public static function tipsAndSurcharges(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $staff = [];
         $stmt = self::db()->prepare(
             "SELECT s.user_id, COALESCE(u.full_name, u.username, 'Unknown') AS staff, COUNT(*) AS receipts,
@@ -73,9 +73,9 @@ final class Report extends Model
         ];
     }
 
-    public static function refundStats(string $start, string $end, $locationId): array
+    public static function refundStats(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $stmt = self::db()->prepare(
             "SELECT SUM(ABS(final_total)) as total_refunded, COUNT(*) as refund_count
              FROM sales s WHERE created_at BETWEEN ? AND ?" . $locSql . " AND final_total < 0"
@@ -84,9 +84,9 @@ final class Report extends Model
         return $stmt->fetch() ?: [];
     }
 
-    public static function voidStats(string $start, string $end, $locationId): array
+    public static function voidStats(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $stmt = self::db()->prepare(
             "SELECT SUM(si.price * si.quantity) as total_voided, COUNT(si.id) as void_count
              FROM sale_items si JOIN sales s ON si.sale_id = s.id
@@ -96,9 +96,9 @@ final class Report extends Model
         return $stmt->fetch() ?: [];
     }
 
-    public static function salesRows(string $start, string $end, $locationId): array
+    public static function salesRows(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $stmt = self::db()->prepare(
             "SELECT s.*, u.username as cashier, l.name as location
              FROM sales s
@@ -111,9 +111,9 @@ final class Report extends Model
         return $stmt->fetchAll();
     }
 
-    public static function itemizedRows(string $start, string $end, $locationId): array
+    public static function itemizedRows(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $stmt = self::db()->prepare(
             "SELECT si.id as item_id, s.id as sale_id, s.created_at, COALESCE(p.name, 'Custom Item') as product_name,
                     si.quantity, si.price, (si.price * si.quantity) as line_total,
@@ -130,9 +130,9 @@ final class Report extends Model
         return $stmt->fetchAll();
     }
 
-    public static function productRows(string $start, string $end, $locationId): array
+    public static function productRows(string $start, string $end, $locationId, string $daypart = ''): array
     {
-        [$params, $locSql] = self::rangeParams($start, $end, $locationId);
+        [$params, $locSql] = self::rangeParams($start, $end, $locationId, $daypart);
         $stmt = self::db()->prepare(
             "SELECT p.name, p.sku, SUM(si.quantity) as qty_sold, SUM(si.price * si.quantity) as revenue
              FROM sale_items si
@@ -407,13 +407,24 @@ final class Report extends Model
         ];
     }
 
-    private static function rangeParams(string $start, string $end, $locationId): array
+    public static function daypartClause(string $daypart): string
+    {
+        return match ($daypart) {
+            'morning' => ' AND HOUR(s.created_at) BETWEEN 6 AND 11',
+            'afternoon' => ' AND HOUR(s.created_at) BETWEEN 12 AND 16',
+            'evening' => ' AND HOUR(s.created_at) BETWEEN 17 AND 21',
+            'night' => ' AND (HOUR(s.created_at) >= 22 OR HOUR(s.created_at) < 6)',
+            default => '',
+        };
+    }
+
+    private static function rangeParams(string $start, string $end, $locationId, string $daypart = ''): array
     {
         $params = [$start . ' 00:00:00', $end . ' 23:59:59'];
         $locSql = ($locationId) ? ' AND s.location_id = ?' : '';
         if ($locationId) {
             $params[] = $locationId;
         }
-        return [$params, $locSql];
+        return [$params, $locSql . self::daypartClause($daypart)];
     }
 }

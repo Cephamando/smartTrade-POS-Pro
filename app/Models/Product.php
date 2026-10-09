@@ -14,6 +14,21 @@ final class Product extends Model
             $pdo->exec("ALTER TABLE products ADD COLUMN is_sellable TINYINT(1) NOT NULL DEFAULT 1");
             $pdo->exec("UPDATE products SET is_sellable = 0 WHERE category_type = 'ingredients' OR (used_as_ingredient = 1 AND has_recipe = 0 AND price <= 0)");
         }
+        $image = $pdo->query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'image_path'");
+        if ((int)$image->fetchColumn() === 0) {
+            $pdo->exec('ALTER TABLE products ADD COLUMN image_path VARCHAR(255) NULL');
+        }
+    }
+
+    public static function setImage(int $id, ?string $path): void
+    {
+        $stmt = self::db()->prepare('SELECT image_path FROM products WHERE id = ?');
+        $stmt->execute([$id]);
+        $old = (string)$stmt->fetchColumn();
+        self::db()->prepare('UPDATE products SET image_path = ? WHERE id = ?')->execute([$path, $id]);
+        if ($old !== '' && $old !== (string)$path) {
+            \App\Helpers\Media::delete($old);
+        }
     }
 
     public static function allWithCategory(): array

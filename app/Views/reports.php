@@ -7,6 +7,8 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
     /* Loyverse-Style Top Controls */
     .loyverse-controls { background: #fff; padding: 15px 20px; border-bottom: 1px solid #e0e0e0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
     .loy-filter-group { display: inline-flex; border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff; position: relative;}
+    .loy-filter-group.loy-filter-select { overflow: visible; }
+    .loy-filter-select .ts-wrapper { min-width: 11rem; }
     .loy-filter-btn { background: #fff; border: none; border-right: 1px solid #ced4da; padding: 6px 12px; color: #495057; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
     .loy-filter-btn:last-child { border-right: none; }
     .loy-filter-btn:hover { background: #f8f9fa; }
@@ -161,12 +163,19 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
         <button type="button" class="loy-filter-btn" onclick="shiftDate(1)" aria-label="Next period"><i class="bi bi-chevron-right"></i></button>
     </div>
     
-    <div class="loy-filter-group loy-filter-allday me-2">
-        <button type="button" class="loy-filter-btn"><i class="bi bi-clock"></i> All day <i class="bi bi-caret-down-fill ms-1" style="font-size:0.7em;"></i></button>
+    <div class="loy-filter-group loy-filter-select loy-filter-allday me-2">
+        <select name="daypart" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()">
+            <?php $daypart = $daypart ?? ''; ?>
+            <option value="" <?= $daypart === '' ? 'selected' : '' ?>>All day</option>
+            <option value="morning" <?= $daypart === 'morning' ? 'selected' : '' ?>>Morning</option>
+            <option value="afternoon" <?= $daypart === 'afternoon' ? 'selected' : '' ?>>Afternoon</option>
+            <option value="evening" <?= $daypart === 'evening' ? 'selected' : '' ?>>Evening</option>
+            <option value="night" <?= $daypart === 'night' ? 'selected' : '' ?>>Night</option>
+        </select>
     </div>
     
     <div class="loy-filter-group loy-filter-select me-2">
-        <select name="location" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()" style="appearance:none; padding-right:30px; background: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path d=\"M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\"/></svg>') no-repeat right 10px center; background-size: 10px;">
+        <select name="location" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()">
             <option value="" <?= ($locationId === '' || $locationId === null) ? 'selected' : '' ?>>All stores</option>
             <?php foreach (($locations ?? []) as $l): ?>
                 <option value="<?= (int)$l['id'] ?>" <?= ((string)$locationId === (string)$l['id']) ? 'selected' : '' ?>><?= htmlspecialchars((string)($l['name'] ?? 'Location #' . $l['id'])) ?></option>
@@ -175,7 +184,7 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
     </div>
     
     <div class="loy-filter-group loy-filter-select position-relative">
-        <select name="employee_id" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()" style="appearance:none; padding-left:35px; padding-right:30px; background: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"><path d=\"M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z\"/></svg>') no-repeat right 10px center; background-size: 10px;">
+        <select name="employee_id" class="loy-filter-input" onchange="document.getElementById('loyverseFilterForm').submit()">
             <option value="">All employees</option>
             <?php foreach (($employees ?? []) as $e): ?>
                 <option value="<?= (int)$e['id'] ?>" <?= ((string)$employeeId === (string)$e['id']) ? 'selected' : '' ?>><?= htmlspecialchars($e['username']) ?></option>
@@ -242,19 +251,19 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
 
 <ul class="nav nav-pills loy-report-pills mb-3 px-3 no-print" style="gap:10px;">
     <li class="nav-item">
-        <a class="nav-link rounded-pill border <?= $reportType == 'sales' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=sales&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Receipts</a>
+        <a class="nav-link rounded-pill border <?= $reportType == 'sales' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=sales&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Receipts</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link rounded-pill border <?= $reportType == 'items' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=items&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Items</a>
+        <a class="nav-link rounded-pill border <?= $reportType == 'items' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=items&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Items</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link rounded-pill border <?= $reportType == 'categories' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=categories&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Categories</a>
+        <a class="nav-link rounded-pill border <?= $reportType == 'categories' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=categories&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Categories</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link rounded-pill border <?= $reportType == 'taxes' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=taxes&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Taxes</a>
+        <a class="nav-link rounded-pill border <?= $reportType == 'taxes' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=taxes&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Taxes</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link rounded-pill border <?= $reportType == 'tips' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=tips&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>">Tips & Surcharges</a>
+        <a class="nav-link rounded-pill border <?= $reportType == 'tips' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=tips&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Tips & Surcharges</a>
     </li>
 </ul>
 

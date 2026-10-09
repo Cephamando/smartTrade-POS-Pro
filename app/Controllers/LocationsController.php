@@ -89,6 +89,23 @@ final class LocationsController extends Controller
                     $id = (int)$_POST['location_id'];
                     $this->pdo()->prepare("UPDATE locations SET pending_edits = NULL WHERE id = ?")->execute([$id]);
                     $this->flash('success', "Pending edits rejected and deleted.");
+                } elseif (($_POST['bulk_action'] ?? '') === 'delete') {
+                    $this->verifyDevAuth($userRole);
+                    $deleted = 0;
+                    $blocked = 0;
+                    foreach ($this->postedIds() as $id) {
+                        $result = Location::delete($id);
+                        if ($result === 'stock' || $result === 'sales') {
+                            $blocked++;
+                        } else {
+                            $deleted++;
+                        }
+                    }
+                    $msg = $deleted . ' location' . ($deleted === 1 ? '' : 's') . ' deleted.';
+                    if ($blocked) {
+                        $msg .= ' ' . $blocked . ' still have stock or sales and were kept.';
+                    }
+                    $this->flash($blocked && !$deleted ? 'error' : 'success', $msg);
                 } elseif (isset($_POST['delete_location'])) {
                     $this->verifyDevAuth($userRole);
                     $result = Location::delete((int)$_POST['location_id']);

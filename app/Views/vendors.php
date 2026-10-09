@@ -5,11 +5,20 @@
     </button>
 </div>
 
+<?php
+$bulkFormId = 'bulkVendors';
+$bulkAction = 'index.php?page=vendors';
+$bulkButtons = [
+    ['value' => 'delete', 'label' => 'Delete selected', 'class' => 'btn-outline-danger', 'title' => 'Delete the selected vendors?', 'text' => 'Vendors with goods-received records are kept.', 'confirm' => 'Delete', 'color' => '#dc3545'],
+];
+include __DIR__ . '/partials/bulk_bar.php';
+?>
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <table class="table table-hover align-middle mb-0">
             <thead class="bg-light">
                 <tr>
+                    <th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkVendors" title="Select all"></th>
                     <th>Vendor Name</th>
                     <th>Contact Person</th>
                     <th>Phone Number</th>
@@ -19,6 +28,7 @@
             <tbody>
                 <?php foreach ($vendors as $v): ?>
                 <tr>
+                    <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$v['id'] ?>" form="bulkVendors"></td>
                     <td class="fw-bold"><?= htmlspecialchars($v['name']) ?></td>
                     <td><?= htmlspecialchars($v['contact_person'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($v['phone'] ?? '-') ?></td>
@@ -37,7 +47,7 @@
                 </tr>
                 <?php endforeach; ?>
                 <?php if (empty($vendors)): ?>
-                    <tr><td colspan="4" class="text-center py-4 text-muted">No vendors found.</td></tr>
+                    <tr><td colspan="5" class="text-center py-4 text-muted">No vendors found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

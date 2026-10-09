@@ -2,6 +2,8 @@
 
 namespace App\Controllers;
 
+use App\Helpers\Media;
+use App\Models\Setting;
 use App\Models\User;
 
 final class LoginController extends Controller
@@ -49,6 +51,11 @@ final class LoginController extends Controller
             }
         }
 
-        $this->render(['error' => $error]);
+        $settings = Setting::all();
+        $this->render([
+            'error' => $error,
+            'logoUrl' => Media::url((string)($settings['logo_path'] ?? '')),
+            'businessName' => (string)($settings['business_name'] ?? ''),
+        ]);
     }
 }

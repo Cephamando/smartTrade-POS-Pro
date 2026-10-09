@@ -180,7 +180,7 @@ foreach ($locations as $l) {
 
 <?php if ($tab === 'orders'): ?>
 <div class="row g-3">
-    <div class="col-lg-5">
+    <div class="col-12">
         <div class="card shadow-sm border-0 border-top border-success border-4">
             <div class="card-body">
                 <h5 class="fw-bold mb-3"><?= $editOrder ? 'Edit order #' . (int)$editOrder['id'] : 'New purchase order' ?></h5>
@@ -227,7 +227,7 @@ foreach ($locations as $l) {
                     <div class="table-responsive">
                         <table class="table table-sm align-middle mb-1 purchase-table">
                             <thead class="table-light small text-muted">
-                                <tr><th style="min-width:180px">Product</th><th style="width:60px">Unit</th><th style="width:80px">Pack size</th><th style="width:80px">Packs</th><th style="width:100px">Qty</th><th style="width:110px">Pack price</th><th style="width:110px">Unit price</th><th style="width:110px" class="text-end">Total</th><th style="width:36px"></th></tr>
+                                <tr><th style="min-width:220px">Product</th><th style="min-width:88px">Unit</th><th style="min-width:110px">Pack size</th><th style="min-width:110px">Packs</th><th style="min-width:120px">Qty</th><th style="min-width:130px">Pack price</th><th style="min-width:130px">Unit price</th><th style="min-width:110px" class="text-end">Total</th><th style="width:44px"></th></tr>
                             </thead>
                             <tbody id="orderLines"></tbody>
                             <tfoot class="fw-bold"><tr><td colspan="4" class="text-end text-muted small">TOTALS</td><td><span class="js-total-units" data-for="orderLines">0</span></td><td colspan="2" class="text-end text-muted small">ZMW</td><td class="text-end"><span class="js-total-amount" data-for="orderLines">0.00</span></td><td></td></tr></tfoot>
@@ -238,7 +238,7 @@ foreach ($locations as $l) {
             </div>
         </div>
     </div>
-    <div class="col-lg-7">
+    <div class="col-12">
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">
                 <table class="table table-hover align-middle mb-0">
@@ -337,15 +337,15 @@ foreach ($locations as $l) {
                 <table class="table table-sm align-middle mb-1 purchase-table">
                     <thead class="table-light small text-muted">
                         <tr>
-                            <th style="min-width:220px">Product</th>
-                            <th style="width:70px">Unit</th>
-                            <th style="width:90px" title="Units in one pack, e.g. 24 for a crate">Pack size</th>
-                            <th style="width:90px" title="Number of packs received">Packs</th>
-                            <th style="width:110px">Qty (units)</th>
-                            <th style="width:120px" title="Price of one pack — unit price is worked out automatically">Pack price</th>
-                            <th style="width:120px">Unit price</th>
-                            <th style="width:120px" class="text-end">Line total</th>
-                            <th style="width:40px"></th>
+                            <th style="min-width:240px">Product</th>
+                            <th style="min-width:88px">Unit</th>
+                            <th style="min-width:110px" title="Units in one pack, e.g. 24 for a crate">Pack size</th>
+                            <th style="min-width:110px" title="Number of packs received">Packs</th>
+                            <th style="min-width:120px">Qty (units)</th>
+                            <th style="min-width:130px" title="Price of one pack — unit price is worked out automatically">Pack price</th>
+                            <th style="min-width:130px">Unit price</th>
+                            <th style="min-width:120px" class="text-end">Line total</th>
+                            <th style="width:44px"></th>
                         </tr>
                     </thead>
                     <tbody id="grvLines"></tbody>

@@ -1,4 +1,7 @@
-<?php $transferTab = in_array((string)($transferTab ?? ''), ['incoming', 'outgoing', 'requests'], true) ? $transferTab : 'incoming'; ?>
+<?php
+$transferTab = in_array((string)($transferTab ?? ''), ['incoming', 'outgoing', 'requests'], true) ? $transferTab : 'incoming';
+$vsiasOn = \App\Helpers\Vsias::enabled();
+?>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3>🚚 Stock Requisitions & Transfers</h3>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#requestModal">
@@ -37,9 +40,22 @@
                 <i class="bi bi-arrow-down-circle"></i> Stock Arriving at Your Location
             </div>
             <div class="card-body p-0">
+                <?php if (!$vsiasOn): ?>
+                <?php
+                $bulkFormId = 'bulkReceive';
+                $bulkAction = 'index.php?page=transfers';
+                $bulkButtons = [
+                    ['value' => 'receive', 'label' => 'Accept selected', 'class' => 'btn-success', 'title' => 'Accept the selected transfers into stock?', 'confirm' => 'Accept', 'color' => '#198754'],
+                ];
+                echo '<div class="p-2 pb-0">';
+                include __DIR__ . '/partials/bulk_bar.php';
+                echo '</div>';
+                ?>
+                <?php endif; ?>
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light">
                         <tr>
+                            <?php if (!$vsiasOn): ?><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkReceive" title="Select all"></th><?php endif; ?>
                             <th>From</th>
                             <th>Product</th>
                             <th>Qty</th>
@@ -50,12 +66,19 @@
                     <tbody>
                         <?php if (isset($incomingStock)): foreach ($incomingStock as $t): ?>
                         <tr>
+                            <?php if (!$vsiasOn): ?><td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$t['id'] ?>" form="bulkReceive"></td><?php endif; ?>
                             <td><?= htmlspecialchars($t['source_name'] ?? '') ?></td>
                             <td class="fw-bold"><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['dispatched_at'])) ?></td>
                             <td class="text-end">
-                                <?php if (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'receive')): ?>
+                                <?php if (!$vsiasOn): ?>
+                                <form method="POST" action="index.php?page=transfers" class="d-inline js-confirm-form" data-swal-title="Accept this stock?" data-swal-text="The quantity will be added at this location." data-swal-confirm="Accept" data-swal-icon="question" data-swal-confirm-color="#198754">
+                                    <input type="hidden" name="receive_transfer" value="1">
+                                    <input type="hidden" name="transfer_id" value="<?= (int)$t['id'] ?>">
+                                    <button class="btn btn-success btn-sm fw-bold">Accept stock</button>
+                                </form>
+                                <?php elseif (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'receive')): ?>
                                 <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> Awaiting store approval</span>
                                 <div class="small text-muted mt-1">Receive is locked until V-SIAS is signed</div>
                                 <?php else: ?>
@@ -68,7 +91,7 @@
                         </tr>
                         <?php endforeach; endif; ?>
                         <?php if (empty($incomingStock)): ?>
-                            <tr><td colspan="5" class="text-center py-5 text-muted">No incoming stock transfers.</td></tr>
+                            <tr><td colspan="<?= $vsiasOn ? 5 : 6 ?>" class="text-center py-5 text-muted">No incoming stock transfers.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -82,9 +105,22 @@
                 <i class="bi bi-arrow-up-circle"></i> Requests Awaiting Dispatch (From You)
             </div>
             <div class="card-body p-0">
+                <?php if (!$vsiasOn): ?>
+                <?php
+                $bulkFormId = 'bulkDispatch';
+                $bulkAction = 'index.php?page=transfers';
+                $bulkButtons = [
+                    ['value' => 'dispatch', 'label' => 'Dispatch selected', 'class' => 'btn-warning text-dark', 'title' => 'Dispatch the selected transfers?', 'text' => 'Stock leaves the source location immediately.', 'confirm' => 'Dispatch', 'color' => '#ffc107'],
+                ];
+                echo '<div class="p-2 pb-0">';
+                include __DIR__ . '/partials/bulk_bar.php';
+                echo '</div>';
+                ?>
+                <?php endif; ?>
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light">
                         <tr>
+                            <?php if (!$vsiasOn): ?><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkDispatch" title="Select all"></th><?php endif; ?>
                             <th>Requested By (To)</th>
                             <th>Product</th>
                             <th>Qty Required</th>
@@ -100,12 +136,19 @@
                             $move = \App\Helpers\Movement::transfer($ctx, $src, $dst);
                         ?>
                         <tr class="<?= $move['ok'] ? '' : 'table-secondary' ?>">
+                            <?php if (!$vsiasOn): ?><td><?php if ($move['ok']): ?><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$t['id'] ?>" form="bulkDispatch"><?php endif; ?></td><?php endif; ?>
                             <td><?= htmlspecialchars($t['dest_name'] ?? '') ?></td>
                             <td class="fw-bold"><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td class="fs-5"><?= $t['quantity'] ?></td>
                             <td class="small text-muted"><?= date('M d H:i', strtotime($t['created_at'])) ?></td>
                             <td class="text-end">
-                                <?php if (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'dispatch')): ?>
+                                <?php if (!$vsiasOn && $move['ok']): ?>
+                                <form method="POST" action="index.php?page=transfers" class="d-inline js-confirm-form" data-swal-title="Dispatch this stock?" data-swal-text="The quantity leaves the source location now." data-swal-confirm="Dispatch" data-swal-icon="question" data-swal-confirm-color="#ffc107">
+                                    <input type="hidden" name="dispatch_transfer" value="1">
+                                    <input type="hidden" name="transfer_id" value="<?= (int)$t['id'] ?>">
+                                    <button class="btn btn-warning btn-sm fw-bold border">Dispatch</button>
+                                </form>
+                                <?php elseif (\App\Helpers\Vsias::hasPendingInspection((int)$t['id'], 'dispatch')): ?>
                                 <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split"></i> Awaiting store approval</span>
                                 <div class="small text-muted mt-1">Dispatch is locked until V-SIAS is signed</div>
                                 <?php elseif ($move['ok']): ?>
@@ -123,7 +166,7 @@
                         </tr>
                         <?php endforeach; endif; ?>
                         <?php if (empty($pendingDispatch)): ?>
-                            <tr><td colspan="5" class="text-center py-5 text-muted">No pending requests to dispatch.</td></tr>
+                            <tr><td colspan="<?= $vsiasOn ? 5 : 6 ?>" class="text-center py-5 text-muted">No pending requests to dispatch.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -137,9 +180,20 @@
                 <i class="bi bi-clock"></i> My Pending Requests
             </div>
             <div class="card-body p-0">
+                <?php
+                $bulkFormId = 'bulkCancel';
+                $bulkAction = 'index.php?page=transfers';
+                $bulkButtons = [
+                    ['value' => 'cancel', 'label' => 'Cancel selected', 'class' => 'btn-outline-danger', 'title' => 'Cancel the selected requests?', 'confirm' => 'Cancel requests', 'color' => '#dc3545'],
+                ];
+                echo '<div class="p-2 pb-0">';
+                include __DIR__ . '/partials/bulk_bar.php';
+                echo '</div>';
+                ?>
                 <table class="table table-hover mb-0">
                     <thead>
                         <tr>
+                            <th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkCancel" title="Select all"></th>
                             <th>From</th>
                             <th>Product</th>
                             <th>Qty</th>
@@ -150,6 +204,7 @@
                     <tbody>
                         <?php if (isset($myRequests)): foreach ($myRequests as $t): ?>
                         <tr>
+                            <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$t['id'] ?>" form="bulkCancel"></td>
                             <td><?= htmlspecialchars($t['source_name'] ?? '') ?></td>
                             <td><?= htmlspecialchars($t['product_name'] ?? '') ?></td>
                             <td><?= $t['quantity'] ?></td>
@@ -175,7 +230,7 @@
                         </tr>
                         <?php endforeach; endif; ?>
                         <?php if (empty($myRequests)): ?>
-                            <tr><td colspan="5" class="text-center py-4 text-muted">You have no pending requests.</td></tr>
+                            <tr><td colspan="6" class="text-center py-4 text-muted">You have no pending requests.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

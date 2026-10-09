@@ -133,6 +133,7 @@ if ($isIncremental) {
         <?php else: ?>
             <div class="receipt-section">
                 <div class="text-center border-bottom">
+                    <?php if (!empty($logoUrl)): ?><img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;"><?php endif; ?>
                     <h2 style="margin:0; font-weight: 900; font-size: 20px;"><?= htmlspecialchars($bizName) ?></h2>
                     
                     <?php if (!empty($receiptHeader)): ?>

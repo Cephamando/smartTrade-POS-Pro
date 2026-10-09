@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\Customer;
+use App\Models\Location;
 use App\Models\Setting;
 use App\Services\Flutterwave;
 use PDO;
@@ -14,6 +15,9 @@ use PDO;
 final class ShopController extends Controller
 {
     private array $settings;
+    private int $shopLoc = 0;
+    /** @var array<int, array<string, mixed>> */
+    private array $shopLocations = [];
 
     public function index(): void
     {
@@ -22,6 +26,7 @@ final class ShopController extends Controller
             $this->render(['view' => 'closed', 'settings' => $this->settings, 'customer' => null, 'cart' => [], 'cartTotal' => 0, 'flash' => null]);
             return;
         }
+        $this->applyShopLocation();
         $view = (string)($_GET['view'] ?? 'menu');
         $customer = !empty($_SESSION['shop_customer_id']) ? Customer::find((int)$_SESSION['shop_customer_id']) : null;
 
@@ -47,6 +52,8 @@ final class ShopController extends Controller
             'deliveryOn' => ($this->settings['shop_delivery'] ?? '1') === '1',
             'deliveryFee' => (float)($this->settings['shop_delivery_fee'] ?? 0),
             'minOrder' => (float)($this->settings['shop_min_order'] ?? 0),
+            'shopLocations' => $this->shopLocations,
+            'shopLocationId' => $this->shopLocationId(),
         ];
         if ($view === 'menu') {
             [$data['categories'], $data['products']] = $this->menu();
@@ -140,21 +147,44 @@ final class ShopController extends Controller
 
     // ------------------------------------------------------------------ catalogue & cart
 
+    private function applyShopLocation(): void
+    {
+        $this->shopLocations = Location::sellable();
+        $allowed = array_map('intval', array_column($this->shopLocations, 'id'));
+        $pick = (int)($_GET['loc'] ?? 0);
+        if ($pick <= 0) {
+            $pick = (int)($_SESSION['shop_location_id'] ?? 0);
+        }
+        if (!in_array($pick, $allowed, true)) {
+            $pick = (int)($this->settings['shop_location_id'] ?? 0);
+        }
+        if (!in_array($pick, $allowed, true)) {
+            $pick = $allowed[0] ?? 1;
+        }
+        $prev = (int)($_SESSION['shop_location_id'] ?? 0);
+        if ($prev > 0 && $prev !== $pick && !empty($_SESSION['shop_cart'])) {
+            $_SESSION['shop_cart'] = [];
+            $this->flashShop('success', 'Basket cleared because you changed store.');
+        }
+        $_SESSION['shop_location_id'] = $pick;
+        $this->shopLoc = $pick;
+    }
+
     private function shopLocationId(): int
     {
-        $id = (int)($this->settings['shop_location_id'] ?? 0);
-        if ($id <= 0) {
-            $id = (int)$this->pdo()->query("SELECT id FROM locations WHERE COALESCE(type,'') NOT IN ('kitchen','warehouse') ORDER BY id LIMIT 1")->fetchColumn();
+        if ($this->shopLoc > 0) {
+            return $this->shopLoc;
         }
-        return $id ?: 1;
+        return (int)($_SESSION['shop_location_id'] ?? 1) ?: 1;
     }
 
     /** @return array{0: array, 1: array} categories, sellable products with availability */
     private function menu(): array
     {
+        \App\Models\Product::ensureSchema();
         $loc = $this->shopLocationId();
         $stmt = $this->pdo()->prepare(
-            "SELECT p.id, p.name, p.sku, p.price, p.unit, p.category_id, c.name AS category, c.type AS cat_type,
+            "SELECT p.id, p.name, p.sku, p.price, p.unit, p.category_id, p.image_path, c.name AS category, c.type AS cat_type,
                     COALESCE(i.quantity, 0) AS on_hand,
                     (SELECT COUNT(*) FROM product_recipes r WHERE r.parent_product_id = p.id) AS is_recipe
              FROM products p

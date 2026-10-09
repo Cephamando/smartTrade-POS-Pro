@@ -83,10 +83,22 @@ $isEnt = $tier === 'enterprise';
 
     <div class="card shadow-sm border-0 border-top border-primary border-4">
         <div class="card-body p-0">
+            <?php
+            $bulkFormId = 'bulkProducts';
+            $bulkAction = 'index.php?page=products';
+            $bulkButtons = [
+                ['value' => 'activate', 'label' => 'Activate', 'class' => 'btn-success', 'title' => 'Activate the selected products?', 'confirm' => 'Activate', 'color' => '#198754'],
+                ['value' => 'deactivate', 'label' => 'Disable', 'class' => 'btn-outline-light', 'title' => 'Disable the selected products?', 'text' => 'They stay in history but leave the POS and the shop.', 'confirm' => 'Disable', 'color' => '#6c757d'],
+            ];
+            echo '<div class="p-2 pb-0">';
+            include __DIR__ . '/partials/bulk_bar.php';
+            echo '</div>';
+            ?>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0" id="catalogTable">
                     <thead class="bg-light text-dark">
                         <tr>
+                            <th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkProducts" title="Select all"></th>
                             <th>Name</th>
                             <th>Category</th>
                             <th>SKU</th>
@@ -104,6 +116,7 @@ $isEnt = $tier === 'enterprise';
                         <?php if (!empty($products)): ?>
                             <?php foreach ($products as $p): ?>
                                 <tr>
+                                    <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$p['id'] ?>" form="bulkProducts"></td>
                                     <td class="fw-bold">
                                         <?= htmlspecialchars($p['name']) ?>
                                         <?php if (isset($p['is_sellable']) && (int)$p['is_sellable'] === 0): ?>
@@ -162,6 +175,7 @@ $isEnt = $tier === 'enterprise';
                                             'price' => $p['price'],
                                             'is_active' => (int)($p['is_active'] ?? 1),
                                             'is_sellable' => array_key_exists('is_sellable', $p) ? (int)$p['is_sellable'] : 1,
+                                            'image_path' => \App\Helpers\Media::url((string)($p['image_path'] ?? '')),
                                         ];
                                         ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary js-edit-product"
@@ -191,7 +205,7 @@ $isEnt = $tier === 'enterprise';
                 <h5 class="modal-title fw-bold" id="prodModalTitle">Add Product</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="index.php?page=products" id="prodForm">
+            <form method="POST" action="index.php?page=products" id="prodForm" enctype="multipart/form-data">
                 <div class="modal-body">
                     <input type="hidden" name="save_product" value="1">
                     <input type="hidden" name="product_id" id="productId" value="">
@@ -238,6 +252,20 @@ $isEnt = $tier === 'enterprise';
                     <div class="row mb-3">
                         <div class="col-6"><label class="form-label small fw-bold text-muted">COST PRICE (ZMW)</label><input type="number" step="0.01" name="cost_price" id="prodCost" class="form-control text-danger" placeholder="0.00"></div>
                         <div class="col-6"><label class="form-label small fw-bold text-muted">SELLING PRICE (ZMW)</label><input type="number" step="0.01" name="price" id="prodPrice" class="form-control text-success fw-bold" placeholder="0.00"></div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-8">
+                            <label class="form-label small fw-bold text-muted">SHOP / MENU PHOTO</label>
+                            <input type="file" name="image" id="prodImage" class="form-control" accept="image/jpeg,image/png,image/webp,image/gif">
+                            <div class="form-text">Shown on the online shop. Leave empty to keep the current photo.</div>
+                        </div>
+                        <div class="col-4">
+                            <img id="prodImagePreview" alt="" class="rounded border d-none" style="max-height:72px;max-width:100%;object-fit:cover;">
+                            <div class="form-check mt-2 d-none" id="prodImageRemoveWrap">
+                                <input class="form-check-input" type="checkbox" name="remove_image" value="1" id="prodImageRemove">
+                                <label class="form-check-label small" for="prodImageRemove">Remove photo</label>
+                            </div>
+                        </div>
                     </div>
                     <div class="row mb-0">
                         <div class="col-6">
@@ -328,28 +356,44 @@ $isEnt = $tier === 'enterprise';
         });
         $('.dataTables_length select').addClass('form-select form-select-sm d-inline-block w-auto border-secondary shadow-sm');
 
-        $('#applyFilters').on('click', function(e) {
-            e.preventDefault();
-            table.search($('#customSearch').val());
-            table.column(1).search($('#filterCategory').val());
-            table.column(4).search($('#filterType').val());
+        function applyCatalogFilters() {
+            table.search($('#customSearch').val() || '');
+            table.columns().search('');
+            table.column(2).search($('#filterCategory').val() || '');
+            table.column(5).search($('#filterType').val() || '');
             <?php if ($isEnt): ?>
-            table.column(5).search($('#filterTax').val());
-            table.column(6).search($('#filterUNSPSC').val());
-            table.column(9).search($('#filterStatus').val());
+            table.column(6).search($('#filterTax').val() || '');
+            table.column(7).search($('#filterUNSPSC').val() || '');
+            table.column(10).search($('#filterStatus').val() || '');
             <?php else: ?>
-            table.column(5).search($('#filterUNSPSC').val());
-            table.column(8).search($('#filterStatus').val());
+            table.column(6).search($('#filterUNSPSC').val() || '');
+            table.column(9).search($('#filterStatus').val() || '');
             <?php endif; ?>
             table.draw();
+        }
+        var filterTimer = null;
+        function queueCatalogFilters() {
+            clearTimeout(filterTimer);
+            filterTimer = setTimeout(applyCatalogFilters, 120);
+        }
+        $('#applyFilters').on('click', function(e) {
+            e.preventDefault();
+            applyCatalogFilters();
         });
-        $('.custom-filters input').on('keypress', function(e) {
-            if (e.which === 13) { e.preventDefault(); $('#applyFilters').click(); }
+        $('#customSearch, #filterUNSPSC').on('input', queueCatalogFilters);
+        $('#filterCategory, #filterType, #filterTax, #filterStatus').on('change', queueCatalogFilters);
+        $('.custom-filters input').on('keydown', function(e) {
+            if (e.which === 13) { e.preventDefault(); }
         });
         $('#clearFilters').on('click', function(e) {
             e.preventDefault();
             $('#customSearch, #filterUNSPSC').val('');
-            $('#filterCategory, #filterTax, #filterStatus, #filterType').val('');
+            ['filterCategory', 'filterTax', 'filterStatus', 'filterType'].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                if (el.tomselect) { el.tomselect.clear(true); }
+                el.value = '';
+            });
             table.search('').columns().search('').draw();
         });
     });
@@ -372,19 +416,25 @@ $isEnt = $tier === 'enterprise';
 
     function bindUnspscSearch(inputEl, resultsEl, onPick) {
         let timer = null;
-        inputEl.addEventListener('input', function () {
+        function runSearch(q) {
             clearTimeout(timer);
-            const q = inputEl.value.trim();
-            if (!q) {
-                resultsEl.innerHTML = '';
-                return;
-            }
             timer = setTimeout(function () {
                 fetch('index.php?page=unspsc&ajax=search&q=' + encodeURIComponent(q))
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
+                        const items = data.results || [];
                         resultsEl.innerHTML = '';
-                        (data.results || []).forEach(function (item) {
+                        if (!items.length) {
+                            resultsEl.innerHTML = '<div class="list-group-item small text-muted">' + (q ? 'No matching codes. Import the UNSPSC Excel file first.' : 'No codes used yet. Search and assign one, and it will stay here.') + '</div>';
+                            return;
+                        }
+                        if (!q && items.every(function (item) { return item.favourite; })) {
+                            const head = document.createElement('div');
+                            head.className = 'list-group-item small fw-bold text-muted';
+                            head.textContent = 'Favourites · previously used';
+                            resultsEl.appendChild(head);
+                        }
+                        items.forEach(function (item) {
                             const btn = document.createElement('button');
                             btn.type = 'button';
                             btn.className = 'list-group-item list-group-item-action';
@@ -394,17 +444,23 @@ $isEnt = $tier === 'enterprise';
                             const badge = item.item_cls_lvl_label
                                 ? '<span class="badge ' + (item.item_cls_lvl >= 4 ? 'bg-primary' : 'bg-secondary') + '">' + escapeUnspsc(item.item_cls_lvl_label) + '</span>'
                                 : '';
+                            const used = item.favourite
+                                ? '<span class="badge bg-warning text-dark">Used' + (item.uses ? ' ' + escapeUnspsc(item.uses) : '') + '</span>'
+                                : '';
                             btn.innerHTML = '<div class="d-flex justify-content-between gap-2 align-items-start"><div><strong class="font-monospace">'
                                 + escapeUnspsc(item.item_cls_cd) + '</strong><div>' + escapeUnspsc(item.item_cls_nm || '') + '</div>'
-                                + path + '</div>' + badge + '</div>';
+                                + path + '</div><div class="d-flex flex-column gap-1 align-items-end">' + used + badge + '</div></div>';
                             btn.addEventListener('click', function () { onPick(item); });
                             resultsEl.appendChild(btn);
                         });
-                        if (!(data.results || []).length) {
-                            resultsEl.innerHTML = '<div class="list-group-item small text-muted">No matching codes. Import the UNSPSC Excel file first.</div>';
-                        }
                     });
-            }, 250);
+            }, q ? 250 : 0);
+        }
+        inputEl.addEventListener('focus', function () {
+            if (!inputEl.value.trim()) runSearch('');
+        });
+        inputEl.addEventListener('input', function () {
+            runSearch(inputEl.value.trim());
         });
     }
 
@@ -468,6 +524,12 @@ $isEnt = $tier === 'enterprise';
         document.getElementById('newUnspscChosen').textContent = 'Optional — search and select a code.';
         document.getElementById('newUnspscSearch').value = '';
         document.getElementById('newUnspscResults').innerHTML = '';
+        const preview = document.getElementById('prodImagePreview');
+        const removeWrap = document.getElementById('prodImageRemoveWrap');
+        const removeBox = document.getElementById('prodImageRemove');
+        if (preview) { preview.classList.add('d-none'); preview.removeAttribute('src'); }
+        if (removeWrap) { removeWrap.classList.add('d-none'); }
+        if (removeBox) { removeBox.checked = false; }
         const tax = document.getElementById('prodTaxClass');
         if (tax && tax.tagName === 'SELECT') {
             tax.value = 'A';
@@ -517,6 +579,13 @@ $isEnt = $tier === 'enterprise';
             document.getElementById('prodStatusCol').classList.remove('d-none');
             document.getElementById('prodSellable').value = product.is_sellable !== undefined ? String(product.is_sellable) : '1';
             setProdUnspsc(product.unspsc_code || '', product.unspsc_name || '');
+            const preview = document.getElementById('prodImagePreview');
+            const removeWrap = document.getElementById('prodImageRemoveWrap');
+            if (preview && product.image_path) {
+                preview.src = product.image_path;
+                preview.classList.remove('d-none');
+                if (removeWrap) { removeWrap.classList.remove('d-none'); }
+            }
             bootstrap.Modal.getOrCreateInstance(prodModalEl).show();
         });
     });

@@ -18,11 +18,21 @@
 </div>
 <?php endif; ?>
 
+<?php
+$bulkFormId = 'bulkLocations';
+$bulkAction = 'index.php?page=locations';
+$bulkHidden = ['dev_username' => '', 'dev_password' => ''];
+$bulkButtons = [
+    ['value' => 'delete', 'label' => 'Delete selected', 'class' => 'btn-outline-danger', 'title' => 'Delete the selected locations?', 'text' => 'Locations that still have stock or sales are kept.', 'confirm' => 'Delete', 'color' => '#dc3545', 'auth' => ($userRole ?? '') === 'dev' ? '' : 'dev'],
+];
+include __DIR__ . '/partials/bulk_bar.php';
+?>
 <div class="card shadow-sm border-0 border-top border-primary border-4">
     <div class="card-body p-0">
         <table class="table table-hover align-middle mb-0">
             <thead class="bg-light text-dark">
                 <tr>
+                    <th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkLocations" title="Select all"></th>
                     <th>Location Name</th>
                     <th>Type</th>
                     <th>Capabilities</th>
@@ -33,6 +43,7 @@
             <tbody>
                 <?php foreach ($locations as $l): ?>
                 <tr class="<?= !empty($l['pending']) ? 'table-warning bg-opacity-10' : '' ?>">
+                    <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$l['id'] ?>" form="bulkLocations"></td>
                     <td>
                         <span class="fw-bold d-block"><?= htmlspecialchars($l['name']) ?></span>
                         <?php if (!empty($l['pending'])): ?>

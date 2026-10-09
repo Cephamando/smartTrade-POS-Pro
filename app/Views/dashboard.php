@@ -64,15 +64,13 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
         <button class="btn btn-warning fw-bold position-relative flex-grow-1 flex-md-grow-0" onclick="showPickupModal()">
             <i class="bi bi-tv"></i> Pickup Screen
-            <span id="readyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">0</span>
+            <span id="readyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="pickup" style="display:none;">0</span>
         </button>
         <?php endif; ?>
-        <?php if (!empty($canSeeVsiasApprovals)): ?>
+        <?php if (!empty($canSeeVsiasApprovals) && \App\Helpers\Vsias::enabled()): ?>
         <a href="#" class="btn btn-info fw-bold position-relative text-white flex-grow-1 flex-md-grow-0" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
             <i class="bi bi-clipboard-check"></i> Approvals
-            <?php if (!empty($vsiasPending)): ?>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int)$vsiasPending ?></span>
-            <?php endif; ?>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="approvals" style="<?= !empty($vsiasPending) ? '' : 'display:none' ?>"><?= (int)($vsiasPending ?? 0) ?></span>
         </a>
         <?php endif; ?>
 
@@ -393,21 +391,6 @@ function showPickupModal() {
     new bootstrap.Modal(document.getElementById('pickupModal')).show();
 }
 
-function checkDashboardReadyOrders() {
-    fetch('index.php?action=check_ready_orders')
-    .then(r => r.json())
-    .then(data => {
-        const badge = document.getElementById('readyBadge');
-        if(badge && data && data.count > 0) {
-            badge.innerText = data.count;
-            badge.style.display = 'block';
-        } else if (badge) {
-            badge.style.display = 'none';
-        }
-    }).catch(e => console.error('Dashboard Badge Error:', e));
-}
-checkDashboardReadyOrders();
-setInterval(checkDashboardReadyOrders, 5000);
 </script>
 <?php endif; ?>
 

@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Helpers\Media;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\SurchargeReason;
@@ -34,6 +35,10 @@ final class SettingsController extends Controller
                     $this->flash($res['error'] ? 'error' : 'success', $res['error'] ? 'Rates not refreshed: ' . $res['error'] : 'Exchange rates refreshed.');
                 } elseif (isset($_POST['save_shop'])) {
                     $this->saveShop();
+                } elseif (isset($_POST['save_branding'])) {
+                    $this->saveBranding();
+                } elseif (isset($_POST['bulk_action'])) {
+                    $this->bulkSurcharges();
                 } else {
                     $this->saveGeneral();
                 }
@@ -74,6 +79,7 @@ final class SettingsController extends Controller
             'theme_color' => $_POST['theme_color'] ?? '#2c2c2c',
             'theme_accent' => $_POST['theme_accent'] ?? '#ffc107',
             'theme_cart' => $_POST['theme_cart'] ?? '#3e2723',
+            'vsias_enabled' => isset($_POST['vsias_enabled']) ? '1' : '0',
         ];
         if ($this->role() === 'dev') {
             if (isset($_POST['license_tier'])) {
@@ -170,5 +176,53 @@ final class SettingsController extends Controller
             'shop_min_order' => (string)max(0, (float)($_POST['shop_min_order'] ?? 0)),
         ]);
         $this->flash('success', 'Customer ordering settings saved.');
+    }
+
+    private function saveBranding(): void
+    {
+        $existing = Setting::all();
+        $pairs = [];
+        foreach (['logo_path' => 'logo', 'shop_banner_path' => 'shop_banner', 'promo_banner_path' => 'promo_banner'] as $key => $field) {
+            if (!empty($_POST['remove_' . $field])) {
+                Media::delete((string)($existing[$key] ?? ''));
+                $pairs[$key] = '';
+                continue;
+            }
+            $stored = Media::store($field, 'branding');
+            if ($stored !== null) {
+                Media::delete((string)($existing[$key] ?? ''));
+                $pairs[$key] = $stored;
+            }
+        }
+        if ($pairs) {
+            Setting::save($pairs);
+        }
+        $this->flash('success', 'Branding images saved. They show on the menu bar, receipts, sign-in, and the online shop.');
+    }
+
+    private function bulkSurcharges(): void
+    {
+        $ids = $this->postedIds();
+        if (!$ids) {
+            throw new \RuntimeException('Select at least one surcharge reason.');
+        }
+        $action = (string)($_POST['bulk_action'] ?? '');
+        if ($action === 'delete') {
+            foreach ($ids as $id) {
+                SurchargeReason::delete($id);
+            }
+            $this->flash('success', count($ids) . ' surcharge reason' . (count($ids) === 1 ? '' : 's') . ' removed.');
+            return;
+        }
+        if ($action === 'show' || $action === 'hide') {
+            $flag = $action === 'show' ? 1 : 0;
+            $stmt = $this->pdo()->prepare('UPDATE surcharge_reasons SET is_active = ? WHERE id = ?');
+            foreach ($ids as $id) {
+                $stmt->execute([$flag, $id]);
+            }
+            $this->flash('success', count($ids) . ' surcharge reason' . (count($ids) === 1 ? '' : 's') . ($flag ? ' shown on the POS.' : ' hidden from the POS.'));
+            return;
+        }
+        throw new \RuntimeException('That bulk action is not available.');
     }
 }

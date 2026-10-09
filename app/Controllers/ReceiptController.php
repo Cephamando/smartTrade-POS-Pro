@@ -42,6 +42,7 @@ final class ReceiptController extends Controller
             'isIncremental' => $isIncremental,
             'sysSettings' => $sysSettings,
             'bizName' => !empty($sysSettings['business_name']) ? $sysSettings['business_name'] : 'OdeliaPOS',
+            'logoUrl' => \App\Helpers\Media::url((string)($sysSettings['logo_path'] ?? '')),
             'receiptHeader' => $sysSettings['receipt_header'] ?? '',
             'receiptFooter' => $sysSettings['receipt_footer'] ?? 'Thank you for your business!',
             'zraTpin' => getenv('ZRA_TPIN') ?: '',

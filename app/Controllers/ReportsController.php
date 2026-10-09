@@ -92,6 +92,11 @@ final class ReportsController extends Controller
         $endDate = $_GET['end'] ?? date('Y-m-d');
         $locationId = $_GET['location'] ?? '';
         $employeeId = $_GET['employee_id'] ?? '';
+        $daypart = (string)($_GET['daypart'] ?? '');
+        if (!in_array($daypart, ['morning', 'afternoon', 'evening', 'night'], true)) {
+            $daypart = '';
+        }
+        $hourSql = \App\Models\Report::daypartClause($daypart);
         $reportType = $_GET['type'] ?? 'sales';
         if (!in_array($reportType, ['sales', 'items', 'categories', 'taxes', 'tips'], true)) {
             $reportType = 'sales';
@@ -101,7 +106,7 @@ final class ReportsController extends Controller
 
         $reportData = [];
         if ($reportType === 'sales' || $reportType === 'taxes') {
-            $reportData = Report::salesRows($startDate, $endDate, $locationId);
+            $reportData = Report::salesRows($startDate, $endDate, $locationId, $daypart);
             
             // Apply Employee Filter dynamically for sales tickets
             if ($employeeId !== '' && $employeeId > 0) {
@@ -135,6 +140,7 @@ final class ReportsController extends Controller
             $params = [$startDate, $endDate];
             if ($locationId !== '') { $sql .= " AND s.location_id = ?"; $params[] = $locationId; }
             if ($employeeId !== '' && $employeeId > 0) { $sql .= " AND s.user_id = ?"; $params[] = $employeeId; }
+            $sql .= $hourSql;
             $sql .= " GROUP BY p.id, p.name, p.sku ORDER BY revenue DESC";
             $stmt = $this->pdo()->prepare($sql);
             $stmt->execute($params);
@@ -152,6 +158,7 @@ final class ReportsController extends Controller
             $params = [$startDate, $endDate];
             if ($locationId !== '') { $sql .= " AND s.location_id = ?"; $params[] = $locationId; }
             if ($employeeId !== '' && $employeeId > 0) { $sql .= " AND s.user_id = ?"; $params[] = $employeeId; }
+            $sql .= $hourSql;
             $sql .= " GROUP BY c.id, c.name ORDER BY revenue DESC";
             $stmt = $this->pdo()->prepare($sql);
             $stmt->execute($params);
@@ -160,19 +167,20 @@ final class ReportsController extends Controller
         
         $tipsReport = null;
         if ($reportType === 'tips') {
-            $tipsReport = Report::tipsAndSurcharges($startDate, $endDate, $locationId);
+            $tipsReport = Report::tipsAndSurcharges($startDate, $endDate, $locationId, $daypart);
             $reportData = $tipsReport['staff'];
         }
 
-        $metrics = Report::metrics($startDate, $endDate, $locationId);
-        $refundStats = Report::refundStats($startDate, $endDate, $locationId);
-        $voidStats = Report::voidStats($startDate, $endDate, $locationId);
+        $metrics = Report::metrics($startDate, $endDate, $locationId, $daypart);
+        $refundStats = Report::refundStats($startDate, $endDate, $locationId, $daypart);
+        $voidStats = Report::voidStats($startDate, $endDate, $locationId, $daypart);
 
         $this->render([
             'startDate' => $startDate,
             'endDate' => $endDate,
             'locationId' => $locationId,
             'employeeId' => $employeeId,
+            'daypart' => $daypart,
             'reportType' => $reportType,
             'metrics' => $metrics,
             'refundStats' => $refundStats,

@@ -4,6 +4,19 @@ namespace App\Helpers;
 
 final class Vsias
 {
+    public static function enabled(): bool
+    {
+        try {
+            $settings = \App\Models\Setting::all();
+        } catch (\Throwable $e) {
+            return true;
+        }
+        if (!array_key_exists('vsias_enabled', $settings) || $settings['vsias_enabled'] === '') {
+            return true;
+        }
+        return (string)$settings['vsias_enabled'] === '1';
+    }
+
     public static function configuredUrl(): string
     {
         return rtrim((string)(getenv('VSIAS_URL') ?: 'http://localhost:8095'), '/');

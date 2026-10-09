@@ -7,11 +7,20 @@
 
 <div class="row">
     <div class="col-md-9">
+        <?php
+        $bulkFormId = 'bulkCategories';
+        $bulkAction = 'index.php?page=categories';
+        $bulkButtons = [
+            ['value' => 'delete', 'label' => 'Delete selected', 'class' => 'btn-outline-danger', 'title' => 'Delete the selected categories?', 'text' => 'Categories that still have products or subcategories are kept.', 'confirm' => 'Delete', 'color' => '#dc3545'],
+        ];
+        include __DIR__ . '/partials/bulk_bar.php';
+        ?>
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light">
                         <tr>
+                            <th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkCategories" title="Select all"></th>
                             <th>Category Name</th>
                             <th>Type</th>
                             <th>Parent Folder</th>
@@ -21,6 +30,7 @@
                     <tbody>
                         <?php foreach ($categories as $c): ?>
                         <tr>
+                            <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$c['id'] ?>" form="bulkCategories"></td>
                             <td class="fw-bold text-dark">
                                 <?php if($c['parent_id']): ?><i class="bi bi-arrow-return-right text-muted me-2"></i><?php endif; ?>
                                 <?= htmlspecialchars($c['name']) ?>
@@ -52,7 +62,7 @@
                         </tr>
                         <?php endforeach; ?>
                         <?php if (empty($categories)): ?>
-                            <tr><td colspan="4" class="text-center py-4 text-muted">No categories found.</td></tr>
+                            <tr><td colspan="5" class="text-center py-4 text-muted">No categories found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

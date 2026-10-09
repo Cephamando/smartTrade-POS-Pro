@@ -31,6 +31,9 @@ $shopIcon = function (string $cat): string {
     return 'bi-basket3';
 };
 $money = fn($v) => 'K' . number_format((float)$v, 2);
+$logoUrl = \App\Helpers\Media::url((string)($settings['logo_path'] ?? ''));
+$bannerUrl = \App\Helpers\Media::url((string)($settings['shop_banner_path'] ?? ''));
+$promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? ''));
 $cartCount = $cartCount ?? 0;
 $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&' . http_build_query($q) : '');
 ?>
@@ -71,6 +74,10 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .item-card { border: 0; border-radius: 22px; background: var(--card); box-shadow: 0 10px 28px rgba(40, 18, 6, .07); overflow: hidden; }
         .item-card.unavailable { opacity: .62; }
         .item-face { height: 92px; display: flex; align-items: flex-end; padding: 12px 14px; color: var(--on-accent); background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--dark) 35%, var(--accent))); position: relative; }
+        .item-face.item-photo { height: 150px; background-size: cover; background-position: center; color: #fffaf4; }
+        .item-face.item-photo span { background: rgba(20, 10, 4, .45); border-radius: 999px; padding: 2px 8px; }
+        .shop-hero.has-banner { background-size: cover; background-position: center; }
+        .promo-banner { display: block; width: 100%; max-height: 180px; object-fit: cover; border-radius: 22px; margin: 0 0 16px; }
         .item-face i { position: absolute; right: 10px; top: 8px; font-size: 3.2rem; opacity: .22; }
         .item-face span { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
         .price { color: var(--dark); font-weight: 800; }
@@ -90,7 +97,11 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
 <nav class="shop-nav py-2">
     <div class="container shop-wrap d-flex justify-content-between align-items-center gap-2">
         <a href="<?= $u('menu') ?>" class="d-flex align-items-center gap-2 text-truncate">
-            <span class="brand-mark"><?= htmlspecialchars(strtoupper(substr($title, 0, 1))) ?></span>
+            <?php if ($logoUrl !== ''): ?>
+                <img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="height:38px;width:38px;object-fit:cover;border-radius:12px;background:#fff;">
+            <?php else: ?>
+                <span class="brand-mark"><?= htmlspecialchars(strtoupper(substr($title, 0, 1))) ?></span>
+            <?php endif; ?>
             <span class="fw-bold text-truncate"><?= htmlspecialchars($title) ?></span>
         </a>
         <div class="d-flex align-items-center gap-3 small flex-shrink-0">
@@ -118,17 +129,47 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </section>
 
 <?php elseif ($view === 'menu'): ?>
-    <section class="shop-hero">
+    <section class="shop-hero<?= $bannerUrl !== '' ? ' has-banner' : '' ?>"<?= $bannerUrl !== '' ? ' style="background-image:linear-gradient(135deg, color-mix(in srgb, var(--dark) 78%, transparent), color-mix(in srgb, var(--dark) 55%, transparent)), url(\'' . htmlspecialchars($bannerUrl, ENT_QUOTES) . '\')"' : '' ?>>
         <div class="eyebrow">Order ahead</div>
         <h1><?= htmlspecialchars($title) ?></h1>
         <p><?= htmlspecialchars(($settings['shop_intro'] ?? '') ?: 'Fresh from our kitchen. Order ahead and skip the queue.') ?></p>
     </section>
-    <div class="input-group search-pill mb-3">
-        <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="search" id="menuSearch" class="form-control" placeholder="Search the menu…" oninput="filterMenu()">
+    <?php if ($promoUrl !== ''): ?><img class="promo-banner" src="<?= htmlspecialchars($promoUrl) ?>" alt=""><?php endif; ?>
+    <?php
+        $shopLocations = $shopLocations ?? [];
+        $shopLocationId = (int)($shopLocationId ?? 0);
+        $shopLocationName = '';
+        foreach ($shopLocations as $locRow) {
+            if ((int)$locRow['id'] === $shopLocationId) {
+                $shopLocationName = (string)$locRow['name'];
+                break;
+            }
+        }
+    ?>
+    <div class="row g-2 mb-3 align-items-center">
+        <?php if (count($shopLocations) > 1): ?>
+        <div class="col-12 col-md-4">
+            <label class="form-label small fw-bold text-muted mb-1" for="shopLoc">STORE</label>
+            <select id="shopLoc" class="form-select" onchange="if (this.value) window.location = 'index.php?page=shop&amp;loc=' + encodeURIComponent(this.value)">
+                <?php foreach ($shopLocations as $locRow): ?>
+                <option value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === $shopLocationId ? 'selected' : '' ?>><?= htmlspecialchars($locRow['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php elseif ($shopLocationName !== ''): ?>
+        <div class="col-12"><span class="badge rounded-pill text-bg-light border"><i class="bi bi-geo-alt-fill"></i> <?= htmlspecialchars($shopLocationName) ?></span></div>
+        <?php endif; ?>
+        <div class="<?= count($shopLocations) > 1 ? 'col-12 col-md-8' : 'col-12' ?>">
+            <label class="form-label small fw-bold text-muted mb-1" for="menuSearch">SEARCH</label>
+            <div class="input-group search-pill">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="search" id="menuSearch" class="form-control" placeholder="Name, category or code…" oninput="filterMenu()">
+            </div>
+        </div>
     </div>
     <div class="d-flex gap-2 overflow-auto pb-2 mb-3" id="catChips">
         <button type="button" class="cat-chip active" data-cat="" onclick="pickCat(this)">All</button>
+        <button type="button" class="cat-chip" id="stockChip" data-stock="" onclick="toggleStock(this)">In stock</button>
         <?php foreach ($categories as $cat => $n): ?>
         <button type="button" class="cat-chip" data-cat="<?= htmlspecialchars($cat) ?>" onclick="pickCat(this)"><?= htmlspecialchars($cat) ?> <span class="opacity-75"><?= (int)$n ?></span></button>
         <?php endforeach; ?>
@@ -136,9 +177,14 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <div class="row g-3" id="menuGrid">
         <?php if (!$products): ?><div class="col-12 text-center text-muted py-5">The menu is being updated. Please check back shortly.</div><?php endif; ?>
         <?php foreach ($products as $p): ?>
-        <div class="col-6 col-md-4 menu-item" data-cat="<?= htmlspecialchars($p['category']) ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'])) ?>">
+        <div class="col-6 col-md-4 menu-item" data-cat="<?= htmlspecialchars($p['category']) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
             <div class="card item-card h-100 <?= $p['available'] ? '' : 'unavailable' ?>">
+                <?php $photo = \App\Helpers\Media::url((string)($p['image_path'] ?? '')); ?>
+                <?php if ($photo !== ''): ?>
+                <div class="item-face item-photo" style="background-image:linear-gradient(to top, rgba(20,10,4,.45), transparent 55%), url('<?= htmlspecialchars($photo, ENT_QUOTES) ?>')"><span><?= htmlspecialchars($p['category'] ?: 'Menu') ?></span></div>
+                <?php else: ?>
                 <div class="item-face"><i class="bi <?= $shopIcon((string)$p['category']) ?>"></i><span><?= htmlspecialchars($p['category'] ?: 'Menu') ?></span></div>
+                <?php endif; ?>
                 <div class="card-body d-flex flex-column pt-3">
                     <div class="fw-bold flex-grow-1"><?= htmlspecialchars($p['name']) ?></div>
                     <div class="d-flex justify-content-between align-items-center mt-3">
@@ -159,8 +205,21 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         </div>
     </div>
     <script>
-    function pickCat(btn) { document.querySelectorAll('.cat-chip').forEach(function (b) { b.classList.remove('active'); }); btn.classList.add('active'); filterMenu(); }
-    function filterMenu() { const cat = (document.querySelector('.cat-chip.active') || {}).dataset ? document.querySelector('.cat-chip.active').dataset.cat : ''; const q = (document.getElementById('menuSearch').value || '').toLowerCase().trim(); document.querySelectorAll('.menu-item').forEach(function (el) { const okCat = !cat || el.dataset.cat === cat; const okQ = !q || el.dataset.name.indexOf(q) !== -1; el.classList.toggle('d-none', !(okCat && okQ)); }); }
+    function pickCat(btn) { document.querySelectorAll('.cat-chip[data-cat]').forEach(function (b) { b.classList.remove('active'); }); btn.classList.add('active'); filterMenu(); }
+    function toggleStock(btn) { const on = btn.dataset.stock !== '1'; btn.dataset.stock = on ? '1' : ''; btn.classList.toggle('active', on); filterMenu(); }
+    function filterMenu() {
+        const catBtn = document.querySelector('.cat-chip.active[data-cat]');
+        const cat = catBtn ? (catBtn.dataset.cat || '') : '';
+        const stockOnly = (document.getElementById('stockChip') || {}).dataset ? document.getElementById('stockChip').dataset.stock === '1' : false;
+        const words = (document.getElementById('menuSearch').value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+        document.querySelectorAll('.menu-item').forEach(function (el) {
+            const okCat = !cat || el.dataset.cat === cat;
+            const okStock = !stockOnly || el.dataset.available === '1';
+            const hay = el.dataset.name || '';
+            const okQ = !words.length || words.every(function (w) { return hay.indexOf(w) !== -1; });
+            el.classList.toggle('d-none', !(okCat && okStock && okQ));
+        });
+    }
     function addToCart(pid, btn) { btn.disabled = true; const body = new URLSearchParams({ cart_add: pid, qty: 1, ajax: 1 }); fetch('index.php?page=shop&view=menu', { method: 'POST', body: body, credentials: 'same-origin' }).then(r => r.json()).then(function (res) { btn.disabled = false; if (res.status !== 'ok') { alert(res.msg || 'Could not add'); return; } document.getElementById('cartBar').classList.remove('d-none'); document.getElementById('cartBarCount').textContent = res.count; document.getElementById('cartBarTotal').textContent = 'K' + Number(res.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); btn.innerHTML = '<i class="bi bi-check-lg"></i> Added'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-plus-lg"></i> Add'; }, 900); }).catch(function () { btn.disabled = false; }); }
     </script>
 

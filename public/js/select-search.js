@@ -61,7 +61,6 @@
         var extraFields = collectFields(sel);
         var hasPlaceholderOpt = sel.options.length && sel.options[0].value === '';
         var placeholder = sel.getAttribute('data-placeholder') || (hasPlaceholderOpt ? sel.options[0].text : 'Select…');
-        var inModal = !!sel.closest('.modal');
         var required = sel.required;
         var size = sizeClass(sel);
 
@@ -71,8 +70,8 @@
             placeholder: placeholder,
             searchField: ['text'].concat(extraFields),
             maxOptions: 2000,
-            dropdownParent: inModal ? 'body' : null,
-            controlInput: '<input type="text" autocomplete="off" size="1" />',
+            dropdownParent: 'body',
+            controlInput: '<input type="text" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" size="1" />',
             plugins: sel.multiple ? ['remove_button'] : [],
             closeAfterSelect: !sel.multiple,
             // Every word in the query must appear in at least one field.

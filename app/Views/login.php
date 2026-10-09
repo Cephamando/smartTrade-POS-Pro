@@ -286,9 +286,15 @@
         </div>
 
         <div class="branding-content">
+            <?php if (!empty($logoUrl)): ?>
+                <img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="max-height:72px;max-width:220px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;margin-bottom:12px;">
+            <?php endif; ?>
             <div class="brand-logo-large">
                 <i class="bi bi-buildings-fill"></i> SmarTrade<span class="accent">Enterprise</span>
             </div>
+            <?php if (!empty($businessName)): ?>
+                <div class="brand-tagline"><?= htmlspecialchars($businessName) ?></div>
+            <?php endif; ?>
             <div class="brand-tagline">
                 Enterprise Business & Retail Management System
             </div>

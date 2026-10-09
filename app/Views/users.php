@@ -3,11 +3,20 @@
     <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#userModal" onclick="resetUserForm()"><i class="bi bi-person-plus-fill"></i> Add New User</button>
 </div>
 
+<?php
+$bulkFormId = 'bulkUsers';
+$bulkAction = 'index.php?page=users';
+$bulkButtons = [
+    ['value' => 'delete', 'label' => 'Delete selected', 'class' => 'btn-outline-danger', 'title' => 'Delete the selected users?', 'text' => 'Accounts with sales history are deactivated instead. The signed-in account and the developer account are skipped.', 'confirm' => 'Delete', 'color' => '#dc3545'],
+];
+include __DIR__ . '/partials/bulk_bar.php';
+?>
 <div class="card shadow-sm border-0">
     <div class="card-body p-0 table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
+                    <th style="width:36px" class="ps-3"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkUsers" title="Select all"></th>
                     <th class="ps-4">Name</th>
                     <th>Username</th>
                     <th>Role</th>
@@ -18,6 +27,7 @@
             <tbody>
                 <?php foreach($users as $u): ?>
                 <tr>
+                    <td class="ps-3"><?php if ($u['role'] !== 'dev' && $u['id'] !== $_SESSION['user_id']): ?><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$u['id'] ?>" form="bulkUsers"><?php endif; ?></td>
                     <td class="ps-4 fw-bold text-dark"><?= htmlspecialchars($u['full_name']) ?></td>
                     <td class="text-muted">@<?= htmlspecialchars($u['username']) ?></td>
                     <td>

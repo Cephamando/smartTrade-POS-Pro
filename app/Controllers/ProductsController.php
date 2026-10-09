@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Helpers\Media;
 use App\Models\Category;
 use App\Models\Product;
 
@@ -25,6 +26,21 @@ final class ProductsController extends Controller
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
+                if (isset($_POST['bulk_action'])) {
+                    $ids = $this->postedIds();
+                    if (!$ids) {
+                        throw new \Exception('Select at least one product.');
+                    }
+                    $active = $_POST['bulk_action'] === 'activate' ? 1 : ($_POST['bulk_action'] === 'deactivate' ? 0 : null);
+                    if ($active === null) {
+                        throw new \Exception('That bulk action is not available.');
+                    }
+                    $stmt = $this->pdo()->prepare('UPDATE products SET is_active = ? WHERE id = ?');
+                    foreach ($ids as $id) {
+                        $stmt->execute([$active, $id]);
+                    }
+                    $this->flash('success', count($ids) . ' product' . (count($ids) === 1 ? '' : 's') . ($active ? ' activated.' : ' disabled.'));
+                }
                 if (isset($_POST['add_category'])) {
                     $name = trim((string)$_POST['category_name']);
                     if ($name === '') {
@@ -54,6 +70,7 @@ final class ProductsController extends Controller
                     $type = (string)($_POST['type'] ?? 'item');
                     $isSellable = array_key_exists('is_sellable', $_POST) ? (int)$_POST['is_sellable'] : 1;
                     
+                    $savedId = $productId;
                     if ($productId > 0) {
                         $existing = Product::findWithCategory($productId);
                         if (!$existing) {
@@ -78,7 +95,7 @@ final class ProductsController extends Controller
                         );
                         $this->flash('success', "Product '$name' updated.");
                     } else {
-                        Product::create(
+                        $savedId = Product::create(
                             $name,
                             $categoryId,
                             $price,
@@ -92,6 +109,14 @@ final class ProductsController extends Controller
                             $isSellable
                         );
                         $this->flash('success', "Product '$name' saved.");
+                    }
+                    if (!empty($_POST['remove_image'])) {
+                        Product::setImage($savedId, null);
+                    } else {
+                        $image = Media::store('image', 'products');
+                        if ($image !== null) {
+                            Product::setImage($savedId, $image);
+                        }
                     }
                 }
                 if (isset($_POST['import_csv']) && isset($_FILES['csv_file'])) {

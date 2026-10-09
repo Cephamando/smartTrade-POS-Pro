@@ -23,6 +23,7 @@ final class PickupController extends Controller
         $this->render([
             'readyOrders' => Kitchen::readyPickupOrders($this->locationId()),
             'waiters' => User::waiters(),
+            'fragment' => isset($_GET['fragment']),
         ]);
     }
 }

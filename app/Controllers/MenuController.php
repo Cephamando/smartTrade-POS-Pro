@@ -59,6 +59,15 @@ final class MenuController extends Controller
             $this->redirect('menu');
         }
 
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['bulk_action'] ?? '') === 'remove')) {
+            $ids = $this->postedIds();
+            foreach ($ids as $id) {
+                Product::deactivate($id);
+            }
+            $this->flash('success', count($ids) . ' item' . (count($ids) === 1 ? '' : 's') . ' removed from the menu.');
+            $this->redirect('menu');
+        }
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_item'])) {
             Product::deactivate((int)$_POST['item_id']);
             $this->flash('success', 'Item removed from menu.');

@@ -11,6 +11,13 @@ final class TablesController extends Controller
     {
         $this->requireRole(['admin', 'manager', 'dev']);
 
+        if (($_POST['bulk_action'] ?? '') === 'delete') {
+            foreach ($this->postedIds() as $id) {
+                RestaurantTable::delete($id);
+            }
+            $this->flash('success', 'Selected tables deleted.');
+            $this->redirect('tables');
+        }
         if (isset($_POST['add_table'])) {
             RestaurantTable::create(
                 (int)$_POST['location_id'],

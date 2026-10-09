@@ -83,9 +83,20 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
                 </div>
             </div>
             <div class="card-body p-0 table-responsive" style="max-height: 70vh; overflow-y: auto;">
+                <?php
+                $bulkFormId = 'bulkMenu';
+                $bulkAction = 'index.php?page=menu';
+                $bulkButtons = [
+                    ['value' => 'remove', 'label' => 'Remove from menu', 'class' => 'btn-outline-danger', 'title' => 'Remove the selected items from the menu?', 'text' => 'They will no longer appear on the POS.', 'confirm' => 'Remove', 'color' => '#dc3545'],
+                ];
+                echo '<div class="p-2 pb-0">';
+                include __DIR__ . '/partials/bulk_bar.php';
+                echo '</div>';
+                ?>
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light sticky-top">
                         <tr>
+                            <th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkMenu" title="Select all"></th>
                             <th class="ps-3 text-uppercase small text-muted">Menu Item</th>
                             <th class="text-uppercase small text-muted">Category</th>
                             <th class="text-end text-uppercase small text-muted">Price</th>
@@ -97,6 +108,7 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
                             $hasRecipe = isset($recipesGrouped[$m['id']]) && count($recipesGrouped[$m['id']]) > 0;
                         ?>
                         <tr class="menu-row" data-name="<?= htmlspecialchars(strtolower($m['name'])) ?>" data-category="<?= htmlspecialchars($m['cat_name']) ?>">
+                            <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$m['id'] ?>" form="bulkMenu"></td>
                             <td class="ps-3 fw-bold">
                                 <?= htmlspecialchars($m['name']) ?>
                                 <?php if($hasRecipe): ?><span class="badge bg-info text-dark ms-2" style="font-size:0.6rem;"><i class="bi bi-diagram-3"></i> RECIPE</span><?php endif; ?>
@@ -125,7 +137,7 @@ $canRegisterZra = (defined('LICENSE_TIER') && LICENSE_TIER === 'enterprise')
                         </tr>
                         <?php endforeach; ?>
                         <tr id="noResultsRow" style="display: none;">
-                            <td colspan="4" class="text-center py-4 text-muted fst-italic">No menu items match your search.</td>
+                            <td colspan="5" class="text-center py-4 text-muted fst-italic">No menu items match your search.</td>
                         </tr>
                     </tbody>
                 </table>

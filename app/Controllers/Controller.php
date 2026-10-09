@@ -45,6 +45,19 @@ class Controller
         return in_array($this->role(), ['admin', 'manager', 'dev'], true);
     }
 
+    /** @return list<int> */
+    protected function postedIds(): array
+    {
+        $ids = [];
+        foreach ((array)($_POST['ids'] ?? []) as $raw) {
+            $id = (int)$raw;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        return array_values($ids);
+    }
+
     protected function requireRole(array $roles, string $fallback = 'dashboard'): void
     {
         $roles = array_map('strtolower', $roles);

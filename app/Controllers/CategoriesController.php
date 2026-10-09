@@ -11,6 +11,24 @@ final class CategoriesController extends Controller
         $this->requireRole(['admin', 'manager', 'dev']);
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (($_POST['bulk_action'] ?? '') === 'delete') {
+                $deleted = 0;
+                $blocked = 0;
+                foreach ($this->postedIds() as $id) {
+                    $result = Category::delete($id);
+                    if ($result === 'products' || $result === 'children') {
+                        $blocked++;
+                    } else {
+                        $deleted++;
+                    }
+                }
+                $msg = $deleted . ' categor' . ($deleted === 1 ? 'y' : 'ies') . ' deleted.';
+                if ($blocked) {
+                    $msg .= ' ' . $blocked . ' still have products or subcategories and were kept.';
+                }
+                $this->flash($blocked && !$deleted ? 'error' : 'success', $msg);
+                $this->redirect('categories');
+            }
             if (isset($_POST['add_category'])) {
                 $name = trim((string)($_POST['name'] ?? ''));
                 $type = (string)($_POST['type'] ?? 'other');

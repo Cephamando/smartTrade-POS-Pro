@@ -232,6 +232,7 @@ function getCategoryStyle($name) {
             <button type="button" class="btn btn-sm btn-link text-warning ms-1 me-2" data-bs-toggle="modal" data-bs-target="#locationModal" title="Change Location"><i class="bi bi-pencil-square"></i></button>
             <span class="text-light border-start border-secondary ps-3 d-none d-md-inline"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
         </div>
+        <?php $unsettledTabs = 0; foreach ($openTabs as $t) { if (($t['payment_status'] ?? '') !== 'paid') { $unsettledTabs++; } } ?>
         <div class="d-flex gap-2 pe-2 flex-wrap align-items-center pos-header-actions">
             <button type="button" class="btn btn-warning text-dark btn-sm fw-bold" id="posKeyboardToggle" aria-pressed="true" title="Hide on-screen keyboard"><i class="bi bi-keyboard-fill"></i> <span class="d-none d-sm-inline">Keyboard</span></button>
 
@@ -248,21 +249,19 @@ function getCategoryStyle($name) {
             <?php if ($tier === 'enterprise' || !empty($portalOn)): ?>
                 <button type="button" class="btn btn-outline-primary btn-sm fw-bold position-relative" data-bs-toggle="modal" data-bs-target="#onlineTabsModal">
                     <i class="bi bi-cloud-download"></i> Web Orders
-                    <?php if (!empty($onlineTabs)): ?>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= count($onlineTabs) ?></span>
-                    <?php endif; ?>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="web" style="<?= empty($onlineTabs) ? 'display:none' : '' ?>"><?= count($onlineTabs ?? []) ?></span>
                 </button>
             <?php endif; ?>
             <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-warning btn-sm fw-bold position-relative" onclick="showPickupModal()">
-                    <i class="bi bi-bag-check"></i> Pickup <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
+                    <i class="bi bi-bag-check"></i> Pickup <span id="posReadyBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="pickup" style="display:none; font-size: 0.6rem; padding: 0.35em 0.5em;">0</span>
                 </button>
             <?php endif; ?>
             <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
                 <button type="button" class="btn btn-outline-info btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#floorplanModal"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button>
             <?php endif; ?>
             <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
-                <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button>
+                <button type="button" class="btn btn-outline-light btn-sm position-relative" data-bs-toggle="modal" data-bs-target="#tabsModal" title="Open tabs still to settle or clear"><i class="bi bi-receipt"></i> Tabs <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="tabs" style="<?= $unsettledTabs > 0 ? '' : 'display:none' ?>"><?= (int)$unsettledTabs ?></span></button>
             <?php endif; ?>
             </div>
 
@@ -281,16 +280,16 @@ function getCategoryStyle($name) {
                     <li><button type="button" class="dropdown-item" onclick="showShiftReport(<?= $activeShiftId ?>)"><i class="bi bi-printer"></i> X-Read</button></li>
                     <?php endif; ?>
                     <?php if ($tier === 'enterprise' || !empty($portalOn)): ?>
-                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#onlineTabsModal"><i class="bi bi-cloud-download"></i> Web Orders</button></li>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#onlineTabsModal"><i class="bi bi-cloud-download"></i> Web Orders <span class="badge bg-danger" data-live-count="web" style="<?= empty($onlineTabs) ? 'display:none' : '' ?>"><?= count($onlineTabs ?? []) ?></span></button></li>
                     <?php endif; ?>
                     <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
-                    <li><button type="button" class="dropdown-item" onclick="showPickupModal()"><i class="bi bi-bag-check"></i> Pickup</button></li>
+                    <li><button type="button" class="dropdown-item" onclick="showPickupModal()"><i class="bi bi-bag-check"></i> Pickup <span class="badge bg-danger" data-live-count="pickup" style="display:none">0</span></button></li>
                     <?php endif; ?>
                     <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
                     <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#floorplanModal"><i class="bi bi-grid-3x3-gap-fill"></i> Tables</button></li>
                     <?php endif; ?>
                     <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?>
-                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#tabsModal"><i class="bi bi-receipt"></i> Tabs</button></li>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#tabsModal" title="Open tabs still to settle or clear"><i class="bi bi-receipt"></i> Tabs <span class="badge bg-danger" data-live-count="tabs" style="<?= $unsettledTabs > 0 ? '' : 'display:none' ?>"><?= (int)$unsettledTabs ?></span></button></li>
                     <?php endif; ?>
                 </ul>
             </div>
@@ -908,7 +907,7 @@ function getCategoryStyle($name) {
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/pos-keyboard.js?v=5"></script>
     <script src="vendor/tom-select/tom-select.complete.min.js"></script>
-    <script src="js/select-search.js?v=1"></script>
+    <script src="js/select-search.js?v=3"></script>
     <script>
         window.posCartBalance = <?= json_encode((float)($balance ?? 0)) ?>;
         function formatPosQty(qty) {
@@ -1673,8 +1672,8 @@ function getCategoryStyle($name) {
         }
         function addService(id, name, price, isOpen) { if (isPosRefundMode()) { openRefundInvoicePicker(id, name); return; } let isRefund = '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { posCartAdd({ add_item: '1', product_id: id, is_refund: isRefund }); } }
         <?php if(isset($_SESSION['swal_msg']) || isset($_SESSION['swal_html'])): ?> AppAlert.notify({ icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>, title: <?= json_encode($_SESSION['swal_title'] ?? '') ?>, text: <?= json_encode((string)($_SESSION['swal_msg'] ?? '')) ?>, html: <?= json_encode((string)($_SESSION['swal_html'] ?? '')) ?>, confirmText: <?= json_encode($_SESSION['swal_confirm'] ?? '') ?>, cancelText: <?= json_encode($_SESSION['swal_cancel'] ?? '') ?>, url: <?= json_encode($_SESSION['swal_url'] ?? '') ?> }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg'], $_SESSION['swal_title'], $_SESSION['swal_confirm'], $_SESSION['swal_cancel'], $_SESSION['swal_url'], $_SESSION['swal_html']); endif; ?>
-        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?> function checkPosReadyOrders() { fetch('index.php?action=check_ready_orders').then(r => r.json()).then(data => { let badge = document.getElementById('posReadyBadge'); if(badge && data && data.count > 0) { badge.innerText = data.count; badge.style.display = 'block'; } else if (badge) { badge.style.display = 'none'; } }).catch(e => { console.error('POS Badge Error:', e); }); } checkPosReadyOrders(); setInterval(checkPosReadyOrders, 5000); <?php endif; ?>
     </script>
+    <script src="js/live-boards.js?v=1"></script>
 <script>
     document.addEventListener('focusin', function(e) { if (typeof Swal !== 'undefined' && Swal.isVisible()) { let swalContainer = document.querySelector('.swal2-container'); if (swalContainer && swalContainer.contains(e.target)) { e.stopImmediatePropagation(); } } }, true);
 </script>

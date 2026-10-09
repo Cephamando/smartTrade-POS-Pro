@@ -5,9 +5,18 @@
     </div>
     <div class="card-body bg-light">
         <div class="table-responsive bg-white rounded border shadow-sm p-3">
+            <?php
+            $bulkFormId = 'bulkTables';
+            $bulkAction = 'index.php?page=tables';
+            $bulkButtons = [
+                ['value' => 'delete', 'label' => 'Delete selected', 'class' => 'btn-outline-danger', 'title' => 'Delete the selected tables?', 'confirm' => 'Delete', 'color' => '#dc3545'],
+            ];
+            include __DIR__ . '/partials/bulk_bar.php';
+            ?>
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-dark">
                     <tr>
+                        <th class="py-3" style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkTables" title="Select all"></th>
                         <th class="py-3">Location</th>
                         <th class="py-3">Zone (e.g. Patio)</th>
                         <th class="py-3">Table Name</th>
@@ -18,6 +27,7 @@
                 <tbody>
                     <?php foreach($tables as $t): ?>
                     <tr>
+                        <td class="py-3"><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$t['id'] ?>" form="bulkTables"></td>
                         <td class="py-3"><span class="badge bg-secondary"><?= htmlspecialchars($t['location_name']) ?></span></td>
                         <td class="py-3 fw-bold text-muted text-uppercase"><?= htmlspecialchars($t['zone_name']) ?></td>
                         <td class="py-3 fw-bold fs-5 text-dark"><?= htmlspecialchars($t['table_name']) ?></td>

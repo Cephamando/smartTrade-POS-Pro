@@ -64,7 +64,7 @@ final class Unspsc extends Model
         $limit = max(1, min(50, $limit));
         $q = trim($q);
         if ($q === '') {
-            return [];
+            return self::favourites($limit);
         }
 
         $codeDigits = preg_replace('/\D/', '', $q) ?? '';
@@ -104,7 +104,98 @@ final class Unspsc extends Model
                 LIMIT ' . $limit;
         $stmt = self::db()->prepare($sql);
         $stmt->execute(array_merge($params, $extra));
-        return array_map([self::class, 'presentRow'], $stmt->fetchAll());
+        $counts = self::usedCounts();
+        $items = [];
+        $seen = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $item = self::presentRow($row);
+            $code = (string)$item['item_cls_cd'];
+            $item['uses'] = $counts[$code] ?? 0;
+            $item['favourite'] = $item['uses'] > 0;
+            $items[] = $item;
+            $seen[$code] = true;
+        }
+        foreach (self::favourites(40) as $fav) {
+            $code = (string)$fav['item_cls_cd'];
+            if (isset($seen[$code])) {
+                continue;
+            }
+            $hay = strtolower($code . ' ' . ($fav['item_cls_nm'] ?? '') . ' ' . ($fav['item_cls_path'] ?? ''));
+            if (!str_contains($hay, strtolower($q))) {
+                continue;
+            }
+            $items[] = $fav;
+            $seen[$code] = true;
+        }
+        usort($items, function (array $a, array $b) use ($q): int {
+            return self::rankScore($b, $q) <=> self::rankScore($a, $q);
+        });
+        return array_slice($items, 0, $limit);
+    }
+
+    private static function rankScore(array $item, string $q): int
+    {
+        $q = strtolower(trim($q));
+        $name = strtolower((string)($item['item_cls_nm'] ?? ''));
+        $code = (string)($item['item_cls_cd'] ?? '');
+        $digits = preg_replace('/\D/', '', $q) ?? '';
+        $score = ((int)($item['uses'] ?? 0)) * 100;
+        if (!empty($item['favourite'])) {
+            $score += 10000;
+        }
+        if ($q !== '' && str_starts_with($name, $q)) {
+            $score += 5000;
+        } elseif ($q !== '' && str_contains($name, $q)) {
+            $score += 2000;
+        }
+        if ($digits !== '' && str_starts_with($code, $digits)) {
+            $score += 1500;
+        }
+        return $score;
+    }
+
+    /** Codes already assigned to products, most used first. */
+    public static function favourites(int $limit = 12): array
+    {
+        self::ensureTable();
+        $limit = max(1, min(30, $limit));
+        try {
+            $stmt = self::db()->query(
+                'SELECT c.item_cls_cd, c.item_cls_nm, c.item_cls_lvl, c.item_cls_path, c.tax_ty_cd, COUNT(*) AS uses
+                 FROM products p
+                 INNER JOIN zra_item_classes c ON c.item_cls_cd = p.unspsc_code
+                 WHERE p.unspsc_code IS NOT NULL AND p.unspsc_code <> \'\' AND c.use_yn = \'Y\'
+                 GROUP BY c.item_cls_cd, c.item_cls_nm, c.item_cls_lvl, c.item_cls_path, c.tax_ty_cd
+                 ORDER BY uses DESC, c.item_cls_nm ASC
+                 LIMIT ' . $limit
+            );
+            $rows = $stmt ? $stmt->fetchAll() : [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+        return array_map(function (array $row) {
+            $item = self::presentRow($row);
+            $item['favourite'] = true;
+            $item['uses'] = (int)($row['uses'] ?? 0);
+            return $item;
+        }, $rows);
+    }
+
+    /** @return array<string, int> */
+    private static function usedCounts(): array
+    {
+        try {
+            $col = self::db()->query(
+                "SELECT unspsc_code, COUNT(*) AS uses FROM products WHERE unspsc_code IS NOT NULL AND unspsc_code <> '' GROUP BY unspsc_code"
+            );
+            $counts = [];
+            foreach ($col ? $col->fetchAll() : [] as $row) {
+                $counts[(string)$row['unspsc_code']] = (int)$row['uses'];
+            }
+            return $counts;
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     public static function page(string $q, int $page, int $perPage = 50): array

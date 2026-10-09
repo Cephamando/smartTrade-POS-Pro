@@ -1,6 +1,6 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop'], true) ? $tab : 'general';
+$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding'], true) ? $tab : 'general';
 $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['flw_secret_key'], 0, 12) . '••••••••' : '';
 $tabs = [
     'general' => ['bi-sliders', 'General'],
@@ -8,6 +8,7 @@ $tabs = [
     'payments' => ['bi-credit-card-2-front', 'Payments (Flutterwave)'],
     'currency' => ['bi-currency-exchange', 'Currency'],
     'shop' => ['bi-bag-heart', 'Customer ordering'],
+    'branding' => ['bi-image', 'Logo & banners'],
 ];
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -38,6 +39,12 @@ $tabs = [
                     <div class="mb-4">
                         <label class="form-label fw-bold small text-muted">RECEIPT FOOTER</label>
                         <textarea name="receipt_footer" class="form-control" rows="2" placeholder="Thank you for your business!"><?= htmlspecialchars($settings['receipt_footer'] ?? '') ?></textarea>
+                    </div>
+                    <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2 mt-4">Site inspection</h5>
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" name="vsias_enabled" value="1" id="vsiasEnabled" <?= ($settings['vsias_enabled'] ?? '1') === '1' ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-bold" for="vsiasEnabled">Enable V-SIAS Pro</label>
+                        <div class="form-text">When this is off, stock transfers dispatch and receive directly, and the Approvals menu is hidden. Turn it on when store inspections should lock a transfer until V-SIAS signs it.</div>
                     </div>
                     <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2 mt-4">🎨 Color Theme Editor</h5>
                     <div class="row g-3 mb-4">
@@ -133,14 +140,26 @@ $tabs = [
     <div class="col-lg-7">
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">
+                <?php
+                $bulkFormId = 'bulkSurcharges';
+                $bulkAction = 'index.php?page=settings';
+                $bulkHidden = ['tab' => 'surcharges'];
+                $bulkButtons = [
+                    ['value' => 'show', 'label' => 'Show on POS', 'class' => 'btn-warning', 'title' => 'Show the selected reasons on the POS?', 'confirm' => 'Show', 'color' => '#ffc107'],
+                    ['value' => 'hide', 'label' => 'Hide', 'class' => 'btn-outline-light', 'title' => 'Hide the selected reasons from the POS?', 'confirm' => 'Hide', 'color' => '#6c757d'],
+                    ['value' => 'delete', 'label' => 'Remove', 'class' => 'btn-outline-danger', 'title' => 'Remove the selected reasons?', 'text' => 'Past receipts keep the reason text.', 'confirm' => 'Remove', 'color' => '#dc3545'],
+                ];
+                include __DIR__ . '/partials/bulk_bar.php';
+                ?>
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-dark"><tr><th>Reason</th><th class="text-end">Default</th><th class="text-center">Order</th><th class="text-center">Status</th><th class="text-end">Actions</th></tr></thead>
+                    <thead class="table-dark"><tr><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkSurcharges" title="Select all"></th><th>Reason</th><th class="text-end">Default</th><th class="text-center">Order</th><th class="text-center">Status</th><th class="text-end">Actions</th></tr></thead>
                     <tbody>
                     <?php if (empty($surchargeReasons)): ?>
-                        <tr><td colspan="5" class="text-center text-muted py-4">No surcharge reasons yet.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-4">No surcharge reasons yet.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($surchargeReasons as $sr): ?>
                         <tr>
+                            <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$sr['id'] ?>" form="bulkSurcharges"></td>
                             <td class="fw-bold"><?= htmlspecialchars($sr['name']) ?></td>
                             <td class="text-end"><?= (float)$sr['default_percent'] > 0 ? rtrim(rtrim((string)$sr['default_percent'], '0'), '.') . '% of bill' : ((float)$sr['default_amount'] > 0 ? 'ZMW ' . number_format((float)$sr['default_amount'], 2) : '<span class="text-muted">cashier enters</span>') ?></td>
                             <td class="text-center"><?= (int)$sr['sort_order'] ?></td>
@@ -382,6 +401,57 @@ document.addEventListener('DOMContentLoaded', cvFromZmw);
                     </div>
                     <div class="text-end mt-4">
                         <button type="submit" class="btn btn-info fw-bold px-5 py-2 shadow-sm text-dark"><i class="bi bi-save"></i> Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<?php elseif ($tab === 'branding'): ?>
+<?php
+$logoUrl = \App\Helpers\Media::url((string)($settings['logo_path'] ?? ''));
+$bannerUrl = \App\Helpers\Media::url((string)($settings['shop_banner_path'] ?? ''));
+$promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? ''));
+?>
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card shadow-sm border-0 border-top border-4 border-warning">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-1"><i class="bi bi-image text-warning"></i> Logo, banners, and shop photos</h5>
+                <p class="text-muted small">Administrators and managers can replace these here. Use JPG, PNG, WEBP, or GIF, up to 2.5 MB. Photos of individual dishes and drinks are set on each product under Products &amp; Menu.</p>
+                <form method="POST" action="index.php?page=settings" enctype="multipart/form-data">
+                    <input type="hidden" name="tab" value="branding">
+                    <input type="hidden" name="save_branding" value="1">
+                    <div class="row g-3">
+                        <?php foreach ([
+                            ['LOGO', 'Menu bar, receipts, sign-in, and the online shop mark.', 'logo', $logoUrl],
+                            ['SHOP BANNER', 'The large header on the online ordering page.', 'shop_banner', $bannerUrl],
+                            ['PROMO BANNER', 'A second strip under the shop header.', 'promo_banner', $promoUrl],
+                        ] as [$label, $help, $field, $url]): ?>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100 bg-white">
+                                <label class="form-label fw-bold small text-muted"><?= $label ?></label>
+                                <div class="mb-2 rounded d-flex align-items-center justify-content-center" style="height:120px;background:#f6efe6;overflow:hidden;">
+                                    <?php if ($url !== ''): ?>
+                                        <img src="<?= htmlspecialchars($url) ?>" alt="" style="max-width:100%;max-height:120px;object-fit:contain;">
+                                    <?php else: ?>
+                                        <span class="text-muted small">No image yet</span>
+                                    <?php endif; ?>
+                                </div>
+                                <input type="file" name="<?= $field ?>" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,image/gif">
+                                <div class="form-text"><?= htmlspecialchars($help) ?></div>
+                                <?php if ($url !== ''): ?>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="remove_<?= $field ?>" value="1" id="remove_<?= $field ?>">
+                                    <label class="form-check-label small" for="remove_<?= $field ?>">Remove current image</label>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button type="submit" class="btn btn-dark fw-bold px-5 py-2 shadow-sm"><i class="bi bi-save"></i> Save images</button>
                     </div>
                 </form>
             </div>

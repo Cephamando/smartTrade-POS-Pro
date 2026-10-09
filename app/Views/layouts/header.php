@@ -57,12 +57,41 @@ if (isset($pdo)) {
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
     <link rel="stylesheet" href="vendor/tom-select/tom-select.bootstrap5.min.css">
-    <link rel="stylesheet" href="css/select-search.css?v=1">
+    <link rel="stylesheet" href="css/select-search.css?v=4">
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
     <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         body { background-color: #f4f6f9; }
+        .bulk-bar { background: #1c2128; color: #fffaf4; border-radius: .65rem; padding: .45rem .75rem; box-shadow: 0 8px 18px rgba(0,0,0,.15); }
+        .bulk-bar .bulk-count { background: #ffc107; color: #1c2128; }
+        .nav-brand-logo { height: 28px; width: auto; max-width: 120px; object-fit: contain; background: #fff; border-radius: .35rem; padding: 2px; }
+        .modal-content { border: 0; border-radius: 0.9rem; overflow: hidden; box-shadow: 0 22px 55px rgba(0,0,0,.32); }
+        .modal-body, .modal-body.bg-light { background-color: #f3efe6 !important; }
+        .modal-footer { background: #fffdf8; border-top: 1px solid #eadfce; }
+        .modal-header.bg-light,
+        .modal-header:not([class*="bg-"]) {
+            background: #1c2128 !important;
+            color: #fffaf4 !important;
+            border-bottom: 3px solid #ffc107 !important;
+        }
+        .modal-header.bg-light .modal-title,
+        .modal-header:not([class*="bg-"]) .modal-title,
+        .modal-header.bg-light .text-dark { color: #fffaf4 !important; }
+        .modal-header.bg-light .btn-close,
+        .modal-header:not([class*="bg-"]) .btn-close { filter: invert(1) grayscale(1); }
+        .purchase-table input.form-control {
+            min-width: 5.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: .4rem .55rem;
+            background: #fff;
+        }
+        .purchase-table input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+        .purchase-table input[type="number"]::-webkit-outer-spin-button,
+        .purchase-table input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .purchase-table .ts-wrapper { min-width: 12rem; }
+        select.tomselected { display: none !important; }
         .app-navbar {
             background: linear-gradient(180deg, #1c2128 0%, #161a20 100%);
             border-bottom: 3px solid #ffc107;
@@ -269,10 +298,12 @@ $navItem = static function (string $page, ?string $tab = null) use ($navPage, $n
 };
 $navGroup = static fn(array $pages): string => in_array($navPage, $pages, true) ? ' active' : '';
 $vsiasPending = 0;
+$vsiasOn = \App\Helpers\Vsias::enabled();
+$brandLogo = \App\Helpers\Media::url((string)(\App\Models\Setting::all()['logo_path'] ?? ''));
 
 $vsiasPendingUrl = \App\Helpers\Vsias::pendingApprovalsUrl();
 
-if ($canSeeVsiasApprovals && !$isEmbedded) {
+if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
     try {
         $vsiasPending = \App\Helpers\Vsias::pendingApprovalCount();
     } catch (\Throwable $e) {
@@ -312,7 +343,12 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
 <nav class="navbar navbar-expand-xl navbar-dark app-navbar shadow-sm mb-4 sticky-top">
     <div class="container-fluid px-3 px-xl-4">
         <a class="navbar-brand fw-bold text-warning d-flex align-items-center" href="index.php">
-            <i class="bi bi-box-seam me-2"></i> <?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?>
+            <?php if ($brandLogo !== ''): ?>
+                <img src="<?= htmlspecialchars($brandLogo) ?>" alt="" class="nav-brand-logo me-2">
+            <?php else: ?>
+                <i class="bi bi-box-seam me-2"></i>
+            <?php endif; ?>
+            <?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?>
             <span class="badge bg-danger ms-2 border border-light shadow-sm d-none d-sm-inline nav-tier-badge" style="font-size: 0.6rem; vertical-align: middle; letter-spacing: 1px;"><?= strtoupper($tier) ?></span>
         </a>
 
@@ -372,14 +408,14 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (in_array($tier, ['enterprise']) || in_array($role, ['admin', 'dev'])): ?>
                         <li><a class="dropdown-item fw-bold text-success<?= $navItem('zra') ?>" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA Smart Invoice</a></li>
                         <?php endif; ?>
+                        <?php if ($vsiasOn): ?>
                         <li>
                             <a class="dropdown-item fw-bold text-info" href="#" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals">
                                 <i class="bi bi-clipboard-check"></i> Site inspection (V-SIAS Pro)
-                                <?php if ($canSeeVsiasApprovals && $vsiasPending > 0): ?>
-                                <span class="badge bg-danger ms-1"><?= (int)$vsiasPending ?></span>
-                                <?php endif; ?>
+                                <span class="badge bg-danger ms-1" data-live-count="approvals" style="<?= ($canSeeVsiasApprovals && $vsiasPending > 0) ? '' : 'display:none' ?>"><?= (int)$vsiasPending ?></span>
                             </a>
                         </li>
+                        <?php endif; ?>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts & X-Reads</a></li>
                         <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
@@ -403,8 +439,6 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (in_array($role, ['admin', 'dev'], true)): ?>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item fw-bold text-danger<?= $navItem('settings') ?>" href="index.php?page=settings"><i class="bi bi-gear-fill"></i> System Settings</a></li>
-                        <li><a class="dropdown-item<?= $navItem('settings', 'surcharges') ?>" href="index.php?page=settings&tab=surcharges"><i class="bi bi-plus-slash-minus"></i> POS Surcharge Reasons</a></li>
-                        <li><a class="dropdown-item<?= $navItem('settings', 'payments') ?>" href="index.php?page=settings&tab=payments"><i class="bi bi-credit-card-2-front"></i> Payments & Currency</a></li>
                         <?php endif; ?>
                     </ul>
                 </li>
@@ -450,13 +484,11 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
         <?php endif; ?>
 
             <div class="d-flex align-items-center ms-auto gap-2 nav-toolbar">
-                <?php if ($canSeeVsiasApprovals): ?>
+                <?php if ($vsiasOn && $canSeeVsiasApprovals): ?>
                 <a href="#" class="nav-chip position-relative text-decoration-none" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
                     <i class="bi bi-bell-fill text-warning"></i>
                     Approvals
-                    <?php if ($vsiasPending > 0): ?>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= (int)$vsiasPending ?></span>
-                    <?php endif; ?>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="approvals" style="<?= $vsiasPending > 0 ? '' : 'display:none' ?>"><?= (int)$vsiasPending ?></span>
                 </a>
                 <?php endif; ?>
                 <button type="button" class="nav-chip btn hover-location" data-bs-toggle="modal" data-bs-target="#globalLocationModal" title="Change workstation">
@@ -513,7 +545,7 @@ if ($canSeeVsiasApprovals && !$isEmbedded) {
         });
     });
 </script>
-<?php if (!$isEmbedded): ?>
+<?php if (!$isEmbedded && $vsiasOn): ?>
 <!-- V-SIAS Inspection Modal -->
 <div class="modal fade" id="vsiasInspectModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered" style="max-width: 96vw; width: 96vw; margin: 2vh auto;">

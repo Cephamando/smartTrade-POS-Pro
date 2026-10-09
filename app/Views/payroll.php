@@ -44,6 +44,17 @@ $deductions = array_values(array_filter($components, fn($c) => $c['kind'] === 'd
     <div class="col-6 col-md"><div class="card border-0 shadow-sm border-start border-4 border-<?= $c ?>"><div class="card-body py-2"><div class="small text-muted fw-bold"><?= $l ?></div><div class="fs-5 fw-bold">K<?= $money($v) ?></div></div></div></div>
     <?php endforeach; ?>
 </div>
+<?php if ($isDraft): ?>
+<?php
+$bulkFormId = 'bulkSlips';
+$bulkAction = 'index.php?page=payroll';
+$bulkHidden = ['tab' => 'runs', 'run_id' => (int)$run['id']];
+$bulkButtons = [
+    ['value' => 'remove_slips', 'label' => 'Remove from run', 'class' => 'btn-outline-danger', 'title' => 'Remove the selected employees from this draft?', 'confirm' => 'Remove', 'color' => '#dc3545'],
+];
+include __DIR__ . '/partials/bulk_bar.php';
+?>
+<?php endif; ?>
 <form method="POST" id="runForm">
     <input type="hidden" name="tab" value="runs">
     <input type="hidden" name="recalculate_run" value="<?= (int)$run['id'] ?>">
@@ -52,6 +63,7 @@ $deductions = array_values(array_filter($components, fn($c) => $c['kind'] === 'd
             <table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-dark small">
                     <tr>
+                        <?php if ($isDraft): ?><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkSlips" title="Select all"></th><?php endif; ?>
                         <th>Employee</th>
                         <th class="text-end" style="width:90px">Days</th>
                         <th class="text-end" style="width:110px">Basic</th>
@@ -67,9 +79,10 @@ $deductions = array_values(array_filter($components, fn($c) => $c['kind'] === 'd
                     </tr>
                 </thead>
                 <tbody>
-                <?php if (!$run['slips']): ?><tr><td colspan="12" class="text-center text-muted py-4">No employees on this run. Add active employees and click Recalculate.</td></tr><?php endif; ?>
+                <?php if (!$run['slips']): ?><tr><td colspan="<?= $isDraft ? 13 : 12 ?>" class="text-center text-muted py-4">No employees on this run. Add active employees and click Recalculate.</td></tr><?php endif; ?>
                 <?php foreach ($run['slips'] as $s): $eid = (int)$s['employee_id']; ?>
                     <tr>
+                        <?php if ($isDraft): ?><td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= $eid ?>" form="bulkSlips"></td><?php endif; ?>
                         <td>
                             <div class="fw-bold"><?= htmlspecialchars($s['full_name']) ?></div>
                             <div class="small text-muted"><?= htmlspecialchars($s['position'] ?? '') ?> · <?= htmlspecialchars($s['pay_type']) ?><?= $s['employee_no'] ? ' · ' . htmlspecialchars($s['employee_no']) : '' ?></div>
@@ -236,14 +249,25 @@ function applyExtra() { const holder = document.getElementById('extraInputs'); d
         </div>
     </div>
     <div class="col-lg-7">
+        <?php
+        $bulkFormId = 'bulkEmployees';
+        $bulkAction = 'index.php?page=payroll';
+        $bulkHidden = ['tab' => 'employees'];
+        $bulkButtons = [
+            ['value' => 'activate', 'label' => 'Activate', 'class' => 'btn-success', 'title' => 'Activate the selected employees?', 'confirm' => 'Activate', 'color' => '#198754'],
+            ['value' => 'deactivate', 'label' => 'Deactivate', 'class' => 'btn-outline-light', 'title' => 'Deactivate the selected employees?', 'text' => 'They stay on file but drop out of new pay runs.', 'confirm' => 'Deactivate', 'color' => '#6c757d'],
+        ];
+        include __DIR__ . '/partials/bulk_bar.php';
+        ?>
         <div class="card shadow-sm border-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-dark"><tr><th>Employee</th><th>Position</th><th>Pay</th><th>Statutory</th><th class="text-center">Status</th><th></th></tr></thead>
+                    <thead class="table-dark"><tr><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkEmployees" title="Select all"></th><th>Employee</th><th>Position</th><th>Pay</th><th>Statutory</th><th class="text-center">Status</th><th></th></tr></thead>
                     <tbody>
-                    <?php if (!$employees): ?><tr><td colspan="6" class="text-center text-muted py-4">No employees yet.</td></tr><?php endif; ?>
+                    <?php if (!$employees): ?><tr><td colspan="7" class="text-center text-muted py-4">No employees yet.</td></tr><?php endif; ?>
                     <?php foreach ($employees as $row): ?>
                         <tr class="<?= $row['is_active'] ? '' : 'text-muted' ?>">
+                            <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$row['id'] ?>" form="bulkEmployees"></td>
                             <td><div class="fw-bold"><?= htmlspecialchars($row['full_name']) ?></div><div class="small text-muted"><?= htmlspecialchars($row['employee_no'] ?? '') ?><?= $row['username'] ? ' · POS: ' . htmlspecialchars($row['username']) : '' ?></div></td>
                             <td class="small"><?= htmlspecialchars($row['position'] ?? '') ?><br><span class="text-muted"><?= htmlspecialchars($row['location_name'] ?? '') ?></span></td>
                             <td class="small"><?= $row['pay_type'] === 'monthly' ? 'K' . $money($row['basic_salary']) . '/mo' : ($row['pay_type'] === 'daily' ? 'K' . $money($row['daily_rate']) . '/day' : 'K' . $money($row['hourly_rate']) . '/hr') ?><br><span class="text-muted"><?= htmlspecialchars($row['pay_method']) ?></span></td>
@@ -291,12 +315,22 @@ function applyExtra() { const holder = document.getElementById('extraInputs'); d
         </div>
     </div>
     <div class="col-lg-8">
+        <?php
+        $bulkFormId = 'bulkComponents';
+        $bulkAction = 'index.php?page=payroll';
+        $bulkHidden = ['tab' => 'components'];
+        $bulkButtons = [
+            ['value' => 'delete_components', 'label' => 'Remove selected', 'class' => 'btn-outline-danger', 'title' => 'Remove the selected pay components?', 'text' => 'They are removed from all employees. Past payslips are unchanged.', 'confirm' => 'Remove', 'color' => '#dc3545'],
+        ];
+        include __DIR__ . '/partials/bulk_bar.php';
+        ?>
         <div class="card shadow-sm border-0">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-dark"><tr><th>Component</th><th>Type</th><th>Calc</th><th class="text-end">Default</th><th class="text-center">Taxable</th><th class="text-center">Active</th><th></th></tr></thead>
+                <thead class="table-dark"><tr><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkComponents" title="Select all"></th><th>Component</th><th>Type</th><th>Calc</th><th class="text-end">Default</th><th class="text-center">Taxable</th><th class="text-center">Active</th><th></th></tr></thead>
                 <tbody>
                 <?php foreach ($components as $c): ?>
                     <tr>
+                        <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$c['id'] ?>" form="bulkComponents"></td>
                         <td class="fw-bold"><?= htmlspecialchars($c['name']) ?></td>
                         <td><span class="badge <?= $c['kind'] === 'deduction' ? 'bg-danger' : 'bg-success' ?>"><?= $c['kind'] ?></span></td>
                         <td class="small"><?= $c['calc'] === 'percent' ? '% of basic' : 'fixed' ?></td>
