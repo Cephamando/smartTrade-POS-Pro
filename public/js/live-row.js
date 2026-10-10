@@ -110,6 +110,9 @@
             throw new Error('The list could not be updated.');
         }
         Array.prototype.forEach.call(host.querySelectorAll('tr'), function (tr) {
+            if (tr.id === 'noResultsRow') {
+                return;
+            }
             if (!tr.getAttribute('data-live-id') && tr.querySelector('td[colspan]')) {
                 tr.remove();
             }

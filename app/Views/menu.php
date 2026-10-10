@@ -208,7 +208,10 @@ function filterMenu() {
         }
     });
 
-    document.getElementById('noResultsRow').style.display = (visibleCount === 0) ? '' : 'none';
+    const empty = document.getElementById('noResultsRow');
+    if (empty) {
+        empty.style.display = (visibleCount === 0) ? '' : 'none';
+    }
 }
 
 function editItem(m) {
