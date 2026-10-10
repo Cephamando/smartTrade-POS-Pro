@@ -8,6 +8,8 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
         <h6 class="fw-bold"><?= $id ? 'Event file' : 'New event' ?></h6>
         <form method="POST" enctype="multipart/form-data" class="row g-2" id="eventFileForm">
             <input type="hidden" name="event_id" value="<?= $id ?>">
+            <input type="hidden" name="save_event" value="1">
+            <input type="hidden" name="cover_framed" id="eventCoverFramed" value="0">
             <div class="col-12"><label class="form-label small fw-bold text-muted">NAME</label><input name="title" class="form-control" value="<?= htmlspecialchars((string)$event['title']) ?>" required></div>
             <div class="col-md-6"><label class="form-label small fw-bold text-muted">STARTS</label><input type="datetime-local" name="starts_at" class="form-control" value="<?= htmlspecialchars($dtLocal($event['starts_at'] ?? '')) ?>" required></div>
             <div class="col-md-6"><label class="form-label small fw-bold text-muted">ENDS</label><input type="datetime-local" name="ends_at" class="form-control" value="<?= htmlspecialchars($dtLocal($event['ends_at'] ?? '')) ?>" required></div>
@@ -66,7 +68,7 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
                 </div>
                 <?php endif; ?>
             </div>
-            <div class="col-12"><button class="btn btn-dark fw-bold" name="save_event" value="1">Save event</button></div>
+            <div class="col-12"><button type="submit" class="btn btn-dark fw-bold">Save event</button></div>
         </form>
     </div>
 </div>
@@ -85,6 +87,7 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
 (function () {
     var form = document.getElementById('eventFileForm');
     var pathInput = document.getElementById('eventCoverPath');
+    var framedInput = document.getElementById('eventCoverFramed');
     var uploadInput = document.getElementById('eventCoverUpload');
     var fileInput = document.getElementById('eventCoverFile');
     var stage = document.getElementById('eventCoverStage');
@@ -168,6 +171,7 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
             return;
         }
         pickedName = chosen.name;
+        pathInput.value = '';
         document.querySelectorAll('.event-cover-pick').forEach(function (el) { el.classList.remove('active'); });
         var reader = new FileReader();
         reader.onload = function () { startCrop(String(reader.result || '')); };
@@ -179,6 +183,7 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
 
     document.getElementById('eventCoverClear').addEventListener('click', function () {
         pathInput.value = '';
+        framedInput.value = '0';
         pickedName = '';
         fileInput.value = '';
         uploadInput.value = '';
@@ -204,6 +209,9 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
             var transfer = new DataTransfer();
             transfer.items.add(new File([blob], coverFileName(), { type: 'image/jpeg' }));
             uploadInput.files = transfer.files;
+            if (!uploadInput.files || !uploadInput.files.length) return;
+            pathInput.value = '';
+            framedInput.value = '1';
             sending = true;
             form.submit();
         }, 'image/jpeg', 0.9);

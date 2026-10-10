@@ -53,8 +53,12 @@ final class EventsController extends Controller
         }
         try {
             if (isset($_POST['save_event'])) {
-                $upload = $_FILES['cover_upload'] ?? null;
-                if (is_array($upload) && (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                if (($_POST['cover_framed'] ?? '') === '1') {
+                    $upload = $_FILES['cover_upload'] ?? null;
+                    $err = is_array($upload) ? (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) : UPLOAD_ERR_NO_FILE;
+                    if ($err !== UPLOAD_ERR_OK) {
+                        throw new \RuntimeException('The framed cover did not upload. Try a smaller picture.');
+                    }
                     $_POST['cover_path'] = Media::store('cover_upload', 'library');
                 }
                 $id = Event::save(
@@ -69,7 +73,11 @@ final class EventsController extends Controller
             if (!$event) {
                 throw new \RuntimeException('Choose an event first.');
             }
-            if (isset($_POST['add_option'])) {
+            if (isset($_POST['delete_event'])) {
+                Event::delete($eventId);
+                $this->flash('success', 'Event removed.');
+                $this->redirect('events');
+            } elseif (isset($_POST['add_option'])) {
                 Event::saveOption($eventId, (string)$_POST['group_name'], (string)$_POST['name'], (float)$_POST['price'], (int)$_POST['capacity']);
                 $this->flash('success', 'Choice added.');
             } elseif (isset($_POST['delete_option'])) {

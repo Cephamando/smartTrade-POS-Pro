@@ -98,6 +98,10 @@ $link = static fn(array $guest) => 'index.php?page=shop&view=rsvp&token=' . $gue
         <?php if ($event['visibility'] === 'published'): ?>
         <a class="small" href="index.php?page=shop&view=event&slug=<?= urlencode($event['slug']) ?>">Shop page</a>
         <?php endif; ?>
+        <form method="POST" class="mt-2 js-confirm-form" data-swal-title="Remove this event?" data-swal-text="Guests, payments, and the shop page for this event will be removed. Pictures in the library stay." data-swal-confirm="Remove event" data-swal-icon="warning">
+            <input type="hidden" name="event_id" value="<?= $id ?>">
+            <button class="btn btn-sm btn-outline-danger" name="delete_event" value="1">Remove event</button>
+        </form>
     </div>
 </div>
 

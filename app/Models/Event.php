@@ -177,6 +177,19 @@ final class Event extends Model
         return (int)self::db()->lastInsertId();
     }
 
+    public static function delete(int $id): void
+    {
+        self::ensureSchema();
+        $pdo = self::db();
+        $pdo->prepare(
+            'DELETE s FROM event_selections s INNER JOIN event_guests g ON g.id = s.guest_id WHERE g.event_id = ?'
+        )->execute([$id]);
+        foreach (['event_payments', 'event_messages', 'event_options', 'event_guests', 'event_tasks', 'event_agenda'] as $table) {
+            $pdo->prepare('DELETE FROM ' . $table . ' WHERE event_id = ?')->execute([$id]);
+        }
+        $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
+    }
+
     public static function find(int $id): ?array
     {
         self::ensureSchema();
