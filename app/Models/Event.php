@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\Media;
 use PDO;
 
 final class Event extends Model
@@ -142,7 +143,7 @@ final class Event extends Model
         }
         $visibility = ($data['visibility'] ?? '') === 'published' ? 'published' : 'private';
         $status = in_array($data['status'] ?? '', ['draft', 'open', 'closed', 'cancelled'], true) ? $data['status'] : 'draft';
-        $cover = trim((string)($data['cover_path'] ?? ''));
+        $cover = Media::url((string)($data['cover_path'] ?? ''));
         $cover = $cover === '' ? null : $cover;
         $fields = [
             (int)($data['location_id'] ?? 0) ?: null,

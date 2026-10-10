@@ -54,7 +54,7 @@ final class Media
     /**
      * Images already saved for the library, branding, and menu items.
      *
-     * @return list<array{path:string,mtime:int}>
+     * @return list<array{path:string,label:string,mtime:int}>
      */
     public static function list(): array
     {
@@ -66,12 +66,13 @@ final class Media
                 continue;
             }
             foreach (scandir($dir) ?: [] as $name) {
-                if (!preg_match('/^[a-f0-9]+\.(jpg|png|webp|gif)$/', $name)) {
+                if (!preg_match('/^[a-z0-9][a-z0-9_-]{0,80}\.(jpg|png|webp|gif)$/', $name)) {
                     continue;
                 }
                 $full = $dir . '/' . $name;
                 $items[] = [
                     'path' => 'uploads/' . $folder . '/' . $name,
+                    'label' => self::labelFromFile($name, (int)(@filemtime($full) ?: 0)),
                     'mtime' => (int)(@filemtime($full) ?: 0),
                 ];
             }
@@ -109,7 +110,7 @@ final class Media
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             throw new \RuntimeException('The server could not store the image. The uploads folder is not writable.');
         }
-        $name = bin2hex(random_bytes(8)) . '.' . self::TYPES[$mime];
+        $name = self::uniqueName($dir, self::readableBase((string)($file['name'] ?? '')), self::TYPES[$mime]);
         if (!move_uploaded_file((string)$file['tmp_name'], $dir . '/' . $name)) {
             throw new \RuntimeException('The image could not be saved.');
         }
@@ -153,7 +154,7 @@ final class Media
     public static function delete(?string $relative): void
     {
         $relative = str_replace('\\', '/', (string)$relative);
-        if (!preg_match('#^uploads/[a-z0-9_-]+/[a-f0-9]{16}\.(jpg|png|webp|gif)$#', $relative)) {
+        if (!preg_match('#^uploads/[a-z0-9_-]+/[a-z0-9][a-z0-9_-]{0,80}\.(jpg|png|webp|gif)$#', $relative)) {
             return;
         }
         $full = dirname(__DIR__, 2) . '/public/' . $relative;
@@ -165,10 +166,45 @@ final class Media
     public static function url(?string $relative): string
     {
         $relative = str_replace('\\', '/', (string)$relative);
-        if (!preg_match('#^uploads/[a-z0-9_-]+/[a-f0-9]+\.(jpg|png|webp|gif)$#', $relative)) {
+        if (!preg_match('#^uploads/[a-z0-9_-]+/[a-z0-9][a-z0-9_-]{0,80}\.(jpg|png|webp|gif)$#', $relative)) {
             return '';
         }
         $full = dirname(__DIR__, 2) . '/public/' . $relative;
         return is_file($full) ? $relative : '';
+    }
+
+    private static function readableBase(string $original): string
+    {
+        $base = strtolower(pathinfo($original, PATHINFO_FILENAME));
+        $base = preg_replace('/[^a-z0-9]+/', '-', $base) ?? '';
+        $base = trim($base, '-');
+        if ($base === '' || preg_match('/^[a-f0-9]{12,}$/', $base)) {
+            $base = 'photo';
+        }
+        return substr($base, 0, 60);
+    }
+
+    private static function uniqueName(string $dir, string $base, string $ext): string
+    {
+        $name = $base . '.' . $ext;
+        $n = 2;
+        while (is_file($dir . '/' . $name)) {
+            $name = $base . '-' . $n . '.' . $ext;
+            $n++;
+            if ($n > 50) {
+                return $base . '-' . bin2hex(random_bytes(2)) . '.' . $ext;
+            }
+        }
+        return $name;
+    }
+
+    private static function labelFromFile(string $name, int $mtime = 0): string
+    {
+        $base = pathinfo($name, PATHINFO_FILENAME);
+        if (preg_match('/^[a-f0-9]{12,}$/', $base)) {
+            return $mtime > 0 ? date('j M Y, H:i', $mtime) : 'Saved photo';
+        }
+        $base = preg_replace('/-\d+$/', '', $base) ?? $base;
+        return ucwords(str_replace('-', ' ', $base));
     }
 }

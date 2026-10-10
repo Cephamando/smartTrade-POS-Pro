@@ -53,6 +53,10 @@ final class EventsController extends Controller
         }
         try {
             if (isset($_POST['save_event'])) {
+                $upload = $_FILES['cover_upload'] ?? null;
+                if (is_array($upload) && (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                    $_POST['cover_path'] = Media::store('cover_upload', 'library');
+                }
                 $id = Event::save(
                     (int)($_POST['event_id'] ?? 0) ?: null,
                     $_POST + ['created_by' => $this->userId()]
