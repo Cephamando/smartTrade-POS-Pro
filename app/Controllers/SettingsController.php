@@ -44,6 +44,8 @@ final class SettingsController extends Controller
                     $this->useLibraryImage();
                 } elseif (isset($_POST['save_product_photo'])) {
                     $this->saveProductPhoto();
+                } elseif (isset($_POST['save_email'])) {
+                    $this->saveEmail();
                 } elseif (isset($_POST['bulk_action'])) {
                     $this->bulkSurcharges();
                 } else {
@@ -207,6 +209,21 @@ final class SettingsController extends Controller
             Setting::save($pairs);
         }
         $this->flash('success', 'Branding images saved. They show on the menu bar, receipts, sign-in, and the online shop.');
+    }
+
+    private function saveEmail(): void
+    {
+        $existing = Setting::all();
+        $pass = (string)($_POST['smtp_pass'] ?? '');
+        Setting::save([
+            'smtp_host' => trim((string)($_POST['smtp_host'] ?? '')),
+            'smtp_port' => (string)max(1, (int)($_POST['smtp_port'] ?? 587)),
+            'smtp_user' => trim((string)($_POST['smtp_user'] ?? '')),
+            'smtp_pass' => $pass !== '' ? $pass : (string)($existing['smtp_pass'] ?? ''),
+            'smtp_from' => trim((string)($_POST['smtp_from'] ?? '')),
+            'smtp_from_name' => trim((string)($_POST['smtp_from_name'] ?? '')),
+        ]);
+        $this->flash('success', 'Email settings saved. Invitations use them when the host and from address are filled in.');
     }
 
     private function saveLibrary(): void

@@ -287,7 +287,7 @@ $canSeeVsiasApprovals = in_array($role, ['admin', 'manager', 'dev'], true);
 $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navInventoryPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'inventory_logs'];
-$navManagementPages = ['reports', 'report_consumption', 'z_read', 'zra', 'shifts', 'users', 'locations', 'tables', 'settings'];
+$navManagementPages = ['reports', 'report_consumption', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
         return '';
@@ -435,6 +435,9 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
 
                         <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
                         <li><a class="dropdown-item<?= $navItem('tables') ?>" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Table Settings</a></li>
+                        <?php endif; ?>
+                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
+                        <li><a class="dropdown-item<?= $navItem('events') ?>" href="index.php?page=events"><i class="bi bi-calendar-event"></i> Events</a></li>
                         <?php endif; ?>
 
                         <?php if (in_array($role, ['admin', 'dev'], true)): ?>

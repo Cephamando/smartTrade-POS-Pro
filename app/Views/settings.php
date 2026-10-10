@@ -1,6 +1,6 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding'], true) ? $tab : 'general';
+$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email'], true) ? $tab : 'general';
 $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['flw_secret_key'], 0, 12) . '••••••••' : '';
 $tabs = [
     'general' => ['bi-sliders', 'General'],
@@ -9,6 +9,7 @@ $tabs = [
     'currency' => ['bi-currency-exchange', 'Currency'],
     'shop' => ['bi-bag-heart', 'Customer ordering'],
     'branding' => ['bi-image', 'Logo & banners'],
+    'email' => ['bi-envelope', 'Email'],
 ];
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -967,4 +968,48 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
     });
 })();
 </script>
+<?php elseif ($tab === 'email'): ?>
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm border-0 border-top border-4 border-primary">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-1"><i class="bi bi-envelope text-primary"></i> Invitation email</h5>
+                <p class="text-muted small">Event invitations are sent from this mailbox. Leave the password blank to keep the one already saved. Until the host and from address are filled in, guest links are still created and the send is recorded as not sent.</p>
+                <form method="POST" action="index.php?page=settings">
+                    <input type="hidden" name="tab" value="email">
+                    <input type="hidden" name="save_email" value="1">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">SMTP HOST</label>
+                            <input name="smtp_host" class="form-control" value="<?= htmlspecialchars((string)($settings['smtp_host'] ?? '')) ?>" placeholder="smtp.example.com">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">PORT</label>
+                            <input type="number" name="smtp_port" class="form-control" value="<?= htmlspecialchars((string)($settings['smtp_port'] ?? '587')) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">USERNAME</label>
+                            <input name="smtp_user" class="form-control" value="<?= htmlspecialchars((string)($settings['smtp_user'] ?? '')) ?>" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">PASSWORD</label>
+                            <input type="password" name="smtp_pass" class="form-control" value="" placeholder="<?= !empty($settings['smtp_pass']) ? 'Saved. Leave blank to keep it.' : 'Mailbox password' ?>" autocomplete="new-password">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">FROM ADDRESS</label>
+                            <input type="email" name="smtp_from" class="form-control" value="<?= htmlspecialchars((string)($settings['smtp_from'] ?? '')) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">FROM NAME</label>
+                            <input name="smtp_from_name" class="form-control" value="<?= htmlspecialchars((string)($settings['smtp_from_name'] ?? ($settings['business_name'] ?? ''))) ?>">
+                        </div>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button class="btn btn-dark fw-bold px-5"><i class="bi bi-save"></i> Save email</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 <?php endif; ?>

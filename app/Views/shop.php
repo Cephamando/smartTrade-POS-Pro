@@ -85,6 +85,15 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .item-face.item-photo span { background: rgba(20, 10, 4, .45); border-radius: 999px; padding: 2px 8px; }
         .shop-hero.has-banner { background-size: cover; background-position: center; }
         .promo-banner { display: block; width: 100%; max-height: 180px; object-fit: cover; border-radius: 22px; margin: 0 0 16px; }
+        .event-advert { overflow: hidden; margin: 0 0 16px; border-radius: 22px; background: var(--dark); color: #fffaf4; }
+        .event-advert-track { display: flex; width: max-content; animation: event-advert-scroll 32s linear infinite; }
+        .event-advert:hover .event-advert-track, .event-advert:focus-within .event-advert-track { animation-play-state: paused; }
+        .event-advert-card { display: flex; align-items: center; gap: 12px; min-width: 340px; padding: 10px 16px; color: inherit; text-decoration: none; border-right: 1px solid rgba(255, 250, 244, .16); }
+        .event-advert-card img { width: 84px; height: 52px; object-fit: cover; border-radius: 12px; flex-shrink: 0; }
+        .event-advert-card strong { display: block; }
+        .event-advert-card span { display: block; font-size: .78rem; opacity: .8; }
+        @keyframes event-advert-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @media (prefers-reduced-motion: reduce) { .event-advert { overflow-x: auto; } .event-advert-track { animation: none; } }
         .item-face i { position: absolute; right: 10px; top: 8px; font-size: 3.2rem; opacity: .22; }
         .item-face span { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
         .price { color: var(--dark); font-weight: 800; }
@@ -112,6 +121,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <span class="fw-bold text-truncate"><?= htmlspecialchars($title) ?></span>
         </a>
         <div class="d-flex align-items-center gap-3 small flex-shrink-0">
+            <a href="<?= $u('events') ?>" class="nav-link-soft"><i class="bi bi-calendar-event"></i> <span class="d-none d-sm-inline">Events</span></a>
             <a href="<?= $u('cart') ?>" class="nav-link-soft position-relative"><i class="bi bi-bag"></i><?php if ($cartCount): ?> <span class="badge rounded-pill" style="background:var(--accent);color:var(--on-accent)"><?= (int)$cartCount ?></span><?php endif; ?></a>
             <?php if ($customer): ?>
                 <a href="<?= $u('orders') ?>" class="nav-link-soft"><i class="bi bi-receipt"></i> <span class="d-none d-sm-inline">Orders</span></a>
@@ -163,6 +173,29 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <h1><?= htmlspecialchars($title) ?></h1>
         <p><?= htmlspecialchars(($settings['shop_intro'] ?? '') ?: 'Fresh from our kitchen. Order ahead and skip the queue.') ?></p>
     </section>
+    <?php if (!empty($events)):
+        $ads = $events;
+        while (count($ads) < 4) {
+            $ads = array_merge($ads, $events);
+        }
+    ?>
+    <div class="event-advert" aria-label="Upcoming events">
+        <div class="event-advert-track">
+            <?php for ($copy = 0; $copy < 2; $copy++): foreach ($ads as $ev):
+                $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
+                $when = !empty($ev['starts_at']) ? date('D j M, H:i', strtotime((string)$ev['starts_at'])) : '';
+            ?>
+            <a class="event-advert-card" href="<?= $u('event', ['slug' => $ev['slug']]) ?>">
+                <?php if ($cover !== ''): ?><img src="<?= htmlspecialchars($cover) ?>" alt=""><?php endif; ?>
+                <div>
+                    <strong><?= htmlspecialchars($ev['title']) ?></strong>
+                    <span><?= htmlspecialchars($when) ?><?= trim((string)($ev['summary'] ?? '')) !== '' ? ' · ' . htmlspecialchars((string)$ev['summary']) : '' ?></span>
+                </div>
+            </a>
+            <?php endforeach; endfor; ?>
+        </div>
+    </div>
+    <?php endif; ?>
     <?php if ($promoUrl !== ''): ?><img class="promo-banner" src="<?= htmlspecialchars($promoUrl) ?>" alt=""><?php endif; ?>
     <div class="row g-2 mb-3 align-items-center">
         <?php if (count($shopLocations) > 1): ?>
@@ -404,6 +437,172 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <form method="POST" action="<?= $u('account') ?>" class="mt-2"><input type="hidden" name="logout" value="1"><button class="btn btn-outline-secondary w-100 rounded-pill">Sign out</button></form>
         </div></div>
     </div>
+
+<?php elseif ($view === 'events'): ?>
+    <section class="shop-hero">
+        <div class="eyebrow">Functions</div>
+        <h1>Events</h1>
+        <p>Private dinners, tastings, and celebrations. Apply for a place, then keep the link we give you.</p>
+    </section>
+    <?php if (empty($events)): ?>
+        <div class="card item-card"><div class="card-body p-4 text-muted">No events are open right now.</div></div>
+    <?php else: ?>
+        <div class="row g-3">
+        <?php foreach ($events as $ev):
+            $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
+            $when = $ev['starts_at'] ? date('D j M Y, H:i', strtotime((string)$ev['starts_at'])) : '';
+        ?>
+            <div class="col-md-6">
+                <a href="<?= $u('event', ['slug' => $ev['slug']]) ?>" class="card item-card h-100 text-decoration-none text-reset">
+                    <?php if ($cover !== ''): ?><img src="<?= htmlspecialchars($cover) ?>" alt="" style="width:100%;height:160px;object-fit:cover;border-radius:22px 22px 0 0;"><?php endif; ?>
+                    <div class="card-body">
+                        <div class="small text-muted"><?= htmlspecialchars($when) ?><?= !empty($ev['location_name']) ? ' · ' . htmlspecialchars($ev['location_name']) : '' ?></div>
+                        <h5 class="fw-bold mb-1"><?= htmlspecialchars($ev['title']) ?></h5>
+                        <p class="mb-0 text-muted"><?= htmlspecialchars((string)($ev['summary'] ?? '')) ?></p>
+                    </div>
+                </a>
+            </div>
+        <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+<?php elseif ($view === 'event'): ?>
+    <?php if (empty($event)): ?>
+        <section class="shop-hero"><h1>Event not found</h1><p>This function is private, closed, or the link is wrong.</p></section>
+        <a href="<?= $u('events') ?>" class="btn btn-accent rounded-pill">All events</a>
+    <?php else:
+        $cover = \App\Helpers\Media::url((string)($event['cover_path'] ?? ''));
+        $when = $event['starts_at'] ? date('D j M Y, H:i', strtotime((string)$event['starts_at'])) : '';
+        $groups = [];
+        foreach ($options as $opt) {
+            $groups[$opt['group_name'] ?: 'Choice'][] = $opt;
+        }
+    ?>
+        <?php if ($cover !== ''): ?><img src="<?= htmlspecialchars($cover) ?>" alt="" class="w-100 mb-3" style="max-height:320px;object-fit:cover;border-radius:28px;"><?php endif; ?>
+        <section class="shop-hero">
+            <div class="eyebrow"><?= htmlspecialchars($when) ?></div>
+            <h1><?= htmlspecialchars($event['title']) ?></h1>
+            <p><?= htmlspecialchars((string)($event['summary'] ?? '')) ?></p>
+        </section>
+        <?php if (trim((string)($event['story'] ?? '')) !== ''): ?>
+            <div class="card item-card mb-3"><div class="card-body p-4" style="white-space:pre-wrap"><?= htmlspecialchars((string)$event['story']) ?></div></div>
+        <?php endif; ?>
+        <?php if ($groups): ?>
+            <div class="card item-card mb-3"><div class="card-body p-4">
+                <h5 class="fw-bold">What you can choose</h5>
+                <?php foreach ($groups as $group => $rows): ?>
+                    <div class="fw-bold small text-muted mt-2"><?= htmlspecialchars((string)$group) ?></div>
+                    <ul class="mb-0">
+                    <?php foreach ($rows as $opt): ?>
+                        <li><?= htmlspecialchars($opt['name']) ?><?php if ((float)$opt['price'] > 0): ?> · <?= $money($opt['price']) ?><?php endif; ?></li>
+                    <?php endforeach; ?>
+                    </ul>
+                <?php endforeach; ?>
+            </div></div>
+        <?php endif; ?>
+        <div class="card item-card"><div class="card-body p-4">
+            <h5 class="fw-bold">Apply for a place</h5>
+            <p class="text-muted small">We send you a private page. A deposit of <?= $money($event['deposit_amount']) ?> is collected there when one is set.</p>
+            <form method="POST" action="<?= $u('event', ['slug' => $event['slug']]) ?>">
+                <input type="hidden" name="event_apply" value="1">
+                <input type="hidden" name="slug" value="<?= htmlspecialchars($event['slug']) ?>">
+                <div class="row g-2">
+                    <div class="col-md-6"><label class="form-label fw-bold small text-muted">NAME</label><input name="name" class="form-control" required value="<?= htmlspecialchars((string)($customer['name'] ?? '')) ?>"></div>
+                    <div class="col-md-3"><label class="form-label fw-bold small text-muted">PARTY</label><input type="number" name="party_size" class="form-control" min="1" max="50" value="1" required></div>
+                    <div class="col-md-3"><label class="form-label fw-bold small text-muted">PHONE</label><input name="phone" class="form-control" value="<?= htmlspecialchars((string)($customer['phone'] ?? '')) ?>"></div>
+                    <div class="col-md-6"><label class="form-label fw-bold small text-muted">EMAIL</label><input type="email" name="email" class="form-control" value="<?= htmlspecialchars((string)($customer['email'] ?? '')) ?>"></div>
+                    <div class="col-md-6"><label class="form-label fw-bold small text-muted">NOTE</label><input name="note" class="form-control" placeholder="Allergies, celebration, seating"></div>
+                </div>
+                <button class="btn btn-accent rounded-pill px-4 mt-3">Apply</button>
+            </form>
+        </div></div>
+    <?php endif; ?>
+
+<?php elseif ($view === 'rsvp'): ?>
+    <?php if (empty($guest) || empty($event)): ?>
+        <section class="shop-hero"><h1>Invitation not found</h1><p>Ask the restaurant for a new link.</p></section>
+    <?php else:
+        $when = $event['starts_at'] ? date('D j M Y, H:i', strtotime((string)$event['starts_at'])) : '';
+        $open = ($event['status'] ?? '') === 'open';
+        $groups = [];
+        foreach ($options as $opt) {
+            $groups[$opt['group_name'] ?: 'Choice'][] = $opt;
+        }
+        $picked = $picked ?? [];
+    ?>
+        <section class="shop-hero">
+            <div class="eyebrow"><?= htmlspecialchars($when) ?></div>
+            <h1><?= htmlspecialchars($event['title']) ?></h1>
+            <p>Hello <?= htmlspecialchars($guest['name']) ?>. This page is only yours.</p>
+        </section>
+        <div class="card item-card mb-3"><div class="card-body p-4">
+            <div class="d-flex justify-content-between"><span>Reply</span><strong><?= htmlspecialchars((string)$guest['status']) ?></strong></div>
+            <div class="d-flex justify-content-between"><span>Paid</span><strong><?= $money($paid ?? 0) ?></strong></div>
+            <?php if (($charge['amount'] ?? 0) > 0): ?>
+                <div class="d-flex justify-content-between"><span><?= htmlspecialchars(ucfirst((string)$charge['purpose'])) ?> due</span><strong><?= $money($charge['amount']) ?></strong></div>
+            <?php endif; ?>
+        </div></div>
+        <?php if ($open): ?>
+        <form method="POST" action="<?= $u('rsvp', ['token' => $guest['token']]) ?>" class="card item-card mb-3">
+            <div class="card-body p-4">
+                <input type="hidden" name="event_reply" value="1">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($guest['token']) ?>">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small text-muted">CAN YOU ATTEND?</label>
+                        <select name="reply" class="form-select">
+                            <option value="accepted" <?= $guest['status'] === 'declined' ? '' : 'selected' ?>>Yes, I'll be there</option>
+                            <option value="declined" <?= $guest['status'] === 'declined' ? 'selected' : '' ?>>No, I can't</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small text-muted">PARTY</label>
+                        <input type="number" name="party_size" class="form-control" min="1" max="50" value="<?= (int)$guest['party_size'] ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small text-muted">NOTE</label>
+                        <input name="note" class="form-control" value="<?= htmlspecialchars((string)($guest['note'] ?? '')) ?>">
+                    </div>
+                </div>
+                <?php foreach ($groups as $group => $rows): ?>
+                    <div class="fw-bold mb-1"><?= htmlspecialchars((string)$group) ?></div>
+                    <?php foreach ($rows as $opt):
+                        $full = (int)$opt['capacity'] > 0 && \App\Models\Event::optionTaken((int)$opt['id'], (int)$guest['id']) >= (int)$opt['capacity'];
+                    ?>
+                        <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
+                            <span><input type="radio" name="option_id[<?= htmlspecialchars((string)$group) ?>]" value="<?= (int)$opt['id'] ?>" <?= in_array((int)$opt['id'], $picked, true) ? 'checked' : '' ?> <?= $full && !in_array((int)$opt['id'], $picked, true) ? 'disabled' : '' ?>> <?= htmlspecialchars($opt['name']) ?><?= $full ? ' (full)' : '' ?></span>
+                            <span><?= (float)$opt['price'] > 0 ? $money($opt['price']) : '' ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
+                <button class="btn btn-accent rounded-pill px-4 mt-2">Save reply</button>
+            </div>
+        </form>
+        <?php endif; ?>
+        <?php if (($charge['amount'] ?? 0) > 0 && !in_array($guest['status'], ['declined', 'cancelled'], true)): ?>
+        <form method="POST" action="<?= $u('rsvp', ['token' => $guest['token']]) ?>" class="card item-card">
+            <div class="card-body p-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="fw-bold">Pay <?= htmlspecialchars((string)$charge['purpose']) ?></div>
+                    <div class="text-muted small"><?= $money($charge['amount']) ?> through Flutterwave. Cash can be taken at the restaurant.</div>
+                </div>
+                <input type="hidden" name="event_pay" value="1">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($guest['token']) ?>">
+                <button class="btn btn-accent rounded-pill px-4">Pay now</button>
+            </div>
+        </form>
+        <?php endif; ?>
+        <?php if (!empty($payments)): ?>
+            <ul class="list-group mt-3">
+            <?php foreach ($payments as $pay): ?>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span><?= htmlspecialchars($pay['purpose'] . ' · ' . $pay['method']) ?></span>
+                    <span><?= $money($pay['amount']) ?> · <?= htmlspecialchars($pay['status']) ?></span>
+                </li>
+            <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    <?php endif; ?>
 <?php endif; ?>
 </div>
 <footer class="shop-foot"><?= htmlspecialchars($settings['business_name'] ?? $title) ?><?= !empty($settings['shop_phone']) ? ' · ' . htmlspecialchars($settings['shop_phone']) : '' ?></footer>

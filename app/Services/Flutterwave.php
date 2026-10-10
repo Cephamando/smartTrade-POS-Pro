@@ -238,6 +238,9 @@ final class Flutterwave
             return;
         }
         $this->verify($txRef);
+        if (str_starts_with($txRef, 'EVT-')) {
+            \App\Models\Event::settleTx($txRef, (string)($this->transaction($txRef)['status'] ?? ''));
+        }
     }
 
     public function webhookHashMatches(string $header): bool

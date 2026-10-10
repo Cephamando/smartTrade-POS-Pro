@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\Customer;
+use App\Models\Event;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Services\Flutterwave;
@@ -22,7 +23,9 @@ final class ShopController extends Controller
     public function index(): void
     {
         $this->settings = Setting::all();
-        if (($this->settings['shop_enabled'] ?? '0') !== '1' && !$this->isManager()) {
+        $view = (string)($_GET['view'] ?? 'menu');
+        $eventView = in_array($view, ['events', 'event', 'rsvp'], true);
+        if (!$eventView && ($this->settings['shop_enabled'] ?? '0') !== '1' && !$this->isManager()) {
             $this->render(['view' => 'closed', 'settings' => $this->settings, 'customer' => null, 'cart' => [], 'cartTotal' => 0, 'flash' => null]);
             return;
         }
@@ -57,6 +60,27 @@ final class ShopController extends Controller
         ];
         if ($view === 'menu') {
             [$data['categories'], $data['products']] = $this->menu();
+            $data['events'] = Event::publishedOpen();
+        } elseif ($view === 'events') {
+            $data['events'] = Event::publishedOpen();
+        } elseif ($view === 'event') {
+            $data['event'] = Event::publicBySlug((string)($_GET['slug'] ?? ''));
+            $data['options'] = $data['event'] ? Event::options((int)$data['event']['id']) : [];
+        } elseif ($view === 'rsvp') {
+            $guest = Event::guestByToken((string)($_GET['token'] ?? ''));
+            $data['guest'] = $guest;
+            $data['event'] = $guest ? Event::find((int)$guest['event_id']) : null;
+            $data['options'] = $data['event'] ? Event::options((int)$data['event']['id']) : [];
+            $data['picked'] = $guest ? Event::selectionIds((int)$guest['id']) : [];
+            $data['payments'] = $guest ? Event::paymentsForGuest((int)$guest['id']) : [];
+            $data['charge'] = ($guest && $data['event']) ? Event::nextCharge($data['event'], (int)$guest['id']) : ['amount' => 0, 'purpose' => 'deposit'];
+            $data['paid'] = $guest ? Event::paidTotal((int)$guest['id']) : 0;
+            if ($guest) {
+                $this->refreshEventPayments($guest);
+                $data['payments'] = Event::paymentsForGuest((int)$guest['id']);
+                $data['charge'] = Event::nextCharge($data['event'], (int)$guest['id']);
+                $data['paid'] = Event::paidTotal((int)$guest['id']);
+            }
         } elseif ($view === 'orders' && $customer) {
             $data['orders'] = Customer::orders((int)$customer['id']);
         } elseif ($view === 'order' && $customer) {
@@ -77,6 +101,9 @@ final class ShopController extends Controller
     {
         $p = $_POST;
         try {
+            if (isset($p['event_apply']) || isset($p['event_reply']) || isset($p['event_pay'])) {
+                $this->handleEventPost($p);
+            }
             if (isset($p['register'])) {
                 $id = Customer::register((string)$p['name'], (string)$p['phone'], (string)($p['email'] ?? ''), (string)$p['password'], (string)($p['address'] ?? ''));
                 $_SESSION['shop_customer_id'] = $id;
@@ -141,7 +168,13 @@ final class ShopController extends Controller
             }
             $this->flashShop('error', $e->getMessage());
             $view = (string)($_GET['view'] ?? 'menu');
-            $this->go($view === 'pay_return' ? 'orders' : $view);
+            $extra = [];
+            if ($view === 'event') {
+                $extra['slug'] = (string)($_GET['slug'] ?? $p['slug'] ?? '');
+            } elseif ($view === 'rsvp') {
+                $extra['token'] = (string)($_GET['token'] ?? $p['token'] ?? '');
+            }
+            $this->go($view === 'pay_return' ? 'orders' : $view, $extra);
         }
     }
 
@@ -370,6 +403,99 @@ final class ShopController extends Controller
             $this->go('order', ['id' => $saleId]);
         }
         $this->go('menu');
+    }
+
+    // ------------------------------------------------------------------ events
+
+    /** @param array<string, mixed> $p */
+    private function handleEventPost(array $p): never
+    {
+        if (isset($p['event_apply'])) {
+            $event = Event::publicBySlug((string)($p['slug'] ?? ''));
+            if (!$event) {
+                throw new \RuntimeException('This event is not open for applications.');
+            }
+            $guest = Event::addGuest(
+                (int)$event['id'],
+                (string)($p['name'] ?? ''),
+                (string)($p['email'] ?? ''),
+                (string)($p['phone'] ?? ''),
+                (int)($p['party_size'] ?? 1),
+                'applied',
+                'applied',
+                (string)($p['note'] ?? '')
+            );
+            $this->flashShop('success', 'Application received. Keep this page — it is your private link.');
+            $this->go('rsvp', ['token' => $guest['token']]);
+        }
+
+        $guest = Event::guestByToken((string)($p['token'] ?? ''));
+        $event = $guest ? Event::find((int)$guest['event_id']) : null;
+        if (!$guest || !$event) {
+            throw new \RuntimeException('This invitation link is not valid.');
+        }
+        if (($event['status'] ?? '') === 'cancelled') {
+            throw new \RuntimeException('This event was cancelled.');
+        }
+
+        if (isset($p['event_reply'])) {
+            if (($event['status'] ?? '') !== 'open') {
+                throw new \RuntimeException('Replies are closed for this event.');
+            }
+            $reply = (string)($p['reply'] ?? '');
+            if (!in_array($reply, ['accepted', 'declined'], true)) {
+                throw new \RuntimeException('Choose whether you can attend.');
+            }
+            Event::setGuestStatus((int)$event['id'], (int)$guest['id'], $reply);
+            Event::updateGuestDetails((int)$event['id'], (int)$guest['id'], (int)($p['party_size'] ?? 1), (string)($p['note'] ?? ''));
+            if ($reply === 'accepted') {
+                Event::saveSelections((int)$guest['id'], (int)$event['id'], array_map('intval', (array)($p['option_id'] ?? [])));
+            }
+            $this->flashShop('success', $reply === 'accepted' ? 'Your reply and choices are saved.' : 'You are marked as unable to attend.');
+            $this->go('rsvp', ['token' => $guest['token']]);
+        }
+
+        $charge = Event::nextCharge($event, (int)$guest['id']);
+        if ($charge['amount'] <= 0) {
+            throw new \RuntimeException('Nothing is due on this invitation.');
+        }
+        $flw = new Flutterwave($this->pdo(), $this->settings);
+        $made = $flw->createPaymentLink([
+            'amount' => $charge['amount'],
+            'email' => (string)($guest['email'] ?? ''),
+            'phone' => (string)($guest['phone'] ?? ''),
+            'name' => (string)$guest['name'],
+            'redirect_url' => $this->baseUrl() . '/index.php?page=shop&view=rsvp&token=' . rawurlencode((string)$guest['token']),
+            'title' => (string)$event['title'],
+            'description' => ucfirst((string)$charge['purpose']) . ' for ' . $event['title'],
+            'prefix' => 'EVT',
+            'location_id' => (int)($event['location_id'] ?? 0),
+        ]);
+        $paymentId = Event::openOnlinePayment((int)$event['id'], (int)$guest['id'], (float)$charge['amount'], (string)$charge['purpose']);
+        Event::attachTx($paymentId, (string)$made['tx_ref']);
+        header('Location: ' . $made['link']);
+        exit;
+    }
+
+    /** @param array<string, mixed> $guest */
+    private function refreshEventPayments(array $guest): void
+    {
+        $flw = new Flutterwave($this->pdo(), $this->settings);
+        if (!$flw->enabled()) {
+            return;
+        }
+        foreach (Event::paymentsForGuest((int)$guest['id']) as $payment) {
+            $ref = (string)($payment['tx_ref'] ?? '');
+            if (($payment['status'] ?? '') !== 'pending' || !str_starts_with($ref, 'EVT-')) {
+                continue;
+            }
+            try {
+                $row = $flw->verify($ref);
+                Event::settleTx($ref, (string)($row['status'] ?? ''));
+            } catch (\Throwable) {
+                // Still pending or the gateway has not confirmed it yet.
+            }
+        }
     }
 
     // ------------------------------------------------------------------ helpers

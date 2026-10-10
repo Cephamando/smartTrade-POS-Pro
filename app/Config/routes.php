@@ -46,4 +46,5 @@ return [
     'flutterwave' => ['auth' => false, 'standalone' => true],
     'currency' => ['auth' => false, 'standalone' => true],
     'shop' => ['auth' => false, 'standalone' => true],
+    'events' => [],
 ];
