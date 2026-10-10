@@ -34,6 +34,7 @@ final class EventsController extends Controller
             'locations' => Location::all(),
             'library' => $event || isset($_GET['new']) ? Media::list() : [],
             'options' => $event ? Event::options($id) : [],
+            'tiers' => $event ? Event::tiers($id) : [],
             'guests' => $event ? Event::guests($id) : [],
             'payments' => $event ? Event::payments($id) : [],
             'messages' => $event ? Event::messages($id) : [],
@@ -77,6 +78,12 @@ final class EventsController extends Controller
                 Event::delete($eventId);
                 $this->flash('success', 'Event removed.');
                 $this->redirect('events');
+            } elseif (isset($_POST['add_tier'])) {
+                Event::saveTier($eventId, (string)($_POST['tier_preset'] ?? ''), (string)($_POST['tier_name'] ?? ''), (float)($_POST['price'] ?? 0), (int)($_POST['capacity'] ?? 0));
+                $this->flash('success', 'Tier added.');
+            } elseif (isset($_POST['delete_tier'])) {
+                Event::deleteTier($eventId, (int)$_POST['tier_id']);
+                $this->flash('success', 'Tier removed.');
             } elseif (isset($_POST['add_option'])) {
                 Event::saveOption($eventId, (string)$_POST['group_name'], (string)$_POST['name'], (float)$_POST['price'], (int)$_POST['capacity']);
                 $this->flash('success', 'Choice added.');
@@ -84,7 +91,7 @@ final class EventsController extends Controller
                 Event::deleteOption($eventId, (int)$_POST['option_id']);
                 $this->flash('success', 'Choice removed.');
             } elseif (isset($_POST['invite_guest'])) {
-                $guest = Event::addGuest($eventId, (string)$_POST['name'], (string)$_POST['email'], (string)$_POST['phone'], (int)($_POST['party_size'] ?? 1), 'invited', 'invited');
+                $guest = Event::addGuest($eventId, (string)$_POST['name'], (string)$_POST['email'], (string)$_POST['phone'], (int)($_POST['party_size'] ?? 1), 'invited', 'invited', '', (int)($_POST['tier_id'] ?? 0));
                 $sent = $this->sendOne($event, $guest, (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''));
                 $this->flash('success', $sent ? 'Invitation emailed.' : 'Invitation saved. The link is ready, and the email was not sent.');
             } elseif (isset($_POST['guest_status'])) {

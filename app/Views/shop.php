@@ -442,7 +442,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <section class="shop-hero">
         <div class="eyebrow">Functions</div>
         <h1>Events</h1>
-        <p>Private dinners, tastings, and celebrations. Apply for a place, then keep the link we give you.</p>
+        <p>Private dinners, tastings, and celebrations. Ask for a place, then keep the link we give you.</p>
     </section>
     <?php if (empty($events)): ?>
         <div class="card item-card"><div class="card-body p-4 text-muted">No events are open right now.</div></div>
@@ -501,8 +501,9 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div></div>
         <?php endif; ?>
         <div class="card item-card"><div class="card-body p-4">
-            <h5 class="fw-bold">Apply for a place</h5>
-            <p class="text-muted small">We send you a private page. A deposit of <?= $money($event['deposit_amount']) ?> is collected there when one is set.</p>
+            <?php $copy = \App\Models\Event::signupCopy((string)($event['signup_mode'] ?? 'apply')); ?>
+            <h5 class="fw-bold"><?= htmlspecialchars($copy['heading']) ?></h5>
+            <p class="text-muted small"><?= htmlspecialchars($copy['lead']) ?><?php if ((float)$event['deposit_amount'] > 0): ?> A deposit of <?= $money($event['deposit_amount']) ?> is collected on your private page first.<?php endif; ?><?php if (!empty($tiers)): ?> Tier prices are per person.<?php endif; ?></p>
             <form method="POST" action="<?= $u('event', ['slug' => $event['slug']]) ?>">
                 <input type="hidden" name="event_apply" value="1">
                 <input type="hidden" name="slug" value="<?= htmlspecialchars($event['slug']) ?>">
@@ -513,7 +514,19 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                     <div class="col-md-6"><label class="form-label fw-bold small text-muted">EMAIL</label><input type="email" name="email" class="form-control" value="<?= htmlspecialchars((string)($customer['email'] ?? '')) ?>"></div>
                     <div class="col-md-6"><label class="form-label fw-bold small text-muted">NOTE</label><input name="note" class="form-control" placeholder="Allergies, celebration, seating"></div>
                 </div>
-                <button class="btn btn-accent rounded-pill px-4 mt-3">Apply</button>
+                <?php if (!empty($tiers)): ?>
+                <div class="fw-bold mt-3 mb-1">Tier</div>
+                <?php foreach ($tiers as $tier):
+                    $taken = \App\Models\Event::tierTaken((int)$tier['id']);
+                    $full = (int)$tier['capacity'] > 0 && $taken >= (int)$tier['capacity'];
+                ?>
+                <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
+                    <span><input type="radio" name="tier_id" value="<?= (int)$tier['id'] ?>" required <?= $full ? 'disabled' : '' ?>> <?= htmlspecialchars($tier['name']) ?><?= $full ? ' (full)' : '' ?></span>
+                    <span><?= $money($tier['price']) ?> each</span>
+                </label>
+                <?php endforeach; ?>
+                <?php endif; ?>
+                <button class="btn btn-accent rounded-pill px-4 mt-3"><?= htmlspecialchars($copy['verb']) ?></button>
             </form>
         </div></div>
     <?php endif; ?>
@@ -537,6 +550,9 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         </section>
         <div class="card item-card mb-3"><div class="card-body p-4">
             <div class="d-flex justify-content-between"><span>Reply</span><strong><?= htmlspecialchars((string)$guest['status']) ?></strong></div>
+            <?php if (!empty($guest['tier_name'])): ?>
+            <div class="d-flex justify-content-between"><span>Tier</span><strong><?= htmlspecialchars((string)$guest['tier_name']) ?> · <?= $money($guest['tier_price'] ?? 0) ?> each</strong></div>
+            <?php endif; ?>
             <div class="d-flex justify-content-between"><span>Paid</span><strong><?= $money($paid ?? 0) ?></strong></div>
             <?php if (($charge['amount'] ?? 0) > 0): ?>
                 <div class="d-flex justify-content-between"><span><?= htmlspecialchars(ucfirst((string)$charge['purpose'])) ?> due</span><strong><?= $money($charge['amount']) ?></strong></div>
@@ -564,6 +580,19 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                         <input name="note" class="form-control" value="<?= htmlspecialchars((string)($guest['note'] ?? '')) ?>">
                     </div>
                 </div>
+                <?php if (!empty($tiers)): ?>
+                    <div class="fw-bold mb-1">Tier</div>
+                    <?php foreach ($tiers as $tier):
+                        $taken = \App\Models\Event::tierTaken((int)$tier['id'], (int)$guest['id']);
+                        $selected = (int)($guest['tier_id'] ?? 0) === (int)$tier['id'];
+                        $full = (int)$tier['capacity'] > 0 && $taken >= (int)$tier['capacity'];
+                    ?>
+                        <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
+                            <span><input type="radio" name="tier_id" value="<?= (int)$tier['id'] ?>" <?= $selected ? 'checked' : '' ?> <?= $full && !$selected ? 'disabled' : '' ?>> <?= htmlspecialchars($tier['name']) ?><?= $full && !$selected ? ' (full)' : '' ?></span>
+                            <span><?= $money($tier['price']) ?> each</span>
+                        </label>
+                    <?php endforeach; ?>
+                <?php endif; ?>
                 <?php foreach ($groups as $group => $rows): ?>
                     <div class="fw-bold mb-1"><?= htmlspecialchars((string)$group) ?></div>
                     <?php foreach ($rows as $opt):

@@ -126,7 +126,29 @@ final class Event extends Model
                 KEY idx_event_agenda (event_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS event_tiers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                event_id INT NOT NULL,
+                name VARCHAR(80) NOT NULL,
+                price DECIMAL(12,2) NOT NULL DEFAULT 0,
+                capacity INT NOT NULL DEFAULT 0,
+                sort_order INT NOT NULL DEFAULT 0,
+                KEY idx_event_tiers (event_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        self::ensureColumn('events', 'signup_mode', "VARCHAR(20) NOT NULL DEFAULT 'apply'");
+        self::ensureColumn('event_guests', 'tier_id', 'INT NULL');
         self::$ready = true;
+    }
+
+    private static function ensureColumn(string $table, string $column, string $definition): void
+    {
+        $pdo = self::db();
+        $stmt = $pdo->query('SHOW COLUMNS FROM `' . $table . '` LIKE ' . $pdo->quote($column));
+        if ($stmt && !$stmt->fetch()) {
+            $pdo->exec('ALTER TABLE `' . $table . '` ADD COLUMN `' . $column . '` ' . $definition);
+        }
     }
 
     public static function save(?int $id, array $data): int
@@ -158,12 +180,13 @@ final class Event extends Model
             $status,
             max(0, (int)($data['capacity'] ?? 0)),
             max(0, round((float)($data['deposit_amount'] ?? 0), 2)),
+            self::signupMode((string)($data['signup_mode'] ?? 'apply')),
         ];
         if ($id) {
             $fields[] = $id;
             self::db()->prepare(
                 'UPDATE events SET location_id=?, title=?, summary=?, story=?, cover_path=?, starts_at=?, ends_at=?,
-                    venue_note=?, visibility=?, status=?, capacity=?, deposit_amount=? WHERE id=?'
+                    venue_note=?, visibility=?, status=?, capacity=?, deposit_amount=?, signup_mode=? WHERE id=?'
             )->execute($fields);
             return $id;
         }
@@ -171,8 +194,8 @@ final class Event extends Model
         $fields[] = (int)($data['created_by'] ?? 0) ?: null;
         self::db()->prepare(
             'INSERT INTO events (location_id, title, summary, story, cover_path, starts_at, ends_at, venue_note,
-                visibility, status, capacity, deposit_amount, slug, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                visibility, status, capacity, deposit_amount, signup_mode, slug, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
         )->execute($fields);
         return (int)self::db()->lastInsertId();
     }
@@ -184,7 +207,7 @@ final class Event extends Model
         $pdo->prepare(
             'DELETE s FROM event_selections s INNER JOIN event_guests g ON g.id = s.guest_id WHERE g.event_id = ?'
         )->execute([$id]);
-        foreach (['event_payments', 'event_messages', 'event_options', 'event_guests', 'event_tasks', 'event_agenda'] as $table) {
+        foreach (['event_payments', 'event_messages', 'event_options', 'event_tiers', 'event_guests', 'event_tasks', 'event_agenda'] as $table) {
             $pdo->prepare('DELETE FROM ' . $table . ' WHERE event_id = ?')->execute([$id]);
         }
         $pdo->prepare('DELETE FROM events WHERE id = ?')->execute([$id]);
@@ -280,11 +303,132 @@ final class Event extends Model
         self::db()->prepare('DELETE FROM event_options WHERE id = ? AND event_id = ?')->execute([$optionId, $eventId]);
     }
 
+    public static function signupMode(string $mode): string
+    {
+        return in_array($mode, ['apply', 'register', 'rsvp'], true) ? $mode : 'apply';
+    }
+
+    /** @return array{verb:string,heading:string,lead:string,done:string} */
+    public static function signupCopy(string $mode): array
+    {
+        return match (self::signupMode($mode)) {
+            'register' => [
+                'verb' => 'Register',
+                'heading' => 'Register',
+                'lead' => 'Register for a place. Keep the private page we give you.',
+                'done' => 'Registration received. Keep this page — it is your private link.',
+            ],
+            'rsvp' => [
+                'verb' => 'RSVP',
+                'heading' => 'RSVP',
+                'lead' => 'Tell us you are coming. Keep the private page we give you.',
+                'done' => 'RSVP received. Keep this page — it is your private link.',
+            ],
+            default => [
+                'verb' => 'Apply',
+                'heading' => 'Apply for a place',
+                'lead' => 'Apply for a place. Keep the private page we give you.',
+                'done' => 'Application received. Keep this page — it is your private link.',
+            ],
+        };
+    }
+
+    /** @return list<array<string,mixed>> */
+    public static function tiers(int $eventId): array
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare('SELECT * FROM event_tiers WHERE event_id = ? ORDER BY sort_order, name');
+        $stmt->execute([$eventId]);
+        return $stmt->fetchAll();
+    }
+
+    public static function saveTier(int $eventId, string $preset, string $custom, float $price, int $capacity): void
+    {
+        self::ensureSchema();
+        $name = in_array($preset, ['Regular', 'VIP', 'VVIP'], true) ? $preset : trim($custom);
+        if ($name === '') {
+            throw new \RuntimeException('Name the custom tier.');
+        }
+        $name = mb_substr($name, 0, 80);
+        $exists = self::db()->prepare('SELECT id FROM event_tiers WHERE event_id = ? AND LOWER(name) = LOWER(?)');
+        $exists->execute([$eventId, $name]);
+        if ($exists->fetch()) {
+            throw new \RuntimeException($name . ' is already a tier.');
+        }
+        $sort = self::db()->prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM event_tiers WHERE event_id = ?');
+        $sort->execute([$eventId]);
+        self::db()->prepare(
+            'INSERT INTO event_tiers (event_id, name, price, capacity, sort_order) VALUES (?,?,?,?,?)'
+        )->execute([$eventId, $name, max(0, round($price, 2)), max(0, $capacity), (int)$sort->fetchColumn()]);
+    }
+
+    public static function deleteTier(int $eventId, int $tierId): void
+    {
+        self::ensureSchema();
+        self::db()->prepare('UPDATE event_guests SET tier_id = NULL WHERE event_id = ? AND tier_id = ?')->execute([$eventId, $tierId]);
+        self::db()->prepare('DELETE FROM event_tiers WHERE id = ? AND event_id = ?')->execute([$tierId, $eventId]);
+    }
+
+    public static function tierTaken(int $tierId, int $exceptGuestId = 0): int
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare(
+            'SELECT COALESCE(SUM(party_size),0) FROM event_guests
+             WHERE tier_id = ? AND id <> ? AND status IN ("accepted","applied","invited")'
+        );
+        $stmt->execute([$tierId, $exceptGuestId]);
+        return (int)$stmt->fetchColumn();
+    }
+
+    public static function assignTier(int $eventId, int $guestId, int $tierId): void
+    {
+        self::ensureSchema();
+        $tiers = self::tiers($eventId);
+        if (!$tiers) {
+            return;
+        }
+        $tier = null;
+        foreach ($tiers as $row) {
+            if ((int)$row['id'] === $tierId) {
+                $tier = $row;
+                break;
+            }
+        }
+        if (!$tier) {
+            throw new \RuntimeException('Choose a payment tier.');
+        }
+        $guest = self::guest($guestId);
+        if (!$guest || (int)$guest['event_id'] !== $eventId) {
+            throw new \RuntimeException('Choose a guest.');
+        }
+        $party = max(1, (int)$guest['party_size']);
+        $cap = (int)$tier['capacity'];
+        if ($cap > 0 && self::tierTaken($tierId, $guestId) + $party > $cap) {
+            throw new \RuntimeException($tier['name'] . ' does not have enough places left.');
+        }
+        self::db()->prepare('UPDATE event_guests SET tier_id = ? WHERE id = ? AND event_id = ?')->execute([$tierId, $guestId, $eventId]);
+    }
+
+    public static function tierTotal(int $guestId): float
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare(
+            'SELECT COALESCE(t.price, 0) * g.party_size
+             FROM event_guests g LEFT JOIN event_tiers t ON t.id = g.tier_id WHERE g.id = ?'
+        );
+        $stmt->execute([$guestId]);
+        return (float)$stmt->fetchColumn();
+    }
+
     /** @return list<array<string,mixed>> */
     public static function guests(int $eventId): array
     {
         self::ensureSchema();
-        $stmt = self::db()->prepare('SELECT * FROM event_guests WHERE event_id = ? ORDER BY created_at DESC');
+        $stmt = self::db()->prepare(
+            'SELECT g.*, t.name AS tier_name, t.price AS tier_price
+             FROM event_guests g LEFT JOIN event_tiers t ON t.id = g.tier_id
+             WHERE g.event_id = ? ORDER BY g.created_at DESC'
+        );
         $stmt->execute([$eventId]);
         return $stmt->fetchAll();
     }
@@ -292,7 +436,10 @@ final class Event extends Model
     public static function guest(int $id): ?array
     {
         self::ensureSchema();
-        $stmt = self::db()->prepare('SELECT * FROM event_guests WHERE id = ?');
+        $stmt = self::db()->prepare(
+            'SELECT g.*, t.name AS tier_name, t.price AS tier_price
+             FROM event_guests g LEFT JOIN event_tiers t ON t.id = g.tier_id WHERE g.id = ?'
+        );
         $stmt->execute([$id]);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -304,13 +451,16 @@ final class Event extends Model
         if (!preg_match('/^[a-f0-9]{32}$/', $token)) {
             return null;
         }
-        $stmt = self::db()->prepare('SELECT * FROM event_guests WHERE token = ?');
+        $stmt = self::db()->prepare(
+            'SELECT g.*, t.name AS tier_name, t.price AS tier_price
+             FROM event_guests g LEFT JOIN event_tiers t ON t.id = g.tier_id WHERE g.token = ?'
+        );
         $stmt->execute([$token]);
         $row = $stmt->fetch();
         return $row ?: null;
     }
 
-    public static function addGuest(int $eventId, string $name, string $email, string $phone, int $party, string $source, string $status, string $note = ''): array
+    public static function addGuest(int $eventId, string $name, string $email, string $phone, int $party, string $source, string $status, string $note = '', int $tierId = 0): array
     {
         self::ensureSchema();
         $name = trim($name);
@@ -338,7 +488,16 @@ final class Event extends Model
             $status,
             mb_substr(trim($note), 0, 500),
         ]);
-        return self::guest((int)self::db()->lastInsertId()) ?? [];
+        $guestId = (int)self::db()->lastInsertId();
+        if ($tierId > 0) {
+            try {
+                self::assignTier($eventId, $guestId, $tierId);
+            } catch (\Throwable $e) {
+                self::db()->prepare('DELETE FROM event_guests WHERE id = ?')->execute([$guestId]);
+                throw $e;
+            }
+        }
+        return self::guest($guestId) ?? [];
     }
 
     public static function updateGuestDetails(int $eventId, int $guestId, int $party, string $note): void
@@ -474,7 +633,7 @@ final class Event extends Model
     public static function nextCharge(array $event, int $guestId): array
     {
         $deposit = (float)$event['deposit_amount'];
-        $target = max($deposit, self::selectionTotal($guestId));
+        $target = max($deposit, round(self::selectionTotal($guestId) + self::tierTotal($guestId), 2));
         $paid = self::paidTotal($guestId);
         $due = max(0, round($target - $paid, 2));
         $depositLeft = max(0, round($deposit - $paid, 2));

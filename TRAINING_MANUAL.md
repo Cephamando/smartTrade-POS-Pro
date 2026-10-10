@@ -955,6 +955,140 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 *Expected result:* the customer pays in the Flutterwave window; the POS shows **PAID ONLINE**. When the items are ready, **Hand Over (Paid)** replaces Checkout and completes the sale without taking money.
 
+### 5.11 Events (functions, classes, and invitations)
+
+Sign in as `train_mgr`. The shop from 5.10 must be on, because a published event is a page on that shop. Build one training event and **remove it before you leave**. Do not leave a practice function on the live shop.
+
+Money on the shop is shown as `K` with two decimals. The staff page says ZMW.
+
+#### Scenario 5.11.1 — The event file and its cover (Must pass)
+
+1. **Management → Events → New event**.
+2. **Name** `Sunday tasting`. **Starts** a future Sunday at 18:00, **Ends** 21:00. **Store** Main Bar. **Venue note** `Private room`.
+3. **Visibility** `Private invite`. **Status** `draft`. **Capacity** `20`. **Deposit** `0`. **Guest action** `Apply`.
+4. **Short line** `A small tasting`. **Story** `Three courses, one table.`
+5. Under **Cover**, **Choose picture**. Pick a JPEG. Drag and use **Zoom in** / **Zoom out** until the preview is the frame you want. **Save event**.
+
+*Expected result:* the event file stays open and the cover preview shows that frame. The picture's name in the library is readable (the file name, cleaned up), not a string of random letters. Reload the page: the same cover is still there.
+
+6. **Choose picture** again, frame a different photo, and **Save event**.
+
+*Expected result:* the new frame stays after a reload. The first picture remains in the library.
+
+7. **All events**. Use the month arrows until you reach that Sunday.
+
+*Expected result:* `Sunday tasting` sits on that day. Click the name to come back to the file. **Capacity** is the headcount you are planning for. The shop does not stop guests at that number; tier and choice limits do (5.11.2 and 5.11.3).
+
+**If it goes wrong:** the cover snaps back to the old picture, or the page says **The framed cover did not upload. Try a smaller picture.** Choose the picture again, frame it, and save a smaller JPEG.
+
+#### Scenario 5.11.2 — Payment tiers and the guest word (Must pass)
+
+Tiers are added after the event exists. The price is per person. A limit of `0` means no limit. A deposit, if you set one, is collected first.
+
+1. On **Payment tiers**, add **Regular** at `100`, limit `10`. Add **VIP** at `250`, limit `4`. Add **VVIP** at `500`, limit `0`.
+2. Choose **Other (custom)**. The name box appears. Type `Student`, price `50`, limit `2`. **Add tier**.
+3. Try to add `Student` again.
+
+*Expected result:* four rows, each ending in **each**. VVIP has no limit. The second Student is refused: `Student is already a tier.` An empty custom name is refused: `Name the custom tier.`
+
+4. Set **Guest action** to `Register` and **Save event**.
+
+*Expected result:* the line under Guest action stays: guests see this word on the shop. **Apply** suits a request, **Register** a class or ticket, and **RSVP** an invitation. The guest list inside the office still uses invited, applied, accepted, waitlisted, declined, and cancelled. Those words do not change when the shop button changes.
+
+#### Scenario 5.11.3 — Choices, the run of show, and tasks
+
+1. **Choices**: group `Meal`, name `Beef`, price `0`, limit `8`, then **+**. Add `Meal` / `Fish` the same way. Add group `Seat`, name `Window`, price `0`, limit `0`.
+
+*Expected result:* each row reads group, name, and price. Guests later pick one item from each group. A choice at its limit shows **(full)** and cannot be picked by a new guest.
+
+2. **Run of show**: 18:00, moment `Welcome drinks`, notes `At the door`. **Add**.
+3. **Tasks**: `Print place cards`. **Add task**. Click the task.
+
+*Expected result:* the task gains a tick and a line through the words. Click it again to clear the tick.
+
+#### Scenario 5.11.4 — Publish it, and the scrolling advert (Must pass)
+
+An event appears on the shop only when **Visibility** is **On the shop** and **Status** is **open**. Private, draft, closed, and cancelled stay off the shop.
+
+1. Set **Visibility** to `On the shop`, **Status** to `open`, **Deposit** still `0`. **Save event**.
+2. Open the shop (**System Settings → Online ordering → Open page**, or the public shop address).
+
+*Expected result:* under the hero, a dark strip scrolls `Sunday tasting` with its cover, name, and date. Rest the pointer on the strip and it pauses. **Events** in the shop menu opens a list headed **Ask for a place, then keep the link we give you.** The card shows the short line and the framed cover.
+
+3. Open the event.
+
+*Expected result:* the heading is **Register** and the button is **Register**. The four tiers show with `K` prices **each**. The line under the heading says tier prices are per person. A full tier is marked **(full)** and its button is dead.
+
+4. Set **Status** back to `draft`, save, and reload the shop.
+
+*Expected result:* the strip and the public page are gone. A saved link says the function is private, closed, or the link is wrong.
+
+5. Put it back to **On the shop** and **open** before the next scenario.
+
+#### Scenario 5.11.5 — A guest registers and pays (Must pass)
+
+1. On the shop event, play the guest. Name `Amina Banda`, party `2`, a phone and an email, tier **VIP**. Leave the tier blank and try to register.
+
+*Expected result:* the form asks you to choose a tier.
+
+2. Choose **VIP** and **Register**.
+
+*Expected result:* **Registration received. Keep this page — it is your private link.** The page is only hers. It shows Tier **VIP · K250.00 each**. Two people at 250 is 500, and the deposit is 0, so the line is **Balance due K500.00** and the button is **Pay balance**.
+
+3. On the staff event, find Amina. Her row shows VIP. Open **Invite link** in a new tab and confirm it is the same private page.
+4. Set **Deposit** to `200` and **Save event**. Reload her private page.
+
+*Expected result:* **Deposit due K200.00**. The deposit is taken first. The rest of the 500 becomes the balance.
+
+5. On her private page, **Pay now** while the deposit is still due. With Flutterwave test keys from 7.1b, the Flutterwave window opens and a successful payment is marked paid when she returns. With no keys, the page says Flutterwave is not enabled and nothing is stored. Training continues with cash.
+6. On the staff **Payments** card, choose Amina, amount `200`, purpose **Deposit**, **Record cash**. Reload her page.
+
+*Expected result:* **Paid K200.00** and **Balance due K300.00**. The staff list shows the cash deposit as **paid**.
+
+7. Record cash `300`, purpose **Balance**. Reload her page.
+
+*Expected result:* nothing is due. Both rows are on the event.
+
+Changing **Guest action** changes only the public words:
+
+| Guest action | Heading | Button | After they submit |
+|---|---|---|---|
+| Apply | Apply for a place | Apply | Application received. Keep this page — it is your private link. |
+| Register | Register | Register | Registration received. Keep this page — it is your private link. |
+| RSVP | RSVP | RSVP | RSVP received. Keep this page — it is your private link. |
+
+If a deposit is set, the shop adds that the deposit is collected on the private page first.
+
+#### Scenario 5.11.6 — Invite, reply, and email
+
+1. **Invite someone**: name `Brian Phiri`, an email, party `1`, tier **Tier later**. Leave the message or use `{name}`, `{event}`, `{when}`, and `{link}`. **Save invitation**.
+
+*Expected result:* Brian appears as **invited**. **Invite link** opens his private page. If **System Settings → Email** has no host or from address, the note says mail is not set up yet and the link is still created.
+
+2. On Brian's page choose **No, I can't** and **Save reply**. Do not pick a tier.
+
+*Expected result:* **You are marked as unable to attend.** Declining does not ask for a tier. The pay box is hidden. Choosing **Yes, I'll be there** does ask for a tier when the event has tiers, and saves the meal and seat.
+
+3. On the staff row, change his status to **waitlisted**, then to **accepted**. **Check in**.
+
+*Expected result:* the badge follows the list. After check-in a green tick sits by his name and the button reads **Undo**.
+
+4. **Mass email**: audience **Accepted**, subject `You are invited: {event}`, send.
+
+*Expected result:* a log line per address. **sent** when Email is filled in and the mailbox accepts it. **failed** when it is not. `{name}`, `{event}`, `{when}`, and `{link}` are filled in for each guest. Guests with no email are skipped.
+
+5. **Management → System Settings → Email**. Fill **SMTP host**, **port** (587, or 465 for a direct secure connection), **username**, **password**, **from address**, and **from name**. **Save email**.
+
+*Expected result:* the password box is empty afterwards and says the password is saved. A later save with a blank password keeps the old one. Invitations then send; until then, every guest link still works.
+
+#### Scenario 5.11.7 — Remove the training event (Must pass)
+
+1. On the event, **Remove event**. Read the warning. Confirm **Remove event**.
+
+*Expected result:* you are back on the calendar and `Sunday tasting` is gone. Guests, tiers, choices, payments, and the shop page go with it. The cover pictures stay in the library. The shop advert no longer scrolls that event.
+
+**If it goes wrong:** cancelling the dialog leaves the event in place. Use **Remove event** only for a function you mean to delete. To hide one you may bring back, set **Status** to `closed` or **Visibility** to `Private invite` instead.
+
 ### Assessment — manager
 
 | # | Checkpoint | Pass |
@@ -975,6 +1109,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 | M14 | Reads the Tips & Surcharges tab and reconciles it with the X-Read | |
 | M15 | Creates an employee, runs payroll, checks PAYE/NAPSA/NHIMA, prints payslips | |
 | M16 | Receives a web order on the POS and hands over a prepaid one | |
+| M17 | Publishes an event with tiers and a framed cover, takes a registration, records the deposit then the balance, and removes the training event | |
 
 ---
 
@@ -1196,6 +1331,14 @@ Give the trainee the symptom only. They must find the cause and the right action
 | Vendor cannot be deleted | Has GRVs | Keep it; deactivate by convention |
 | Transfer "must go through V-SIAS inspection" | Dispatch/receive attempted around V-SIAS | Use Dispatch / Accept stock, complete the inspection |
 | Receipts report empty for a store | Filter set to a station with no sales | Switch to All stores |
+| Shop advert does not show the function | Visibility is not On the shop, or status is not open | Set both, save, and reload the shop |
+| Shop still says Apply for a place | Guest action is Apply | Set Register or RSVP and save |
+| Framed cover snaps back to the old picture | The framed file did not upload | Frame it again; use a smaller JPEG if the page says so |
+| "Mail is not set up yet" on an invitation | Email host or from address is empty | The guest link is still valid. Fill System Settings → Email |
+| Mass email line says failed | Mailbox is not set up, or it rejected the message | Read the log; fix Email, then send again |
+| "already a tier" | That name is already on this event | Remove it, or type a different custom name |
+| Tier "does not have enough places left" | The party would pass that tier's limit | Lower the party or raise the limit. A limit of 0 means no limit |
+| Pay now says Flutterwave is not enabled | Payment keys are missing | Record cash on the event, or add test keys under Payments |
 
 ---
 
@@ -1229,6 +1372,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 - [ ] Audit trail review for waste and stock takes
 - [ ] Unsynced products = 0 on the ZRA page
 - [ ] Reports for the week: Items and Categories, exported
+- [ ] Events for the coming week: deposits, guest list, and the shop advert shows only functions that should be public
 
 ### Monthly (manager + developer)
 

@@ -53,7 +53,7 @@ $link = static fn(array $guest) => 'index.php?page=shop&view=rsvp&token=' . $gue
     </div>
     <div class="col-lg-5">
         <?php if (!empty($showNew)): ?>
-        <?php $event = ['id'=>0,'title'=>'','summary'=>'','story'=>'','cover_path'=>'','starts_at'=>'','ends_at'=>'','venue_note'=>'','visibility'=>'private','status'=>'draft','capacity'=>0,'deposit_amount'=>0,'location_id'=>0]; include __DIR__ . '/partials/event_form.php'; ?>
+        <?php $event = ['id'=>0,'title'=>'','summary'=>'','story'=>'','cover_path'=>'','starts_at'=>'','ends_at'=>'','venue_note'=>'','visibility'=>'private','status'=>'draft','capacity'=>0,'deposit_amount'=>0,'location_id'=>0,'signup_mode'=>'apply']; include __DIR__ . '/partials/event_form.php'; ?>
         <?php endif; ?>
         <div class="card shadow-sm border-0">
             <div class="card-body p-0">
@@ -158,6 +158,47 @@ $link = static fn(array $guest) => 'index.php?page=shop&view=rsvp&token=' . $gue
     <div class="col-lg-7">
         <div class="card shadow-sm border-0">
             <div class="card-body">
+                <h6 class="fw-bold">Payment tiers</h6>
+                <p class="small text-muted">Guests choose one tier on the shop. The price is per person. A limit of 0 means no limit. A deposit, if you set one, is collected first.</p>
+                <?php foreach ($tiers as $tier): ?>
+                <div class="d-flex justify-content-between align-items-center small border-bottom py-1">
+                    <span><?= htmlspecialchars($tier['name']) ?> · ZMW <?= number_format((float)$tier['price'], 2) ?> each<?= (int)$tier['capacity'] ? ' · limit ' . (int)$tier['capacity'] : '' ?></span>
+                    <form method="POST"><input type="hidden" name="event_id" value="<?= $id ?>"><input type="hidden" name="tier_id" value="<?= (int)$tier['id'] ?>"><button class="btn btn-sm btn-link text-danger p-0" name="delete_tier" value="1">Remove</button></form>
+                </div>
+                <?php endforeach; ?>
+                <?php if (!$tiers): ?><div class="small text-muted">No tiers yet. Without tiers, only the deposit and choices are charged.</div><?php endif; ?>
+                <form method="POST" class="row g-2 mt-2">
+                    <input type="hidden" name="event_id" value="<?= $id ?>">
+                    <div class="col-md-3">
+                        <select name="tier_preset" id="tierPreset" class="form-select form-select-sm no-search">
+                            <option value="Regular">Regular</option>
+                            <option value="VIP">VIP</option>
+                            <option value="VVIP">VVIP</option>
+                            <option value="other">Other (custom)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-none" id="tierCustomWrap"><input name="tier_name" id="tierCustom" class="form-control form-control-sm" placeholder="Custom tier name" maxlength="80"></div>
+                    <div class="col-md-2"><input type="number" step="0.01" min="0" name="price" class="form-control form-control-sm" placeholder="Price" value="0"></div>
+                    <div class="col-md-2"><input type="number" min="0" name="capacity" class="form-control form-control-sm" placeholder="Limit" value="0"></div>
+                    <div class="col-md-2"><button class="btn btn-sm btn-dark w-100" name="add_tier" value="1">Add tier</button></div>
+                </form>
+            </div>
+        </div>
+        <script>
+        (function () {
+            var preset = document.getElementById('tierPreset');
+            var custom = document.getElementById('tierCustom');
+            if (!preset || !custom) return;
+            preset.addEventListener('change', function () {
+                var other = preset.value === 'other';
+                document.getElementById('tierCustomWrap').classList.toggle('d-none', !other);
+                custom.required = other;
+            });
+        })();
+        </script>
+
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-body">
                 <h6 class="fw-bold">Choices</h6>
                 <p class="small text-muted">Guests pick one item from each group. A limit of 0 means no limit.</p>
                 <?php foreach ($options as $opt): ?>
@@ -188,7 +229,7 @@ $link = static fn(array $guest) => 'index.php?page=shop&view=rsvp&token=' . $gue
                         <tr>
                             <td>
                                 <div class="fw-bold"><?= htmlspecialchars($guest['name']) ?><?= $guest['checked_in'] ? ' <i class="bi bi-check-circle-fill text-success" title="Checked in"></i>' : '' ?></div>
-                                <div class="small text-muted"><?= htmlspecialchars($guest['email'] ?: $guest['phone']) ?></div>
+                                <div class="small text-muted"><?= htmlspecialchars($guest['email'] ?: $guest['phone']) ?><?php if (!empty($guest['tier_name'])): ?> · <?= htmlspecialchars($guest['tier_name']) ?><?php endif; ?></div>
                                 <a class="small" href="<?= htmlspecialchars($link($guest)) ?>">Invite link</a>
                             </td>
                             <td><?= (int)$guest['party_size'] ?></td>
@@ -218,6 +259,16 @@ $link = static fn(array $guest) => 'index.php?page=shop&view=rsvp&token=' . $gue
                     <div class="col-md-4"><input type="email" name="email" class="form-control form-control-sm" placeholder="Email"></div>
                     <div class="col-md-2"><input name="phone" class="form-control form-control-sm" placeholder="Phone"></div>
                     <div class="col-md-2"><input type="number" min="1" name="party_size" class="form-control form-control-sm" value="1"></div>
+                    <?php if (!empty($tiers)): ?>
+                    <div class="col-md-4">
+                        <select name="tier_id" class="form-select form-select-sm no-search">
+                            <option value="0">Tier later</option>
+                            <?php foreach ($tiers as $tier): ?>
+                            <option value="<?= (int)$tier['id'] ?>"><?= htmlspecialchars($tier['name']) ?> · ZMW <?= number_format((float)$tier['price'], 2) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
                     <div class="col-12"><textarea name="body" class="form-control form-control-sm" rows="3" placeholder="Optional message. Use {name}, {event}, {when}, {link}."></textarea></div>
                     <div class="col-12"><button class="btn btn-sm btn-dark" name="invite_guest" value="1">Save invitation</button>
                         <?php if (empty($mailReady)): ?><span class="small text-muted ms-2">Mail is not set up yet. The link is still created.</span><?php endif; ?>

@@ -40,6 +40,15 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
             </div>
             <div class="col-md-2"><label class="form-label small fw-bold text-muted">CAPACITY</label><input type="number" min="0" name="capacity" class="form-control" value="<?= (int)($event['capacity'] ?? 0) ?>"></div>
             <div class="col-md-2"><label class="form-label small fw-bold text-muted">DEPOSIT</label><input type="number" step="0.01" min="0" name="deposit_amount" class="form-control" value="<?= htmlspecialchars((string)($event['deposit_amount'] ?? '0')) ?>"></div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">GUEST ACTION</label>
+                <select name="signup_mode" class="form-select no-search">
+                    <?php foreach (['apply' => 'Apply', 'register' => 'Register', 'rsvp' => 'RSVP'] as $mode => $label): ?>
+                    <option value="<?= $mode ?>" <?= ($event['signup_mode'] ?? 'apply') === $mode ? 'selected' : '' ?>><?= $label ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-8 d-flex align-items-end"><p class="form-text mb-2">Guests see this word on the shop. Apply suits a request, Register a class or ticket, and RSVP an invitation.</p></div>
             <div class="col-12"><label class="form-label small fw-bold text-muted">SHORT LINE</label><input name="summary" class="form-control" maxlength="500" value="<?= htmlspecialchars((string)($event['summary'] ?? '')) ?>"></div>
             <div class="col-12"><label class="form-label small fw-bold text-muted">STORY</label><textarea name="story" class="form-control" rows="5" placeholder="The page guests read on the shop."><?= htmlspecialchars((string)($event['story'] ?? '')) ?></textarea></div>
             <div class="col-12">

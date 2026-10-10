@@ -66,11 +66,13 @@ final class ShopController extends Controller
         } elseif ($view === 'event') {
             $data['event'] = Event::publicBySlug((string)($_GET['slug'] ?? ''));
             $data['options'] = $data['event'] ? Event::options((int)$data['event']['id']) : [];
+            $data['tiers'] = $data['event'] ? Event::tiers((int)$data['event']['id']) : [];
         } elseif ($view === 'rsvp') {
             $guest = Event::guestByToken((string)($_GET['token'] ?? ''));
             $data['guest'] = $guest;
             $data['event'] = $guest ? Event::find((int)$guest['event_id']) : null;
             $data['options'] = $data['event'] ? Event::options((int)$data['event']['id']) : [];
+            $data['tiers'] = $data['event'] ? Event::tiers((int)$data['event']['id']) : [];
             $data['picked'] = $guest ? Event::selectionIds((int)$guest['id']) : [];
             $data['payments'] = $guest ? Event::paymentsForGuest((int)$guest['id']) : [];
             $data['charge'] = ($guest && $data['event']) ? Event::nextCharge($data['event'], (int)$guest['id']) : ['amount' => 0, 'purpose' => 'deposit'];
@@ -413,7 +415,13 @@ final class ShopController extends Controller
         if (isset($p['event_apply'])) {
             $event = Event::publicBySlug((string)($p['slug'] ?? ''));
             if (!$event) {
-                throw new \RuntimeException('This event is not open for applications.');
+                throw new \RuntimeException('This event is not open.');
+            }
+            $copy = Event::signupCopy((string)($event['signup_mode'] ?? 'apply'));
+            $tiers = Event::tiers((int)$event['id']);
+            $tierId = (int)($p['tier_id'] ?? 0);
+            if ($tiers && $tierId <= 0) {
+                throw new \RuntimeException('Choose a payment tier.');
             }
             $guest = Event::addGuest(
                 (int)$event['id'],
@@ -423,9 +431,10 @@ final class ShopController extends Controller
                 (int)($p['party_size'] ?? 1),
                 'applied',
                 'applied',
-                (string)($p['note'] ?? '')
+                (string)($p['note'] ?? ''),
+                $tierId
             );
-            $this->flashShop('success', 'Application received. Keep this page — it is your private link.');
+            $this->flashShop('success', $copy['done']);
             $this->go('rsvp', ['token' => $guest['token']]);
         }
 
@@ -450,6 +459,9 @@ final class ShopController extends Controller
             Event::updateGuestDetails((int)$event['id'], (int)$guest['id'], (int)($p['party_size'] ?? 1), (string)($p['note'] ?? ''));
             if ($reply === 'accepted') {
                 Event::saveSelections((int)$guest['id'], (int)$event['id'], array_map('intval', (array)($p['option_id'] ?? [])));
+                if (Event::tiers((int)$event['id'])) {
+                    Event::assignTier((int)$event['id'], (int)$guest['id'], (int)($p['tier_id'] ?? 0));
+                }
             }
             $this->flashShop('success', $reply === 'accepted' ? 'Your reply and choices are saved.' : 'You are marked as unable to attend.');
             $this->go('rsvp', ['token' => $guest['token']]);
