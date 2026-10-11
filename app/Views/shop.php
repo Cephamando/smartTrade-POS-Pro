@@ -50,14 +50,14 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .btn-accent { background: #111; border: 0; color: #fff; font-weight: 700; }
         .btn-accent:hover, .btn-accent:focus { background: #000; color: #fff; }
         .shop-wrap { position: relative; max-width: 1180px; }
-        .landing-screen { height: calc(100vh - 62px); min-height: 560px; margin: -.5rem calc(50% - 50vw) 0; color: #f6ead0; display: flex; flex-direction: column; padding: 6px max(16px, calc(50vw - 620px)) 0; box-sizing: border-box; overflow: visible; background-color: #0b0b0d; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='48' viewBox='0 0 84 48'%3E%3Cpath d='M21 1 L41 12 L41 34 L21 45 L1 34 L1 12 Z M63 1 L83 12 L83 34 L63 45 L43 34 L43 12 Z' fill='none' stroke='%23d4a84a' stroke-opacity='0.16' stroke-width='1'/%3E%3C/svg%3E"); }
+        .landing-screen { position: relative; height: calc(100vh - 62px); min-height: 560px; margin: -.5rem calc(50% - 50vw) 0; color: #f6ead0; display: flex; flex-direction: column; padding: 6px max(16px, calc(50vw - 620px)) 0; box-sizing: border-box; overflow: visible; background-color: #0b0b0d; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='48' viewBox='0 0 84 48'%3E%3Cpath d='M21 1 L41 12 L41 34 L21 45 L1 34 L1 12 Z M63 1 L83 12 L83 34 L63 45 L43 34 L43 12 Z' fill='none' stroke='%23d4a84a' stroke-opacity='0.16' stroke-width='1'/%3E%3C/svg%3E"); }
         .landing-screen h1 { font-weight: 700; font-size: clamp(2.8rem, 6.4vw, 5.2rem); letter-spacing: -.02em; line-height: .95; margin: 0 0 8px; background: linear-gradient(180deg, #fff1c4 0%, #e8c15a 38%, #a56b12 78%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
         .landing-screen .tagline { font-size: clamp(1rem, 1.8vw, 1.25rem); margin: 0 auto; max-width: 36rem; color: #f0d7a0; }
-        .landing-stage { position: relative; flex: 1 1 auto; min-height: 0; margin: -8px calc(50% - 50vw) 0; display: flex; flex-direction: column; overflow: hidden; }
+        .landing-stage { position: absolute; top: 0; bottom: 0; left: 50%; width: 100vw; margin: 0 0 0 -50vw; z-index: 0; display: flex; flex-direction: column; overflow: hidden; }
         .landing-photo { position: absolute; inset: 0; background: #0b0b0d; }
         .landing-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 62%; display: block; }
         .landing-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(11,11,13,1) 0%, rgba(11,11,13,.92) 14%, rgba(48,28,8,.55) 32%, rgba(20,10,4,.08) 52%, rgba(0,0,0,0) 64%); pointer-events: none; }
-        .landing-stage-copy { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 8px max(16px, calc(50vw - 560px)) 36px; }
+        .landing-stage-copy { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 176px max(16px, calc(50vw - 560px)) 28px; }
         .landing-about { max-width: 760px; margin: 56px auto; text-align: center; padding: 0 18px; color: #f6ead0; }
         .landing-about h2 { font-size: clamp(2.4rem, 5vw, 3.8rem); font-weight: 700; margin-bottom: 12px; color: #e8c56b; }
         .landing-about p { font-size: 1.2rem; }
@@ -70,7 +70,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .dish-card div { padding: 14px 16px 18px; text-align: center; }
         .dish-card strong { display: block; font-family: "Playfair Display", Georgia, serif; font-size: 1.25rem; }
         .dish-card.alt { background: var(--sun); }
-        .promo-nav { position: relative; z-index: 2; flex: 0 0 auto; height: 168px; margin: 4px 0 2px; overflow: visible; background: transparent; perspective: 1400px; }
+        .promo-nav { position: relative; z-index: 3; flex: 0 0 168px; height: 168px; min-height: 168px; margin: 0; overflow: visible; background: transparent; perspective: 1400px; }
         .ad-flip { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.45, .05, .2, 1); }
         .ad-flip.is-spot { transform: rotateX(180deg); }
         .ad-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
@@ -177,7 +177,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .shop-foot strong { font-family: "Playfair Display", Georgia, serif; font-size: 1.35rem; }
         .list-group-item { border-color: #f3edd4; }
         @media (prefers-reduced-motion: reduce) { .ad-flip { transition: none; } }
-        @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage { min-height: 70vh; margin-top: 0; } .promo-nav { height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .promo-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .shop-board { grid-template-columns: minmax(118px, 42%) minmax(0, 1fr); gap: 10px; } .cat-panel { top: 64px; padding: 8px; border-radius: 16px; } .cat-tab { font-size: .82rem; padding: .45rem .5rem; } .shop-foot { margin-bottom: -110px; } }
+        @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .promo-nav { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .promo-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .shop-board { grid-template-columns: minmax(118px, 42%) minmax(0, 1fr); gap: 10px; } .cat-panel { top: 64px; padding: 8px; border-radius: 16px; } .cat-tab { font-size: .82rem; padding: .45rem .5rem; } .shop-foot { margin-bottom: -110px; } }
     </style>
 </head>
 <body class="<?= $view === 'home' ? 'is-home' : ($view === 'menu' ? 'is-menu' : '') ?>">
