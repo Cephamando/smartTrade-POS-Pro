@@ -271,7 +271,15 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         foreach ($events ?? [] as $ev) {
             $eventSlides[] = $ev;
         }
-        $scrollSlides = $menuSlides;
+        $promoSlides = [];
+        foreach (\App\Helpers\Media::folder('promo') as $src) {
+            $promoSlides[] = [
+                'src' => $src,
+                'name' => 'Slideshow',
+                'href' => $u('menu'),
+            ];
+        }
+        $scrollSlides = $promoSlides ?: $menuSlides;
         $spotSlides = [];
         foreach ($eventSlides as $ev) {
             $spotSlides[] = ['kind' => 'event', 'event' => $ev];

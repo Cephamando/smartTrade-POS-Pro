@@ -106,14 +106,14 @@ final class ShopController extends Controller
     {
         [, $products] = $this->menu();
         $items = [];
-        $slides = [];
+        $menuSlides = [];
         foreach ($products as $p) {
             $photo = $this->faceFile((string)($p['image_path'] ?? ''));
             $items[] = ['id' => (int)$p['id'], 'src' => $photo['src'], 'v' => $photo['v']];
             if ($photo['src'] === '') {
                 continue;
             }
-            $slides[] = [
+            $menuSlides[] = [
                 'id' => (int)$p['id'],
                 'src' => $photo['src'],
                 'v' => $photo['v'],
@@ -121,6 +121,7 @@ final class ShopController extends Controller
                 'cat' => (string)$p['category'],
             ];
         }
+        $slides = $this->promoSlides() ?: $menuSlides;
         $events = [];
         foreach (Event::publishedOpen() as $ev) {
             $cover = $this->faceFile((string)($ev['cover_path'] ?? ''));
@@ -141,6 +142,26 @@ final class ShopController extends Controller
             'items' => $items,
             'events' => $events,
         ]);
+    }
+
+    /** @return list<array{id: string, src: string, v: int, name: string, cat: string}> */
+    private function promoSlides(): array
+    {
+        $slides = [];
+        foreach (\App\Helpers\Media::folder('promo') as $src) {
+            $photo = $this->faceFile($src);
+            if ($photo['src'] === '') {
+                continue;
+            }
+            $slides[] = [
+                'id' => $photo['src'],
+                'src' => $photo['src'],
+                'v' => $photo['v'],
+                'name' => 'Slideshow',
+                'cat' => '',
+            ];
+        }
+        return $slides;
     }
 
     /** @return array{src: string, v: int} */
