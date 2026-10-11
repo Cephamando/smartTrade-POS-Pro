@@ -29,6 +29,8 @@ myStuff/
 # Uploaded logos, banners, and product photos
 /public/uploads/*
 !/public/uploads/.gitkeep
+!/public/uploads/promo/
+!/public/uploads/promo/.gitkeep
 
 # --- Shop backups (contain keys and .env) ---
 /backups/

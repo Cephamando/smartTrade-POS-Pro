@@ -23,14 +23,14 @@ final class ShopController extends Controller
     public function index(): void
     {
         $this->settings = Setting::all();
-        $view = (string)($_GET['view'] ?? 'menu');
+        $view = (string)($_GET['view'] ?? 'home');
         $eventView = in_array($view, ['events', 'event', 'rsvp'], true);
         if (!$eventView && ($this->settings['shop_enabled'] ?? '0') !== '1' && !$this->isManager()) {
             $this->render(['view' => 'closed', 'settings' => $this->settings, 'customer' => null, 'cart' => [], 'cartTotal' => 0, 'flash' => null]);
             return;
         }
         $this->applyShopLocation();
-        $view = (string)($_GET['view'] ?? 'menu');
+        $view = (string)($_GET['view'] ?? 'home');
         $customer = !empty($_SESSION['shop_customer_id']) ? Customer::find((int)$_SESSION['shop_customer_id']) : null;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -58,8 +58,10 @@ final class ShopController extends Controller
             'shopLocations' => $this->shopLocations,
             'shopLocationId' => $this->shopLocationId(),
         ];
-        if ($view === 'menu') {
+        if ($view === 'home' || $view === 'menu') {
             [$data['categories'], $data['products']] = $this->menu();
+        }
+        if ($view === 'home') {
             $data['events'] = Event::publishedOpen();
         } elseif ($view === 'events') {
             $data['events'] = Event::publishedOpen();
@@ -134,6 +136,10 @@ final class ShopController extends Controller
                 }
                 $this->go('menu');
             }
+            if (isset($p['cart_clear'])) {
+                $_SESSION['shop_cart'] = [];
+                $this->go('menu');
+            }
             if (isset($p['cart_update'])) {
                 $cart = $this->cart();
                 foreach ((array)($p['qty'] ?? []) as $pid => $qty) {
@@ -147,10 +153,6 @@ final class ShopController extends Controller
                 }
                 $_SESSION['shop_cart'] = $cart;
                 $this->go('cart');
-            }
-            if (isset($p['cart_clear'])) {
-                $_SESSION['shop_cart'] = [];
-                $this->go('menu');
             }
             if (isset($p['update_profile']) && $customer) {
                 Customer::updateProfile((int)$customer['id'], (string)$p['name'], (string)($p['email'] ?? ''), (string)($p['address'] ?? ''), (string)($p['new_password'] ?? ''));
@@ -169,7 +171,7 @@ final class ShopController extends Controller
                 $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage()]);
             }
             $this->flashShop('error', $e->getMessage());
-            $view = (string)($_GET['view'] ?? 'menu');
+            $view = (string)($_GET['view'] ?? 'home');
             $extra = [];
             if ($view === 'event') {
                 $extra['slug'] = (string)($_GET['slug'] ?? $p['slug'] ?? '');
@@ -219,11 +221,12 @@ final class ShopController extends Controller
         \App\Models\Product::ensureSchema();
         $loc = $this->shopLocationId();
         $stmt = $this->pdo()->prepare(
-            "SELECT p.id, p.name, p.sku, p.price, p.unit, p.category_id, p.image_path, c.name AS category, c.type AS cat_type,
+            "SELECT p.id, p.name, p.sku, p.price, p.unit, p.category_id, p.image_path, c.name AS category, cp.name AS parent_name, c.type AS cat_type,
                     COALESCE(i.quantity, 0) AS on_hand,
                     (SELECT COUNT(*) FROM product_recipes r WHERE r.parent_product_id = p.id) AS is_recipe
              FROM products p
              LEFT JOIN categories c ON c.id = p.category_id
+             LEFT JOIN categories cp ON cp.id = c.parent_id
              LEFT JOIN inventory i ON i.product_id = p.id AND i.location_id = ?
              WHERE p.is_active = 1 AND p.type = 'item' AND COALESCE(p.is_sellable, 1) = 1 AND p.price > 0 AND COALESCE(p.is_open_price, 0) = 0
              ORDER BY c.name, p.name"

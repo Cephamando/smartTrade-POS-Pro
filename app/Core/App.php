@@ -40,8 +40,8 @@ final class App
         header('Permissions-Policy: geolocation=(), microphone=*, camera=*');
         header(
             "Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            . "img-src 'self' data: https://api.qrserver.com; font-src 'self' data:; "
-            . "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            . "img-src 'self' data: https://api.qrserver.com; font-src 'self' data: https://fonts.gstatic.com; "
+            . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
             . "frame-src 'self' http: https:; child-src 'self' http: https:;"
         );
     }

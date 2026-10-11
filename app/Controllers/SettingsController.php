@@ -42,6 +42,12 @@ final class SettingsController extends Controller
                     $this->saveLibrary();
                 } elseif (isset($_POST['use_library_image'])) {
                     $this->useLibraryImage();
+                } elseif (isset($_POST['remove_promo_slide_now'])) {
+                    $this->removePromoSlide();
+                } elseif (isset($_POST['add_promo_files'])) {
+                    $this->addPromoFiles();
+                } elseif (isset($_POST['crop_promo_slide'])) {
+                    $this->cropPromoSlide();
                 } elseif (isset($_POST['save_product_photo'])) {
                     $this->saveProductPhoto();
                 } elseif (isset($_POST['save_email'])) {
@@ -208,7 +214,16 @@ final class SettingsController extends Controller
         if ($pairs) {
             Setting::save($pairs);
         }
-        $this->flash('success', 'Branding images saved. They show on the menu bar, receipts, sign-in, and the online shop.');
+        $names = $_FILES['promo_slides']['name'] ?? null;
+        $hasSlides = is_array($names) ? count(array_filter($names, static fn($n) => $n !== '')) > 0 : (is_string($names) && $names !== '');
+        if ($hasSlides) {
+            Media::storeMany('promo_slides', 10, 'promo');
+        }
+        $removeSlide = str_replace('\\', '/', (string)($_POST['remove_promo_slide'] ?? ''));
+        if ($removeSlide !== '' && str_starts_with($removeSlide, 'uploads/promo/')) {
+            Media::delete($removeSlide);
+        }
+        $this->flash('success', 'Branding images saved. The shop banner is the landing photo. Promo-folder pictures scroll when no event is published.');
     }
 
     private function saveEmail(): void
@@ -242,14 +257,44 @@ final class SettingsController extends Controller
 
     private function useLibraryImage(): void
     {
-        $path = Media::existing((string)($_POST['image_path'] ?? ''));
         $target = (string)($_POST['target'] ?? '');
         $labels = [
             'logo' => ['logo_path', 'Logo updated from the image library.'],
             'shop_banner' => ['shop_banner_path', 'Shop banner updated from the image library.'],
             'promo_banner' => ['promo_banner_path', 'Promo banner updated from the image library.'],
         ];
-        if (isset($labels[$target])) {
+        $rawPaths = $_POST['image_paths'] ?? null;
+        if (!is_array($rawPaths)) {
+            $rawPaths = [(string)($_POST['image_path'] ?? '')];
+        }
+        $paths = [];
+        foreach ($rawPaths as $raw) {
+            $raw = trim((string)$raw);
+            if ($raw === '') {
+                continue;
+            }
+            $paths[] = Media::existing($raw);
+        }
+        if (!$paths) {
+            throw new \RuntimeException('Choose an image from the library.');
+        }
+        if ($target === 'promo_slide') {
+            foreach ($paths as $slidePath) {
+                Media::copyInto($slidePath, 'promo');
+            }
+            $message = count($paths) === 1
+                ? 'Added to the shop slideshow.'
+                : count($paths) . ' pictures added to the shop slideshow.';
+            $id = 0;
+            $path = $paths[0];
+        } elseif (count($paths) > 1) {
+            throw new \RuntimeException('Choose one image for that. The slideshow can take several.');
+        } else {
+            $path = $paths[0];
+        }
+        if ($target === 'promo_slide') {
+            // already saved above
+        } elseif (isset($labels[$target])) {
             Setting::save([$labels[$target][0] => $path]);
             $message = $labels[$target][1];
             $id = 0;
@@ -271,9 +316,56 @@ final class SettingsController extends Controller
                 'target' => $target,
                 'id' => $id,
                 'image' => $path,
+                'slides' => $target === 'promo_slide' ? Media::folder('promo') : [],
             ]);
         }
         $this->flash('success', $message);
+    }
+
+    private function promoSlideResponse(string $message): void
+    {
+        if ($this->wantsAjax()) {
+            $this->jsonExit([
+                'status' => 'success',
+                'message' => $message,
+                'slides' => Media::folder('promo'),
+            ]);
+        }
+        $this->flash('success', $message);
+    }
+
+    private function removePromoSlide(): void
+    {
+        $path = str_replace('\\', '/', (string)($_POST['path'] ?? ''));
+        if (!str_starts_with($path, 'uploads/promo/')) {
+            throw new \RuntimeException('That picture is not in the slideshow.');
+        }
+        Media::delete($path);
+        $this->promoSlideResponse('Removed from the slideshow.');
+    }
+
+    private function addPromoFiles(): void
+    {
+        $saved = Media::storeMany('promo_files', 10, 'promo');
+        if (!$saved) {
+            throw new \RuntimeException('Choose at least one image.');
+        }
+        $message = count($saved) === 1 ? 'Added to the shop slideshow.' : count($saved) . ' pictures added to the shop slideshow.';
+        $this->promoSlideResponse($message);
+    }
+
+    private function cropPromoSlide(): void
+    {
+        $path = str_replace('\\', '/', (string)($_POST['path'] ?? ''));
+        if (!str_starts_with($path, 'uploads/promo/') || Media::url($path) === '') {
+            throw new \RuntimeException('That picture is not in the slideshow.');
+        }
+        $stored = Media::store('promo_crop', 'promo');
+        if ($stored === null) {
+            throw new \RuntimeException('The framed picture did not upload. Try a smaller crop.');
+        }
+        Media::delete($path);
+        $this->promoSlideResponse('Slideshow picture updated.');
     }
 
     private function saveProductPhoto(): void

@@ -35,7 +35,7 @@ final class Media
      *
      * @return list<string>
      */
-    public static function storeMany(string $field, int $max = 10): array
+    public static function storeMany(string $field, int $max = 10, string $folder = 'library'): array
     {
         $files = isset($_FILES[$field]) ? self::fileList($_FILES[$field]) : [];
         if (!$files) {
@@ -46,7 +46,7 @@ final class Media
         }
         $saved = [];
         foreach ($files as $file) {
-            $saved[] = self::storeFile($file, 'library');
+            $saved[] = self::storeFile($file, $folder);
         }
         return $saved;
     }
@@ -79,6 +79,49 @@ final class Media
         }
         usort($items, static fn(array $a, array $b): int => $b['mtime'] <=> $a['mtime']);
         return $items;
+    }
+
+    /** @return list<string> Web paths of images in public/uploads/{folder}. */
+    public static function folder(string $folder): array
+    {
+        $folder = preg_replace('/[^a-z0-9_-]/', '', $folder) ?: '';
+        if ($folder === '') {
+            return [];
+        }
+        $dir = dirname(__DIR__, 2) . '/public/uploads/' . $folder;
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return [];
+        }
+        $paths = [];
+        foreach (scandir($dir) ?: [] as $name) {
+            if (!preg_match('/^[a-z0-9][a-z0-9_-]{0,80}\.(jpg|png|webp|gif)$/', $name)) {
+                continue;
+            }
+            $url = self::url('uploads/' . $folder . '/' . $name);
+            if ($url !== '') {
+                $paths[] = $url;
+            }
+        }
+        sort($paths);
+        return $paths;
+    }
+
+    public static function copyInto(string $relative, string $folder): string
+    {
+        $relative = self::existing($relative);
+        $folder = preg_replace('/[^a-z0-9_-]/', '', $folder) ?: 'promo';
+        $src = dirname(__DIR__, 2) . '/public/' . $relative;
+        $dir = dirname(__DIR__, 2) . '/public/uploads/' . $folder;
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new \RuntimeException('The promo folder is not writable.');
+        }
+        $ext = strtolower(pathinfo($src, PATHINFO_EXTENSION));
+        $base = self::readableBase((string)pathinfo($src, PATHINFO_FILENAME));
+        $name = self::uniqueName($dir, $base, $ext);
+        if (!@copy($src, $dir . '/' . $name)) {
+            throw new \RuntimeException('The image could not be copied into the promo folder.');
+        }
+        return 'uploads/' . $folder . '/' . $name;
     }
 
     public static function existing(string $relative): string

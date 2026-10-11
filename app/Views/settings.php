@@ -420,7 +420,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         <div class="card shadow-sm border-0 border-top border-4 border-primary mb-4">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-images text-primary"></i> Image library</h5>
-                <p class="text-muted small mb-3">Upload pictures once, then use them as the logo, a banner, or a menu item photo. Files stay in the app image folder.</p>
+                <p class="text-muted small mb-3">Upload pictures once, then tick the ones you want. Slideshow can take several. The logo and shop banner use one picture.</p>
                 <div class="row g-2 align-items-end">
                     <div class="col-md-8">
                         <label class="form-label fw-bold small text-muted" for="libraryFiles">IMAGES</label>
@@ -431,27 +431,57 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                         <button type="button" class="btn btn-dark fw-bold w-100" id="libraryUpload"><i class="bi bi-cloud-upload"></i> Upload</button>
                     </div>
                 </div>
-                <div id="libraryGrid" class="library-grid mt-3">
+                <label class="form-check mt-3 mb-0" for="librarySelectAll">
+                    <input class="form-check-input" type="checkbox" id="librarySelectAll">
+                    <span class="form-check-label small fw-bold" id="librarySelectLabel">Select images</span>
+                </label>
+                <div id="libraryGrid" class="library-grid mt-2">
                     <?php if (!$libraryImages): ?>
                     <p class="text-muted small mb-0" id="libraryEmpty">No images yet.</p>
                     <?php endif; ?>
                     <?php foreach ($libraryImages as $image): ?>
-                    <button type="button" class="library-thumb" data-path="<?= htmlspecialchars($image['path']) ?>"><img src="<?= htmlspecialchars($image['path']) ?>" alt=""></button>
+                    <button type="button" class="library-thumb" data-path="<?= htmlspecialchars($image['path']) ?>"><span class="tick" aria-hidden="true"></span><img src="<?= htmlspecialchars($image['path']) ?>" alt=""></button>
                     <?php endforeach; ?>
                 </div>
                 <div class="d-flex flex-wrap gap-2 mt-3">
-                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseLogo" disabled>Use as logo</button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseBanner" disabled>Use as shop banner</button>
-                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUsePromo" disabled>Use as promo</button>
-                    <button type="button" class="btn btn-sm btn-outline-success" id="libUseItem" disabled>Use on menu item</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseLogo">Use as logo</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseBanner">Use as shop banner</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUsePromo">Add to slideshow</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="libUseItem">Use on menu item</button>
+                </div>
+                <?php $promoSlides = \App\Helpers\Media::folder('promo'); ?>
+                <div id="promoManager" class="border rounded p-3 mt-3 bg-light d-none">
+                    <div class="fw-bold small text-muted">SLIDESHOW</div>
+                    <p class="form-text mb-2">These pictures scroll across the top of the landing page when no event is published. Remove or crop one here. It saves straight away.</p>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-8">
+                            <input type="file" id="promoAddFiles" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-sm btn-dark w-100" id="promoAddBtn">Add pictures</button>
+                        </div>
+                    </div>
+                    <div id="promoSlideGrid" class="d-flex flex-wrap gap-2 mt-3"></div>
+                    <div id="promoCropBox" class="d-none mt-3">
+                        <div class="rounded overflow-hidden border bg-dark" style="max-height:360px;">
+                            <img id="promoCropImage" alt="" style="display:block;max-width:100%;">
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="button" class="btn btn-sm btn-dark" id="promoCropSave">Save crop</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="promoCropCancel">Cancel</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
         <style>
             .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; max-height: 380px; overflow: auto; }
-            .library-thumb { border: 2px solid transparent; border-radius: 12px; padding: 0; background: #f6efe6; overflow: hidden; aspect-ratio: 1; }
+            .library-thumb { position: relative; border: 2px solid transparent; border-radius: 12px; padding: 0; background: #f6efe6; overflow: hidden; aspect-ratio: 1; }
             .library-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-            .library-thumb.active { border-color: #0d6efd; }
+            .library-thumb .tick { position: absolute; top: 6px; left: 6px; width: 18px; height: 18px; border-radius: 4px; border: 2px solid #fff; background: rgba(0,0,0,.35); box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+            .library-thumb.active { border-color: #111; }
+            .library-thumb.active .tick { background: #111; }
+            .library-thumb.active .tick::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #f6c90e; border-width: 0 2px 2px 0; transform: rotate(45deg); }
         </style>
         <div class="card shadow-sm border-0 border-top border-4 border-warning">
             <div class="card-body p-4">
@@ -463,8 +493,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                     <div class="row g-3">
                         <?php foreach ([
                             ['LOGO', 'Menu bar, receipts, sign-in, and the online shop mark.', 'logo', $logoUrl],
-                            ['SHOP BANNER', 'The large header on the online ordering page.', 'shop_banner', $bannerUrl],
-                            ['PROMO BANNER', 'A second strip under the shop header.', 'promo_banner', $promoUrl],
+                            ['SHOP BANNER', 'The large photo on the shop landing page.', 'shop_banner', $bannerUrl],
                         ] as [$label, $help, $field, $url]): ?>
                         <div class="col-md-4">
                             <div class="border rounded p-3 h-100 bg-white">
@@ -487,6 +516,9 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                             </div>
                         </div>
                         <?php endforeach; ?>
+                        <div class="col-12">
+                            <p class="form-text mb-0">The landing slideshow is managed with <strong>Add to slideshow</strong> above. Each picture has its own remove and crop buttons.</p>
+                        </div>
                     </div>
                     <div class="text-end mt-4">
                         <button type="submit" class="btn btn-dark fw-bold px-5 py-2 shadow-sm"><i class="bi bi-save"></i> Save images</button>
@@ -815,11 +847,13 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
     var grid = document.getElementById('libraryGrid');
     var fileInput = document.getElementById('libraryFiles');
     var uploadBtn = document.getElementById('libraryUpload');
-    var selected = '';
+    var selected = [];
+    var selectAll = document.getElementById('librarySelectAll');
+    var selectLabel = document.getElementById('librarySelectLabel');
     var useButtons = [
         ['libUseLogo', 'logo'],
         ['libUseBanner', 'shop_banner'],
-        ['libUsePromo', 'promo_banner'],
+        ['libUsePromo', 'promo_slide'],
         ['libUseItem', 'product']
     ];
 
@@ -827,14 +861,31 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         if (window.LiveRow) LiveRow.toast(data);
     }
 
-    function setSelected(path, button) {
-        selected = path || '';
-        grid.querySelectorAll('.library-thumb').forEach(function (el) { el.classList.remove('active'); });
-        if (button) button.classList.add('active');
+    function thumbs() {
+        return Array.prototype.slice.call(grid.querySelectorAll('.library-thumb'));
+    }
+
+    function syncSelection() {
+        var boxes = thumbs();
+        selected = boxes.filter(function (el) { return el.classList.contains('active'); }).map(function (el) { return el.dataset.path || ''; }).filter(Boolean);
         useButtons.forEach(function (pair) {
             var el = document.getElementById(pair[0]);
-            if (el) el.disabled = !selected;
+            if (el) el.disabled = false;
         });
+        if (selectAll) {
+            selectAll.checked = boxes.length > 0 && selected.length === boxes.length;
+            selectAll.indeterminate = selected.length > 0 && selected.length < boxes.length;
+            selectAll.disabled = boxes.length === 0;
+        }
+        if (selectLabel) {
+            selectLabel.textContent = selected.length ? selected.length + ' selected' : 'Select images';
+        }
+    }
+
+    function toggleThumb(button) {
+        button.classList.toggle('active');
+        button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
+        syncSelection();
     }
 
     function thumb(path) {
@@ -842,11 +893,16 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         button.type = 'button';
         button.className = 'library-thumb';
         button.dataset.path = path;
+        button.setAttribute('aria-pressed', 'false');
+        var tick = document.createElement('span');
+        tick.className = 'tick';
+        tick.setAttribute('aria-hidden', 'true');
         var img = document.createElement('img');
         img.src = path;
         img.alt = '';
+        button.appendChild(tick);
         button.appendChild(img);
-        button.addEventListener('click', function () { setSelected(path, button); });
+        button.addEventListener('click', function () { toggleThumb(button); });
         return button;
     }
 
@@ -856,13 +912,13 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         grid.innerHTML = '';
         if (!images.length) {
             grid.innerHTML = '<p class="text-muted small mb-0" id="libraryEmpty">No images yet.</p>';
-            setSelected('');
+            syncSelection();
             return;
         }
         images.forEach(function (image) {
             grid.appendChild(thumb(image.path));
         });
-        setSelected('');
+        syncSelection();
     }
 
     function addPath(path) {
@@ -874,8 +930,19 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
     }
 
     grid.querySelectorAll('.library-thumb').forEach(function (button) {
-        button.addEventListener('click', function () { setSelected(button.dataset.path || '', button); });
+        button.addEventListener('click', function () { toggleThumb(button); });
     });
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            var on = selectAll.checked;
+            thumbs().forEach(function (button) {
+                button.classList.toggle('active', on);
+                button.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            syncSelection();
+        });
+    }
+    syncSelection();
 
     document.addEventListener('library-add', function (event) {
         addPath(event.detail && event.detail.path);
@@ -924,8 +991,115 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         });
     });
 
+    var promoSlides = <?= json_encode($promoSlides ?? [], JSON_UNESCAPED_UNICODE) ?>;
+    var promoPanel = document.getElementById('promoManager');
+    var promoGrid = document.getElementById('promoSlideGrid');
+    var promoCropBox = document.getElementById('promoCropBox');
+    var promoCropImage = document.getElementById('promoCropImage');
+    var promoCropper = null;
+    var promoCropPath = '';
+
+    function closePromoCrop() {
+        if (promoCropper) {
+            promoCropper.destroy();
+            promoCropper = null;
+        }
+        promoCropPath = '';
+        if (promoCropBox) promoCropBox.classList.add('d-none');
+    }
+
+    function paintSlides(slides) {
+        promoSlides = slides || [];
+        if (!promoGrid) return;
+        promoGrid.innerHTML = '';
+        if (!promoSlides.length) {
+            promoGrid.innerHTML = '<p class="text-muted small mb-0">No slideshow pictures yet.</p>';
+            return;
+        }
+        promoSlides.forEach(function (path) {
+            var card = document.createElement('div');
+            card.className = 'border rounded p-1 bg-white';
+            card.style.width = '148px';
+            var img = document.createElement('img');
+            img.src = path + '?v=' + Date.now();
+            img.alt = '';
+            img.style.cssText = 'width:100%;height:84px;object-fit:cover;display:block;border-radius:8px;';
+            var actions = document.createElement('div');
+            actions.className = 'd-flex gap-1 mt-1';
+            var crop = document.createElement('button');
+            crop.type = 'button';
+            crop.className = 'btn btn-sm btn-outline-dark flex-fill';
+            crop.textContent = 'Crop';
+            crop.addEventListener('click', function () { startPromoCrop(path); });
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn btn-sm btn-outline-danger flex-fill';
+            remove.textContent = 'Remove';
+            remove.addEventListener('click', function () { removePromo(path, remove); });
+            actions.appendChild(crop);
+            actions.appendChild(remove);
+            card.appendChild(img);
+            card.appendChild(actions);
+            promoGrid.appendChild(card);
+        });
+    }
+
+    function showPromo() {
+        if (!promoPanel) return;
+        promoPanel.classList.remove('d-none');
+        promoPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function removePromo(path, button) {
+        button.disabled = true;
+        var body = new FormData();
+        body.set('tab', 'branding');
+        body.set('ajax', '1');
+        body.set('remove_promo_slide_now', '1');
+        body.set('path', path);
+        post(body).then(function (data) {
+            if (promoCropPath === path) closePromoCrop();
+            paintSlides(data.slides || []);
+            toast(data);
+        }).catch(function (err) {
+            button.disabled = false;
+            toast({ status: 'error', msg: err.message });
+        });
+    }
+
+    function startPromoCrop(path) {
+        if (!window.Cropper || !promoCropImage) return;
+        closePromoCrop();
+        promoCropPath = path;
+        promoCropImage.src = path + '?v=' + Date.now();
+        promoCropBox.classList.remove('d-none');
+        promoCropImage.onload = function () {
+            promoCropper = new Cropper(promoCropImage, {
+                aspectRatio: 16 / 9,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1
+            });
+        };
+    }
+
     function apply(target) {
-        if (!selected) return;
+        if (target === 'promo_slide') {
+            if (!selected.length && !promoSlides.length) {
+                showPromo();
+                toast({ status: 'error', msg: 'Tick pictures to add, or use Add pictures in the slideshow.' });
+                return;
+            }
+            showPromo();
+            if (!selected.length) return;
+        } else if (!selected.length) {
+            toast({ status: 'error', msg: 'Tick one or more images first.' });
+            return;
+        }
+        if (target !== 'promo_slide' && selected.length > 1) {
+            toast({ status: 'error', msg: 'Choose one image for that. The slideshow can take several.' });
+            return;
+        }
         if (target === 'product') {
             var item = document.getElementById('menuPhotoItem');
             if (!item || !item.value) {
@@ -938,7 +1112,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         body.set('use_library_image', '1');
         body.set('ajax', '1');
         body.set('target', target);
-        body.set('image_path', selected);
+        selected.forEach(function (path) { body.append('image_paths[]', path); });
         if (target === 'product') body.set('product_id', document.getElementById('menuPhotoItem').value);
         post(body).then(function (data) {
             if (target === 'product') {
@@ -956,9 +1130,69 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                     box.appendChild(img);
                 }
             }
+            if (target === 'promo_slide') paintSlides(data.slides || promoSlides);
             toast(data);
         }).catch(function (err) {
             toast({ status: 'error', msg: err.message });
+        });
+    }
+
+    paintSlides(promoSlides);
+    var promoAddBtn = document.getElementById('promoAddBtn');
+    var promoAddFiles = document.getElementById('promoAddFiles');
+    if (promoAddBtn) {
+        promoAddBtn.addEventListener('click', function () {
+            var files = promoAddFiles ? promoAddFiles.files : null;
+            if (!files || !files.length) {
+                toast({ status: 'error', msg: 'Choose at least one image.' });
+                return;
+            }
+            var body = new FormData();
+            body.set('tab', 'branding');
+            body.set('ajax', '1');
+            body.set('add_promo_files', '1');
+            Array.prototype.forEach.call(files, function (file) { body.append('promo_files[]', file); });
+            promoAddBtn.disabled = true;
+            post(body).then(function (data) {
+                if (promoAddFiles) promoAddFiles.value = '';
+                paintSlides(data.slides || []);
+                showPromo();
+                toast(data);
+            }).catch(function (err) {
+                toast({ status: 'error', msg: err.message });
+            }).finally(function () {
+                promoAddBtn.disabled = false;
+            });
+        });
+    }
+    var promoCropSave = document.getElementById('promoCropSave');
+    var promoCropCancel = document.getElementById('promoCropCancel');
+    if (promoCropCancel) promoCropCancel.addEventListener('click', closePromoCrop);
+    if (promoCropSave) {
+        promoCropSave.addEventListener('click', function () {
+            if (!promoCropper || !promoCropPath) return;
+            promoCropper.getCroppedCanvas({ width: 1400, height: 788 }).toBlob(function (blob) {
+                if (!blob) {
+                    toast({ status: 'error', msg: 'The crop could not be saved.' });
+                    return;
+                }
+                var body = new FormData();
+                body.set('tab', 'branding');
+                body.set('ajax', '1');
+                body.set('crop_promo_slide', '1');
+                body.set('path', promoCropPath);
+                body.append('promo_crop', blob, 'slide.jpg');
+                promoCropSave.disabled = true;
+                post(body).then(function (data) {
+                    closePromoCrop();
+                    paintSlides(data.slides || []);
+                    toast(data);
+                }).catch(function (err) {
+                    toast({ status: 'error', msg: err.message });
+                }).finally(function () {
+                    promoCropSave.disabled = false;
+                });
+            }, 'image/jpeg', 0.9);
         });
     }
 
