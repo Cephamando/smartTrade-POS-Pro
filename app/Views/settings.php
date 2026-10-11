@@ -605,6 +605,9 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
 <link rel="stylesheet" href="vendor/cropperjs/cropper.min.css">
 <script src="vendor/cropperjs/cropper.min.js"></script>
 <script>
+function pingShopFace() {
+    try { new BroadcastChannel('smartrade-shop').postMessage('picture'); } catch (e) {}
+}
 (function () {
     var photos = <?= json_encode($menuPhotoMap, JSON_UNESCAPED_UNICODE) ?>;
     var itemCats = <?= json_encode($menuPhotoCatById, JSON_UNESCAPED_UNICODE) ?>;
@@ -795,6 +798,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 rebuildMenuItems();
                 if (data.image) document.dispatchEvent(new CustomEvent('library-add', { detail: { path: String(data.image).split('?')[0] } }));
                 LiveRow.toast(data);
+                pingShopFace();
             }).catch(function (err) {
                 LiveRow.toast({ status: 'error', msg: err.message });
             });
@@ -835,6 +839,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 showSaved('');
                 rebuildMenuItems();
                 LiveRow.toast(data);
+                pingShopFace();
             }).catch(function (err) {
                 LiveRow.toast({ status: 'error', msg: err.message });
             });
@@ -1061,6 +1066,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
             if (promoCropPath === path) closePromoCrop();
             paintSlides(data.slides || []);
             toast(data);
+            pingShopFace();
         }).catch(function (err) {
             button.disabled = false;
             toast({ status: 'error', msg: err.message });
@@ -1132,6 +1138,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
             }
             if (target === 'promo_slide') paintSlides(data.slides || promoSlides);
             toast(data);
+            pingShopFace();
         }).catch(function (err) {
             toast({ status: 'error', msg: err.message });
         });
@@ -1158,6 +1165,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 paintSlides(data.slides || []);
                 showPromo();
                 toast(data);
+                pingShopFace();
             }).catch(function (err) {
                 toast({ status: 'error', msg: err.message });
             }).finally(function () {
@@ -1187,6 +1195,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                     closePromoCrop();
                     paintSlides(data.slides || []);
                     toast(data);
+                    pingShopFace();
                 }).catch(function (err) {
                     toast({ status: 'error', msg: err.message });
                 }).finally(function () {

@@ -185,7 +185,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <div class="container shop-wrap d-flex justify-content-between align-items-center gap-2">
         <a href="<?= $u('home') ?>" class="d-flex align-items-center gap-2 text-truncate">
             <?php if ($logoUrl !== ''): ?>
-                <img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="height:38px;width:38px;object-fit:cover;border-radius:12px;background:#fff;">
+                <img id="shopLogo" src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="height:38px;width:38px;object-fit:cover;border-radius:12px;background:#fff;">
             <?php else: ?>
                 <span class="brand-mark"><?= htmlspecialchars(strtoupper(substr($storeName, 0, 1))) ?></span>
             <?php endif; ?>
@@ -250,7 +250,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             }
             $seenCats[$catName] = true;
             $label = strcasecmp($catName, 'FOOD') === 0 ? 'SNACK' : $catName;
-            $categoryCards[] = ['name' => $label, 'photo' => $photo, 'cat' => $catName];
+            $categoryCards[] = ['id' => (int)$p['id'], 'name' => $label, 'photo' => $photo, 'cat' => $catName];
             if (count($categoryCards) >= 7) {
                 break;
             }
@@ -328,7 +328,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <?php endif; ?>
         <div class="landing-stage">
             <div class="landing-photo">
-                <?php if ($bannerUrl !== ''): ?><img src="<?= htmlspecialchars($bannerUrl) ?>" alt=""><?php endif; ?>
+                <?php if ($bannerUrl !== ''): ?><img id="shopBanner" src="<?= htmlspecialchars($bannerUrl) ?>" alt=""><?php endif; ?>
             </div>
             <div class="landing-stage-copy">
                 <div>
@@ -356,7 +356,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div>
             <?php foreach (array_slice($categoryCards, 0, 3) as $card): ?>
             <div class="col-6 col-lg-3">
-                <a class="dish-card" href="<?= $u('menu', ['cat' => $card['cat']]) ?>">
+                <a class="dish-card" data-id="<?= (int)$card['id'] ?>" href="<?= $u('menu', ['cat' => $card['cat']]) ?>">
                     <img src="<?= htmlspecialchars($card['photo']) ?>" alt="">
                     <div><strong><?= htmlspecialchars($card['name']) ?></strong></div>
                 </a>
@@ -367,7 +367,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <div class="row g-3 mt-1">
             <?php foreach (array_slice($categoryCards, 3) as $i => $card): ?>
             <div class="col-6 col-md-3">
-                <a class="dish-card<?= $i % 2 === 0 ? ' alt' : '' ?>" href="<?= $u('menu', ['cat' => $card['cat']]) ?>">
+                <a class="dish-card<?= $i % 2 === 0 ? ' alt' : '' ?>" data-id="<?= (int)$card['id'] ?>" href="<?= $u('menu', ['cat' => $card['cat']]) ?>">
                     <img src="<?= htmlspecialchars($card['photo']) ?>" alt="">
                     <div><strong><?= htmlspecialchars($card['name']) ?></strong></div>
                 </a>
@@ -463,7 +463,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <div class="row g-3" id="menuGrid">
         <?php if (!$products): ?><div class="col-12 text-center text-muted py-5">The menu is being updated. Please check back shortly.</div><?php endif; ?>
         <?php foreach ($products as $i => $p): ?>
-        <div class="col-12 col-sm-6 menu-item<?= $i >= 8 ? ' d-none' : '' ?>" data-cat="<?= htmlspecialchars($p['category']) ?>" data-group="<?= htmlspecialchars((string)($p['family'] ?? '')) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
+        <div class="col-12 col-sm-6 menu-item<?= $i >= 8 ? ' d-none' : '' ?>" data-id="<?= (int)$p['id'] ?>" data-cat="<?= htmlspecialchars($p['category']) ?>" data-group="<?= htmlspecialchars((string)($p['family'] ?? '')) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
             <div class="card item-card h-100 <?= $p['available'] ? '' : 'unavailable' ?>">
                 <?php $photo = \App\Helpers\Media::url((string)($p['image_path'] ?? '')); ?>
                 <?php if ($photo !== ''): ?>
@@ -1107,6 +1107,141 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         else arm(showingSpot ? spotWait : menuWait);
     });
     arm(menuWait);
+})();
+</script>
+<script>
+(function () {
+    if (!document.body.classList.contains('is-home') && !document.body.classList.contains('is-menu')) return;
+    var seen = '';
+
+    function withVersion(src, v) {
+        if (!src) return '';
+        return src + (String(src).indexOf('?') === -1 ? '?v=' + v : '');
+    }
+    function paintImg(img, src, v) {
+        if (!img || !src) return;
+        var next = withVersion(src, v);
+        if (img.getAttribute('src') !== next) img.src = next;
+    }
+    function paintLogo(logo) {
+        var img = document.getElementById('shopLogo');
+        var mark = document.querySelector('.brand-mark');
+        if (logo.src) {
+            if (!img) {
+                img = document.createElement('img');
+                img.id = 'shopLogo';
+                img.alt = '';
+                img.style.cssText = 'height:38px;width:38px;object-fit:cover;border-radius:12px;background:#fff;';
+                if (mark && mark.parentNode) mark.parentNode.replaceChild(img, mark);
+            }
+            paintImg(img, logo.src, logo.v);
+        }
+    }
+    function paintBanner(banner) {
+        var stage = document.querySelector('.landing-photo');
+        if (!stage || !banner.src) return;
+        var img = document.getElementById('shopBanner');
+        if (!img) {
+            img = document.createElement('img');
+            img.id = 'shopBanner';
+            img.alt = '';
+            stage.appendChild(img);
+        }
+        paintImg(img, banner.src, banner.v);
+    }
+    function paintSlides(slides) {
+        var track = document.querySelector('.ad-face-menu .promo-nav-track');
+        if (!track) return;
+        var key = slides.map(function (s) { return s.id + ':' + s.src + ':' + s.v; }).join('|');
+        if (track.dataset.key === key) return;
+        var rows = slides.slice();
+        var pool = slides.slice();
+        while (rows.length && rows.length < 6) rows = rows.concat(pool);
+        var incoming = rows.concat(rows);
+        var existing = Array.prototype.map.call(track.querySelectorAll('img'), function (img) {
+            return (img.getAttribute('src') || '').split('?')[0];
+        });
+        var same = existing.length === incoming.length && existing.every(function (src, i) { return src === incoming[i].src; });
+        if (same) {
+            Array.prototype.forEach.call(track.querySelectorAll('img'), function (img, i) {
+                paintImg(img, incoming[i].src, incoming[i].v);
+            });
+            track.dataset.key = key;
+            return;
+        }
+        track.dataset.key = key;
+        track.textContent = '';
+        incoming.forEach(function (slide) {
+            var link = document.createElement('a');
+            link.className = 'menu-slide';
+            link.href = 'index.php?page=shop&view=menu&cat=' + encodeURIComponent(slide.cat || '');
+            var img = document.createElement('img');
+            img.src = withVersion(slide.src, slide.v);
+            img.alt = slide.name || '';
+            link.appendChild(img);
+            track.appendChild(link);
+        });
+    }
+    function paintEvents(events) {
+        events.forEach(function (ev) {
+            var card = document.querySelector('.spot-card[data-event-slug="' + ev.slug.replace(/"/g, '') + '"]');
+            if (!card || !ev.src) return;
+            var img = card.querySelector('img');
+            if (!img) {
+                img = document.createElement('img');
+                img.alt = ev.title || '';
+                card.insertBefore(img, card.firstChild);
+            }
+            paintImg(img, ev.src, ev.v);
+        });
+    }
+    function paintItems(items) {
+        var byId = {};
+        items.forEach(function (row) { byId[String(row.id)] = row; });
+        document.querySelectorAll('.menu-item[data-id]').forEach(function (card) {
+            var row = byId[card.dataset.id];
+            var face = card.querySelector('.item-face');
+            if (!row || !face) return;
+            if (row.src) {
+                face.classList.add('item-photo');
+                var url = withVersion(row.src, row.v).replace(/'/g, '%27');
+                face.style.backgroundImage = "linear-gradient(to top, rgba(20,10,4,.45), transparent 55%), url('" + url + "')";
+                var icon = face.querySelector('i');
+                if (icon) icon.remove();
+            } else if (face.classList.contains('item-photo')) {
+                face.classList.remove('item-photo');
+                face.style.backgroundImage = '';
+            }
+        });
+        document.querySelectorAll('.dish-card[data-id]').forEach(function (card) {
+            var row = byId[card.dataset.id];
+            if (row && row.src) paintImg(card.querySelector('img'), row.src, row.v);
+        });
+    }
+    function apply(data) {
+        if (!data || data.status !== 'ok') return;
+        var key = JSON.stringify([data.logo, data.banner, data.slides, data.items, data.events]);
+        if (key === seen) return;
+        seen = key;
+        if (data.logo) paintLogo(data.logo);
+        if (data.banner) paintBanner(data.banner);
+        if (data.slides) paintSlides(data.slides);
+        if (data.events) paintEvents(data.events);
+        if (data.items) paintItems(data.items);
+    }
+    function pull() {
+        if (document.hidden) return;
+        fetch('index.php?page=shop&view=face', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(apply)
+            .catch(function () {});
+    }
+    try {
+        var channel = new BroadcastChannel('smartrade-shop');
+        channel.onmessage = pull;
+    } catch (e) {}
+    document.addEventListener('visibilitychange', pull);
+    setInterval(pull, 8000);
 })();
 </script>
 </body>

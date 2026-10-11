@@ -31,6 +31,9 @@ final class ShopController extends Controller
         }
         $this->applyShopLocation();
         $view = (string)($_GET['view'] ?? 'home');
+        if ($view === 'face') {
+            $this->shopFace();
+        }
         $customer = !empty($_SESSION['shop_customer_id']) ? Customer::find((int)$_SESSION['shop_customer_id']) : null;
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -97,6 +100,58 @@ final class ShopController extends Controller
             $this->go('login');
         }
         $this->render($data);
+    }
+
+    private function shopFace(): never
+    {
+        [, $products] = $this->menu();
+        $items = [];
+        $slides = [];
+        foreach ($products as $p) {
+            $photo = $this->faceFile((string)($p['image_path'] ?? ''));
+            $items[] = ['id' => (int)$p['id'], 'src' => $photo['src'], 'v' => $photo['v']];
+            if ($photo['src'] === '') {
+                continue;
+            }
+            $slides[] = [
+                'id' => (int)$p['id'],
+                'src' => $photo['src'],
+                'v' => $photo['v'],
+                'name' => (string)$p['name'],
+                'cat' => (string)$p['category'],
+            ];
+        }
+        $events = [];
+        foreach (Event::publishedOpen() as $ev) {
+            $cover = $this->faceFile((string)($ev['cover_path'] ?? ''));
+            $events[] = [
+                'slug' => (string)$ev['slug'],
+                'title' => (string)$ev['title'],
+                'src' => $cover['src'],
+                'v' => $cover['v'],
+            ];
+        }
+        $logo = $this->faceFile((string)($this->settings['logo_path'] ?? ''));
+        $banner = $this->faceFile((string)($this->settings['shop_banner_path'] ?? ''));
+        $this->jsonExit([
+            'status' => 'ok',
+            'logo' => $logo,
+            'banner' => $banner,
+            'slides' => $slides,
+            'items' => $items,
+            'events' => $events,
+        ]);
+    }
+
+    /** @return array{src: string, v: int} */
+    private function faceFile(string $relative): array
+    {
+        $src = \App\Helpers\Media::url($relative);
+        if ($src === '') {
+            return ['src' => '', 'v' => 0];
+        }
+        $file = dirname(__DIR__, 2) . '/public/' . $src;
+        return ['src' => $src, 'v' => is_file($file) ? (int)filemtime($file) : 0];
     }
 
     // ------------------------------------------------------------------ POST actions
