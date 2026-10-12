@@ -70,12 +70,16 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .dish-card div { padding: 14px 16px 18px; text-align: center; }
         .dish-card strong { display: block; font-family: "Playfair Display", Georgia, serif; font-size: 1.25rem; }
         .dish-card.alt { background: var(--sun); }
-        .promo-nav { position: relative; z-index: 3; flex: 0 0 168px; height: 168px; min-height: 168px; margin: 0; overflow: visible; background: transparent; perspective: 1400px; }
+        .promo-nav { position: relative; z-index: 3; isolation: isolate; flex: 0 0 168px; height: 168px; min-height: 168px; margin: 0; overflow: visible; background: transparent; perspective: 1400px; }
         .ad-flip { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.45, .05, .2, 1); }
         .ad-flip.is-spot { transform: rotateX(180deg); }
         .ad-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-        .ad-face-menu { transform: rotateX(0deg); }
+        .ad-face-menu { transform: translateZ(2px); }
         .ad-face-spot { transform: rotateX(180deg); pointer-events: none; }
+        .promo-nav.is-flat { perspective: none; }
+        .promo-nav.is-flat .ad-flip { transform: none; transform-style: flat; }
+        .promo-nav.is-flat .ad-face,
+        .promo-nav.is-flat .ad-face-menu { transform: none; backface-visibility: visible; -webkit-backface-visibility: visible; }
         .ad-flip.is-spot .ad-face-menu { pointer-events: none; }
         .ad-flip.is-spot .ad-face-spot { pointer-events: auto; }
         .promo-nav-track { display: flex; height: 100%; width: max-content; align-items: center; gap: 16px; padding: 8px 0; animation: event-advert-scroll 42s linear infinite; }
@@ -301,7 +305,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     ?>
     <section class="landing-screen text-center">
         <?php if ($scrollLoop || $spotLoop): ?>
-        <div class="promo-nav" id="adBar" aria-label="Menu and promotions">
+        <div class="promo-nav<?= empty($spotLoop) ? ' is-flat' : '' ?>" id="adBar" aria-label="Menu and promotions">
             <div class="ad-flip" id="adFlip">
                 <?php if ($scrollLoop): ?>
                 <div class="ad-face ad-face-menu">
