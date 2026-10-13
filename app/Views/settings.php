@@ -1,6 +1,6 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email'], true) ? $tab : 'general';
+$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email', 'guide'], true) ? $tab : 'general';
 $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['flw_secret_key'], 0, 12) . '••••••••' : '';
 $tabs = [
     'general' => ['bi-sliders', 'General'],
@@ -10,6 +10,7 @@ $tabs = [
     'shop' => ['bi-bag-heart', 'Customer ordering'],
     'branding' => ['bi-image', 'Logo & banners'],
     'email' => ['bi-envelope', 'Email'],
+    'guide' => ['bi-chat-left-text', 'Guide'],
 ];
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1249,6 +1250,42 @@ function pingShopFace() {
                     </div>
                     <div class="text-end mt-4">
                         <button class="btn btn-dark fw-bold px-5"><i class="bi bi-save"></i> Save email</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<?php elseif ($tab === 'guide'):
+    $guideModel = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
+    $guideModels = ['gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite', 'gemini-2.0-flash' => 'Gemini 2.0 Flash'];
+    if (!isset($guideModels[$guideModel])) {
+        $guideModel = 'gemini-2.5-flash';
+    }
+?>
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm border-0 border-top border-4 border-warning">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-1"><i class="bi bi-chat-left-text text-warning"></i> Staff guide</h5>
+                <p class="text-muted small">The Guide button on back-office pages answers how-to questions from the written manuals. The key stays on this server. Leave it blank to keep the one already saved.</p>
+                <form method="POST" action="index.php?page=settings">
+                    <input type="hidden" name="tab" value="guide">
+                    <input type="hidden" name="save_guide" value="1">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">GEMINI API KEY</label>
+                        <input type="password" name="gemini_api_key" class="form-control" value="" placeholder="<?= !empty($settings['gemini_api_key']) ? 'Saved. Leave blank to keep it.' : 'Paste the Gemini API key' ?>" autocomplete="new-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">MODEL</label>
+                        <select name="gemini_model" class="form-select">
+                            <?php foreach ($guideModels as $id => $label): ?>
+                            <option value="<?= htmlspecialchars($id) ?>" <?= $guideModel === $id ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button class="btn btn-dark fw-bold px-5"><i class="bi bi-save"></i> Save guide</button>
                     </div>
                 </form>
             </div>

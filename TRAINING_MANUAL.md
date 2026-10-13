@@ -128,13 +128,17 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 2. Tap **Menu**.
 
-*Expected result:* a dark panel drops down. Dashboard is a single row. Inventory and Management have a chevron. The bottom holds Approvals, the workstation chip, your name, and Logout, all full width.
+*Expected result:* a dark panel drops down. Dashboard is a single row. Inventory and Management have a chevron. The bottom holds Approvals, the workstation chip, your name, the Guide, and Logout, all full width.
 
-3. Tap **Inventory**, then **Management**.
+3. Tap **Guide**.
+
+*Expected result:* the Guide chat opens, ready to answer questions about the manuals. Close it.
+
+4. Tap **Inventory**, then **Management**.
 
 *Expected result:* Inventory expands with a yellow left rail; when you tap Management, Inventory folds and Management opens. Only one is open at a time.
 
-4. Tap **Stock Levels**.
+5. Tap **Stock Levels**.
 
 *Expected result:* the panel closes by itself and Stock Levels loads.
 
@@ -1339,10 +1343,62 @@ Give the trainee the symptom only. They must find the cause and the right action
 | "already a tier" | That name is already on this event | Remove it, or type a different custom name |
 | Tier "does not have enough places left" | The party would pass that tier's limit | Lower the party or raise the limit. A limit of 0 means no limit |
 | Pay now says Flutterwave is not enabled | Payment keys are missing | Record cash on the event, or add test keys under Payments |
+| The Guide says it is not set up | Gemini key is missing | Add it in System Settings → Guide |
 
 ---
 
-## 10. Daily and periodic routines (checklists)
+## 10. Customer shop and events (Enterprise)
+
+### Scenario 10.1 — Place a web order
+
+1. Without signing in, open `index.php?page=shop`.
+2. Browse a category and add an item to the basket.
+3. Open the basket and tap **Checkout**.
+4. Enter a name and phone number (this creates a customer account) and choose a PIN.
+5. Pick **Pay at counter** and place the order.
+
+*Expected result:* The order shows in My Orders with a status of Received.
+
+### Scenario 10.2 — Fulfill the web order
+
+1. Sign in as `train_cashier` on the fulfilling POS.
+2. Notice the Web Orders badge has gone up. Click **Web Orders**.
+3. Open the new order.
+4. If it was Pay at counter, charge it as usual (cash, card). If it was Paid Online, it requires no payment.
+5. Mark the items ready, then tap **Hand Over**.
+
+*Expected result:* The sale completes, printing the receipt.
+
+### Scenario 10.3 — Create an event
+
+1. As `train_mgr`, open **Management → Events**.
+2. Tap **Create Event**. Give it a title, date, and time.
+3. Add a ticket tier (e.g. "General Admission") and save.
+4. Toggle the event to **Published**.
+
+*Expected result:* Customers see the event advertised on the shop landing page and can buy a ticket.
+
+### Scenario 10.4 — Ask the guide
+
+1. As any staff member, open the back-office **Dashboard**.
+2. Click the **Guide** button in the bottom right (or inside the phone Menu).
+3. Type: "How do I add a new user?"
+4. Tap **Ask**.
+
+*Expected result:* The guide replies with the steps and provides an "Open Users" link.
+
+### Assessment — Enterprise
+
+| # | Checkpoint | Pass |
+|---|---|---|
+| E1 | A guest places an order on the customer shop | |
+| E2 | A cashier completes a pay-at-counter web order on the POS | |
+| E3 | A manager creates a published event with tickets | |
+| E4 | A staff member asks the Guide a question and opens the named screen | |
+
+---
+
+## 11. Daily and periodic routines (checklists)
 
 ### Opening (cashier + manager)
 
@@ -1385,7 +1441,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 ---
 
-## 11. Competency sign-off
+## 12. Competency sign-off
 
 | Trainee | Role | Chapter assessments passed | Mobile drills passed | Trainer | Date |
 |---|---|---|---|---|---|

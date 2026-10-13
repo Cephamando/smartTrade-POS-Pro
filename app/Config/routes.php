@@ -47,4 +47,5 @@ return [
     'currency' => ['auth' => false, 'standalone' => true],
     'shop' => ['auth' => false, 'standalone' => true],
     'events' => [],
+    'guide' => ['action_only' => true],
 ];

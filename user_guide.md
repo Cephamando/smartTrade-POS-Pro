@@ -523,23 +523,19 @@ How a slip is worked out: basic (pro-rated for days or hours when the pay type c
 
 ---
 
-## 16. Customer ordering portal (Enterprise)
+## 16. Customer ordering portal and events
 
-Customers order from their phone at **`index.php?page=shop`** (link it from your website or print the address as a QR code). The portal uses the shop's colours and the title set under **System Settings → Customer ordering**.
+The storefront runs on `index.php?page=shop` and does not need a staff login.
 
-**Customer side**
+- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. They can pay on delivery/pickup or use Flutterwave online. The order shows up in POS under Web Orders.
+- **Promo strip:** A scrolling bar shows promotional images. If no events are published, it cycles the promo-folder slides. If published events exist, it advertises the events instead.
+- **Events:** If the event planner (Management → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
 
-- Browse the menu with search and category chips. Only sellable items that are in stock (or have a recipe) at the fulfilling location are shown.
-- Add to the basket, change quantities, then **Checkout**: pickup or delivery (address and fee), a pickup time, notes, and **pay at counter** or **pay online** (Flutterwave).
-- First-time customers **register** with name, Zambian mobile number, and a PIN/password; returning customers sign in. If the number is already a loyalty member the accounts are linked.
-- **My orders** shows every order and its status (received → preparing → ready → collected / handed over), refreshing on its own.
+Staff can set up and publish these events on the back office:
 
-**Shop side**
-
-- New orders appear on the POS **Web Orders** button at the fulfilling location, with a **PAID ONLINE** or **PAY AT COUNTER** badge, the order number, pickup/delivery, phone, and time.
-- Pay-at-counter orders are pulled into the normal sale flow and charged like a tab.
-- Paid orders need no payment: once the kitchen marks everything ready, **Hand Over (Paid)** completes the sale and fiscalizes it.
-- Stock is deducted when the order is placed. Online orders are counted with everything else in reports and the Z-Read.
+- **Management → Events:** Create, edit, publish, and close events. Define meal/seat packages and payment tiers.
+- **Invitations:** Upload lists of guests, accept/waitlist/decline them, or send a mass email with secret RSVP links. (SMTP must be configured in System Settings → Email).
+- **Check-in:** A day-of staff board tracks arrived guests.
 
 ---
 
@@ -628,3 +624,39 @@ Empty cells mean that role is sent back to their home page if they open the addr
 2. Manager prints the Z-Read for the date and workstation.
 3. Manager checks ZRA for a clear unfiscalized list.
 4. VAT is declared later on the ZRA portal. Smart Invoice has already sent the invoices.
+
+**Guest calls the guide**
+
+The Guide button on the back-office shared pages (Dashboard, Management, Settings, etc.) answers how-to questions from this manual. Ask a short question. The Guide answers with steps and a link to the screen.
+
+---
+
+## 19. Screen Index
+
+| Screen Name | Location in App |
+|---|---|
+| Dashboard | `index.php?page=dashboard` |
+| Point of sale | `index.php?page=pos` |
+| Customer shop | `index.php?page=shop` |
+| Products | `index.php?page=products` |
+| Categories | `index.php?page=categories` |
+| Stock levels | `index.php?page=inventory` |
+| Purchase inquiry | `index.php?page=purchasing&tab=inquiry` |
+| Purchase orders | `index.php?page=purchasing&tab=orders` |
+| Goods received | `index.php?page=purchasing&tab=received` |
+| Receiving bay | `index.php?page=receiving_bay` |
+| Vendors | `index.php?page=vendors` |
+| Reports | `index.php?page=reports` |
+| End of day | `index.php?page=z_read` |
+| Shifts | `index.php?page=shifts` |
+| Users | `index.php?page=users` |
+| Payroll | `index.php?page=payroll` |
+| Locations | `index.php?page=locations` |
+| Tables | `index.php?page=tables` |
+| Events | `index.php?page=events` |
+| Settings | `index.php?page=settings` |
+| Kitchen | `index.php?page=kitchen` |
+| Menu | `index.php?page=menu` |
+| Kitchen display | `index.php?page=kds` |
+| Members | `index.php?page=members` |
+| Transfers | `index.php?page=transfers` |

@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\SurchargeReason;
 use App\Services\Currency;
 use App\Services\Flutterwave;
+use App\Services\Guide;
 
 final class SettingsController extends Controller
 {
@@ -52,6 +53,8 @@ final class SettingsController extends Controller
                     $this->saveProductPhoto();
                 } elseif (isset($_POST['save_email'])) {
                     $this->saveEmail();
+                } elseif (isset($_POST['save_guide'])) {
+                    $this->saveGuide();
                 } elseif (isset($_POST['bulk_action'])) {
                     $this->bulkSurcharges();
                 } else {
@@ -241,21 +244,22 @@ final class SettingsController extends Controller
         $this->flash('success', 'Email settings saved. Invitations use them when the host and from address are filled in.');
     }
 
-    private function saveLibrary(): void
+    private function saveGuide(): void
     {
-        $saved = Media::storeMany('library_images', 10);
-        $message = count($saved) . ' image' . (count($saved) === 1 ? '' : 's') . ' added to the library.';
-        if ($this->wantsAjax()) {
-            $this->jsonExit([
-                'status' => 'success',
-                'message' => $message,
-                'images' => Media::list(),
-            ]);
+        $existing = Setting::all();
+        $key = trim((string)($_POST['gemini_api_key'] ?? ''));
+        $model = (string)($_POST['gemini_model'] ?? 'gemini-2.5-flash');
+        if (!isset(Guide::models()[$model])) {
+            $model = 'gemini-2.5-flash';
         }
-        $this->flash('success', $message);
+        Setting::save([
+            'gemini_api_key' => $key !== '' ? $key : (string)($existing['gemini_api_key'] ?? ''),
+            'gemini_model' => $model,
+        ]);
+        $this->flash('success', 'Guide settings saved. Staff can ask how-to questions from the written manuals.');
     }
 
-    private function useLibraryImage(): void
+    private function saveLibrary(): void
     {
         $target = (string)($_POST['target'] ?? '');
         $labels = [
