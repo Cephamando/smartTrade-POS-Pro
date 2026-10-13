@@ -66,7 +66,11 @@ final class Guide
 
         $detail = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
         if ($code === 400 || $code === 404) {
-            throw new \RuntimeException('The saved Gemini model could not be used. Choose another model under System Settings, Guide.');
+            $msg = 'The saved Gemini model could not be used. Choose another model under System Settings, Guide.';
+            if ($detail !== '') {
+                $msg .= ' (' . $detail . ')';
+            }
+            throw new \RuntimeException($msg);
         }
         if ($code === 401 || $code === 403) {
             throw new \RuntimeException('Gemini rejected the saved key. A manager can paste a new one under System Settings, Guide.');
@@ -299,8 +303,12 @@ final class Guide
         ]);
         $raw = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = curl_error($ch);
         curl_close($ch);
-        if (!is_string($raw)) {
+        if (!is_string($raw) || $raw === '') {
+            if ($err !== '') {
+                throw new \RuntimeException('The guide could not reach Gemini: ' . $err);
+            }
             throw new \RuntimeException('The guide could not reach Gemini.');
         }
         return [$code, $this->scrub($raw, $key)];
