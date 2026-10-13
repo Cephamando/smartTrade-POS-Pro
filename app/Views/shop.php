@@ -70,28 +70,28 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .dish-card div { padding: 14px 16px 18px; text-align: center; }
         .dish-card strong { display: block; font-family: "Playfair Display", Georgia, serif; font-size: 1.25rem; }
         .dish-card.alt { background: var(--sun); }
-        .promo-nav { position: relative; z-index: 3; isolation: isolate; flex: 0 0 168px; height: 168px; min-height: 168px; margin: 0; overflow: visible; background: transparent; perspective: 1400px; }
-        .ad-flip { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.45, .05, .2, 1); }
-        .ad-flip.is-spot { transform: rotateX(180deg); }
-        .ad-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-        .ad-face-menu { transform: translateZ(2px); }
-        .ad-face-spot { transform: rotateX(180deg); pointer-events: none; }
-        .promo-nav.is-flat { perspective: none; }
-        .promo-nav.is-flat .ad-flip { transform: none; transform-style: flat; }
-        .promo-nav.is-flat .ad-face,
-        .promo-nav.is-flat .ad-face-menu { transform: none; backface-visibility: visible; -webkit-backface-visibility: visible; }
-        .ad-flip.is-spot .ad-face-menu { pointer-events: none; }
-        .ad-flip.is-spot .ad-face-spot { pointer-events: auto; }
-        .promo-nav-track { display: flex; height: 100%; width: max-content; align-items: center; gap: 16px; padding: 8px 0; animation: event-advert-scroll 42s linear infinite; }
-        .ad-face-spot .promo-nav-track { animation-duration: 36s; }
-        .promo-nav-track.is-still { animation: none; width: 100%; justify-content: center; }
-        .promo-nav:hover .promo-nav-track, .promo-nav:focus-within .promo-nav-track { animation-play-state: paused; }
+        .dish-strip { position: relative; z-index: 3; isolation: isolate; flex: 0 0 168px; height: 168px; min-height: 168px; margin: 0; overflow: visible; background: transparent; perspective: 1400px; }
+        .dish-flip { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.45, .05, .2, 1); }
+        .dish-flip.is-spot { transform: rotateX(180deg); }
+        .dish-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+        .dish-face-menu { transform: translateZ(2px); }
+        .dish-face-spot { transform: rotateX(180deg); pointer-events: none; }
+        .dish-strip.is-flat { perspective: none; }
+        .dish-strip.is-flat .dish-flip { transform: none; transform-style: flat; }
+        .dish-strip.is-flat .dish-face,
+        .dish-strip.is-flat .dish-face-menu { transform: none; backface-visibility: visible; -webkit-backface-visibility: visible; }
+        .dish-flip.is-spot .dish-face-menu { pointer-events: none; }
+        .dish-flip.is-spot .dish-face-spot { pointer-events: auto; }
+        .dish-track { display: flex; height: 100%; width: max-content; align-items: center; gap: 16px; padding: 8px 0; animation: event-advert-scroll 42s linear infinite; }
+        .dish-face-spot .dish-track { animation-duration: 36s; }
+        .dish-track.is-still { animation: none; width: 100%; justify-content: center; }
+        .dish-strip:hover .dish-track, .dish-strip:focus-within .dish-track { animation-play-state: paused; }
         .menu-slide, .spot-card { position: relative; display: block; width: 228px; height: 132px; flex: 0 0 228px; margin: 0; padding: 0; border: 2px solid #c9a24a; border-radius: 16px; overflow: hidden; background: #1a140c; box-shadow: 0 10px 24px rgba(0,0,0,.45); color: #fff; text-decoration: none; }
         button.spot-card { cursor: pointer; font: inherit; text-align: left; }
         .menu-slide img, .spot-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .spot-card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 54%; background: linear-gradient(to top, rgba(0,0,0,.62), transparent); pointer-events: none; }
-        .promo-chip { position: absolute; left: 10px; right: 10px; bottom: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; width: max-content; max-width: calc(100% - 20px); background: linear-gradient(180deg, #f3c65a, #c48416); color: #1a1206; border-radius: 999px; padding: 5px 10px; font-weight: 800; font-size: .68rem; letter-spacing: .02em; box-shadow: 0 8px 18px rgba(0,0,0,.35); }
-        .promo-chip i { font-size: .85rem; }
+        .event-chip { position: absolute; left: 10px; right: 10px; bottom: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; width: max-content; max-width: calc(100% - 20px); background: linear-gradient(180deg, #f3c65a, #c48416); color: #1a1206; border-radius: 999px; padding: 5px 10px; font-weight: 800; font-size: .68rem; letter-spacing: .02em; box-shadow: 0 8px 18px rgba(0,0,0,.35); }
+        .event-chip i { font-size: .85rem; }
         #eventReg .modal-content { background: #fff8e4; color: #141414; border: 2px solid #c9a24a; border-radius: 22px; }
         #eventReg .modal-body { position: relative; padding: 16px; }
         #eventReg .btn-close { position: sticky; float: right; z-index: 2; margin: 0 0 -28px; background-color: #f3c65a; border-radius: 50%; padding: .65rem; opacity: 1; }
@@ -180,8 +180,8 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .shop-foot p { margin: 0 0 14px; }
         .shop-foot strong { font-family: "Playfair Display", Georgia, serif; font-size: 1.35rem; }
         .list-group-item { border-color: #f3edd4; }
-        @media (prefers-reduced-motion: reduce) { .ad-flip { transition: none; } }
-        @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .promo-nav { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .promo-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .shop-board { grid-template-columns: minmax(118px, 42%) minmax(0, 1fr); gap: 10px; } .cat-panel { top: 64px; padding: 8px; border-radius: 16px; } .cat-tab { font-size: .82rem; padding: .45rem .5rem; } .shop-foot { margin-bottom: -110px; } }
+        @media (prefers-reduced-motion: reduce) { .dish-flip { transition: none; } }
+        @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .dish-strip { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .event-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .shop-board { grid-template-columns: minmax(118px, 42%) minmax(0, 1fr); gap: 10px; } .cat-panel { top: 64px; padding: 8px; border-radius: 16px; } .cat-tab { font-size: .82rem; padding: .45rem .5rem; } .shop-foot { margin-bottom: -110px; } }
     </style>
 </head>
 <body class="<?= $view === 'home' ? 'is-home' : ($view === 'menu' ? 'is-menu' : '') ?>">
@@ -305,11 +305,11 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     ?>
     <section class="landing-screen text-center">
         <?php if ($scrollLoop || $spotLoop): ?>
-        <div class="promo-nav<?= empty($spotLoop) ? ' is-flat' : '' ?>" id="adBar" aria-label="Menu and promotions">
-            <div class="ad-flip" id="adFlip">
+        <div class="dish-strip<?= empty($spotLoop) ? ' is-flat' : '' ?>" id="dishStrip" aria-label="Menu pictures">
+            <div class="dish-flip" id="dishFlip">
                 <?php if ($scrollLoop): ?>
-                <div class="ad-face ad-face-menu">
-                    <div class="promo-nav-track">
+                <div class="dish-face dish-face-menu">
+                    <div class="dish-track">
                         <?php for ($copy = 0; $copy < 2; $copy++): foreach ($scrollLoop as $slide): ?>
                             <a class="menu-slide" href="<?= htmlspecialchars($slide['href']) ?>">
                                 <img src="<?= htmlspecialchars($slide['src']) ?>" alt="<?= htmlspecialchars($slide['name']) ?>">
@@ -319,8 +319,8 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 </div>
                 <?php endif; ?>
                 <?php if ($spotLoop): ?>
-                <div class="ad-face ad-face-spot">
-                    <div class="promo-nav-track<?= $spotScroll ? '' : ' is-still' ?>">
+                <div class="dish-face dish-face-spot">
+                    <div class="dish-track<?= $spotScroll ? '' : ' is-still' ?>">
                         <?php for ($copy = 0; $copy < ($spotScroll ? 2 : 1); $copy++): foreach ($spotLoop as $slide): ?>
                             <?php if ($slide['kind'] === 'event'):
                                 $ev = $slide['event'];
@@ -328,7 +328,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                             ?>
                             <button type="button" class="spot-card" data-event-slug="<?= htmlspecialchars((string)$ev['slug']) ?>" aria-label="Promo | click here for details">
                                 <?php if ($cover !== ''): ?><img src="<?= htmlspecialchars($cover) ?>" alt="<?= htmlspecialchars((string)$ev['title']) ?>"><?php endif; ?>
-                                <span class="promo-chip"><i class="bi bi-stars"></i> Promo | click here for details</span>
+                                <span class="event-chip"><i class="bi bi-stars"></i> Promo | click here for details</span>
                             </button>
                             <?php endif; ?>
                         <?php endforeach; endfor; ?>
@@ -1074,11 +1074,11 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
 <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script>
 (function () {
-    var flip = document.getElementById('adFlip');
-    var bar = document.getElementById('adBar');
+    var flip = document.getElementById('dishFlip');
+    var bar = document.getElementById('dishStrip');
     if (!flip || !bar) return;
-    var spot = flip.querySelector('.ad-face-spot');
-    var menu = flip.querySelector('.ad-face-menu');
+    var spot = flip.querySelector('.dish-face-spot');
+    var menu = flip.querySelector('.dish-face-menu');
     var modalEl = document.getElementById('eventReg');
     var modal = modalEl && typeof bootstrap !== 'undefined' ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1162,7 +1162,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         paintImg(img, banner.src, banner.v);
     }
     function paintSlides(slides) {
-        var track = document.querySelector('.ad-face-menu .promo-nav-track');
+        var track = document.querySelector('.dish-face-menu .dish-track');
         if (!track) return;
         var key = slides.map(function (s) { return s.id + ':' + s.src + ':' + s.v; }).join('|');
         if (track.dataset.key === key) return;
