@@ -106,14 +106,21 @@ final class Guide
                 'systemInstruction' => ['parts' => [['text' => str_replace('using only the manual excerpts below.', 'using only the manuals provided in the context cache.', $instruction)]]],
                 'generationConfig' => $this->generationConfig($model),
             ];
+            $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
             try {
                 [$code, $raw] = $this->post($url, $key, $payload);
+                if ($code === 400 && isset($payload['generationConfig']['thinkingConfig'])) {
+                    unset($payload['generationConfig']['thinkingConfig']);
+                    [$code, $raw] = $this->post($url, $key, $payload);
+                }
             } catch (\Throwable $e) {
                 $code = 404;
                 $raw = '{"error":{"message":"Cache expired"}}';
             }
             if ($code === 400 || $code === 404) {
-                throw new \RuntimeException('The manuals cache expired. Please go to System Settings → Guide and click Sync Documentation.');
+                $data = json_decode($raw, true);
+                $detail = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
+                throw new \RuntimeException('The manuals cache expired. Please go to System Settings → Guide and click Sync Documentation. (' . $detail . ')');
             }
         } else {
             $excerpts = $this->excerpts($question);
