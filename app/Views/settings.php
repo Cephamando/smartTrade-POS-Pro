@@ -1258,7 +1258,7 @@ function pingShopFace() {
 </div>
 <?php elseif ($tab === 'guide'):
     $guideModel = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
-    $guideModels = ['gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite', 'gemini-2.0-flash' => 'Gemini 2.0 Flash'];
+    $guideModels = \App\Services\Guide::models();
     if (!isset($guideModels[$guideModel])) {
         $guideModel = 'gemini-2.5-flash';
     }
