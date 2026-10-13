@@ -1387,6 +1387,15 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 *Expected result:* The guide replies with the steps and provides an "Open Users" link.
 
+### Scenario 10.5 — Sync the guide cache
+
+1. As `train_admin`, open **Management → System Settings**.
+2. Open the **Guide** tab.
+3. Paste a Gemini API key, pick a model (e.g. Gemini 3.8 Flash), and **Save**.
+4. Click **Sync Documentation**.
+
+*Expected result:* The label updates to "Cache ID:..." The guide will now use cached manuals.
+
 ### Assessment — Enterprise
 
 | # | Checkpoint | Pass |
@@ -1395,6 +1404,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 | E2 | A cashier completes a pay-at-counter web order on the POS | |
 | E3 | A manager creates a published event with tickets | |
 | E4 | A staff member asks the Guide a question and opens the named screen | |
+| E5 | A manager caches the manuals via Sync Documentation in Settings | |
 
 ---
 

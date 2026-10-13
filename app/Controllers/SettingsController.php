@@ -55,6 +55,8 @@ final class SettingsController extends Controller
                     $this->saveEmail();
                 } elseif (isset($_POST['save_guide'])) {
                     $this->saveGuide();
+                } elseif (isset($_POST['sync_guide'])) {
+                    $this->syncGuide();
                 } elseif (isset($_POST['bulk_action'])) {
                     $this->bulkSurcharges();
                 } else {
@@ -247,16 +249,40 @@ final class SettingsController extends Controller
     private function saveGuide(): void
     {
         $existing = Setting::all();
+        $oldModel = (string)($existing['gemini_model'] ?? 'gemini-2.5-flash');
+        $oldKey = (string)($existing['gemini_api_key'] ?? '');
         $key = trim((string)($_POST['gemini_api_key'] ?? ''));
         $model = (string)($_POST['gemini_model'] ?? 'gemini-2.5-flash');
         if (!isset(Guide::models()[$model])) {
             $model = 'gemini-2.5-flash';
         }
-        Setting::save([
-            'gemini_api_key' => $key !== '' ? $key : (string)($existing['gemini_api_key'] ?? ''),
+        $savedKey = $key !== '' ? $key : $oldKey;
+        $updates = [
+            'gemini_api_key' => $savedKey,
             'gemini_model' => $model,
-        ]);
+        ];
+        if ($model !== $oldModel || ($key !== '' && $key !== $oldKey)) {
+            $updates['gemini_cache_name'] = '';
+        }
+        Setting::save($updates);
         $this->flash('success', 'Guide settings saved. Staff can ask how-to questions from the written manuals.');
+    }
+
+    private function syncGuide(): void
+    {
+        $settings = Setting::all();
+        if (!Guide::ready($settings)) {
+            if ($this->wantsAjax()) {
+                $this->jsonExit(['status' => 'error', 'msg' => 'Save a Gemini API key first.']);
+            }
+            throw new \RuntimeException('Save a Gemini API key first.');
+        }
+        $cacheName = (new Guide())->sync($settings);
+        Setting::save(['gemini_cache_name' => $cacheName]);
+        if ($this->wantsAjax()) {
+            $this->jsonExit(['status' => 'success', 'msg' => 'Synced. Cache ID: ' . $cacheName]);
+        }
+        $this->flash('success', 'Documentation synced to Gemini context cache.');
     }
 
     private function saveLibrary(): void

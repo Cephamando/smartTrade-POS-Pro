@@ -1288,6 +1288,45 @@ function pingShopFace() {
                         <button class="btn btn-dark fw-bold px-5"><i class="bi bi-save"></i> Save guide</button>
                     </div>
                 </form>
+                <?php if ($guideReady = \App\Services\Guide::ready($settings)): ?>
+                <div class="mt-4 border-top pt-3">
+                    <h6 class="fw-bold"><i class="bi bi-lightning-charge text-warning"></i> Context Caching</h6>
+                    <p class="text-muted small mb-3">Sync the manuals to Gemini's context cache. This makes answers faster and saves tokens. Sync again when the manuals are updated.</p>
+                    <div class="d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-outline-secondary" id="syncGuideBtn">
+                            <i class="bi bi-arrow-repeat"></i> Sync Documentation
+                        </button>
+                        <span id="syncGuideStatus" class="small text-muted">
+                            <?= empty($settings['gemini_cache_name']) ? 'Not synced yet.' : 'Cache ID: ' . htmlspecialchars((string)$settings['gemini_cache_name']) ?>
+                        </span>
+                    </div>
+                </div>
+                <script>
+                document.getElementById('syncGuideBtn').addEventListener('click', function () {
+                    var btn = this;
+                    var status = document.getElementById('syncGuideStatus');
+                    btn.disabled = true;
+                    status.textContent = 'Syncing to Gemini...';
+                    var body = new FormData();
+                    body.set('ajax', '1');
+                    body.set('tab', 'guide');
+                    body.set('sync_guide', '1');
+                    fetch('index.php?page=settings', { method: 'POST', body: body })
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            status.textContent = data.msg || 'Sync complete.';
+                            status.className = data.status === 'success' ? 'small text-success fw-bold' : 'small text-danger';
+                        })
+                        .catch(function () {
+                            status.textContent = 'Network error during sync.';
+                            status.className = 'small text-danger';
+                        })
+                        .finally(function () {
+                            btn.disabled = false;
+                        });
+                });
+                </script>
+                <?php endif; ?>
             </div>
         </div>
     </div>

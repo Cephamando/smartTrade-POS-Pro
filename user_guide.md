@@ -496,6 +496,12 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **Customer ordering** — the customer portal (section 16): switch it on, pick the location that fulfils web orders, title and intro text, contact phone, minimum order, delivery fee, and which options customers get (pay at counter, pay online, delivery). **Open page** shows the live portal.
 
+**Logo & banners** — the brand logo, shop landing page photo, promo slideshow pictures, and menu item photos. See the Branding guide.
+
+**Email** — SMTP host, port, user, password, and sender address for system emails (like event invitations).
+
+**Guide** — The Gemini API key and model for the AI staff guide. To speed up answers and save tokens, tap **Sync Documentation** after saving the key to upload the manuals into Gemini's context cache. Sync again if the manuals change.
+
 ### 14.4 Searching in drop-downs
 
 Every drop-down in the system can be searched. Click or tap it and type: the list narrows as you type and matches more than the visible label — products match on SKU and barcode, vendors on contact name and phone, ingredients on unit and SKU, staff on username and full name. Use the arrow keys and Enter, or tap the match. Clear the box to see the full list again.

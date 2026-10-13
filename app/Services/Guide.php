@@ -29,6 +29,48 @@ final class Guide
         ];
     }
 
+    public function sync(array $settings): string
+    {
+        $key = trim((string)($settings['gemini_api_key'] ?? ''));
+        $model = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
+        if (!isset(self::models()[$model])) {
+            $model = 'gemini-2.5-flash';
+        }
+
+        $oldCache = (string)($settings['gemini_cache_name'] ?? '');
+        if ($oldCache !== '') {
+            $delUrl = 'https://generativelanguage.googleapis.com/v1beta/' . rawurlencode($oldCache) . '?key=' . $key;
+            $chD = curl_init($delUrl);
+            curl_setopt($chD, CURLOPT_CUSTOMREQUEST, 'DELETE');
+            curl_setopt($chD, CURLOPT_RETURNTRANSFER, true);
+            curl_exec($chD);
+            curl_close($chD);
+        }
+
+        $root = defined('BASE_PATH') ? BASE_PATH : dirname(APP_PATH);
+        $text = "--- USER GUIDE ---\n" . @file_get_contents($root . '/user_guide.md') . "\n\n--- TRAINING MANUAL ---\n" . @file_get_contents($root . '/TRAINING_MANUAL.md');
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/cachedContents?key=' . $key;
+
+        $body = [
+            'model' => 'models/' . $model,
+            'contents' => [
+                ['role' => 'user', 'parts' => [['text' => $text]]]
+            ],
+            'ttl' => '2592000s',
+        ];
+
+        [$code, $raw] = $this->post($url, $key, $body);
+
+        $data = json_decode($raw, true);
+        $cacheName = is_array($data) ? (string)($data['name'] ?? '') : '';
+        if ($cacheName === '') {
+            $msg = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
+            throw new \RuntimeException('Failed to sync cache: ' . $msg);
+        }
+        return $cacheName;
+    }
+
     /** @return array{text:string,html:string,links:list<array{label:string,href:string,blank:bool}>} */
     public function answer(array $settings, string $question, array $history, string $role): array
     {
@@ -42,20 +84,65 @@ final class Guide
             $model = 'gemini-2.5-flash';
         }
 
-        $excerpts = $this->excerpts($question);
-        $instruction = $this->instruction($role, $excerpts);
-        $contents = $this->contents($history, $question);
-
+        $cacheName = (string)($settings['gemini_cache_name'] ?? '');
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
-        $payload = [
-            'systemInstruction' => ['parts' => [['text' => $instruction]]],
-            'contents' => $contents,
-            'generationConfig' => $this->generationConfig($model),
-        ];
-        [$code, $raw] = $this->post($url, $key, $payload);
-        if ($code === 400 && isset($payload['generationConfig']['thinkingConfig'])) {
-            unset($payload['generationConfig']['thinkingConfig']);
+
+        $instruction = "You are the staff guide for smartTrade POS Pro.\n"
+            . "Answer the user's question directly and naturally, using only the manual excerpts below.\n"
+            . "Write in everyday language. Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
+            . "Explain why or how something works if the user asks, based on the excerpts.\n"
+            . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
+            . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
+            . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
+            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Menu, Customer shop, Members, Transfers.\n"
+            . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
+            . "Do not discuss live sales, stock counts, or customer records.\n\n";
+
+        if ($cacheName !== '') {
+            $contents = $this->contents($history, "Context: The person asking is a {$role}.\n\nQuestion: " . $question);
+            $payload = [
+                'cachedContent' => $cacheName,
+                'contents' => $contents,
+                'systemInstruction' => ['parts' => [['text' => str_replace('using only the manual excerpts below.', 'using only the manuals provided in the context cache.', $instruction)]]],
+                'generationConfig' => $this->generationConfig($model),
+            ];
+            try {
+                [$code, $raw] = $this->post($url, $key, $payload);
+            } catch (\Throwable $e) {
+                $code = 404;
+                $raw = '{"error":{"message":"Cache expired"}}';
+            }
+            if ($code === 400 || $code === 404) {
+                throw new \RuntimeException('The manuals cache expired. Please go to System Settings → Guide and click Sync Documentation.');
+            }
+        } else {
+            $excerpts = $this->excerpts($question);
+            $finalInstruction = $instruction;
+            if ($excerpts === '') {
+                $finalInstruction .= "Manual excerpts: none matched this question.";
+            } else {
+                $finalInstruction .= "Manual excerpts:\n" . $excerpts;
+            }
+            $contents = $this->contents($history, "The person asking is a {$role}.\n\nQuestion: " . $question);
+            $payload = [
+                'systemInstruction' => ['parts' => [['text' => $finalInstruction]]],
+                'contents' => $contents,
+                'generationConfig' => $this->generationConfig($model),
+            ];
             [$code, $raw] = $this->post($url, $key, $payload);
+            if ($code === 400 && isset($payload['generationConfig']['thinkingConfig'])) {
+                unset($payload['generationConfig']['thinkingConfig']);
+                [$code, $raw] = $this->post($url, $key, $payload);
+            }
+            if ($code === 400 || $code === 404) {
+                $data = json_decode($raw, true);
+                $detail = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
+                $msg = 'The saved Gemini model could not be used. Choose another model under System Settings, Guide.';
+                if ($detail !== '') {
+                    $msg .= ' (' . $detail . ')';
+                }
+                throw new \RuntimeException($msg);
+            }
         }
 
         $data = json_decode($raw, true);
@@ -65,13 +152,6 @@ final class Guide
         }
 
         $detail = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
-        if ($code === 400 || $code === 404) {
-            $msg = 'The saved Gemini model could not be used. Choose another model under System Settings, Guide.';
-            if ($detail !== '') {
-                $msg .= ' (' . $detail . ')';
-            }
-            throw new \RuntimeException($msg);
-        }
         if ($code === 401 || $code === 403) {
             throw new \RuntimeException('Gemini rejected the saved key. A manager can paste a new one under System Settings, Guide.');
         }
@@ -135,25 +215,6 @@ final class Guide
         }
         $contents[] = ['role' => 'user', 'parts' => [['text' => $question]]];
         return $contents;
-    }
-
-    private function instruction(string $role, string $excerpts): string
-    {
-        $who = $role !== '' ? $role : 'staff';
-        $body = "You are the staff guide for smartTrade POS Pro. The person asking is a {$who}.\n"
-            . "Answer the user's question directly and naturally, using only the manual excerpts below.\n"
-            . "Write in everyday language. Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
-            . "Explain why or how something works if the user asks, based on the excerpts.\n"
-            . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
-            . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
-            . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Menu, Customer shop, Members, Transfers.\n"
-            . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
-            . "Do not discuss live sales, stock counts, or customer records.\n\n";
-        if ($excerpts === '') {
-            return $body . "Manual excerpts: none matched this question.";
-        }
-        return $body . "Manual excerpts:\n" . $excerpts;
     }
 
     private function excerpts(string $question): string
