@@ -141,9 +141,9 @@ final class Guide
     {
         $who = $role !== '' ? $role : 'staff';
         $body = "You are the staff guide for smartTrade POS Pro. The person asking is a {$who}.\n"
-            . "Answer only from the manual excerpts below.\n"
+            . "Answer the user's question directly and naturally, using only the manual excerpts below.\n"
             . "Write in everyday language. Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
-            . "Start with one short sentence that answers the question.\n"
+            . "Explain why or how something works if the user asks, based on the excerpts.\n"
             . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
             . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
             . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
