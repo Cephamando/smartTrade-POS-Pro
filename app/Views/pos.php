@@ -221,6 +221,7 @@ function getCategoryStyle($name) {
     </style>
 </head>
 <body>
+    <?php require APP_PATH . '/Views/partials/training_bar.php'; ?>
     <?php if ($locationId == 0): ?><div class="modal fade show" id="compulsoryLocationModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.9); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Select Workstation</h5></div><div class="modal-body bg-light p-4"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div><?php endif; ?>
     <?php if ($locationId > 0 && $pendingShift): ?><div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST" class="js-confirm-form" data-swal-title="Approve and start this shift?" data-swal-text="The station will open for sales after manager authorization." data-swal-confirm="Approve" data-swal-cancel="Cancel" data-swal-icon="question" data-swal-confirm-color="#fd7e14"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Manager Password" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div></div><?php endif; ?>
     <?php if ($locationId > 0 && !$activeShiftId && !$pendingShift): ?><div class="modal fade show" id="startShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-primary"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">Start New Shift</h5><button type="button" class="btn btn-sm btn-warning text-dark fw-bold ms-auto" data-pos-vk-toggle="1" title="On-screen keyboard"><i class="bi bi-keyboard-fill"></i> Keyboard</button></div><form method="POST" class="js-confirm-form" data-swal-title="Request shift approval?" data-swal-text="The opening float will be sent to a manager to start this station." data-swal-confirm="Request" data-swal-cancel="Cancel" data-swal-icon="question" data-swal-confirm-color="#0d6efd"><div class="modal-body p-4"><input type="hidden" name="request_start_shift" value="1"><label class="fw-bold small text-muted">OPENING FLOAT</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00" inputmode="decimal"></div><button type="submit" class="btn btn-primary w-100 fw-bold py-3 mb-2">REQUEST APPROVAL</button><a href="index.php?page=dashboard" class="btn btn-outline-secondary w-100 fw-bold">GO TO DASHBOARD</a></div></form></div></div></div><?php endif; ?>
@@ -228,6 +229,11 @@ function getCategoryStyle($name) {
     <div class="header-custom p-2 d-flex justify-content-between align-items-center" id="mainHeader">
         <div class="d-flex align-items-center ps-2 flex-wrap">
             <span class="fs-5 fw-bold text-warning me-3" id="headerPosLabel">POS</span>
+            <?php if (empty($_SESSION['training_mode'])): ?>
+            <form method="post" action="index.php?page=training" class="m-0 me-2">
+                <button type="submit" name="start_training" value="1" class="btn btn-sm btn-warning fw-bold">Training</button>
+            </form>
+            <?php endif; ?>
             <span class="text-light ms-2"><i class="bi bi-geo-alt-fill text-warning" id="headerLocIcon"></i> <?= htmlspecialchars($locationName) ?></span>
             <button type="button" class="btn btn-sm btn-link text-warning ms-1 me-2" data-bs-toggle="modal" data-bs-target="#locationModal" title="Change Location"><i class="bi bi-pencil-square"></i></button>
             <span class="text-light border-start border-secondary ps-3 d-none d-md-inline"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
@@ -681,7 +687,30 @@ function getCategoryStyle($name) {
                 <div class="modal-body">
                     <input type="hidden" name="checkout" value="1">
         <input type="hidden" name="settle_tab_id" id="settle_tab_id_input" value="0">
-        <?php if(isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm"><div class="d-flex align-items-center"><i class="bi bi-star-fill text-warning fs-4 me-3"></i><div><div class="fw-bold">Member: <?= htmlspecialchars($_SESSION['pos_member']['name']) ?></div><div class="small text-muted">Eligible for benefits</div></div></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()"><label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label></div></div><?php endif; ?>
+        <?php
+        $showMemberDiscount = isset($_SESSION['pos_member']) && in_array($tier, ['pro', 'pro+', 'enterprise'], true);
+        $showTrainingDiscount = !empty($_SESSION['training_mode']);
+        ?>
+        <?php if ($showTrainingDiscount || $showMemberDiscount): ?>
+        <div class="alert alert-info border-info d-flex align-items-center justify-content-between mb-3 p-2 shadow-sm">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-star-fill text-warning fs-4 me-3"></i>
+                <div>
+                    <?php if ($showMemberDiscount): ?>
+                    <div class="fw-bold">Member: <?= htmlspecialchars((string)($_SESSION['pos_member']['name'] ?? '')) ?></div>
+                    <div class="small text-muted">Eligible for benefits</div>
+                    <?php else: ?>
+                    <div class="fw-bold">Practice discount</div>
+                    <div class="small text-muted">Training sale only</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="discountToggle" name="apply_discount" value="1" onchange="toggleDiscount()">
+                <label class="form-check-label fw-bold small" for="discountToggle">10% OFF</label>
+            </div>
+        </div>
+        <?php endif; ?>
         <div class="text-center mb-3"><small class="text-muted text-uppercase fw-bold">Amount To Pay</small><div class="display-4 fw-bold text-dark">ZMW <span id="displayTotalDue">0.00</span></div><small class="text-success fw-bold" id="discountLabel" style="display:none;">(Discount Applied)</small>
             <?php if (!empty($fx['enabled']) && !empty($fx['rates'])): ?>
             <div class="small text-muted mt-1" id="fxDisplay" title="Live rates<?= !empty($fx['updated_at']) ? ' · updated ' . htmlspecialchars((string)$fx['updated_at']) : '' ?>"></div>

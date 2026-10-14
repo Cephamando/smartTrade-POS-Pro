@@ -48,4 +48,5 @@ return [
     'shop' => ['auth' => false, 'standalone' => true],
     'events' => [],
     'guide' => ['action_only' => true],
+    'training' => ['action_only' => true],
 ];

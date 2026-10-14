@@ -7,33 +7,60 @@ use PDOException;
 
 final class Database
 {
-    private static ?PDO $pdo = null;
+    public const SANDBOX = 'smartTradePOS_sandbox';
+
+    private static ?PDO $production = null;
+    private static ?PDO $sandbox = null;
 
     public static function connection(): PDO
     {
-        if (self::$pdo instanceof PDO) {
-            return self::$pdo;
+        if (!empty($_SESSION['training_mode'])) {
+            return self::sandbox();
         }
+        return self::production();
+    }
 
-        $cfg = require BASE_PATH . '/config/database.php';
+    public static function production(): PDO
+    {
+        if (self::$production instanceof PDO) {
+            return self::$production;
+        }
+        $config = self::config();
+        self::$production = self::open($config, (string)$config['name']);
+        return self::$production;
+    }
+
+    public static function sandbox(): PDO
+    {
+        if (self::$sandbox instanceof PDO) {
+            return self::$sandbox;
+        }
+        self::$sandbox = self::open(self::config(), self::SANDBOX);
+        return self::$sandbox;
+    }
+
+    private static function config(): array
+    {
+        $config = require BASE_PATH . '/config/database.php';
+        if (!is_array($config)) {
+            throw new PDOException('Database config is missing.');
+        }
+        return $config;
+    }
+
+    private static function open(array $config, string $name): PDO
+    {
         $dsn = sprintf(
             'mysql:host=%s;dbname=%s;charset=%s',
-            $cfg['host'],
-            $cfg['name'],
-            $cfg['charset']
+            $config['host'],
+            $name,
+            $config['charset'] ?? 'utf8mb4'
         );
 
-        try {
-            self::$pdo = new PDO($dsn, $cfg['user'], $cfg['pass'], [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
-        } catch (PDOException $e) {
-            error_log($e->getMessage());
-            die('Database Connection Error. Please check logs.');
-        }
-
-        return self::$pdo;
+        return new PDO($dsn, $config['user'], $config['pass'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
     }
 }

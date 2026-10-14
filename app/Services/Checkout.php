@@ -394,6 +394,9 @@ final class Checkout
             throw new \Exception('Choose the original sale to refund before issuing the credit note.');
         }
         $zraMsg = '';
+        if (!empty($_SESSION['training_mode'])) {
+            return;
+        }
         foreach ($origSaleIds as $saleId) {
             $sale = \App\Models\Sale::find($saleId);
             if (!$sale) {

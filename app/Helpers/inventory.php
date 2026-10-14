@@ -159,10 +159,46 @@ function deductStock($pdo, $productId, $qty, $locId, $uId, $actionOverride = 'sa
     consumeProduct($pdo, (int)$productId, (float)$qty, (int)$locId, (int)$uId, (string)$actionOverride);
 }
 
+function stampTrainingReceipt(PDO $pdo, int $saleId): void
+{
+    if ($saleId <= 0) {
+        return;
+    }
+    $sign = 'TRN' . strtoupper(substr(hash('sha256', 'training-sale-' . $saleId), 0, 13));
+    $internal = strtoupper(substr(hash('sha256', 'training-internal-' . $saleId), 0, 16));
+    $qr = 'https://sandboxportal.zra.org.zm/common/link/ebm/receipt/indexEbmReceiptData?Data=0000000000001' . $sign;
+    try {
+        $pdo->prepare(
+            "UPDATE sales SET
+                zra_rcpt_no = ?, zra_intrl_data = ?, zra_rcpt_sign = ?,
+                zra_sdc_id = ?, zra_mrc_no = ?, zra_vsdc_rcpt_pbct_date = ?,
+                zra_qr_code_url = ?, zra_status = 'synced', zra_cis_invc_no = ?,
+                zra_last_error = NULL
+             WHERE id = ?"
+        )->execute([
+            $saleId,
+            $internal,
+            $sign,
+            'SDC-TRAIN01',
+            'MRC-TRAIN01',
+            date('YmdHis'),
+            $qr,
+            'TRAIN-' . $saleId,
+            $saleId,
+        ]);
+    } catch (Throwable $e) {
+        return;
+    }
+}
+
 function fiscalizePaidSale(PDO $pdo, int $saleId, array $opts = []): string
 {
     if ($saleId <= 0) {
         return '';
+    }
+    if (!empty($_SESSION['training_mode'])) {
+        stampTrainingReceipt($pdo, $saleId);
+        return ' Sample ZRA receipt ready.';
     }
     try {
         $client = new ZraVsdcClient($pdo);

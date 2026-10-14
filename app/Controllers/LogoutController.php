@@ -6,6 +6,7 @@ final class LogoutController extends Controller
 {
     public function index(): void
     {
+        (new \App\Services\Training())->end();
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();

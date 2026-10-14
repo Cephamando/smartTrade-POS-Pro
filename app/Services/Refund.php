@@ -67,7 +67,9 @@ final class Refund
         }
 
         $zraMsg = '';
-        if (\App\Helpers\Movement::requiresZra()) {
+        if (!empty($_SESSION['training_mode'])) {
+            $zraMsg = '';
+        } elseif (\App\Helpers\Movement::requiresZra()) {
             if (empty($sale['zra_rcpt_sign'])) {
                 $zraMsg .= fiscalizePaidSale($this->pdo, $originalSaleId);
                 $sale = Sale::find($originalSaleId) ?: $sale;

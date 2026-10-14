@@ -149,6 +149,11 @@ if ($isIncremental) {
                         <?= htmlspecialchars($sale['loc_name'] ?? '') ?>
                     </div>
 
+                    <?php if (!empty($_SESSION['training_mode'])): ?>
+                    <div style="border: 2px solid #000; font-weight: 900; text-align: center; margin: 8px 0; padding: 4px;">
+                        TRAINING SAMPLE<br>Not filed with ZRA
+                    </div>
+                    <?php endif; ?>
                     <p style="margin:5px 0; font-size: 13px;">
                         <span style="font-size: 16px; font-weight: 900; border: 2px solid #000; padding: 3px 6px; display: inline-block; margin-bottom: 5px;">
                             <?= $copyName ?>
@@ -249,7 +254,7 @@ if ($isIncremental) {
                 
                 <?php if (!$isBill && !empty($sale['zra_rcpt_sign'])): ?>
                 <div class="text-center border-top" style="margin-top: 12px; font-size: 12px;">
-                    <p style="margin: 6px 0; font-weight: 900;">ZRA SMART INVOICE</p>
+                    <p style="margin: 6px 0; font-weight: 900;"><?= !empty($_SESSION['training_mode']) ? 'SAMPLE ZRA SMART INVOICE' : 'ZRA SMART INVOICE' ?></p>
                     <div>SDC: <?= htmlspecialchars($sale['zra_sdc_id'] ?? '') ?></div>
                     <?php if (!empty($sale['zra_mrc_no'])): ?>
                     <div>MRC: <?= htmlspecialchars($sale['zra_mrc_no']) ?></div>

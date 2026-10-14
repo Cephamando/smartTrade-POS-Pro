@@ -341,6 +341,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
     </div>
 </div>
 
+<?php require APP_PATH . '/Views/partials/training_bar.php'; ?>
 <nav class="navbar navbar-expand-xl navbar-dark app-navbar shadow-sm mb-4 sticky-top">
     <div class="container-fluid px-3 px-xl-4">
         <a class="navbar-brand fw-bold text-warning d-flex align-items-center" href="index.php">
@@ -499,6 +500,14 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <i class="bi bi-geo-alt-fill text-warning"></i>
                     <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
                 </button>
+                <?php if (empty($_SESSION['training_mode'])): ?>
+                <form method="post" action="index.php?page=training" class="m-0">
+                    <button type="submit" name="start_training" value="1" class="nav-chip btn" title="Practice on temporary data">
+                        <i class="bi bi-mortarboard"></i>
+                        Training
+                    </button>
+                </form>
+                <?php endif; ?>
                 <span class="nav-chip">
                     <i class="bi bi-person-badge text-info"></i>
                     <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
