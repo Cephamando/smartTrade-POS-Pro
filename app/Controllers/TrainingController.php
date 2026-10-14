@@ -14,13 +14,18 @@ final class TrainingController extends Controller
         $training = new Training();
         if (isset($_POST['start_training'])) {
             try {
-                $training->start($this->userId(), $this->locationId());
-                $this->flash('success', 'Training Mode is on. Practice sales stay in the temporary data.');
+                $dest = $training->start(
+                    $this->userId(),
+                    $this->locationId(),
+                    (string)($_POST['course'] ?? ''),
+                    $this->role()
+                );
+                $this->flash('success', $dest['title'] . ' is on. Practice records stay in the temporary data.');
             } catch (\Throwable $e) {
                 $this->flash('error', $e->getMessage());
                 $this->redirect('dashboard');
             }
-            $this->redirect('pos');
+            $this->redirect($dest['page'], $dest['query'] ?? []);
         }
         if (isset($_POST['end_training'])) {
             $training->end();

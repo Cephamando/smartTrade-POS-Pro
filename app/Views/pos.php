@@ -229,11 +229,10 @@ function getCategoryStyle($name) {
     <div class="header-custom p-2 d-flex justify-content-between align-items-center" id="mainHeader">
         <div class="d-flex align-items-center ps-2 flex-wrap">
             <span class="fs-5 fw-bold text-warning me-3" id="headerPosLabel">POS</span>
-            <?php if (empty($_SESSION['training_mode'])): ?>
-            <form method="post" action="index.php?page=training" class="m-0 me-2">
-                <button type="submit" name="start_training" value="1" class="btn btn-sm btn-warning fw-bold">Training</button>
-            </form>
-            <?php endif; ?>
+            <?php
+            $trainingButtonClass = 'btn btn-sm btn-warning fw-bold me-2';
+            require APP_PATH . '/Views/partials/training_picker.php';
+            ?>
             <span class="text-light ms-2"><i class="bi bi-geo-alt-fill text-warning" id="headerLocIcon"></i> <?= htmlspecialchars($locationName) ?></span>
             <button type="button" class="btn btn-sm btn-link text-warning ms-1 me-2" data-bs-toggle="modal" data-bs-target="#locationModal" title="Change Location"><i class="bi bi-pencil-square"></i></button>
             <span class="text-light border-start border-secondary ps-3 d-none d-md-inline"><i class="bi bi-person-circle text-info me-1"></i> <?= htmlspecialchars($_SESSION['username'] ?? 'User') ?></span>
@@ -1039,6 +1038,39 @@ function getCategoryStyle($name) {
                 AppAlert.notify({ icon: 'error', text: 'Unable to update the cart.' });
             });
         }
+        function posCartAdd(fields) {
+            const body = new FormData();
+            body.set('ajax', '1');
+            Object.keys(fields || {}).forEach(function (key) {
+                const value = fields[key];
+                if (value !== undefined && value !== null && String(value) !== '') {
+                    body.set(key, String(value));
+                }
+            });
+            return fetch('index.php?page=pos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                body: body
+            }).then(posCartParse).then(function (data) {
+                applyCartResponse(data);
+                const refund = String((fields && fields.is_refund) || '') === '1';
+                if (!refund || !data || data.status === 'error' || data.status === 'notice' || parseFloat(data.balance || 0) >= 0) {
+                    return;
+                }
+                const picker = document.getElementById('refundInvoiceModal');
+                const openPay = function () { initCheckout(false); };
+                if (picker && window.bootstrap && picker.classList.contains('show')) {
+                    picker.addEventListener('hidden.bs.modal', openPay, { once: true });
+                    const modal = bootstrap.Modal.getInstance(picker) || bootstrap.Modal.getOrCreateInstance(picker);
+                    modal.hide();
+                } else {
+                    openPay();
+                }
+            }).catch(function () {
+                AppAlert.notify({ icon: 'error', text: 'Unable to update the cart.' });
+            });
+        }
         document.addEventListener('submit', function (e) {
             const form = e.target;
             if (!form || !form.classList || !form.classList.contains('js-pos-cart')) {
@@ -1227,11 +1259,6 @@ function getCategoryStyle($name) {
             const saleItemId = parseInt(btn.getAttribute('data-sale-item-id') || '0', 10);
             const inv = refundInvoiceState.invoices.find(function (row) { return parseInt(row.sale_item_id, 10) === saleItemId; });
             if (!inv) return;
-            const modalEl = document.getElementById('refundInvoiceModal');
-            if (modalEl && window.bootstrap) {
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                if (modal) modal.hide();
-            }
             posCartAdd({
                 add_item: '1',
                 product_id: String(inv.product_id || refundInvoiceState.productId),
@@ -1706,5 +1733,6 @@ function getCategoryStyle($name) {
 <script>
     document.addEventListener('focusin', function(e) { if (typeof Swal !== 'undefined' && Swal.isVisible()) { let swalContainer = document.querySelector('.swal2-container'); if (swalContainer && swalContainer.contains(e.target)) { e.stopImmediatePropagation(); } } }, true);
 </script>
+<?php require APP_PATH . '/Views/partials/training_picker_modal.php'; ?>
 </body>
 </html>

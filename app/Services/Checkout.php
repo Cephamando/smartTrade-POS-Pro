@@ -14,6 +14,7 @@ final class Checkout
 
     public function complete(array $post, array &$session, int $shiftId, int $locationId, int $userId): void
     {
+        $this->assertCartProducts($session);
         new \ZraVsdcClient($this->pdo);
         ensureSaleSplitPaymentsColumn($this->pdo);
         $this->pdo->beginTransaction();
@@ -317,6 +318,21 @@ final class Checkout
         }
         $session['swal_type'] = 'success';
         $session['swal_msg'] = "Transaction complete.";
+    }
+
+    private function assertCartProducts(array $session): void
+    {
+        foreach ($session['cart'] ?? [] as $item) {
+            $productId = (int)($item['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+            $stmt = $this->pdo->prepare('SELECT 1 FROM products WHERE id = ?');
+            $stmt->execute([$productId]);
+            if (!$stmt->fetchColumn()) {
+                throw new \Exception('That item is not available on this register. The sale was not recorded.');
+            }
+        }
     }
 
     /** @return array{0: float, 1: ?string} */

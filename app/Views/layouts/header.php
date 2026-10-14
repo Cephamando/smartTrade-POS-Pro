@@ -500,14 +500,10 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <i class="bi bi-geo-alt-fill text-warning"></i>
                     <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
                 </button>
-                <?php if (empty($_SESSION['training_mode'])): ?>
-                <form method="post" action="index.php?page=training" class="m-0">
-                    <button type="submit" name="start_training" value="1" class="nav-chip btn" title="Practice on temporary data">
-                        <i class="bi bi-mortarboard"></i>
-                        Training
-                    </button>
-                </form>
-                <?php endif; ?>
+                <?php
+                $trainingButtonClass = 'nav-chip btn';
+                require APP_PATH . '/Views/partials/training_picker.php';
+                ?>
                 <span class="nav-chip">
                     <i class="bi bi-person-badge text-info"></i>
                     <?= htmlspecialchars($_SESSION['username'] ?? '') ?>

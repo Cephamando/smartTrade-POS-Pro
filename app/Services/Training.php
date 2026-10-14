@@ -7,17 +7,49 @@ use PDO;
 
 final class Training
 {
-    public function start(int $userId, int $locationId): void
+    public function catalog(string $role): array
+    {
+        $role = strtolower($role);
+        $list = [];
+        foreach ($this->courseDefinitions() as $key => $course) {
+            if (!in_array($role, $course['roles'], true)) {
+                continue;
+            }
+            $steps = $this->stepsFor($course, $role);
+            $list[$key] = [
+                'title' => $course['title'],
+                'summary' => $course['summary'],
+                'audience' => $course['audience'],
+                'steps' => array_map(static fn(array $step): string => $step['title'], $steps),
+            ];
+        }
+        return $list;
+    }
+
+    public function start(int $userId, int $locationId, string $courseKey, string $role): array
     {
         if ($userId <= 0) {
             throw new \RuntimeException('Sign in before starting training.');
         }
+        $role = strtolower($role);
+        $courseKey = strtolower(preg_replace('/[^a-z_]/', '', $courseKey) ?? '');
+        $courses = $this->courseDefinitions();
+        $course = $courses[$courseKey] ?? null;
+        if (!$course || !in_array($role, $course['roles'], true)) {
+            throw new \RuntimeException('Choose a training that matches your role.');
+        }
+        $steps = $this->stepsFor($course, $role);
+        if ($steps === []) {
+            throw new \RuntimeException('That training has no steps for your role.');
+        }
+
         $this->releaseIfAbandoned();
         $lock = $this->lock();
         $sessionId = session_id();
         if ($lock['user'] > 0 && $lock['session'] !== '' && $lock['session'] !== $sessionId && !$this->stale($lock['at'])) {
             throw new \RuntimeException('Someone else is already using Training Mode.');
         }
+        $this->clearPracticeFlag();
         if ($lock['user'] > 0) {
             $this->destroySandbox();
         }
@@ -26,33 +58,64 @@ final class Training
         $box = Database::sandbox();
         $this->cloneSchema($prod, $box);
         $locationId = $this->seedLocation($prod, $box, $locationId);
+        $storeId = $this->seedStore($box);
         $this->seedUser($prod, $box, $userId, $locationId);
+        $this->seedPracticeManager($box, $locationId);
         $this->seedSettings($prod, $box);
-        $this->seedCatalog($box, $locationId);
-        $this->seedShift($box, $userId, $locationId);
+        $this->seedSurcharge($box);
+        $ids = $this->seedCatalog($box, $locationId, $storeId);
+        $shiftId = $this->seedShift($box, $userId, $locationId);
+        $tableId = $this->seedTable($box, $locationId);
+        if ($courseKey === 'kitchen') {
+            $this->seedKitchenTicket($box, $locationId, $userId, $shiftId, $tableId, (int)$ids['cake']);
+        }
         $this->writeLock($userId, $sessionId);
 
         $_SESSION['training_mode'] = 1;
+        $_SESSION['training_course'] = $courseKey;
         $_SESSION['training_step'] = 0;
         $_SESSION['training_after_id'] = 0;
         $_SESSION['training_started'] = date('Y-m-d H:i:s');
+        $_SESSION['training_marks'] = [
+            'locations' => $this->countSql('SELECT COUNT(*) FROM locations'),
+        ];
         $_SESSION['location_id'] = $locationId;
         $_SESSION['pos_location_id'] = $locationId;
         $name = $box->prepare('SELECT name FROM locations WHERE id = ?');
         $name->execute([$locationId]);
         $_SESSION['location_name'] = $name->fetchColumn() ?: 'Training';
         unset($_SESSION['training_msg'], $_SESSION['training_fp']);
+
+        $first = $steps[0];
+        return [
+            'page' => $first['page'],
+            'query' => $first['query'] ?? [],
+            'title' => $course['title'],
+        ];
     }
 
     public function end(): void
     {
-        $this->destroySandbox();
-        $this->clearLock();
+        $lock = $this->lock();
+        $owns = !empty($_SESSION['training_mode'])
+            || $lock['session'] === session_id()
+            || ($lock['user'] > 0 && $lock['user'] === (int)($_SESSION['user_id'] ?? 0));
+        $this->clearPracticeFlag();
+        if ($owns) {
+            $this->destroySandbox();
+            $this->clearLock();
+        }
+    }
+
+    private function clearPracticeFlag(): void
+    {
         unset(
             $_SESSION['training_mode'],
+            $_SESSION['training_course'],
             $_SESSION['training_step'],
             $_SESSION['training_after_id'],
             $_SESSION['training_started'],
+            $_SESSION['training_marks'],
             $_SESSION['training_msg'],
             $_SESSION['training_fp']
         );
@@ -64,10 +127,7 @@ final class Training
             return;
         }
         $lock = $this->lock();
-        if ($lock['user'] <= 0) {
-            return;
-        }
-        if ($lock['session'] === session_id() && !$this->stale($lock['at'])) {
+        if ($lock['user'] <= 0 || !$this->stale($lock['at'])) {
             return;
         }
         $this->destroySandbox();
@@ -79,46 +139,42 @@ final class Training
         if (empty($_SESSION['training_mode'])) {
             return ['active' => false, 'message' => ''];
         }
+        if (empty($_SESSION['training_course'])) {
+            $_SESSION['training_course'] = 'cashier';
+        }
+        $course = $this->courseDefinitions()[(string)$_SESSION['training_course']] ?? null;
+        if (!$course) {
+            return ['active' => false, 'message' => ''];
+        }
+        $role = strtolower((string)($_SESSION['role'] ?? ''));
+        $steps = $this->stepsFor($course, $role);
         $step = (int)($_SESSION['training_step'] ?? 0);
-        if ($step > 0 && $this->saleCount() === 0) {
-            $step = 0;
-            $_SESSION['training_step'] = 0;
-            $_SESSION['training_after_id'] = 0;
-            unset($_SESSION['training_fp'], $_SESSION['training_msg']);
-        }
-        $steps = $this->steps();
         if ($step >= count($steps)) {
-            return [
-                'active' => true,
-                'done' => true,
-                'title' => 'Training complete',
-                'message' => 'You finished the practice sale, the discount, and the void. Choose End Training to leave the practice data.',
-            ];
+            return $this->finished($course['title']);
         }
-        $state = $this->snapshot((int)($_SESSION['training_after_id'] ?? 0));
-        $passed = $this->passed($step, $state);
+        $state = $this->snapshot();
+        $saleId = 0;
+        $passed = $this->passed($steps[$step], $state, $saleId);
         $justPassed = false;
         if ($passed) {
             $justPassed = true;
-            $_SESSION['training_after_id'] = (int)$state['latest_id'];
+            if ($saleId > 0) {
+                $_SESSION['training_after_id'] = $saleId;
+            }
             $step++;
             $_SESSION['training_step'] = $step;
             unset($_SESSION['training_fp'], $_SESSION['training_msg']);
             if ($step >= count($steps)) {
-                return [
-                    'active' => true,
-                    'done' => true,
-                    'title' => 'Training complete',
-                    'message' => $this->coach($steps[$step - 1], $state, true),
-                ];
+                return $this->finished($course['title']);
             }
+            $state = $this->snapshot();
         }
         $current = $steps[$step];
-        $fp = $step . '|v2|' . json_encode($state);
+        $fp = $step . '|v3|' . json_encode($state);
         if (($_SESSION['training_fp'] ?? '') === $fp && isset($_SESSION['training_msg'])) {
             $message = (string)$_SESSION['training_msg'];
         } else {
-            $message = $this->coach($current, $state, false);
+            $message = $this->coach($course, $current, $state, false);
             $_SESSION['training_fp'] = $fp;
             $_SESSION['training_msg'] = $message;
         }
@@ -128,148 +184,292 @@ final class Training
         return [
             'active' => true,
             'done' => false,
+            'course' => $course['title'],
             'step' => $step + 1,
             'of' => count($steps),
             'title' => $current['title'],
             'message' => $message,
+            'page' => $current['page'],
+            'query' => $current['query'] ?? [],
         ];
     }
 
-    private function steps(): array
+    private function finished(string $title): array
     {
         return [
-            [
-                'title' => 'Ring a cash sale',
-                'ask' => 'On the Point of Sale, sell Training Cake, take cash, and complete the sale. Do not add a discount.',
-                'rule' => 'A completed cash sale with no discount.',
+            'active' => true,
+            'done' => true,
+            'course' => $title,
+            'title' => 'Training complete',
+            'message' => 'You finished ' . $title . '. Choose End Training to clear the practice data.',
+        ];
+    }
+
+    private function courseDefinitions(): array
+    {
+        $auth = 'When a manager password is required, use train_mgr and the password train. A manager, administrator, or developer can use their own password instead.';
+        return [
+            'cashier' => [
+                'title' => 'Cashier and bartender',
+                'audience' => 'Cashiers and bartenders',
+                'summary' => 'Ring cash, another tender, a tip, a surcharge, and a discount, then log a payout and a return.',
+                'roles' => ['cashier', 'bartender', 'manager', 'admin', 'dev'],
+                'steps' => [
+                    ['title' => 'Ring a cash sale', 'page' => 'pos', 'check' => 'cash', 'ask' => 'On the Point of Sale, sell Training Cake, take cash, and complete the sale. Do not add a discount, tip, or surcharge.', 'rule' => 'A completed cash sale with no discount.'],
+                    ['title' => 'Take another tender', 'page' => 'pos', 'check' => 'tender', 'ask' => 'Ring a new sale and take card, mobile money, or a split payment.', 'rule' => 'A completed sale paid by something other than cash alone.'],
+                    ['title' => 'Add a tip', 'page' => 'pos', 'check' => 'tip', 'ask' => 'Ring another sale and add a tip before you complete it, or use the Tip button on a paid receipt.', 'rule' => 'A tip on a sale or a tip recorded after payment.'],
+                    ['title' => 'Add a surcharge', 'page' => 'pos', 'check' => 'surcharge', 'ask' => 'Ring another sale, choose the surcharge Takeaway packaging, and complete it.', 'rule' => 'A completed sale with a surcharge.'],
+                    ['title' => 'Apply a discount', 'page' => 'pos', 'check' => 'discount', 'ask' => 'Sell Training Juice, switch on 10% OFF, and complete the sale.', 'rule' => 'A completed sale whose subtotal is below the line total.'],
+                    ['title' => 'Log a payout', 'page' => 'pos', 'check' => 'payout', 'ask' => 'Open Payout, enter an amount and a reason, and authorize it. ' . $auth, 'rule' => 'An expense row exists.'],
+                    ['title' => 'Return an item', 'page' => 'pos', 'check' => 'refund', 'ask' => 'Switch on Refund Mode, choose the juice receipt, and issue the refund. ' . $auth, 'rule' => 'A refund or a returned sale item.'],
+                ],
             ],
-            [
-                'title' => 'Apply a discount',
-                'ask' => 'Sell Training Juice and enter a discount before you complete the sale.',
-                'rule' => 'A completed sale whose discount is greater than zero.',
+            'waiter' => [
+                'title' => 'Waiter',
+                'audience' => 'Waiters',
+                'summary' => 'Open a table tab, send food to the kitchen, and settle the tab.',
+                'roles' => ['waiter', 'manager', 'admin', 'dev'],
+                'steps' => [
+                    ['title' => 'Open a table tab', 'page' => 'pos', 'check' => 'tab', 'ask' => 'Add Training Cake, choose Add to Tab, start a new tab, and assign table Training 1.', 'rule' => 'A pending sale on a table.'],
+                    ['title' => 'Settle the tab', 'page' => 'pos', 'check' => 'settle', 'ask' => 'Open the Training 1 tab and take payment until it is paid.', 'rule' => 'A paid sale that still belongs to a table.'],
+                ],
             ],
-            [
-                'title' => 'Void the item',
-                'ask' => 'Refund the juice sale and return the item, which voids it.',
-                'rule' => 'A refund or a voided sale item.',
+            'kitchen' => [
+                'title' => 'Kitchen',
+                'audience' => 'Chefs and head chefs',
+                'summary' => 'Work a live ticket. Head chefs also save a recipe and produce a batch.',
+                'roles' => ['chef', 'head_chef', 'manager', 'admin', 'dev'],
+                'steps' => [
+                    ['title' => 'Start the ticket', 'page' => 'kds', 'check' => 'cook', 'ask' => 'On the Kitchen Display, press Cook on the Training Cake ticket.', 'rule' => 'A kitchen item is cooking or ready.'],
+                    ['title' => 'Mark it ready', 'page' => 'kds', 'check' => 'ready', 'ask' => 'Press Done on that ticket so it is ready for pickup.', 'rule' => 'A kitchen item is ready.'],
+                    ['title' => 'Save a recipe', 'page' => 'menu', 'check' => 'recipe', 'when' => 'lead', 'ask' => 'On Menu Builder, open Training Cake and save a recipe that uses 1 Training Flour.', 'rule' => 'A recipe row exists.'],
+                    ['title' => 'Produce a batch', 'page' => 'kitchen', 'check' => 'produce', 'when' => 'lead', 'ask' => 'On Meal Production, produce 1 Training Cake and send the batch to your station.', 'rule' => 'A production log exists.'],
+                ],
+            ],
+            'stock' => [
+                'title' => 'Stock and purchasing',
+                'audience' => 'Managers and administrators',
+                'summary' => 'Add a vendor and a product, receive goods, and transfer stock to Training Store.',
+                'roles' => ['manager', 'admin', 'dev'],
+                'steps' => [
+                    ['title' => 'Add a vendor', 'page' => 'vendors', 'check' => 'vendor', 'ask' => 'Open Vendors and add a practice supplier.', 'rule' => 'A vendor row exists.'],
+                    ['title' => 'Add a product', 'page' => 'products', 'check' => 'product', 'ask' => 'Open Products and add a new item. Training Cake, Training Juice, and Training Flour do not count.', 'rule' => 'A product outside the practice catalog exists.'],
+                    ['title' => 'Receive goods', 'page' => 'purchasing', 'query' => ['tab' => 'received'], 'check' => 'grv', 'ask' => 'Open Goods Received and receive Training Juice from the vendor you added.', 'rule' => 'A goods-received note exists.'],
+                    ['title' => 'Transfer stock', 'page' => 'transfers', 'check' => 'transfer', 'ask' => 'Open Transfer Stock and send Training Juice from your station to Training Store.', 'rule' => 'A stock transfer exists.'],
+                ],
+            ],
+            'people' => [
+                'title' => 'People and administration',
+                'audience' => 'Managers and administrators',
+                'summary' => 'Add a table, a member, a staff login, an event, and a payroll employee.',
+                'roles' => ['manager', 'admin', 'dev'],
+                'steps' => [
+                    ['title' => 'Add a table', 'page' => 'tables', 'check' => 'table', 'ask' => 'Open Table Settings and add a table. Training 1 is already there and does not count.', 'rule' => 'A table other than Training 1 exists.'],
+                    ['title' => 'Add a member', 'page' => 'members', 'check' => 'member', 'ask' => 'Open Members and register a practice member.', 'rule' => 'A member row exists.'],
+                    ['title' => 'Add a staff login', 'page' => 'users', 'check' => 'staff', 'ask' => 'Open Users and Staff and add a cashier. Your own login and train_mgr do not count.', 'rule' => 'A new user row exists.'],
+                    ['title' => 'Create an event', 'page' => 'events', 'check' => 'event', 'ask' => 'Open Events and save a practice event.', 'rule' => 'An event row exists.'],
+                    ['title' => 'Add a payroll employee', 'page' => 'payroll', 'query' => ['tab' => 'employees'], 'check' => 'employee', 'ask' => 'Open Payroll, Employees, and save a practice employee.', 'rule' => 'An employee row exists.'],
+                ],
+            ],
+            'developer' => [
+                'title' => 'Developer',
+                'audience' => 'Developers',
+                'summary' => 'Add a location, then ring and return a sale so you can read the sample Smart Invoice.',
+                'roles' => ['dev'],
+                'steps' => [
+                    ['title' => 'Add a location', 'page' => 'locations', 'check' => 'location', 'ask' => 'Open Locations and add a practice station. Your current station and Training Store do not count.', 'rule' => 'A location beyond the seeded stations exists.'],
+                    ['title' => 'Ring a sample invoice', 'page' => 'pos', 'check' => 'cash', 'ask' => 'On the Point of Sale, sell Training Cake for cash. The receipt is a practice Smart Invoice and is not filed with ZRA.', 'rule' => 'A completed cash sale.'],
+                    ['title' => 'Issue a sample credit note', 'page' => 'pos', 'check' => 'refund', 'ask' => 'Refund that cake. The credit note is a sample and is not filed with ZRA. ' . $auth, 'rule' => 'A refund exists.'],
+                ],
             ],
         ];
     }
 
-    private function saleCount(): int
+    private function stepsFor(array $course, string $role): array
     {
-        try {
-            return (int)Database::sandbox()->query('SELECT COUNT(*) FROM sales')->fetchColumn();
-        } catch (\Throwable $e) {
-            return 0;
-        }
-    }
-
-    private function snapshot(int $afterId): array
-    {
-        $box = Database::sandbox();
-        $sale = [
-            'id' => 0, 'payment_method' => '', 'subtotal' => 0, 'final_total' => 0,
-            'status' => '', 'payment_status' => '', 'line_total' => 0,
-        ];
-        try {
-            $stmt = $box->prepare(
-                "SELECT s.id, s.payment_method, COALESCE(s.subtotal, 0) AS subtotal,
-                        COALESCE(s.final_total, s.total_amount, 0) AS final_total,
-                        s.status, s.payment_status,
-                        (SELECT COALESCE(SUM(price * quantity), 0) FROM sale_items
-                          WHERE sale_id = s.id AND COALESCE(is_refund, 0) = 0) AS line_total
-                 FROM sales s WHERE s.id > ? ORDER BY s.id DESC LIMIT 1"
-            );
-            $stmt->execute([$afterId]);
-            $row = $stmt->fetch();
-            if ($row) {
-                $sale = $row;
+        $lead = in_array($role, ['head_chef', 'admin', 'manager', 'dev'], true);
+        $steps = [];
+        foreach ($course['steps'] as $step) {
+            if (($step['when'] ?? 'any') === 'lead' && !$lead) {
+                continue;
             }
-        } catch (\Throwable $e) {
-            $sale = $sale;
+            $steps[] = $step;
         }
-        $refunds = 0;
-        try {
-            $stmt = $box->prepare('SELECT COUNT(*) FROM refunds WHERE sale_id > ?');
-            $stmt->execute([$afterId]);
-            $refunds = (int)$stmt->fetchColumn();
-        } catch (\Throwable $e) {
-            $refunds = 0;
-        }
-        $voids = 0;
-        try {
-            $stmt = $box->prepare(
-                "SELECT COUNT(*) FROM sale_items WHERE is_refund = 1 AND sale_id > ?"
-            );
-            $stmt->execute([$afterId]);
-            $voids = (int)$stmt->fetchColumn();
-        } catch (\Throwable $e) {
-            $voids = 0;
-        }
+        return $steps;
+    }
+
+    private function snapshot(): array
+    {
+        $after = (int)($_SESSION['training_after_id'] ?? 0);
+        $username = (string)($_SESSION['username'] ?? '');
         return [
-            'latest_id' => (int)($sale['id'] ?? 0),
-            'payment_method' => (string)($sale['payment_method'] ?? ''),
-            'subtotal' => (float)($sale['subtotal'] ?? 0),
-            'line_total' => (float)($sale['line_total'] ?? 0),
-            'final_total' => (float)($sale['final_total'] ?? 0),
-            'status' => (string)($sale['status'] ?? ''),
-            'payment_status' => (string)($sale['payment_status'] ?? ''),
-            'refunds' => $refunds,
-            'voids' => $voids,
+            'sales' => $this->salesAfter($after),
+            'expenses' => $this->countSql('SELECT COUNT(*) FROM expenses'),
+            'refunds' => $this->countSql('SELECT COUNT(*) FROM refunds'),
+            'voids' => $this->countSql('SELECT COUNT(*) FROM sale_items WHERE COALESCE(is_refund, 0) = 1'),
+            'refunded_sales' => $this->countSql("SELECT COUNT(*) FROM sales WHERE status = 'refunded'"),
+            'pending_tabs' => $this->countSql("SELECT COUNT(*) FROM sales WHERE payment_status = 'pending' AND table_id IS NOT NULL"),
+            'uncollected' => $this->countSql("SELECT COUNT(*) FROM sale_items WHERE fulfillment_status = 'uncollected' AND status IN ('pending', 'cooking', 'ready')"),
+            'cooking' => $this->countSql("SELECT COUNT(*) FROM sale_items WHERE status IN ('cooking', 'ready')"),
+            'ready' => $this->countSql("SELECT COUNT(*) FROM sale_items WHERE status = 'ready'"),
+            'settled_tabs' => $this->countSql("SELECT COUNT(*) FROM sales WHERE table_id IS NOT NULL AND payment_status IN ('paid', 'completed')"),
+            'vendors' => $this->countSql('SELECT COUNT(*) FROM vendors'),
+            'new_products' => $this->countSql("SELECT COUNT(*) FROM products WHERE sku NOT IN ('TRAIN-CAKE', 'TRAIN-JUICE', 'TRAIN-FLOUR')"),
+            'grvs' => $this->countSql('SELECT COUNT(*) FROM grvs'),
+            'transfers' => $this->countSql('SELECT COUNT(*) FROM inventory_transfers'),
+            'tables' => $this->countSql("SELECT COUNT(*) FROM restaurant_tables WHERE table_name <> 'Training 1'"),
+            'members' => $this->countSql('SELECT COUNT(*) FROM members'),
+            'staff' => $this->countSql('SELECT COUNT(*) FROM users WHERE username NOT IN (?, ?)', [$username, 'train_mgr']),
+            'recipes' => $this->countSql('SELECT COUNT(*) FROM product_recipes'),
+            'produced' => $this->countSql("SELECT COUNT(*) FROM inventory_logs WHERE action_type = 'produce'"),
+            'events' => $this->countSql('SELECT COUNT(*) FROM events'),
+            'employees' => $this->countSql('SELECT COUNT(*) FROM employees'),
+            'sale_tips' => $this->countSql('SELECT COUNT(*) FROM sale_tips'),
+            'locations' => $this->countSql('SELECT COUNT(*) FROM locations'),
+            'location_mark' => (int)(($_SESSION['training_marks']['locations'] ?? 0)),
         ];
     }
 
-    private function passed(int $step, array $state): bool
+    private function passed(array $step, array $state, int &$saleId): bool
     {
-        if ((int)$state['latest_id'] <= 0 && $step < 2) {
-            return false;
+        $saleId = 0;
+        $check = (string)$step['check'];
+        if ($check === 'cash') {
+            $saleId = $this->matchSale($state['sales'], fn(array $s): bool => $this->paid($s) && !$this->discounted($s) && strtolower((string)$s['payment_method']) === 'cash' && (float)$s['line_total'] > 0 && (float)$s['tip_amount'] <= 0 && (float)$s['surcharge_amount'] <= 0);
+            return $saleId > 0;
         }
-        $paid = in_array(strtolower((string)$state['payment_status']), ['paid', 'completed'], true)
-            || in_array(strtolower((string)$state['status']), ['completed', 'paid'], true);
-        $discounted = $state['line_total'] > 0 && $state['subtotal'] < ($state['line_total'] - 0.05);
-        if ($step === 0) {
-            return $paid
-                && $state['line_total'] > 0
-                && !$discounted
-                && strtolower($state['payment_method']) === 'cash';
+        if ($check === 'tender') {
+            $saleId = $this->matchSale($state['sales'], fn(array $s): bool => $this->paid($s) && (float)$s['line_total'] > 0 && $this->otherTender($s));
+            return $saleId > 0;
         }
-        if ($step === 1) {
-            return $paid && $discounted;
+        if ($check === 'tip') {
+            $saleId = $this->matchSale($state['sales'], fn(array $s): bool => $this->paid($s) && (float)$s['tip_amount'] > 0);
+            return $saleId > 0 || (int)$state['sale_tips'] > 0;
         }
-        return $state['refunds'] > 0 || $state['voids'] > 0 || $state['status'] === 'refunded';
+        if ($check === 'surcharge') {
+            $saleId = $this->matchSale($state['sales'], fn(array $s): bool => $this->paid($s) && (float)$s['surcharge_amount'] > 0);
+            return $saleId > 0;
+        }
+        if ($check === 'discount') {
+            $saleId = $this->matchSale($state['sales'], fn(array $s): bool => $this->paid($s) && $this->discounted($s));
+            return $saleId > 0;
+        }
+        return match ($check) {
+            'payout' => (int)$state['expenses'] > 0,
+            'refund' => (int)$state['refunds'] > 0 || (int)$state['voids'] > 0 || (int)$state['refunded_sales'] > 0,
+            'tab' => (int)$state['pending_tabs'] > 0,
+            'settle' => (int)$state['settled_tabs'] > 0,
+            'cook' => (int)$state['cooking'] > 0,
+            'ready' => (int)$state['ready'] > 0,
+            'recipe' => (int)$state['recipes'] > 0,
+            'produce' => (int)$state['produced'] > 0,
+            'vendor' => (int)$state['vendors'] > 0,
+            'product' => (int)$state['new_products'] > 0,
+            'grv' => (int)$state['grvs'] > 0,
+            'transfer' => (int)$state['transfers'] > 0,
+            'table' => (int)$state['tables'] > 0,
+            'member' => (int)$state['members'] > 0,
+            'staff' => (int)$state['staff'] > 0,
+            'event' => (int)$state['events'] > 0,
+            'employee' => (int)$state['employees'] > 0,
+            'location' => (int)$state['locations'] > (int)$state['location_mark'],
+            default => false,
+        };
     }
 
-    private function coach(array $step, array $state, bool $passed): string
+    private function matchSale(array $sales, callable $ok): int
+    {
+        foreach ($sales as $sale) {
+            if ($ok($sale)) {
+                return (int)$sale['id'];
+            }
+        }
+        return 0;
+    }
+
+    private function paid(array $sale): bool
+    {
+        return in_array(strtolower((string)($sale['payment_status'] ?? '')), ['paid', 'completed'], true)
+            || in_array(strtolower((string)($sale['status'] ?? '')), ['completed', 'paid'], true);
+    }
+
+    private function discounted(array $sale): bool
+    {
+        return (float)$sale['line_total'] > 0 && (float)$sale['subtotal'] < ((float)$sale['line_total'] - 0.05);
+    }
+
+    private function otherTender(array $sale): bool
+    {
+        $method = strtolower(trim((string)($sale['payment_method'] ?? '')));
+        $split = trim((string)($sale['split_method_2'] ?? '')) !== '';
+        $extra = trim((string)($sale['split_payments'] ?? ''));
+        if ($extra !== '' && $extra !== '[]' && $extra !== 'null') {
+            $split = true;
+        }
+        return $split || ($method !== '' && $method !== 'cash' && $method !== 'pending');
+    }
+
+    private function salesAfter(int $afterId): array
+    {
+        $queries = [
+            "SELECT s.id, s.payment_method, COALESCE(s.subtotal, 0) AS subtotal,
+                    COALESCE(s.final_total, s.total_amount, 0) AS final_total,
+                    s.status, s.payment_status,
+                    COALESCE(s.tip_amount, 0) AS tip_amount,
+                    COALESCE(s.surcharge_amount, 0) AS surcharge_amount,
+                    COALESCE(s.split_method_2, '') AS split_method_2,
+                    COALESCE(s.split_payments, '') AS split_payments,
+                    (SELECT COALESCE(SUM(price * quantity), 0) FROM sale_items
+                      WHERE sale_id = s.id AND COALESCE(is_refund, 0) = 0) AS line_total
+             FROM sales s WHERE s.id > ? ORDER BY s.id ASC LIMIT 12",
+            "SELECT s.id, s.payment_method, COALESCE(s.subtotal, 0) AS subtotal,
+                    COALESCE(s.final_total, s.total_amount, 0) AS final_total,
+                    s.status, s.payment_status,
+                    0 AS tip_amount, 0 AS surcharge_amount, '' AS split_method_2, '' AS split_payments,
+                    (SELECT COALESCE(SUM(price * quantity), 0) FROM sale_items
+                      WHERE sale_id = s.id AND COALESCE(is_refund, 0) = 0) AS line_total
+             FROM sales s WHERE s.id > ? ORDER BY s.id ASC LIMIT 12",
+        ];
+        foreach ($queries as $sql) {
+            try {
+                $stmt = Database::sandbox()->prepare($sql);
+                $stmt->execute([$afterId]);
+                return $stmt->fetchAll() ?: [];
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+        return [];
+    }
+
+    private function coach(array $course, array $step, array $state, bool $passed): string
     {
         $fallback = $passed
-            ? 'That step is recorded. ' . ($step['ask'] ?? '')
+            ? 'That step is recorded.'
             : (string)($step['ask'] ?? '');
-        if ($passed && ($step['title'] ?? '') === 'Void the item') {
-            $fallback = 'The void is recorded in the practice sale. Choose End Training when you are finished.';
-        }
         $key = $this->apiKey();
         if ($key === '') {
             return $fallback;
         }
         $prompt = $passed
-            ? 'The cashier completed this step: ' . $step['title'] . '. In one or two plain sentences, confirm it and introduce the next action if one is included.'
-            : 'The cashier has not finished this step yet. In one or two plain sentences, tell them what to do next. If their latest practice sale does not match the rule, say what to change.';
+            ? 'The staff member completed this step. In one or two plain sentences, confirm it.'
+            : 'The staff member has not finished this step yet. In one or two plain sentences, tell them what to do next. If the practice records do not match the rule, say what to change.';
         $body = [
             'system_instruction' => [
                 'parts' => [[
-                    'text' => 'You are the smartTrade POS training coach. Use only the staff manuals and the practice-sale facts you are given. Speak in plain sentences. Do not show code, markdown, or web addresses.',
+                    'text' => 'You are the smartTrade training coach. Use only the staff manuals and the practice facts you are given. Speak in plain sentences. Do not show code, markdown, or web addresses.',
                 ]],
             ],
             'contents' => [[
                 'role' => 'user',
                 'parts' => [[
                     'text' => $prompt
-                        . "\n\nStep: " . $step['title']
+                        . "\n\nCourse: " . $course['title']
+                        . "\nStep: " . $step['title']
                         . "\nInstruction: " . $step['ask']
                         . "\nRule: " . $step['rule']
-                        . "\nLatest practice sale: " . json_encode($state)
-                        . "\n\nManual notes:\n" . $this->manualNotes(),
+                        . "\nPractice records: " . json_encode($this->evidence($step, $state))
+                        . "\n\nManual notes:\n" . $this->manualNotes($step),
                 ]],
             ]],
             'generationConfig' => [
@@ -306,24 +506,61 @@ final class Training
         return $text;
     }
 
-    private function manualNotes(): string
+    private function evidence(array $step, array $state): array
     {
+        $check = (string)$step['check'];
+        $sales = [];
+        foreach ($state['sales'] as $sale) {
+            $sales[] = [
+                'id' => (int)$sale['id'],
+                'method' => (string)$sale['payment_method'],
+                'subtotal' => (float)$sale['subtotal'],
+                'lines' => (float)$sale['line_total'],
+                'tip' => (float)$sale['tip_amount'],
+                'surcharge' => (float)$sale['surcharge_amount'],
+                'status' => (string)$sale['payment_status'],
+            ];
+        }
+        return [
+            'check' => $check,
+            'sales_since_last_step' => $sales,
+            'expenses' => (int)$state['expenses'],
+            'refunds' => (int)$state['refunds'] + (int)$state['voids'],
+            'pending_tabs' => (int)$state['pending_tabs'],
+            'uncollected' => (int)$state['uncollected'],
+            'ready' => (int)$state['ready'],
+            'vendors' => (int)$state['vendors'],
+            'new_products' => (int)$state['new_products'],
+            'receipts_received' => (int)$state['grvs'],
+            'transfers' => (int)$state['transfers'],
+            'extra_tables' => (int)$state['tables'],
+            'members' => (int)$state['members'],
+            'new_staff' => (int)$state['staff'],
+            'recipes' => (int)$state['recipes'],
+            'batches' => (int)$state['produced'],
+            'events' => (int)$state['events'],
+            'employees' => (int)$state['employees'],
+            'locations' => (int)$state['locations'],
+            'locations_at_start' => (int)$state['location_mark'],
+        ];
+    }
+
+    private function manualNotes(array $step): string
+    {
+        $needle = strtolower((string)($step['title'] ?? 'sale'));
         $chunks = [];
         foreach ([BASE_PATH . '/user_guide.md', BASE_PATH . '/TRAINING_MANUAL.md'] as $path) {
             if (!is_file($path)) {
                 continue;
             }
             $text = (string)file_get_contents($path);
-            if (preg_match('/.{0,400}discount.{0,400}/is', $text, $m)) {
-                $chunks[] = trim($m[0]);
-            }
-            if (preg_match('/.{0,400}(refund|void).{0,400}/is', $text, $m)) {
+            if (preg_match('/.{0,280}' . preg_quote($needle, '/') . '.{0,280}/is', $text, $m)) {
                 $chunks[] = trim($m[0]);
             }
         }
         $notes = trim(implode("\n", $chunks));
-        if (strlen($notes) > 2000) {
-            $notes = substr($notes, 0, 2000);
+        if (strlen($notes) > 1200) {
+            $notes = substr($notes, 0, 1200);
         }
         return $notes;
     }
@@ -378,12 +615,24 @@ final class Training
                 'name' => 'Training Counter',
                 'type' => 'store',
                 'can_sell' => 1,
+                'can_receive' => 1,
             ]);
             return (int)$box->lastInsertId();
         }
         $row['can_sell'] = 1;
         $this->insert($box, 'locations', $row);
         return (int)$row['id'];
+    }
+
+    private function seedStore(PDO $box): int
+    {
+        $this->insert($box, 'locations', [
+            'name' => 'Training Store',
+            'type' => 'warehouse',
+            'can_sell' => 0,
+            'can_receive' => 1,
+        ]);
+        return (int)$box->lastInsertId();
     }
 
     private function seedUser(PDO $prod, PDO $box, int $userId, int $locationId): void
@@ -398,6 +647,23 @@ final class Training
         $this->insert($box, 'users', $row);
     }
 
+    private function seedPracticeManager(PDO $box, int $locationId): void
+    {
+        if (strtolower((string)($_SESSION['username'] ?? '')) === 'train_mgr') {
+            return;
+        }
+        $hash = password_hash('train', PASSWORD_DEFAULT);
+        $this->insert($box, 'users', [
+            'username' => 'train_mgr',
+            'full_name' => 'Training Manager',
+            'password_hash' => $hash,
+            'password' => $hash,
+            'role' => 'manager',
+            'location_id' => $locationId,
+            'is_active' => 1,
+        ]);
+    }
+
     private function seedSettings(PDO $prod, PDO $box): void
     {
         $rows = $prod->query('SELECT * FROM settings')->fetchAll();
@@ -406,34 +672,53 @@ final class Training
         }
     }
 
-    private function seedCatalog(PDO $box, int $locationId): void
+    private function seedSurcharge(PDO $box): void
+    {
+        $this->insert($box, 'surcharge_reasons', [
+            'name' => 'Takeaway packaging',
+            'default_amount' => 5,
+            'default_percent' => 0,
+            'is_active' => 1,
+            'sort_order' => 1,
+        ]);
+    }
+
+    private function seedCatalog(PDO $box, int $locationId, int $storeId): array
     {
         $this->insert($box, 'categories', [
             'name' => 'Training',
             'type' => 'food',
         ]);
         $categoryId = (int)$box->lastInsertId();
+        $this->insert($box, 'categories', [
+            'name' => 'Ingredients',
+            'type' => 'ingredients',
+        ]);
+        $ingredientCategory = (int)$box->lastInsertId();
         $items = [
-            ['Training Cake', 'TRAIN-CAKE', 25],
-            ['Training Juice', 'TRAIN-JUICE', 15],
+            ['Training Cake', 'TRAIN-CAKE', 25, 1, $categoryId, 'cake'],
+            ['Training Juice', 'TRAIN-JUICE', 15, 1, $categoryId, 'juice'],
+            ['Training Flour', 'TRAIN-FLOUR', 0, 0, $ingredientCategory, 'flour'],
         ];
-        foreach ($items as [$name, $sku, $price]) {
+        $ids = ['cake' => 0, 'juice' => 0, 'flour' => 0];
+        foreach ($items as [$name, $sku, $price, $sellable, $cat, $key]) {
             $this->insert($box, 'products', [
                 'name' => $name,
                 'sku' => $sku,
                 'price' => $price,
                 'cost_price' => 5,
                 'unit' => 'EA',
-                'category_id' => $categoryId,
+                'category_id' => $cat,
                 'is_active' => 1,
                 'type' => 'item',
-                'is_sellable' => 1,
+                'is_sellable' => $sellable,
                 'tax_class' => 'A',
                 'unspsc_code' => '50181901',
-                'zra_synced' => 1,
-                'zra_item_cd' => $sku,
+                'zra_synced' => $sellable,
+                'zra_item_cd' => $sellable ? $sku : '',
             ]);
             $productId = (int)$box->lastInsertId();
+            $ids[$key] = $productId;
             $this->insert($box, 'inventory', [
                 'product_id' => $productId,
                 'location_id' => $locationId,
@@ -444,10 +729,23 @@ final class Training
                 'product_id' => $productId,
                 'quantity' => 40,
             ]);
+            if ($key === 'flour' && $storeId > 0) {
+                $this->insert($box, 'inventory', [
+                    'product_id' => $productId,
+                    'location_id' => $storeId,
+                    'quantity' => 40,
+                ]);
+                $this->insert($box, 'location_stock', [
+                    'location_id' => $storeId,
+                    'product_id' => $productId,
+                    'quantity' => 40,
+                ]);
+            }
         }
+        return $ids;
     }
 
-    private function seedShift(PDO $box, int $userId, int $locationId): void
+    private function seedShift(PDO $box, int $userId, int $locationId): int
     {
         $this->insert($box, 'shifts', [
             'user_id' => $userId,
@@ -457,6 +755,58 @@ final class Training
             'start_verified_by' => $userId,
             'start_verified_at' => date('Y-m-d H:i:s'),
         ]);
+        return (int)$box->lastInsertId();
+    }
+
+    private function seedTable(PDO $box, int $locationId): int
+    {
+        $this->insert($box, 'restaurant_tables', [
+            'location_id' => $locationId,
+            'zone_name' => 'Floor',
+            'table_name' => 'Training 1',
+            'capacity' => 4,
+        ]);
+        return (int)$box->lastInsertId();
+    }
+
+    private function seedKitchenTicket(PDO $box, int $locationId, int $userId, int $shiftId, int $tableId, int $productId): void
+    {
+        if ($productId <= 0) {
+            return;
+        }
+        $this->insert($box, 'sales', [
+            'location_id' => $locationId,
+            'table_id' => $tableId,
+            'user_id' => $userId,
+            'shift_id' => $shiftId,
+            'subtotal' => 25,
+            'final_total' => 25,
+            'total_amount' => 25,
+            'payment_method' => 'Pending',
+            'payment_status' => 'pending',
+            'status' => 'pending',
+            'customer_name' => 'Training 1',
+        ]);
+        $saleId = (int)$box->lastInsertId();
+        $this->insert($box, 'sale_items', [
+            'sale_id' => $saleId,
+            'product_id' => $productId,
+            'quantity' => 1,
+            'price' => 25,
+            'fulfillment_status' => 'uncollected',
+            'status' => 'pending',
+        ]);
+    }
+
+    private function countSql(string $sql, array $params = []): int
+    {
+        try {
+            $stmt = Database::sandbox()->prepare($sql);
+            $stmt->execute($params);
+            return (int)$stmt->fetchColumn();
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     private function insert(PDO $pdo, string $table, array $row): void

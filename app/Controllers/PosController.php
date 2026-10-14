@@ -11,6 +11,16 @@ final class PosController extends Controller
     public function index(): void
     {
         $pdo = Database::connection();
+        if (Database::trainingAborted() && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+            $msg = 'Training stopped because the practice data was missing. The sale was not recorded. Start the lesson again.';
+            $this->flash('error', $msg);
+            $ajax = !empty($_POST['ajax'])
+                || strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
+            if ($ajax) {
+                $this->jsonExit(['status' => 'error', 'msg' => $msg]);
+            }
+            $this->redirect('pos');
+        }
         $userId = $this->userId();
         $locationId = $this->locationId();
         $role = $this->role();
@@ -32,7 +42,10 @@ final class PosController extends Controller
                         $pdo->rollBack();
                     }
                     $msg = trim($e->getMessage());
-                    $this->flash('error', $msg !== '' ? $msg : 'Unable to complete checkout.');
+                    if ($msg === '' || str_contains($msg, 'SQLSTATE')) {
+                        $msg = 'The sale was not recorded.';
+                    }
+                    $this->flash('error', $msg);
                 }
             } else {
                 $this->flash('error', 'Open a shift before checkout.');
