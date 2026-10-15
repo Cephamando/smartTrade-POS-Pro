@@ -242,6 +242,13 @@ final class ShopController extends Controller
                 }
                 $this->placeOrder($customer, $p);
             }
+            if (isset($p['pay_order'])) {
+                if (!$customer) {
+                    $_SESSION['shop_after_login'] = 'orders';
+                    $this->go('login');
+                }
+                $this->payExistingOrder($customer, (int)$p['pay_order']);
+            }
         } catch (\Throwable $e) {
             if (!empty($p['ajax'])) {
                 $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage()]);
@@ -427,26 +434,54 @@ final class ShopController extends Controller
         $_SESSION['shop_cart'] = [];
 
         if ($payMode === 'online') {
-            $flw = new Flutterwave($pdo, $this->settings);
-            $res = $flw->createPaymentLink([
-                'amount' => $total,
-                'email' => (string)($customer['email'] ?? ''),
-                'phone' => $customer['phone'],
-                'name' => $customer['name'],
-                'redirect_url' => $this->baseUrl() . '/index.php?page=shop&view=pay_return&order=' . $saleId,
-                'title' => (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order')),
-                'description' => 'Order #' . $saleId,
-                'sale_id' => $saleId,
-                'location_id' => $loc,
-                'customer_id' => (int)$customer['id'],
-                'prefix' => 'WEB',
-            ]);
-            $pdo->prepare('UPDATE sales SET gateway_ref = ? WHERE id = ?')->execute([$res['tx_ref'], $saleId]);
+            try {
+                $res = $this->startOrderPayment($customer, $saleId, $total, $loc);
+            } catch (\Throwable $e) {
+                $this->flashShop('error', 'The payment page did not open. Order #' . $saleId . ' is saved. Open the order and try Pay now.');
+                $this->go('order', ['id' => $saleId]);
+            }
             header('Location: ' . $res['link']);
             exit;
         }
         $this->flashShop('success', 'Order #' . $saleId . ' placed! Pay at the counter when you collect.');
         $this->go('order', ['id' => $saleId]);
+    }
+
+    /** @param array<string, mixed> $customer */
+    private function payExistingOrder(array $customer, int $saleId): never
+    {
+        $order = Customer::order((int)$customer['id'], $saleId);
+        if (!$order) {
+            throw new \RuntimeException('Order not found.');
+        }
+        if (($order['payment_status'] ?? '') === 'paid') {
+            $this->flashShop('success', 'This order is already paid.');
+            $this->go('order', ['id' => $saleId]);
+        }
+        $res = $this->startOrderPayment($customer, $saleId, (float)$order['final_total'], (int)$order['location_id']);
+        header('Location: ' . $res['link']);
+        exit;
+    }
+
+    /** @param array<string, mixed> $customer */
+    private function startOrderPayment(array $customer, int $saleId, float $total, int $loc): array
+    {
+        $flw = new Flutterwave($this->pdo(), $this->settings);
+        $res = $flw->createPaymentLink([
+            'amount' => $total,
+            'email' => (string)($customer['email'] ?? ''),
+            'phone' => $customer['phone'],
+            'name' => $customer['name'],
+            'redirect_url' => $this->baseUrl() . '/index.php?page=shop&view=pay_return&order=' . $saleId,
+            'title' => (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order')),
+            'description' => 'Order ' . $saleId,
+            'sale_id' => $saleId,
+            'location_id' => $loc,
+            'customer_id' => (int)$customer['id'],
+            'prefix' => 'WEB',
+        ]);
+        $this->pdo()->prepare('UPDATE sales SET gateway_ref = ? WHERE id = ?')->execute([$res['tx_ref'], $saleId]);
+        return $res;
     }
 
     /** Flutterwave sends the customer back here after paying. */

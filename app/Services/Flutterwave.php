@@ -79,8 +79,8 @@ final class Flutterwave
                 'name' => $args['name'] ?: 'Walk-in customer',
             ],
             'customizations' => [
-                'title' => $args['title'] ?? (string)($this->settings['business_name'] ?? 'smartTrade POS'),
-                'description' => $args['description'] ?? ('Payment ' . $txRef),
+                'title' => $this->hostedText($args['title'] ?? (string)($this->settings['business_name'] ?? 'smartTrade POS')),
+                'description' => $this->hostedText($args['description'] ?? ('Payment ' . $txRef)),
             ],
             'meta' => [
                 'sale_id' => (int)($args['sale_id'] ?? 0),
@@ -258,6 +258,14 @@ final class Flutterwave
         }
     }
 
+    /** Cloudflare in front of Flutterwave rejects a "#" in the hosted-checkout text. */
+    private function hostedText(string $value): string
+    {
+        $value = str_replace('#', '', $value);
+        $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+        return $value !== '' ? $value : 'Payment';
+    }
+
     private function emailDomain(): string
     {
         $host = (string)($_SERVER['HTTP_HOST'] ?? 'pos.local');
@@ -337,7 +345,10 @@ final class Flutterwave
         }
         $json = json_decode((string)$raw, true);
         if (!is_array($json)) {
-            throw new \RuntimeException('Flutterwave returned HTTP ' . $http . ' with an unreadable body.');
+            $blocked = stripos((string)$raw, 'cloudflare') !== false;
+            throw new \RuntimeException($blocked
+                ? 'Flutterwave\'s firewall blocked the payment request (HTTP ' . $http . ').'
+                : 'Flutterwave returned HTTP ' . $http . ' with an unreadable body.');
         }
         if ($http === 401) {
             throw new \RuntimeException('Flutterwave rejected the secret key (401). Check Settings → Payments.');

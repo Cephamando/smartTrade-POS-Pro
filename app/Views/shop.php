@@ -884,6 +884,12 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <tr class="fw-bold fs-5"><td>Total</td><td class="text-end"><?= $money($o['final_total']) ?></td></tr>
         </table>
         <?php if ($o['order_notes']): ?><div class="small text-muted mt-2"><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars($o['order_notes']) ?></div><?php endif; ?>
+        <?php if ($flwOn && ($o['payment_status'] ?? '') !== 'paid' && ($o['status'] ?? '') === 'pending'): ?>
+            <form method="POST" action="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="mt-3">
+                <input type="hidden" name="pay_order" value="<?= (int)$o['id'] ?>">
+                <button class="btn btn-accent rounded-pill px-4">Pay now</button>
+            </form>
+        <?php endif; ?>
         <?php if ($o['gateway_ref']): ?><div class="small text-muted">Payment ref <?= htmlspecialchars($o['gateway_ref']) ?></div><?php endif; ?>
         <?php if ($o['zra_rcpt_no']): ?><div class="small text-muted">ZRA receipt no <?= htmlspecialchars($o['zra_rcpt_no']) ?></div><?php endif; ?>
     </div></div>
