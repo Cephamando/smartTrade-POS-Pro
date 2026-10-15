@@ -13,7 +13,7 @@
     <script src="vendor/flatpickr/flatpickr.min.js"></script>
     <script src="vendor/tom-select/tom-select.complete.min.js"></script>
     <script src="js/select-search.js?v=3"></script>
-    <script src="js/live-boards.js?v=1"></script>
+    <script src="js/live-boards.js?v=2"></script>
     <script src="js/bulk-list.js?v=1"></script>
     <script>
         if (window.flatpickr) {

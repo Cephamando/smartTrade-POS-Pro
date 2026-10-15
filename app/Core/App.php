@@ -141,11 +141,36 @@ final class App
                 'approvals' => 0,
                 'web_ids' => '',
                 'tab_ids' => '',
+                'ready' => [],
             ];
             try {
                 $stmt = $pdo->prepare("SELECT COUNT(*) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE s.location_id = ? AND si.status = 'ready' AND si.fulfillment_status = 'uncollected'");
                 $stmt->execute([$locationId]);
                 $out['pickup'] = (int)$stmt->fetchColumn();
+                $out['ready'] = [];
+                $ready = $pdo->prepare(
+                    "SELECT si.id, si.sale_id, si.quantity, p.name AS product_name,
+                            COALESCE(NULLIF(TRIM(s.customer_name), ''), '') AS who,
+                            s.payment_method
+                     FROM sale_items si
+                     JOIN sales s ON si.sale_id = s.id
+                     JOIN products p ON si.product_id = p.id
+                     WHERE s.location_id = ? AND si.status = 'ready' AND si.fulfillment_status = 'uncollected'
+                     ORDER BY si.id DESC
+                     LIMIT 30"
+                );
+                $ready->execute([$locationId]);
+                foreach ($ready->fetchAll() as $row) {
+                    $qty = (float)$row['quantity'];
+                    $out['ready'][] = [
+                        'id' => (int)$row['id'],
+                        'sale_id' => (int)$row['sale_id'],
+                        'qty' => $qty == (int)$qty ? (int)$qty : $qty,
+                        'name' => (string)$row['product_name'],
+                        'who' => (string)$row['who'],
+                        'web' => strcasecmp((string)$row['payment_method'], 'Online') === 0,
+                    ];
+                }
 
                 $tabSql = "SELECT DISTINCT s.id, s.payment_status FROM sales s JOIN sale_items si ON s.id = si.sale_id WHERE s.location_id = ? AND si.status NOT IN ('voided', 'refunded') AND (s.payment_status = 'pending' OR si.fulfillment_status = 'uncollected')";
                 $params = [$locationId];
@@ -252,6 +277,9 @@ final class App
             $allowedCommon = ['receipt', 'logout', 'pickup', 'print_shift', 'end_shift_action', 'flutterwave', 'currency', 'shop', 'guide', 'training'];
             if (in_array($userRole, ['chef', 'head_chef'], true) && in_array(LICENSE_TIER, ['pro+', 'enterprise'], true)) {
                 $allowed = array_merge($allowedCommon, ['kitchen', 'kds', 'menu', 'inventory']);
+                if ($userRole === 'head_chef') {
+                    $allowed[] = 'report_consumption';
+                }
                 if (!in_array($page, $allowed, true)) {
                     $page = 'kitchen';
                 }

@@ -1868,7 +1868,7 @@ function getCategoryStyle($name) {
         function addService(id, name, price, isOpen) { if (isPosRefundMode()) { openRefundInvoicePicker(id, name); return; } let isRefund = '0'; if (isOpen) { document.getElementById('op_pid').value = id; document.getElementById('op_name').innerText = name; document.getElementById('op_refund').value = isRefund; safeModalShow('openPriceModal'); } else { posCartAdd({ add_item: '1', product_id: id, is_refund: isRefund }); } }
         <?php if(isset($_SESSION['swal_msg']) || isset($_SESSION['swal_html'])): ?> AppAlert.notify({ icon: <?= json_encode($_SESSION['swal_type'] ?? 'info') ?>, title: <?= json_encode($_SESSION['swal_title'] ?? '') ?>, text: <?= json_encode((string)($_SESSION['swal_msg'] ?? '')) ?>, html: <?= json_encode((string)($_SESSION['swal_html'] ?? '')) ?>, confirmText: <?= json_encode($_SESSION['swal_confirm'] ?? '') ?>, cancelText: <?= json_encode($_SESSION['swal_cancel'] ?? '') ?>, url: <?= json_encode($_SESSION['swal_url'] ?? '') ?> }); <?php unset($_SESSION['swal_type'], $_SESSION['swal_msg'], $_SESSION['swal_title'], $_SESSION['swal_confirm'], $_SESSION['swal_cancel'], $_SESSION['swal_url'], $_SESSION['swal_html']); endif; ?>
     </script>
-    <script src="js/live-boards.js?v=1"></script>
+    <script src="js/live-boards.js?v=2"></script>
 <script>
     document.addEventListener('focusin', function(e) { if (typeof Swal !== 'undefined' && Swal.isVisible()) { let swalContainer = document.querySelector('.swal2-container'); if (swalContainer && swalContainer.contains(e.target)) { e.stopImmediatePropagation(); } } }, true);
 </script>

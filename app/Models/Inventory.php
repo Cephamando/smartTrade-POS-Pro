@@ -236,17 +236,36 @@ final class Inventory extends Model
         return $stmt->fetchAll();
     }
 
+    /** @return array<string,string> action_type => label */
     public static function actionTypes(): array
     {
+        $labels = [
+            'adjustment' => 'Adjustment',
+            'grv' => 'Goods received',
+            'online_sale' => 'Online sale',
+            'produce' => 'Production',
+            'recipe_deduction' => 'Recipe deduction',
+            'refund' => 'Refund',
+            'sale' => 'Sale',
+            'stock_take' => 'Stock take',
+            'transfer_in' => 'Transfer in',
+            'transfer_out' => 'Transfer out',
+            'waste' => 'Waste',
+        ];
         try {
-            $typeStmt = self::db()->query("SHOW COLUMNS FROM inventory_logs LIKE 'action_type'");
-            if ($typeRow = $typeStmt->fetch()) {
-                preg_match("/^enum\(\'(.*)\'\)$/", $typeRow['Type'], $matches);
-                return explode("','", $matches[1] ?? '');
+            $rows = self::db()->query(
+                "SELECT DISTINCT action_type FROM inventory_logs WHERE action_type IS NOT NULL AND action_type <> ''"
+            )->fetchAll(\PDO::FETCH_COLUMN);
+            foreach ($rows as $type) {
+                $type = (string)$type;
+                if ($type !== '' && !isset($labels[$type])) {
+                    $labels[$type] = ucfirst(str_replace('_', ' ', $type));
+                }
             }
         } catch (\Throwable $e) {
         }
-        return ['sale', 'grv', 'transfer_in', 'transfer_out', 'adjustment'];
+        asort($labels);
+        return $labels;
     }
 
     public static function produce(int $productId, float $qty, int $targetLocId, int $userId, ?int $sourceLocId = null): void

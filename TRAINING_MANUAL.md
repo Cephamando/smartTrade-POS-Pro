@@ -46,7 +46,7 @@ A printable Word version with screenshots is in `TRAINING_MANUAL.docx`. Rebuild 
 
 ### 0.2 Training accounts
 
-Create these on **Management → Users & Staff** before the session. Use simple passwords for training and delete the accounts afterwards.
+Create these on **Office → Staff** before the session. Use simple passwords for training and delete the accounts afterwards.
 
 | Username | Role | Primary workstation |
 |---|---|---|
@@ -91,11 +91,11 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 3. **Exit**, then sign in as `train_mgr`.
 
-*Expected result:* the Dashboard opens. The navbar shows Dashboard, Inventory, Management, Kitchen Display, and a green **Launch POS**.
+*Expected result:* the Dashboard opens. The navbar shows Dashboard, Stock, Kitchen, Office, and a green **POS**.
 
 4. **Logout**, then sign in as `train_chef`.
 
-*Expected result:* Meal Production opens. The navbar shows Live KDS Screen, Recipe/Prep Log, Menu Builder, Stock Levels. There is no POS button.
+*Expected result:* Meal Production opens. The navbar shows Kitchen display, Prep, Menu, Stock, and Recipe use. There is no POS button.
 
 **If it goes wrong:** a chef landing on the POS means the tier is Lite or Pro. Kitchen roles need Pro+ or Enterprise.
 
@@ -112,13 +112,13 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 ### Scenario 1.3 — Know where you are (active page)
 
-1. As `train_mgr`, open **Inventory → Products & Menu**.
+1. As `train_mgr`, open **Stock → Products**.
 
-*Expected result:* **Inventory** in the navbar is highlighted yellow with an underline. Open the Inventory menu: **Products & Menu** has a yellow background.
+*Expected result:* **Stock** in the navbar is highlighted yellow with an underline. Open the Stock menu: **Products** has a yellow background, under Catalog.
 
-2. Open **Management → Master Reports**.
+2. Open **Office → Reports**.
 
-*Expected result:* the highlight moves to Management, and **Master Reports** is the yellow entry.
+*Expected result:* the highlight moves to Office, and **Reports** is the yellow entry.
 
 ### Scenario 1.4 — The navbar on a phone
 
@@ -128,21 +128,21 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 2. Tap **Menu**.
 
-*Expected result:* a dark panel drops down. Dashboard is a single row. Inventory and Management have a chevron. The bottom holds Approvals, the workstation chip, your name, the Guide, and Logout, all full width.
+*Expected result:* a dark panel drops down. Dashboard is a single row. Stock, Kitchen, and Office have a chevron. The bottom holds the workstation chip and your name.
 
-3. Tap **Guide**.
+3. Open your name and tap **Training**.
 
-*Expected result:* the Guide chat opens, ready to answer questions about the manuals. Close it.
+*Expected result:* the training picker opens. Close it.
 
-4. Tap **Inventory**, then **Management**.
+4. Tap **Stock**, then **Office**.
 
-*Expected result:* Inventory expands with a yellow left rail; when you tap Management, Inventory folds and Management opens. Only one is open at a time.
+*Expected result:* Stock expands with a yellow left rail; when you tap Office, Stock folds and Office opens. Only one is open at a time.
 
-5. Tap **Stock Levels**.
+5. Tap **Stock** again, then **Stock levels**.
 
-*Expected result:* the panel closes by itself and Stock Levels loads.
+*Expected result:* the panel closes by itself and Stock levels loads.
 
-5. Tap the green **POS** pill.
+6. Tap the green **POS** pill.
 
 *Expected result:* the POS opens directly, without opening the menu.
 
@@ -428,7 +428,7 @@ Situation: two guests sit down and order drinks first.
 
 1. Wait for the kitchen to mark the first dish **Done**.
 
-*Expected result:* the red pickup badge on the POS shows 1.
+*Expected result:* the red pickup badge on the POS shows 1. A green bar names the order and the dish, and a chime plays. **Quiet** stops the sound. **Dismiss** hides that order. Tapping the order opens Pickup.
 
 2. Open **Pickup**. Mark the dish collected.
 
@@ -483,7 +483,7 @@ Sign in as `train_chef` (head chef). Pro+ or Enterprise.
 
 ### Scenario 4.1 — Build a dish and its recipe (head chef)
 
-1. **Menu Builder**. Add **Chicken & chips**: Food category, selling price **85**.
+1. **Menu**. Add **Chicken & chips**: Food category, selling price **85**.
 2. Save the recipe: **Chicken portion** 1, **Chips (raw potatoes)** 0.25 kg.
 
 *Expected result:* the dish appears on the menu list with its ingredients. On the POS it appears under Food; the raw potatoes do not appear as a tile.
@@ -526,7 +526,7 @@ Sign in as `train_cook` on the kitchen screen.
 
 3. Tap **Done**. Confirm.
 
-*Expected result:* the ticket clears; the waiter's Pickup badge increments. "All orders clear" shows when nothing is waiting.
+*Expected result:* the ticket clears on the kitchen display, which stays silent. The waiter's POS shows the green ready bar, plays the chime, and the Pickup badge increments. "All orders clear" shows on the kitchen display when nothing is waiting.
 
 ### Scenario 4.5 — Chefs and stock
 
@@ -536,7 +536,7 @@ Sign in as `train_cook` on the kitchen screen.
 
 ### Scenario 4.6 — Recipe consumption report (head chef)
 
-1. **Management → Recipe Consumption** (head chef has this; the chef does not). Set today's date and the Kitchen location.
+1. **Recipe use** (head chef has this in the navbar; a cook does not). Set today's date and the Kitchen location.
 
 *Expected result:* chicken and potatoes used by 4.2 are listed with quantities. The sales ledger is not involved.
 
@@ -566,7 +566,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 #### Scenario 5.1.1 — Create a user (Must pass)
 
-1. **Management → Users & Staff → Add New User**. Full name, username `temp_cashier`, role **Cashier**, workstation **Restaurant**, password. Save.
+1. **Office → Staff → Add New User**. Full name, username `temp_cashier`, role **Cashier**, workstation **Restaurant**, password. Save.
 
 *Expected result:* the user appears in the list.
 
@@ -594,7 +594,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 #### Scenario 5.1.3 — Approve, review, and close shifts from the office
 
-1. Have `train_cashier` request a shift. On your PC, **Management → Shifts & X-Reads**.
+1. Have `train_cashier` request a shift. On your PC, **Office → Shifts**.
 
 *Expected result:* the pending shift is listed; approve it there.
 
@@ -608,7 +608,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 #### Scenario 5.2.1 — Add a product correctly for ZRA (Must pass on Enterprise)
 
-1. **Inventory → Products & Menu → New Product**. Name **Castle Lite 330ml**, SKU, category Lagers, unit, type Item, cost **12**, price **25**, POS visibility **Sellable on POS**.
+1. **Stock → Products**, then **New Product**. Name **Castle Lite 330ml**, SKU, category Lagers, unit, type Item, cost **12**, price **25**, POS visibility **Sellable on POS**.
 2. ZRA tax class **Class A - Standard (16%)**. UNSPSC code: type **beer** and pick the level-4 code (for example `50202201`). **Save Product**.
 
 *Expected result:* the product saves. The Unsynced products count on the ZRA page goes up by one until **Register products** is run.
@@ -619,7 +619,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 #### Scenario 5.2.2 — Categories and routing
 
-1. **Inventory → Categories**. Add **Desserts**, type **Food / Meal**, parent **Food**.
+1. **Stock → Categories**. Add **Desserts**, type **Food / Meal**, parent **Food**.
 
 *Expected result:* on the POS, **Food** drills down to **Desserts**. Items in it show **Got it / Later** (Pro+).
 
@@ -631,7 +631,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 Situation: month-end count at Main Bar. The system says 48 Mosi; you count 46.
 
-1. **Inventory → Stock Levels**. Location Main Bar. On Mosi, physical count **46**, reason **Month-end count**. **Finish & update stock**.
+1. **Stock → Stock levels**. Location Main Bar. On Mosi, physical count **46**, reason **Month-end count**. **Finish & update stock**.
 
 *Expected result:* Mosi shows 46. **Inventory Audit Trail** shows a stock-take row of −2 by you.
 
@@ -645,11 +645,11 @@ Situation: month-end count at Main Bar. The system says 48 Mosi; you count 46.
 
 #### Scenario 5.2.4 — Audit trail
 
-1. **Inventory Audit Trail** (`index.php?page=audit`). Filter today, action **waste**.
+1. **Stock → History**. Filter today, action **Waste**.
 
-*Expected result:* the broken Mosi from 2.10 is listed with the cashier, the station, −1, and the quantity after.
+*Expected result:* the Action type menu lists the real movements (Sale, Online sale, Waste, Stock take, and the others), not a single "All actions" line. The broken Mosi from 2.10 is listed with the cashier, the station, −1, and the quantity after.
 
-2. Filter **sale**, **produce**, **transfer**, **grv**, **stock_take** in turn.
+2. Filter **Sale**, **Production**, **Transfer in**, **Goods received**, and **Stock take** in turn.
 
 *Expected result:* each shows the rows from this training day.
 
@@ -657,7 +657,7 @@ Situation: month-end count at Main Bar. The system says 48 Mosi; you count 46.
 
 #### Scenario 5.3.1 — Vendor
 
-1. **Inventory → Vendors → Add New Vendor**: name, contact, phone.
+1. **Stock → Vendors → Add New Vendor**: name, contact, phone.
 2. Try to delete a vendor that has a GRV.
 
 *Expected result:* "This vendor has GRV records and cannot be deleted."
@@ -697,9 +697,9 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 #### Scenario 5.3.4 — Receiving bay (V-SIAS)
 
 1. Have the trainer send a V-SIAS consignment to the shop.
-2. **Inventory → Receiving Bay**.
+2. **Stock → Receiving bay**.
 
-*Expected result:* the dock shows tracking code, source, line count, status. The navbar Inventory menu shows a count badge on Receiving Bay.
+*Expected result:* the dock shows tracking code, source, line count, status. The Stock menu shows a count badge on Receiving bay.
 
 3. Open it, flag any non-catalog line, **Send to GRV**, post.
 
@@ -747,7 +747,7 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 
 #### Scenario 5.5.1 — Read today's trading (Must pass)
 
-1. **Management → Master Reports**. The range defaults to today.
+1. **Office → Reports**. The range defaults to today.
 
 *Expected result:* the five tiles reflect this training day. **Receipts** lists each sale; the return from 2.11 carries a red **Refund** badge. Refunds tile equals that credit note.
 
@@ -826,7 +826,7 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 Situation: closing the day.
 
 1. Every station has ended its shift (scenario 2.13).
-2. **Management → End of Day (Z-Read)**. Date today, time 00:00 to 23:59, workstation Main Bar. **Filter**.
+2. **Office → End of day**. Date today, time 00:00 to 23:59, workstation Main Bar. **Filter**.
 
 *Expected result:* totals by payment method, a **Flutterwave payments** table (network, number, transaction ID), and sales for the window. **Print Z-Read** prints only the report.
 
@@ -851,13 +851,13 @@ Situation: closing the day.
 
 #### Scenario 5.7.1 — Location edit queued for the developer
 
-1. **Management → Locations**. Edit Restaurant: tick **Goods receiver**. Save.
+1. **Office → Locations**. Edit Restaurant: tick **Goods receiver**. Save.
 
 *Expected result:* the row is highlighted as pending. The Management menu shows a warning badge. Nothing changes until the developer approves (scenario 7.2).
 
 #### Scenario 5.7.2 — Table settings (Pro+)
 
-1. **Management → Table Settings → Add New Table**. Name **T7**, zone **Patio**, capacity 4, location Restaurant.
+1. **Office → Tables → Add New Table**. Name **T7**, zone **Patio**, capacity 4, location Restaurant.
 
 *Expected result:* T7 appears green on the POS floor plan at Restaurant.
 
@@ -883,7 +883,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 #### Scenario 5.9.1 — Statutory rules
 
-1. **Management → Payroll → Statutory rules**.
+1. **Office → Payroll → Statutory rules**.
 
 *Expected result:* PAYE bands 0–5,100 at 0%, to 7,100 at 20%, to 9,200 at 30%, above at 37%; NAPSA 5% capped; NHIMA 1%; 26 working days; tips included in pay but not taxed (tick **Tax tips** if your accountant says otherwise).
 
@@ -936,7 +936,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 #### Scenario 5.10.1 — Switch it on
 
-1. **Management → System Settings → Online ordering**. Enable, pick **Main Bar** as the fulfilling location, title **Training Café Online**, delivery fee 25, tick Flutterwave payment and delivery. Save. **Open page**.
+1. **Office → Settings → Online ordering**. Enable, pick **Main Bar** as the fulfilling location, title **Training Café Online**, delivery fee 25, tick Flutterwave payment and delivery. Save. **Open page**.
 
 *Expected result:* a mobile-styled page in the shop's colours with the menu. Only sellable items in stock at Main Bar appear.
 
@@ -969,7 +969,7 @@ Money on the shop is shown as `K` with two decimals. The staff page says ZMW.
 
 #### Scenario 5.11.1 — The event file and its cover (Must pass)
 
-1. **Management → Events → New event**.
+1. **Office → Events → New event**.
 2. **Name** `Sunday tasting`. **Starts** a future Sunday at 18:00, **Ends** 21:00. **Store** Main Bar. **Venue note** `Private room`.
 3. **Visibility** `Private invite`. **Status** `draft`. **Capacity** `20`. **Deposit** `0`. **Guest action** `Apply`.
 4. **Short line** `A small tasting`. **Story** `Three courses, one table.`
@@ -1083,7 +1083,7 @@ If a deposit is set, the shop adds that the deposit is collected on the private 
 
 *Expected result:* a log line per address. **sent** when Email is filled in and the mailbox accepts it. **failed** when it is not. `{name}`, `{event}`, `{when}`, and `{link}` are filled in for each guest. Guests with no email are skipped.
 
-5. **Management → System Settings → Email**. Fill **SMTP host**, **port** (587, or 465 for a direct secure connection), **username**, **password**, **from address**, and **from name**. **Save email**.
+5. **Office → Settings → Email**. Fill **SMTP host**, **port** (587, or 465 for a direct secure connection), **username**, **password**, **from address**, and **from name**. **Save email**.
 
 *Expected result:* the password box is empty afterwards and says the password is saved. A later save with a blank password keeps the old one. Invitations then send; until then, every guest link still works.
 
@@ -1125,7 +1125,7 @@ Train this on a **sandbox** device only. The live device must be initialized onc
 
 ### Scenario 6.1 — Read the page
 
-1. **Management → ZRA Smart Invoice**.
+1. **Office → ZRA invoices**.
 
 *Expected result:* four tiles: VSDC service, Pending sales, Fiscalized sales, Unsynced products. A device card with TPIN, branch, serial, taxpayer, SDC ID, MRC. Unfiscalized paid sales. Recent fiscal receipts.
 
@@ -1210,7 +1210,7 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 ### Scenario 7.1 — System settings
 
-1. **Management → System Settings**. Change **Business name**, add a receipt header line (TPIN, address) and footer. Save.
+1. **Office → Settings**. Change **Business name**, add a receipt header line (TPIN, address) and footer. Save.
 
 *Expected result:* the navbar brand and the next receipt show the new text.
 
@@ -1220,13 +1220,13 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 ### Scenario 7.1a — Surcharge reasons (administrator or developer)
 
-1. **Management → POS Surcharge Reasons**. Add **Takeaway packaging**, default amount 10. Add **Late-night service**, default 5%. Save each.
+1. **Office → Settings**, POS surcharges tab. Add **Takeaway packaging**, default amount 10. Add **Late-night service**, default 5%. Save each.
 
 *Expected result:* both appear in the table and in the POS surcharge drop-down on the next sale. Switching one **off** hides it from the POS without deleting past sales that used it.
 
 ### Scenario 7.1b — Payments (Flutterwave test keys)
 
-1. **Management → Payments & Currency → Payments**. Enable, paste the **test** public, secret, encryption keys and the webhook hash. Save. **Test keys**.
+1. **Office → Settings**, Payments tab. Enable, paste the **test** public, secret, encryption keys and the webhook hash. Save. **Test keys**.
 
 *Expected result:* "Keys accepted" and the badge **TEST MODE**. Copy the webhook URL into the Flutterwave dashboard. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of saved keys are shown on the page.
 
@@ -1244,7 +1244,7 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 ### Scenario 7.2 — Approve a location edit
 
-1. **Management → Locations → Review Pending Edits**. The edit from 5.7.1 is listed. **Approve**.
+1. **Office → Locations → Review Pending Edits**. The edit from 5.7.1 is listed. **Approve**.
 
 *Expected result:* the row is no longer highlighted; the Management badge disappears; Restaurant is now a Goods receiver.
 
@@ -1274,7 +1274,7 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 3. Set **Pro+**. Sign in as `train_mgr`.
 
-*Expected result:* kitchen screens return; **ZRA Smart Invoice** is not on the Management menu for the manager (it is for admin and dev).
+*Expected result:* kitchen screens return; **ZRA invoices** is not on the Office menu for the manager (it is for admin and dev).
 
 4. Set **Enterprise**.
 
@@ -1299,12 +1299,12 @@ Run these on the phone. They confirm the floor staff can work without a PC.
 | # | Scenario | Expected result |
 |---|---|---|
 | P1 | Waiter signs in, taps the green **POS** pill | POS opens without opening the menu |
-| P2 | Manager taps **Menu**, opens Management, taps Master Reports | Panel closes; reports load |
+| P2 | Manager taps **Menu**, opens Office, taps Reports | Panel closes; reports load |
 | P3 | Manager opens Master Reports and swipes the tab pills | Receipts, Items, Categories, Taxes scroll sideways |
 | P4 | Manager taps a receipt card | Breakdown opens full screen; Close returns |
 | P5 | Manager taps **‹** twice | Range moves back two days |
 | P6 | Manager taps **Export** | Print dialog with the report header |
-| P7 | Chef opens Live KDS Screen on a tablet | Tickets fill the screen; Cook/Done are large enough to tap |
+| P7 | Chef opens Kitchen display on a tablet | Tickets fill the screen; Cook/Done are large enough to tap |
 | P8 | Manager taps **Approvals** | Panel opens; if blocked, **Open in new tab** works |
 | P9 | Cashier opens **Stock request** and creates a requisition | Appears under My Pending Requests |
 | P10 | Manager opens the Dashboard | Stat tiles scroll sideways; buttons are full width |
@@ -1373,7 +1373,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 ### Scenario 10.3 — Create an event
 
-1. As `train_mgr`, open **Management → Events**.
+1. As `train_mgr`, open **Office → Events**.
 2. Tap **Create Event**. Give it a title, date, and time.
 3. Add a ticket tier (e.g. "General Admission") and save.
 4. Toggle the event to **Published**.
@@ -1391,7 +1391,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 ### Scenario 10.5 — Sync the guide cache
 
-1. As `train_admin`, open **Management → System Settings**.
+1. As `train_admin`, open **Office → Settings**.
 2. Open the **Guide** tab.
 3. Paste a Gemini API key, pick a model (e.g. Gemini 3.8 Flash), and **Save**.
 4. Click **Sync Documentation**.

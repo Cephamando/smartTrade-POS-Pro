@@ -146,6 +146,16 @@ if (isset($pdo)) {
             color: #000 !important;
         }
         .app-navbar .dropdown-item.active .badge { background: #000 !important; color: #ffc107 !important; }
+        .app-navbar .dropdown-menu { min-width: 15.5rem; }
+        .app-navbar .dropdown-header {
+            font-size: 0.68rem;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: #8a8175;
+            font-weight: 700;
+            padding: 0.55rem 0.75rem 0.1rem;
+        }
+        .app-navbar .nav-icon-btn { position: relative; padding-left: 0.55rem; padding-right: 0.55rem; }
         .nav-pos-mini {
             display: inline-flex;
             align-items: center;
@@ -236,6 +246,15 @@ if (isset($pdo)) {
             .navbar-nav .dropdown-item { color: #fff; padding: 0.65rem 0.85rem; white-space: normal; }
             .navbar-nav .dropdown-item:hover { background: rgba(255,193,7,0.2); color: #fff; }
             .navbar-nav .dropdown-divider { border-color: rgba(255,255,255,0.12); }
+            .app-navbar .nav-toolbar .dropdown-menu {
+                position: static; float: none; width: 100%;
+                background: #2b3035; border: 0; box-shadow: none;
+                border-left: 3px solid rgba(255,193,7,0.45);
+            }
+            .app-navbar .nav-toolbar .dropdown-item { color: #fff; }
+            .app-navbar .nav-toolbar .dropdown-item:hover { background: rgba(255,193,7,0.2); color: #fff; }
+            .app-navbar .nav-toolbar .dropdown-header,
+            .app-navbar .nav-toolbar .dropdown-item-text { color: rgba(255,255,255,0.55); }
             .app-navbar .nav-toolbar {
                 flex-wrap: wrap;
                 gap: 0.5rem !important;
@@ -286,8 +305,9 @@ $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
 $canSeeVsiasApprovals = in_array($role, ['admin', 'manager', 'dev'], true);
 $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
-$navInventoryPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'inventory_logs'];
-$navManagementPages = ['reports', 'report_consumption', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings'];
+$navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
+$navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
+$navOfficePages = ['reports', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings', 'members'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
         return '';
@@ -376,105 +396,116 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <a class="nav-link<?= $navItem('dashboard') ?>" href="index.php?page=dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a>
                 </li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle<?= $navGroup($navInventoryPages) ?>" href="#" id="invDropdown" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-boxes"></i> Inventory
+                    <a class="nav-link dropdown-toggle<?= $navGroup($navStockPages) ?>" href="#" id="stockDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-boxes"></i> Stock
                     </a>
                     <ul class="dropdown-menu shadow">
-                        <li><a class="dropdown-item<?= $navItem('products') ?>" href="index.php?page=products"><i class="bi bi-tags"></i> Products & Menu</a></li>
-                        <li><a class="dropdown-item<?= $navItem('unspsc') ?>" href="index.php?page=unspsc"><i class="bi bi-upc-scan"></i> UNSPSC Codes</a></li>
+                        <li><h6 class="dropdown-header">Catalog</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('products') ?>" href="index.php?page=products"><i class="bi bi-tags"></i> Products</a></li>
                         <li><a class="dropdown-item<?= $navItem('categories') ?>" href="index.php?page=categories"><i class="bi bi-folder"></i> Categories</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item fw-bold<?= $navItem('inventory') ?>" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock Levels</a></li>
-                        <li><a class="dropdown-item fw-bold text-warning<?= $navItem('receiving_bay') ?>" href="index.php?page=receiving_bay"><i class="bi bi-box-arrow-in-down"></i> Receiving Bay<?php if ($bayWaiting > 0): ?> <span class="badge bg-warning text-dark ms-1"><?= (int)$bayWaiting ?></span><?php endif; ?></a></li>
-                        <li><a class="dropdown-item fw-bold text-primary<?= $navItem('purchasing', 'received') ?>" href="index.php?page=purchasing&tab=received"><i class="bi bi-box-seam"></i> Goods Received</a></li>
-                        <li><a class="dropdown-item fw-bold text-info<?= $navItem('transfers') ?>" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Transfer Stock</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item<?= $navItem('purchasing', 'inquiry') ?>" href="index.php?page=purchasing&tab=inquiry"><i class="bi bi-question-circle"></i> Purchase Inquiry</a></li>
-                        <li><a class="dropdown-item<?= $navItem('purchasing', 'orders') ?>" href="index.php?page=purchasing&tab=orders"><i class="bi bi-receipt"></i> Purchase Orders</a></li>
+                        <li><a class="dropdown-item<?= $navItem('unspsc') ?>" href="index.php?page=unspsc"><i class="bi bi-upc-scan"></i> UNSPSC codes</a></li>
+                        <li><h6 class="dropdown-header">On hand</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('inventory') ?>" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock levels</a></li>
+                        <li><a class="dropdown-item<?= $navItem('receiving_bay') ?>" href="index.php?page=receiving_bay"><i class="bi bi-box-arrow-in-down"></i> Receiving bay<?php if ($bayWaiting > 0): ?> <span class="badge bg-warning text-dark ms-1"><?= (int)$bayWaiting ?></span><?php endif; ?></a></li>
+                        <li><a class="dropdown-item<?= $navItem('purchasing', 'received') ?>" href="index.php?page=purchasing&tab=received"><i class="bi bi-box-seam"></i> Goods received</a></li>
+                        <li><a class="dropdown-item<?= $navItem('transfers') ?>" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Transfers</a></li>
+                        <li><a class="dropdown-item<?= $navItem('audit') ?>" href="index.php?page=audit"><i class="bi bi-clock-history"></i> History</a></li>
+                        <li><h6 class="dropdown-header">Buying</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('purchasing', 'inquiry') ?>" href="index.php?page=purchasing&tab=inquiry"><i class="bi bi-question-circle"></i> Purchase inquiry</a></li>
+                        <li><a class="dropdown-item<?= $navItem('purchasing', 'orders') ?>" href="index.php?page=purchasing&tab=orders"><i class="bi bi-receipt"></i> Purchase orders</a></li>
                         <li><a class="dropdown-item<?= $navItem('vendors') ?>" href="index.php?page=vendors"><i class="bi bi-truck"></i> Vendors</a></li>
-                        <li><a class="dropdown-item<?= $navItem('inventory_logs') ?>" href="index.php?page=inventory_logs"><i class="bi bi-clock-history"></i> Stock History</a></li>
-                    </ul>
-                </li>
-
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle<?= $navGroup($navManagementPages) ?>" href="#" id="mgmtDropdown" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-briefcase"></i> Management
-                        <?php if (!empty($pendingLocEdits)): ?>
-                            <span class="badge bg-warning text-dark ms-1" title="Pending Developer Approval"><i class="bi bi-exclamation-circle-fill"></i></span>
-                        <?php endif; ?>
-                    </a>
-                    <ul class="dropdown-menu shadow">
-                        <li><a class="dropdown-item<?= $navItem('reports') ?>" href="index.php?page=reports"><i class="bi bi-bar-chart"></i> Master Reports</a></li>
-                        <li><a class="dropdown-item text-danger fw-bold<?= $navItem('report_consumption') ?>" href="index.php?page=report_consumption"><i class="bi bi-pie-chart"></i> Recipe Consumption</a></li>
-                        <li><a class="dropdown-item fw-bold text-success<?= $navItem('z_read') ?>" href="index.php?page=z_read"><i class="bi bi-journal-check"></i> End of Day (Z-Read)</a></li>
-                        <?php if (in_array($tier, ['enterprise']) || in_array($role, ['admin', 'dev'])): ?>
-                        <li><a class="dropdown-item fw-bold text-success<?= $navItem('zra') ?>" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA Smart Invoice</a></li>
-                        <?php endif; ?>
-                        <?php if ($vsiasOn): ?>
-                        <li>
-                            <a class="dropdown-item fw-bold text-info" href="#" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals">
-                                <i class="bi bi-clipboard-check"></i> Site inspection (V-SIAS Pro)
-                                <span class="badge bg-danger ms-1" data-live-count="approvals" style="<?= ($canSeeVsiasApprovals && $vsiasPending > 0) ? '' : 'display:none' ?>"><?= (int)$vsiasPending ?></span>
-                            </a>
-                        </li>
-                        <?php endif; ?>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item fw-bold<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts & X-Reads</a></li>
-                        <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Users & Staff</a></li>
-                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
-                        <li><a class="dropdown-item fw-bold text-success<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
-                        <?php endif; ?>
-
-                        <li>
-                            <a class="dropdown-item<?= $navItem('locations') ?>" href="index.php?page=locations">
-                                <i class="bi bi-geo-alt"></i> Locations
-                                <?php if (!empty($pendingLocEdits)): ?>
-                                    <span class="badge bg-warning text-dark ms-1"><?= $pendingLocEdits ?> Pending</span>
-                                <?php endif; ?>
-                            </a>
-                        </li>
-
-                        <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
-                        <li><a class="dropdown-item<?= $navItem('tables') ?>" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Table Settings</a></li>
-                        <?php endif; ?>
-                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
-                        <li><a class="dropdown-item<?= $navItem('events') ?>" href="index.php?page=events"><i class="bi bi-calendar-event"></i> Events</a></li>
-                        <?php endif; ?>
-
-                        <?php if (in_array($role, ['admin', 'dev'], true)): ?>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item fw-bold text-danger<?= $navItem('settings') ?>" href="index.php?page=settings"><i class="bi bi-gear-fill"></i> System Settings</a></li>
-                        <?php endif; ?>
                     </ul>
                 </li>
 
                 <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
-                <li class="nav-item">
-                    <a class="nav-link text-warning fw-bold<?= $navItem('kds') ?>" href="index.php?page=kds"><i class="bi bi-fire"></i> Kitchen Display</a>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle<?= $navGroup($navKitchenPages) ?>" href="#" id="kitchenDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-fire"></i> Kitchen
+                    </a>
+                    <ul class="dropdown-menu shadow">
+                        <li><a class="dropdown-item<?= $navItem('kds') ?>" href="index.php?page=kds" target="_blank" rel="noopener"><i class="bi bi-display"></i> Kitchen display</a></li>
+                        <li><a class="dropdown-item<?= $navItem('kitchen') ?>" href="index.php?page=kitchen"><i class="bi bi-fire"></i> Meal production</a></li>
+                        <li><a class="dropdown-item<?= $navItem('menu') ?>" href="index.php?page=menu"><i class="bi bi-list-ul"></i> Menu & recipes</a></li>
+                        <li><a class="dropdown-item<?= $navItem('report_consumption') ?>" href="index.php?page=report_consumption"><i class="bi bi-pie-chart"></i> Recipe use</a></li>
+                    </ul>
                 </li>
                 <?php endif; ?>
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle<?= $navGroup($navOfficePages) ?>" href="#" id="officeDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-briefcase"></i> Office
+                        <?php if (!empty($pendingLocEdits)): ?>
+                            <span class="badge bg-warning text-dark ms-1" title="A location edit is waiting for the developer"><i class="bi bi-exclamation-circle-fill"></i></span>
+                        <?php endif; ?>
+                    </a>
+                    <ul class="dropdown-menu shadow">
+                        <li><h6 class="dropdown-header">Today</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('reports') ?>" href="index.php?page=reports"><i class="bi bi-bar-chart"></i> Reports</a></li>
+                        <li><a class="dropdown-item<?= $navItem('z_read') ?>" href="index.php?page=z_read"><i class="bi bi-journal-check"></i> End of day</a></li>
+                        <li><a class="dropdown-item<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts</a></li>
+                        <?php if (in_array($tier, ['enterprise'], true) || in_array($role, ['admin', 'dev'], true)): ?>
+                        <li><a class="dropdown-item<?= $navItem('zra') ?>" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA invoices</a></li>
+                        <?php endif; ?>
+                        <?php if ($vsiasOn): ?>
+                        <li>
+                            <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals">
+                                <i class="bi bi-clipboard-check"></i> Inspections
+                                <span class="badge bg-danger ms-1" data-live-count="approvals" style="<?= ($canSeeVsiasApprovals && $vsiasPending > 0) ? '' : 'display:none' ?>"><?= (int)$vsiasPending ?></span>
+                            </a>
+                        </li>
+                        <?php endif; ?>
+                        <li><h6 class="dropdown-header">People</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Staff</a></li>
+                        <li><a class="dropdown-item<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
+                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'], true)): ?>
+                        <li><a class="dropdown-item<?= $navItem('members') ?>" href="index.php?page=members"><i class="bi bi-person-vcard"></i> Members</a></li>
+                        <?php endif; ?>
+                        <li><h6 class="dropdown-header">Places</h6></li>
+                        <li>
+                            <a class="dropdown-item<?= $navItem('locations') ?>" href="index.php?page=locations">
+                                <i class="bi bi-geo-alt"></i> Locations
+                                <?php if (!empty($pendingLocEdits)): ?>
+                                    <span class="badge bg-warning text-dark ms-1"><?= (int)$pendingLocEdits ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
+                        <?php if (in_array($tier, ['pro+', 'enterprise'], true)): ?>
+                        <li><a class="dropdown-item<?= $navItem('tables') ?>" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Tables</a></li>
+                        <?php endif; ?>
+                        <li><a class="dropdown-item<?= $navItem('events') ?>" href="index.php?page=events"><i class="bi bi-calendar-event"></i> Events</a></li>
+                        <?php if (in_array($role, ['admin', 'dev'], true)): ?>
+                        <li><h6 class="dropdown-header">Setup</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('settings') ?>" href="index.php?page=settings"><i class="bi bi-gear"></i> Settings</a></li>
+                        <?php endif; ?>
+                    </ul>
+                </li>
             </ul>
 
         <?php else: ?>
             <ul class="navbar-nav me-auto mb-2 mb-xl-0">
                 <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
                 <li class="nav-item">
-                    <a class="nav-link fw-bold<?= $navItem('transfers') ?>" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Stock request</a>
+                    <a class="nav-link<?= $navItem('transfers') ?>" href="index.php?page=transfers"><i class="bi bi-arrow-left-right"></i> Stock request</a>
                 </li>
                 <?php endif; ?>
-                <?php if (in_array($role, ['chef', 'head_chef']) && in_array($tier, ['pro+', 'enterprise'])): ?>
+                <?php if (in_array($role, ['chef', 'head_chef'], true) && in_array($tier, ['pro+', 'enterprise'], true)): ?>
                 <li class="nav-item">
-                    <a class="nav-link text-warning fw-bold fs-5<?= $navItem('kds') ?>" href="index.php?page=kds"><i class="bi bi-display"></i> Live KDS Screen</a>
+                    <a class="nav-link<?= $navItem('kds') ?>" href="index.php?page=kds"><i class="bi bi-display"></i> Kitchen display</a>
                 </li>
-                <li class="nav-item ms-xl-3">
-                    <a class="nav-link text-light fw-bold fs-5<?= $navItem('kitchen') ?>" href="index.php?page=kitchen"><i class="bi bi-journal-text"></i> Recipe/Prep Log</a>
+                <li class="nav-item">
+                    <a class="nav-link<?= $navItem('kitchen') ?>" href="index.php?page=kitchen"><i class="bi bi-fire"></i> Prep</a>
                 </li>
-                <li class="nav-item ms-xl-3">
-                    <a class="nav-link text-success fw-bold fs-5<?= $navItem('menu') ?>" href="index.php?page=menu"><i class="bi bi-list-ul"></i> Menu Builder</a>
+                <li class="nav-item">
+                    <a class="nav-link<?= $navItem('menu') ?>" href="index.php?page=menu"><i class="bi bi-list-ul"></i> Menu</a>
                 </li>
-                <li class="nav-item ms-xl-3">
-                    <a class="nav-link text-info fw-bold fs-5<?= $navItem('inventory') ?>" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock Levels</a>
+                <li class="nav-item">
+                    <a class="nav-link<?= $navItem('inventory') ?>" href="index.php?page=inventory"><i class="bi bi-bar-chart-line"></i> Stock</a>
                 </li>
+                <?php if ($role === 'head_chef'): ?>
+                <li class="nav-item">
+                    <a class="nav-link<?= $navItem('report_consumption') ?>" href="index.php?page=report_consumption"><i class="bi bi-pie-chart"></i> Recipe use</a>
+                </li>
+                <?php endif; ?>
                 <?php endif; ?>
                 <li class="nav-item d-xl-none mobile-pos-action">
                     <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
@@ -490,9 +521,8 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
 
             <div class="d-flex align-items-center ms-auto gap-2 nav-toolbar">
                 <?php if ($vsiasOn && $canSeeVsiasApprovals): ?>
-                <a href="#" class="nav-chip position-relative text-decoration-none" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals" title="Pending V-SIAS store approvals">
+                <a href="#" class="nav-chip nav-icon-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals" title="Pending approvals">
                     <i class="bi bi-bell-fill text-warning"></i>
-                    Approvals
                     <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-live-count="approvals" style="<?= $vsiasPending > 0 ? '' : 'display:none' ?>"><?= (int)$vsiasPending ?></span>
                 </a>
                 <?php endif; ?>
@@ -500,22 +530,29 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <i class="bi bi-geo-alt-fill text-warning"></i>
                     <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
                 </button>
-                <?php
-                $trainingButtonClass = 'nav-chip btn';
-                require APP_PATH . '/Views/partials/training_picker.php';
-                ?>
-                <span class="nav-chip">
-                    <i class="bi bi-person-badge text-info"></i>
-                    <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
-                    <span class="text-white-50 nav-chip-role">· <?= htmlspecialchars(strtoupper($role)) ?></span>
-                </span>
-                <a href="index.php?action=logout" class="btn btn-sm btn-outline-light rounded-pill px-3 fw-bold">Logout</a>
+                <div class="dropdown">
+                    <button type="button" class="nav-chip btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Account">
+                        <i class="bi bi-person-circle text-info"></i>
+                        <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                        <li><span class="dropdown-item-text small text-uppercase text-muted fw-bold"><?= htmlspecialchars(str_replace('_', ' ', $role)) ?></span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <?php
+                            $trainingButtonClass = 'dropdown-item';
+                            require APP_PATH . '/Views/partials/training_picker.php';
+                            ?>
+                        </li>
+                        <li><a class="dropdown-item" href="index.php?action=logout"><i class="bi bi-box-arrow-right"></i> Log out</a></li>
+                    </ul>
+                </div>
 
                 <!-- Desktop Launch POS (Only on >= 1200px) -->
                 <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
                 <div class="d-none d-xl-block ms-2">
                     <?php if ($currentLocationCanSell): ?>
-                        <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos"><i class="bi bi-cart-check me-1"></i> Launch POS</a>
+                        <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos" title="Open the point of sale"><i class="bi bi-cart-check me-1"></i> POS</a>
                     <?php else: ?>
                         <span class="nav-link nav-pos-btn fw-bold bg-secondary text-white-50" style="opacity: 0.65; cursor: not-allowed;" title="POS is disabled"><i class="bi bi-cart-x"></i> Disabled</span>
                     <?php endif; ?>
@@ -534,8 +571,8 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
             return;
         }
         panel.addEventListener('click', function (e) {
-            var link = e.target.closest('a.nav-link, a.dropdown-item, a.btn');
-            if (!link || link.getAttribute('data-bs-toggle') || link.classList.contains('js-vsias-inspect')) {
+            var link = e.target.closest('a.nav-link, a.dropdown-item, button.dropdown-item, a.btn');
+            if (!link || link.getAttribute('data-bs-toggle') === 'dropdown') {
                 return;
             }
             if (window.innerWidth < 1200 && panel.classList.contains('show')) {

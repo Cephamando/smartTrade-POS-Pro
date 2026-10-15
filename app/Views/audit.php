@@ -24,9 +24,9 @@
                 <label class="form-label fw-bold small">Action Type</label>
                 <select name="action_type" class="form-select">
                     <option value="">All Actions</option>
-                    <?php foreach ($actionTypes as $type): ?>
-                        <option value="<?= $type ?>" <?= $actionFilter == $type ? 'selected' : '' ?>>
-                            <?= ucfirst(str_replace('_', ' ', $type)) ?>
+                    <?php foreach ($actionTypes as $type => $label): ?>
+                        <option value="<?= htmlspecialchars((string)$type) ?>" <?= $actionFilter === (string)$type ? 'selected' : '' ?>>
+                            <?= htmlspecialchars((string)$label) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

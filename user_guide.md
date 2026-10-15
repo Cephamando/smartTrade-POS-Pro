@@ -16,11 +16,13 @@ Open the POS in a browser at `http://localhost:8090` on the shop PC, or at the P
    - **Chef and head chef** (Pro+ or Enterprise) land on Meal Production.
    - **Cashier, bartender, and waiter** land on the POS.
 3. If the account is flagged to change its password, the Change Password screen blocks everything else until the new password is saved. New passwords must be at least 6 characters.
-4. **Logout** is on the right of the navbar (or **Exit** on the POS for staff who are not managers).
+4. **Log out** is in the account menu under your name (or **Exit** on the POS for staff who are not managers).
 
-The navbar (managers and above) has Dashboard, Inventory, Management, Kitchen Display (Pro+ and Enterprise), and Launch POS. The page you are on is highlighted in yellow: the top-level link gets an underline, the parent menu (Inventory or Management) lights up, and the exact entry inside the menu is marked. The chip with a pin is the current workstation. The chip with a bell is pending V-SIAS approvals and opens the approvals panel inside the page. The chip with a badge is your username and role.
+The navbar for managers is four words: **Dashboard**, **Stock**, **Kitchen** (Pro+ and Enterprise), and **Office**, plus a green **POS** button. Stock, Kitchen, and Office open short grouped lists (Catalog, On hand, Buying, and so on) instead of one long menu. The page you are on is highlighted in yellow: the top-level link gets an underline, the parent menu lights up, and the exact entry inside the menu is marked. The pin chip is the current workstation. A bell, when V-SIAS is on, opens pending approvals. Your name opens the account menu: role, Training, and Log out.
 
-**On a phone or tablet** (screens narrower than 1200px) the navbar collapses. A green **POS** button sits next to **Menu** so a cashier reaches the till in one tap. **Menu** opens a scrolling panel: Inventory and Management expand like an accordion (only one open at a time), and the panel closes itself after you pick a page. Workstation, user, and Logout become full-width chips at the bottom of the panel.
+**On a phone or tablet** (screens narrower than 1200px) the navbar collapses. A green **POS** button sits next to **Menu** so the till is one tap away. **Menu** opens a scrolling panel. Stock, Kitchen, and Office expand like an accordion (only one open at a time), and the panel closes itself after you pick a page. Workstation and the account menu sit at the bottom of the panel.
+
+Chefs see **Kitchen display**, **Prep**, **Menu**, and **Stock**. A head chef also sees **Recipe use**. Cashiers and waiters see **Stock request** when they are not on the POS.
 
 Critical actions open a confirm dialog (SweetAlert) before they run: deleting a user, ending a shift, sending a batch to the POS, pushing a sale to ZRA, clearing the cart, and similar steps. Adding an item, changing quantity, and moving between pages do not ask.
 
@@ -35,7 +37,7 @@ The tier is stored in System Settings. Only a **developer** can change it. A hig
 | **Lite** | POS, products, categories, stock levels, users, locations, reports, shifts, Z-Read. Food is marked collected at sale. No split pay, tabs, pickup, purchasing, or kitchen. |
 | **Pro** | Lite, plus members, inventory audit, purchasing, vendors, receiving bay, transfers, pickup, open tabs, split pay, and “Got it / Later” on cart lines. |
 | **Pro+** | Pro, plus kitchen display, meal production, menu and recipes, and table floor plan. Food and meal categories can be sent to the kitchen. |
-| **Enterprise** | Pro+, plus ZRA Smart Invoice on the Management menu, ZRA tax class on products, Web Orders on the POS, and the Online payment method. Administrators and developers can also open ZRA on a lower tier. |
+| **Enterprise** | Pro+, plus ZRA invoices on the Office menu, ZRA tax class on products, Web Orders on the POS, and the Online payment method. Administrators and developers can also open ZRA on a lower tier. |
 
 Opening a locked page shows “This feature requires Pro or higher” or “This feature requires Pro+ or Enterprise” and returns you to the Dashboard or the POS.
 
@@ -78,16 +80,16 @@ Deleting a user removes the account when it has no history. If the person alread
 
 Locations are the physical places stock and sales belong to: Main Bar, Kitchen, warehouse, and so on.
 
-**Inventory →** is not where you edit them. Open **Management → Locations**.
+**Stock →** is not where you edit them. Open **Office → Locations**.
 
 Each location has:
 
 - **Name** and optional address or notes.
 - **Type:** Store (sales point), Kitchen (production), or Warehouse (storage).
-- **POS enabled:** the till can ring sales here. If this is off, Launch POS is disabled and the button reads “POS Disabled”.
+- **POS enabled:** the till can ring sales here. If this is off, the POS button is disabled and reads “Disabled”.
 - **Goods receiver:** this place can take vendor GRVs.
 
-Adding, editing, or deleting a location requires a developer password unless you are already signed in as the developer. Edits made by an administrator or manager sit in a pending state (highlighted row) until the developer opens **Review Pending Edits** and approves or rejects them. The Management menu shows a warning badge while any edit is waiting.
+Adding, editing, or deleting a location requires a developer password unless you are already signed in as the developer. Edits made by an administrator or manager sit in a pending state (highlighted row) until the developer opens **Review Pending Edits** and approves or rejects them. The Office menu shows a warning badge while any edit is waiting.
 
 The navbar pin (administrators and developers) switches the workstation used by the dashboard and stock screens. On the POS, the pencil next to the location name switches only among locations that can sell. If the POS has no station yet, it forces a choice before the till opens.
 
@@ -140,7 +142,7 @@ Single pay methods:
 
 **Tip** accepts an amount or 5%, 10%, or 15% of the total.
 
-**Surcharge** adds an extra charge to the bill with a reason — for example a guest who finishes a meal and then asks for it to be packed. Pick the reason from the drop-down in the payment window; each reason carries its own default amount or percentage, which you can change for this sale. **Other** lets you type a reason. The surcharge prints on the receipt as its own line, is included in the ZRA invoice, and is listed by reason in Master Reports. Administrators maintain the list under **Management → POS Surcharge Reasons** (name, default amount or percent, order, active).
+**Surcharge** adds an extra charge to the bill with a reason — for example a guest who finishes a meal and then asks for it to be packed. Pick the reason from the drop-down in the payment window; each reason carries its own default amount or percentage, which you can change for this sale. **Other** lets you type a reason. The surcharge prints on the receipt as its own line, is included in the ZRA invoice, and is listed by reason in Master Reports. Administrators maintain the list under **Office → Settings**, on the POS surcharges tab (name, default amount or percent, order, active).
 
 **Flutterwave.** Choose it, pick **MTN**, **Airtel**, or **Zamtel**, type the number the guest will pay from, and tap **Send MoMo prompt**. Or tap **Card / other** to open the Flutterwave window. The sale completes once Flutterwave confirms. When test keys are in use the panel shows **TEST MODE**.
 
@@ -164,11 +166,13 @@ On the POS, attaching a member fills the customer name and offers a **10% off** 
 
 **Tabs** holds an unpaid order. From the cart, add the order to an existing tab or a new one. You can name it and, on Pro+ and Enterprise, assign a table. **Transfer / merge** moves selected lines from one tab to another.
 
-**Tables** (Pro+ and Enterprise) opens the floor plan. Tables are green when free and red when occupied. A waiter can open their own table; a manager can open any occupied table. Define tables first under **Management → Table Settings**: location, zone (Patio, Inside), table name, and seat count.
+**Tables** (Pro+ and Enterprise) opens the floor plan. Tables are green when free and red when occupied. A waiter can open their own table; a manager can open any occupied table. Define tables first under **Office → Tables**: location, zone (Patio, Inside), table name, and seat count.
 
 **Got it / Later** appears on food and meal lines when the tier is Pro+. **Got it** means the guest has the item. **Later** sends it toward the kitchen and the pickup queue. On Lite, those lines are simply marked collected.
 
 **Pickup** (POS button, dashboard button, or the pickup screen) lists items that the kitchen marked ready and that are still uncollected. Mark them collected there. The red badge counts ready, uncollected items at this station.
+
+When the kitchen presses **Done**, every open POS and back-office screen at that station shows a green bar at the top: the order number, the table or customer, and the dishes. A three-note chime repeats for up to 60 seconds. **Quiet** stops the sound and leaves the bar. **Dismiss** hides that order until something new on it is ready. Tap the order name to open Pickup, or Web Orders when the ticket is an online order. A refresh does not sound the same dishes again. The kitchen display itself stays silent, because that is the screen that just marked the food ready.
 
 ### 5.6 Web orders (Enterprise)
 
@@ -188,7 +192,7 @@ Managers can also refund from **Master Reports → Sales Ledger** by opening the
 
 ### 6.1 Categories that drive the kitchen
 
-**Inventory → Categories.** Each category has a routing type:
+**Stock → Categories.** Each category has a routing type:
 
 | Type | Effect |
 |---|---|
@@ -201,7 +205,7 @@ Nest a category under a parent (Lagers under Beverages) to build the POS drill-d
 
 ### 6.2 Menu and recipes
 
-**Menu & Recipe Builder** (chefs, and managers on the POS Menu button):
+**Kitchen → Menu & recipes** (chefs open **Menu**; managers can also use the POS Menu button):
 
 1. Add the sellable dish: name, food category, selling price.
 2. Save the recipe: each ingredient, and how much one portion uses.
@@ -222,19 +226,19 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 ### 6.4 Kitchen display
 
-**Kitchen Display** is a dark full-screen board. It polls for tickets.
+**Kitchen → Kitchen display** opens a dark full-screen board. Chefs open the same screen from **Kitchen display** in their navbar. It polls for tickets.
 
 - Red header: new (pending).
 - Yellow header: at least one line is cooking.
 - **Cook** moves a line from pending to cooking.
-- **Done** marks it ready for pickup.
+- **Done** marks it ready for pickup. The pass and the tills then show the ready bar and play the chime described under Pickup. The kitchen display does not chime.
 - Each of those asks you to confirm.
 - The ticket shows the order number, who sent it, and how many minutes it has been up.
 - “All orders clear” means nothing is waiting.
 
 ### 6.5 Recipe consumption
 
-**Management → Recipe Consumption** (administrators, managers, developers, head chefs). Filter by date range and location. It shows ingredients used by production in that period, which is separate from the sales ledger.
+**Kitchen → Recipe use** (administrators, managers, developers, and head chefs). Filter by date range and location. It shows ingredients used by production in that period, which is separate from the sales ledger.
 
 ---
 
@@ -242,7 +246,7 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 ### 7.1 Product catalog
 
-**Inventory → Products & Menu.**
+**Stock → Products.**
 
 - Add or edit a product: name, optional SKU, category, unit, type (**Item** or **Service**), cost, selling price.
 - **Sellable on POS** shows it on the till. **Raw material (hidden)** keeps it off the till for use in recipes and purchasing.
@@ -255,11 +259,11 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 ### 7.2 UNSPSC codes
 
-**Inventory → UNSPSC Codes.** Import the classification workbook (or the bundled file) and assign codes to products. You can also assign a code from the product form. Sync from ZRA is covered in section 11.
+**Stock → UNSPSC codes.** Import the classification workbook (or the bundled file) and assign codes to products. You can also assign a code from the product form. Sync from ZRA is covered in section 11.
 
 ### 7.3 Stock levels
 
-**Inventory → Stock Levels.**
+**Stock → Stock levels.**
 
 - Filter by location and search.
 - **Total stock value** is cost times quantity for the rows on screen.
@@ -270,15 +274,15 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 ### 7.4 Inventory audit trail
 
-**Management** does not hide this; the page is **Inventory Audit Trail** (`index.php?page=audit`, Pro and above).
+Open it from **Stock → History** (Pro and above). The page title is Inventory Audit Trail.
 
-Filter by date and action type (sale, produce, transfer, GRV, stock take, and the other types stored on the log). Print the log. This is the stock history. Each row is who changed which product, at which location, by how much, and what the quantity was afterwards.
+Filter by date and **Action type**. The list is the real stock movements: Sale, Online sale, Refund, Goods received, Transfer in, Transfer out, Adjustment, Stock take, Production, Recipe deduction, Waste, plus any other type that has been written to the log. Print the log. Each row is who changed which product, at which location, by how much, and what the quantity was afterwards.
 
 ---
 
 ## 8. Purchasing (Pro and above)
 
-**Inventory → Vendors** first: name, contact person, phone. Deleting a vendor asks for confirmation.
+**Stock → Vendors** first: name, contact person, phone. Deleting a vendor asks for confirmation.
 
 Purchasing has three tabs.
 
@@ -322,7 +326,7 @@ V-SIAS inspections that are ready for the shop land here as docked consignments.
 
 ## 9. Transfers and V-SIAS
 
-**Inventory → Transfer Stock** (cashiers see this as **Stock request**).
+**Stock → Transfers** (cashiers see this as **Stock request**).
 
 Three tabs:
 
@@ -340,7 +344,7 @@ Three tabs:
 
 **Cancel** stops a transfer that should not continue.
 
-**Approvals** (bell, dashboard button, and Management → Site inspection) opens V-SIAS Pro’s pending list in a panel over the current page for administrators, managers, and developers. The badge is the number still unsigned. The first time, V-SIAS asks you to sign in with your V-SIAS account. If the panel stays blank or says the content is blocked, use **Open in new tab**.
+The bell, the dashboard button, and **Office → Inspections** open V-SIAS Pro’s pending list in a panel over the current page for administrators, managers, and developers. The badge is the number still unsigned. The first time, V-SIAS asks you to sign in with your V-SIAS account. If the panel stays blank or says the content is blocked, use **Open in new tab**.
 
 V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted system it is `vsias.odeliazm.com`. The POS only opens it and receives the approved handoff.
 
@@ -350,7 +354,7 @@ V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted 
 
 ### 10.1 Shifts & X-Reads
 
-**Management → Shifts & X-Reads.**
+**Office → Shifts.**
 
 - Money roles (cashier, bartender, manager, administrator, developer) see their own shift: opening float, sales, payouts, expected drawer.
 - Managers also get **Master Shift Reports**: every shift, filterable by date and staff member. Open a shift to see its paid sales.
@@ -359,7 +363,7 @@ V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted 
 
 ### 10.2 End of day (Z-Read)
 
-**Management → End of Day (Z-Read).**
+**Office → End of day.**
 
 Pick the date, time from, time to, and one workstation, then **Filter**. The report is the day’s takings for that window: totals by payment method, a **Flutterwave payments** table (network, number, and transaction ID for each receipt), sales, and the figures you print for the close. **Print Z-Read** prints only the report.
 
@@ -369,7 +373,7 @@ Z-Read is the shop’s end-of-day record. It is not the ZRA VAT return.
 
 ## 11. ZRA Smart Invoice (Enterprise)
 
-**Management → ZRA Smart Invoice.** The POS talks to a local fiscal device (VSDC) on this PC. That device signs each paid sale and sends it to ZRA. Filing the VAT return is still done later on the ZRA portal.
+**Office → ZRA invoices.** The POS talks to a local fiscal device (VSDC) on this PC. That device signs each paid sale and sends it to ZRA. Filing the VAT return is still done later on the ZRA portal.
 
 The top of the page shows whether the local service answers, how many paid sales are still unfiscalized, how many are fiscalized, and how many products are not registered.
 
@@ -417,7 +421,7 @@ One serial is one keystore and one receipt sequence. Keep a single live till PC 
 
 ## 12. Reports
 
-**Management → Master Reports.**
+**Office → Reports.** The page itself is still titled Master Reports.
 
 **Filter bar** (top of the page):
 
@@ -455,7 +459,7 @@ Administrators, managers, and developers.
 - **Today’s sales** and **transactions** for the workstation you are on. Both open Master Reports.
 - **Unpaid tabs** (Pro and above). Opens the POS when this station can sell.
 - **Low stock** opens Stock Levels.
-- **Inventory** shortcuts: Receiving Bay, Goods Received, Manage Products, Stock Audit.
+- **Inventory** shortcuts: Receiving bay, Goods received, products, and History.
 - **Kitchen & menu** shortcuts on Pro+ and Enterprise: KDS, Meal Production, Menu Builder.
 - **Staff & users** shortcuts: Manage Users, View Shifts, Members.
 - **7-day sales trend** and **payment mix** charts.
@@ -471,7 +475,7 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 ### 14.1 Users & Staff
 
-**Management → Users & Staff.**
+**Office → Staff.**
 
 Add a person with full name, username, role, primary workstation, and password. Edit the same fields later. Leave the password blank on edit to keep the current one. Delete asks for confirmation (see section 3 for deactivate versus delete).
 
@@ -481,7 +485,7 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 ### 14.3 System Settings (administrator and developer)
 
-**Management → System Settings.** The page has five tabs.
+**Office → Settings.** The page has these tabs.
 
 **General**
 
@@ -513,7 +517,7 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 
 ## 15. Payroll (administrator and manager)
 
-**Management → Payroll.** Four tabs.
+**Office → Payroll.** Four tabs.
 
 **Employees.** Add a person: name, NRC, NAPSA and NHIMA numbers, TPIN, job title, location, the POS login they use (so tips can be pulled in), **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. Tick exemptions when a worker is not registered for NAPSA or NHIMA. Switch people off instead of deleting them when they leave.
 
@@ -538,11 +542,11 @@ The storefront runs on `index.php?page=shop` and does not need a staff login.
 
 - **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order shows up in POS under Web Orders.
 - **Promo strip:** A scrolling bar shows promotional images. If no events are published, it cycles the promo-folder slides. If published events exist, it advertises the events instead.
-- **Events:** If the event planner (Management → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
+- **Events:** If the event planner (Office → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
 
 Staff can set up and publish these events on the back office:
 
-- **Management → Events:** Create, edit, publish, and close events. Define meal/seat packages and payment tiers.
+- **Office → Events:** Create, edit, publish, and close events. Define meal/seat packages and payment tiers.
 - **Invitations:** Upload lists of guests, accept/waitlist/decline them, or send a mass email with secret RSVP links. (SMTP must be configured in System Settings → Email).
 - **Check-in:** A day-of staff board tracks arrived guests.
 
@@ -667,5 +671,6 @@ The Guide button on the back-office shared pages (Dashboard, Management, Setting
 | Kitchen | `index.php?page=kitchen` |
 | Menu | `index.php?page=menu` |
 | Kitchen display | `index.php?page=kds` |
+| Stock history | `index.php?page=audit` |
 | Members | `index.php?page=members` |
 | Transfers | `index.php?page=transfers` |
