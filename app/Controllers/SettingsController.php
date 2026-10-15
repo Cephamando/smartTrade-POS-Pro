@@ -144,6 +144,7 @@ final class SettingsController extends Controller
             'flw_public_key' => trim((string)($_POST['flw_public_key'] ?? '')),
             'flw_encryption_key' => trim((string)($_POST['flw_encryption_key'] ?? '')),
             'flw_webhook_hash' => trim((string)($_POST['flw_webhook_hash'] ?? '')),
+            'flw_subaccount_id' => $this->subaccountId((string)($_POST['flw_subaccount_id'] ?? '')),
             'flw_currency' => 'ZMW',
         ];
         // Leave the stored secret untouched when the masked field is submitted unchanged.
@@ -156,6 +157,18 @@ final class SettingsController extends Controller
         }
         Setting::save($pairs);
         $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test keys" to confirm Flutterwave accepts them.' : ''));
+    }
+
+    private function subaccountId(string $raw): string
+    {
+        $id = strtoupper(trim($raw));
+        if ($id === '') {
+            return '';
+        }
+        if (!preg_match('/^RS_[A-Z0-9]+$/', $id)) {
+            throw new \InvalidArgumentException('The subaccount ID should look like RS_ followed by letters and numbers, as shown in the Flutterwave dashboard.');
+        }
+        return $id;
     }
 
     private function saveCurrency(): void

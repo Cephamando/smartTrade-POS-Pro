@@ -224,6 +224,11 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                             <div class="form-text">Set the same value in the Flutterwave dashboard → Settings → Webhooks. URL: <code><?= htmlspecialchars((!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/')) ?>/api/flutterwave_webhook.php</code></div>
                         </div>
                     </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label fw-bold small text-muted">SUBACCOUNT ID</label>
+                        <input type="text" name="flw_subaccount_id" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_subaccount_id'] ?? '') ?>" placeholder="RS_..." autocomplete="off">
+                        <div class="form-text">Paste the ID from Flutterwave → Subaccounts. It starts with <code>RS_</code>. Card and mobile-money payments then use the percentage split already saved on that subaccount. Leave this blank to settle the full amount to this account.</div>
+                    </div>
                     <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-save"></i> Save</button>
                         <button type="button" class="btn btn-outline-primary fw-bold" onclick="flwTest()"><i class="bi bi-plug"></i> Test keys</button>

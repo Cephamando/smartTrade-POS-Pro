@@ -88,6 +88,10 @@ final class Flutterwave
                 'source' => $args['prefix'] ?? 'POS',
             ],
         ];
+        $subaccounts = $this->subaccounts();
+        if ($subaccounts !== []) {
+            $payload['subaccounts'] = $subaccounts;
+        }
         $res = $this->request('POST', '/payments', $payload);
         $link = $res['data']['link'] ?? null;
         if (($res['status'] ?? '') !== 'success' || !$link) {
@@ -149,7 +153,7 @@ final class Flutterwave
     /** @param array<string, mixed> $tx @param array<string, mixed> $args @return array<string, mixed> */
     public function inlinePayload(array $tx, array $args): array
     {
-        return [
+        $payload = [
             'public_key' => $this->publicKey(),
             'tx_ref' => (string)$tx['tx_ref'],
             'amount' => round((float)$tx['amount'], 2),
@@ -166,6 +170,26 @@ final class Flutterwave
                 'description' => $this->hostedText((string)($args['description'] ?? ('Payment ' . $tx['tx_ref']))),
             ],
         ];
+        $subaccounts = $this->subaccounts();
+        if ($subaccounts !== []) {
+            $payload['subaccounts'] = $subaccounts;
+        }
+        return $payload;
+    }
+
+    /**
+     * The subaccount's own percentage (or flat) split is used.
+     * Passing only the id avoids overriding the split saved in the Flutterwave dashboard.
+     *
+     * @return list<array{id: string}>
+     */
+    private function subaccounts(): array
+    {
+        $id = strtoupper(trim((string)($this->settings['flw_subaccount_id'] ?? '')));
+        if ($id === '' || !preg_match('/^RS_[A-Z0-9]+$/', $id)) {
+            return [];
+        }
+        return [['id' => $id]];
     }
 
     /**
@@ -205,6 +229,10 @@ final class Flutterwave
             'redirect_url' => $args['redirect_url'] ?? null,
             'meta' => ['sale_id' => (int)($args['sale_id'] ?? 0), 'source' => $args['prefix'] ?? 'POS'],
         ];
+        $subaccounts = $this->subaccounts();
+        if ($subaccounts !== []) {
+            $payload['subaccounts'] = $subaccounts;
+        }
         $res = $this->request('POST', '/charges?type=mobile_money_zambia', $payload);
         if (($res['status'] ?? '') !== 'success') {
             throw new \RuntimeException('Flutterwave: ' . ($res['message'] ?? 'mobile money charge was rejected'));
