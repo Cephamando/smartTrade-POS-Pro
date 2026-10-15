@@ -221,20 +221,24 @@ Situation: a customer buys two Mosi and one Fanta, pays ZMW 100 cash.
 
 *Expected result:* the cart line shows ZMW 35.00.
 
-### Scenario 2.5 — Card, mobile money, and split pay (Must pass)
+### Scenario 2.5 — Flutterwave and split pay (Must pass)
 
-Situation: total ZMW 180. Customer pays ZMW 100 by Airtel Money and the rest by cash.
+Situation: total ZMW 180. The customer pays ZMW 100 by Airtel Money and the rest by cash. Airtel is chosen on the Flutterwave panel, not as its own payment method.
 
 1. Ring the items. **Charge**.
-2. Choose **Split pay**. First row **Airtel Money**, amount **100**. **Add payment method**, second row **Cash**, amount **80**.
+2. Choose **Split pay**. Payment 1 **Cash**, amount **80**. Payment 2 **Flutterwave**, amount **100**.
 
-*Expected result:* the remaining balance reaches 0.00 and Complete becomes available. The receipt lists both payments.
+*Expected result:* the status reads **Covers the bill**. The Flutterwave panel says to take ZMW 100. **Complete transaction** stays locked.
 
-3. Ring another sale and pay the whole thing by **Card**.
+3. On the Flutterwave panel choose **Airtel**, type the guest's number, and **Send MoMo prompt**. Wait until the panel turns green, then **Complete transaction**.
 
-*Expected result:* no tendered/change step; the receipt shows Card.
+*Expected result:* the receipt lists Cash ZMW 80 and Flutterwave ZMW 100. Under Flutterwave it prints **Network: Airtel**, **Number** (the handset), and **Network txn** (the ID from Airtel). If Airtel does not return its own ID, the line is **Txn ID** with Flutterwave's transaction ID.
 
-4. Ring another and use a split row **Other** named **Bank transfer**.
+4. Ring another sale and pay the whole thing with **Flutterwave**, using **Card / other**.
+
+*Expected result:* the receipt shows Flutterwave, the card type and last four digits, and the transaction ID.
+
+5. Ring another and use a split row **Other** named **Bank transfer**.
 
 *Expected result:* the receipt shows "Bank transfer".
 
@@ -297,15 +301,17 @@ Situation: a tourist pays a ZMW 198 bill with a USD 20 note.
 
 1. Ring a sale. Choose **Flutterwave (Card / Mobile Money)**.
 
-*Expected result:* a panel appears with **Mobile money** and **Card** buttons. If test keys are in use the panel is marked **TEST MODE**.
+*Expected result:* a panel appears with **Send MoMo prompt** and **Card / other**, plus a network list (MTN, Airtel, Zamtel). If test keys are in use the panel is marked **TEST MODE**.
 
-2. Mobile money: pick the network, type the guest's number, **Send prompt**.
+2. Mobile money: pick the network, type the guest's number, **Send MoMo prompt**.
 
 *Expected result:* status changes to **Waiting for the customer**; the guest approves on the phone; the panel turns green "Flutterwave confirmed the payment". Tap **Complete transaction**.
 
-3. Card: tap **Pay by card**; a Flutterwave window opens. In the sandbox use the test card shown in Settings → Payments.
+*Expected result:* the receipt prints **Network**, **Number**, and **Network txn**. The same three values are on the X-Read under **FLUTTERWAVE**, on the Z-Read **Flutterwave payments** table, and on Master Reports in the Payment column.
 
-*Expected result:* the window closes on success, the panel turns green, and Complete finishes the sale. A declined card shows **Declined**; take another payment method.
+3. Card: tap **Card / other**; a Flutterwave window opens. In the sandbox use the test card shown in Settings → Payments.
+
+*Expected result:* the window closes on success, the panel turns green, and Complete finishes the sale. The receipt shows the card and the transaction ID. A declined card shows **Declined**; take another payment method.
 
 ### Scenario 2.7 — Member sale (Pro and above)
 
@@ -361,7 +367,7 @@ Situation: the customer from 2.2 brings back one Fanta.
 
 1. **X-Read**.
 
-*Expected result:* a window with opening float, sales by payment method, payouts, and expected drawer. **PRINT X-READ** prints it. The shift stays open.
+*Expected result:* a window with opening float, sales by payment method, payouts, and expected drawer. Flutterwave sales are listed again under **FLUTTERWAVE** with the network, number, and transaction ID. **PRINT X-READ** prints it. The shift stays open.
 
 ### Scenario 2.13 — End the shift (Must pass)
 
@@ -438,7 +444,7 @@ Situation: one guest moves to Table 6.
 
 ### Scenario 3.5 — Close a tab with split payment
 
-1. Open Table 4 → **Charge**. Pay half by Card and half by Cash.
+1. Open Table 4 → **Charge**. Pay half by **Flutterwave** and half by **Cash**. Confirm the Flutterwave portion before completing.
 
 *Expected result:* receipt printed, tab gone from **Tabs**, T4 green again on the floor plan.
 
@@ -822,7 +828,7 @@ Situation: closing the day.
 1. Every station has ended its shift (scenario 2.13).
 2. **Management → End of Day (Z-Read)**. Date today, time 00:00 to 23:59, workstation Main Bar. **Filter**.
 
-*Expected result:* totals by payment method and sales for the window. **Print Z-Read** prints only the report.
+*Expected result:* totals by payment method, a **Flutterwave payments** table (network, number, transaction ID), and sales for the window. **Print Z-Read** prints only the report.
 
 3. Repeat for Restaurant.
 
@@ -930,7 +936,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 #### Scenario 5.10.1 — Switch it on
 
-1. **Management → System Settings → Online ordering**. Enable, pick **Main Bar** as the fulfilling location, title **Training Café Online**, delivery fee 25, tick pay at counter and delivery. Save. **Open page**.
+1. **Management → System Settings → Online ordering**. Enable, pick **Main Bar** as the fulfilling location, title **Training Café Online**, delivery fee 25, tick Flutterwave payment and delivery. Save. **Open page**.
 
 *Expected result:* a mobile-styled page in the shop's colours with the menu. Only sellable items in stock at Main Bar appear.
 
@@ -941,23 +947,19 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 *Expected result:* registration refuses a number that is not a Zambian mobile (must start 07/09 and be 10 digits). After registering, you are back at checkout.
 
-3. Choose **Delivery**, type an address, **Pay at counter**, place the order.
+3. Choose **Delivery**, type an address, and place the order. Payment is Flutterwave only.
 
-*Expected result:* "Order received" with the order number and a status tracker; the total includes the delivery fee. **My orders** lists it.
+*Expected result:* the Flutterwave window opens for card or Zambia mobile money. After payment, the order shows a status tracker and the total includes the delivery fee. **My orders** lists it as paid.
 
 #### Scenario 5.10.3 — Shop receives it
 
 1. On the POS at Main Bar, the **Web Orders** badge shows 1. Open it.
 
-*Expected result:* the order shows **PAY AT COUNTER**, order type Delivery, phone and time, and the lines. Stock for Fanta and Mosi has already gone down.
+*Expected result:* the order shows **PAID ONLINE** once Flutterwave confirms, order type Delivery, phone and time, and the lines. Stock for Fanta and Mosi has already gone down. An unpaid order is marked **UNPAID** / **Awaiting Flutterwave** and is not charged again at the till.
 
-2. Pull it into the sale and charge as cash.
+2. When the items are ready, hand the paid order over.
 
-*Expected result:* a normal receipt; the customer's tracker moves to **handed over**.
-
-3. Repeat 5.10.2 with **Pay online** (Flutterwave test keys needed).
-
-*Expected result:* the customer pays in the Flutterwave window; the POS shows **PAID ONLINE**. When the items are ready, **Hand Over (Paid)** replaces Checkout and completes the sale without taking money.
+*Expected result:* a normal receipt; the customer's tracker moves to **handed over**. No second payment is taken.
 
 ### 5.11 Events (functions, classes, and invitations)
 
@@ -1355,7 +1357,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 2. Browse a category and add an item to the basket.
 3. Open the basket and tap **Checkout**.
 4. Enter a name and phone number (this creates a customer account) and choose a PIN.
-5. Pick **Pay at counter** and place the order.
+5. Place the order. Payment opens in Flutterwave (card or Zambia mobile money only).
 
 *Expected result:* The order shows in My Orders with a status of Received.
 
@@ -1364,7 +1366,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 1. Sign in as `train_cashier` on the fulfilling POS.
 2. Notice the Web Orders badge has gone up. Click **Web Orders**.
 3. Open the new order.
-4. If it was Pay at counter, charge it as usual (cash, card). If it was Paid Online, it requires no payment.
+4. A paid online order requires no further payment. An unpaid order is still waiting on Flutterwave; do not take cash for it.
 5. Mark the items ready, then tap **Hand Over**.
 
 *Expected result:* The sale completes, printing the receipt.

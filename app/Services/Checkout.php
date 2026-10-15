@@ -36,25 +36,7 @@ final class Checkout
         [$surcharge, $surchargeReason] = $this->resolveSurcharge($post);
         $gatewayTxRef = trim((string)($post['gateway_tx_ref'] ?? ''));
         $gateway = null;
-        if ($pm === 'Flutterwave') {
-            if ($gatewayTxRef === '') {
-                throw new \Exception('Take the Flutterwave payment first, then complete the sale.');
-            }
-            $gateway = new Flutterwave($this->pdo);
-        }
-
-        if ($settleTabId > 0) {
-            $stmtCheckOnline = $this->pdo->prepare("SELECT split_group_id FROM sales WHERE id = ?");
-            $stmtCheckOnline->execute([$settleTabId]);
-            $extIdCheck = $stmtCheckOnline->fetchColumn();
-            if (!empty($extIdCheck)) {
-                $stmtCheckKds = $this->pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE sale_id = ? AND status IN ('pending', 'cooking') AND status NOT IN ('voided', 'refunded')");
-                $stmtCheckKds->execute([$settleTabId]);
-                if ($stmtCheckKds->fetchColumn() > 0) {
-                    throw new \Exception("Cannot process checkout: The Kitchen is still preparing items for this Web Order.");
-                }
-            }
-        }
+        $flwDue = 0.0;
 
         $checkTotal = 0;
         if ($settleTabId > 0) {
@@ -75,15 +57,33 @@ final class Checkout
         }
         $checkTotal += $tip + $surcharge;
 
+        if ($pm === 'Flutterwave') {
+            $flwDue = max(0, $checkTotal);
+        } elseif ($isSplit == '1') {
+            foreach ($splitLegs as $leg) {
+                if (strcasecmp((string)$leg['method'], 'Flutterwave') === 0) {
+                    $flwDue += (float)$leg['amount'];
+                }
+            }
+        }
+        if ($flwDue > 0.004) {
+            if ($gatewayTxRef === '') {
+                throw new \Exception('Take the Flutterwave payment first, then complete the sale.');
+            }
+            $gateway = new Flutterwave($this->pdo);
+        }
+
         if ($gateway !== null) {
             $tx = $gateway->verify($gatewayTxRef);
             if (($tx['status'] ?? '') !== 'successful') {
                 throw new \Exception('Flutterwave has not confirmed payment ' . $gatewayTxRef . ' yet (' . ($tx['status'] ?? 'unknown') . '). Wait for the customer to approve, then try again.');
             }
-            if ((float)$tx['amount'] + 0.005 < $checkTotal) {
-                throw new \Exception('The Flutterwave payment (ZMW ' . number_format((float)$tx['amount'], 2) . ') is less than the amount due.');
+            if ((float)$tx['amount'] + 0.005 < $flwDue) {
+                throw new \Exception('The Flutterwave payment (ZMW ' . number_format((float)$tx['amount'], 2) . ') is less than the Flutterwave portion (ZMW ' . number_format($flwDue, 2) . ').');
             }
-            $amountTendered = $checkTotal;
+            if ($isSplit != '1') {
+                $amountTendered = $checkTotal;
+            }
         }
 
         $rfdRsnCd = $checkTotal < 0
@@ -112,7 +112,7 @@ final class Checkout
 
         $savedSaleId = (int)($session['completed_sale_id'] ?? 0);
         if ($savedSaleId > 0) {
-            $this->storeTenderExtras($post, $savedSaleId, $gateway, $gatewayTxRef, $checkTotal);
+            $this->storeTenderExtras($post, $savedSaleId, $gateway, $gatewayTxRef, $flwDue > 0.004 ? $flwDue : $checkTotal);
         }
 
         if ($rfdRsnCd !== '' && $fiscalizeAfterCommit > 0) {
@@ -171,6 +171,11 @@ final class Checkout
 
         $status = ($cumulativeTendered >= $finalTotal) ? 'paid' : 'pending';
         $saleStatus = ($status === 'paid') ? 'completed' : 'pending';
+        if ($wasOnlineOrder) {
+            // Payment does not mean the food has been handed over.
+            $saleStatus = 'pending';
+            $pm = 'Online';
+        }
         $changeDue = ($cumulativeTendered > $finalTotal) ? ($cumulativeTendered - $finalTotal) : 0;
 
         $this->pdo->prepare("UPDATE sales SET shift_id = ?, status = ?, subtotal = ?, tip_amount = ?, surcharge_amount = ?, surcharge_reason = ?, final_total = ?, payment_method = ?, payment_status = ?, amount_tendered = ?, change_due = ?, split_method_1 = ?, split_amount_1 = ?, split_method_2 = ?, split_amount_2 = ?, split_payments = ? WHERE id = ?")
@@ -202,12 +207,14 @@ final class Checkout
         }
 
         $session['completed_sale_id'] = $settleTabId;
-        if ($status === 'paid') {
+        if ($status === 'paid' && !$wasOnlineOrder) {
             $session['last_sale_id'] = $settleTabId;
             $fiscalizeAfterCommit = $settleTabId;
         }
         $session['swal_type'] = 'success';
-        $session['swal_msg'] = 'Tab settled.';
+        $session['swal_msg'] = ($wasOnlineOrder && $status === 'paid')
+            ? 'Order #' . $settleTabId . ' is paid. Hand it over when the kitchen is ready.'
+            : 'Tab settled.';
     }
 
     private function newSale(

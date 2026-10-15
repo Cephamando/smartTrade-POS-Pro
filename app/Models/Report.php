@@ -290,6 +290,7 @@ final class Report extends Model
             'categoriesBreakdown' => $categoriesBreakdown,
             'expenses' => $expenses,
             'postTips' => $postTips,
+            'gatewayPayments' => self::gatewayPayments('s.created_at >= ? AND s.created_at <= ? AND s.location_id = ? AND s.payment_status = \'paid\'', $params),
         ];
     }
 
@@ -404,7 +405,43 @@ final class Report extends Model
             'productBreakdown' => $productBreakdown,
             'postTips' => Tip::forShift($shiftId),
             'surcharges' => $surcharges,
+            'gatewayPayments' => self::gatewayPayments('s.shift_id = ? AND s.payment_status = \'paid\'', [$shiftId]),
         ];
+    }
+
+    /** @param list<mixed> $params @return list<array<string, mixed>> */
+    private static function gatewayPayments(string $whereSql, array $params): array
+    {
+        try {
+            $stmt = self::db()->prepare(
+                "SELECT pt.*, s.id AS sale_id
+                 FROM payment_transactions pt
+                 JOIN sales s ON s.id = pt.sale_id
+                 WHERE pt.provider = 'flutterwave' AND pt.status = 'successful' AND $whereSql
+                 ORDER BY s.id, pt.id DESC"
+            );
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
+        $out = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            $saleId = (int)$row['sale_id'];
+            if (isset($seen[$saleId])) {
+                continue;
+            }
+            $detail = \App\Services\Flutterwave::present($row);
+            if ($detail === null) {
+                continue;
+            }
+            $seen[$saleId] = true;
+            $detail['sale_id'] = $saleId;
+            $detail['amount'] = (float)$row['amount'];
+            $out[] = $detail;
+        }
+        return $out;
     }
 
     public static function daypartClause(string $daypart): string

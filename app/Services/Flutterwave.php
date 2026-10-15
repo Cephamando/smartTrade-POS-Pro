@@ -108,6 +108,67 @@ final class Flutterwave
     }
 
     /**
+     * Record a pending charge and return the config for Flutterwave's checkout
+     * script. The storefront uses this instead of the hosted sandbox page, which
+     * stays on a spinner and never opens the payment window.
+     *
+     * @param array{amount: float, email?: string, phone?: string, name?: string, redirect_url: string, title?: string, description?: string, sale_id?: int, location_id?: int, user_id?: int, customer_id?: int, prefix?: string, payment_options?: string} $args
+     * @return array<string, mixed>
+     */
+    public function beginInline(array $args): array
+    {
+        $this->assertEnabled();
+        $amount = round((float)$args['amount'], 2);
+        if ($amount <= 0) {
+            throw new \InvalidArgumentException('Amount must be greater than zero.');
+        }
+        $txRef = self::newTxRef($args['prefix'] ?? 'WEB');
+        $phone = (string)($args['phone'] ?? '');
+        $email = trim((string)($args['email'] ?? ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $digits = preg_replace('/\D+/', '', $phone) ?: '0';
+            $email = 'customer+' . $digits . '@' . $this->emailDomain();
+        }
+        $this->insertTransaction($txRef, $amount, [
+            'payment_type' => 'inline',
+            'phone' => $phone !== '' ? $phone : null,
+            'email' => $email,
+            'name' => $args['name'] ?? null,
+            'sale_id' => $args['sale_id'] ?? null,
+            'location_id' => $args['location_id'] ?? null,
+            'user_id' => $args['user_id'] ?? null,
+            'customer_id' => $args['customer_id'] ?? null,
+        ], ['status' => 'pending', 'mode' => 'inline']);
+        $tx = $this->transaction($txRef);
+        if (!$tx) {
+            throw new \RuntimeException('The payment could not be started.');
+        }
+        return $this->inlinePayload($tx, $args);
+    }
+
+    /** @param array<string, mixed> $tx @param array<string, mixed> $args @return array<string, mixed> */
+    public function inlinePayload(array $tx, array $args): array
+    {
+        return [
+            'public_key' => $this->publicKey(),
+            'tx_ref' => (string)$tx['tx_ref'],
+            'amount' => round((float)$tx['amount'], 2),
+            'currency' => (string)(($tx['currency'] ?? '') !== '' ? $tx['currency'] : $this->currency()),
+            'payment_options' => (string)($args['payment_options'] ?? 'card,mobilemoneyzambia'),
+            'redirect_url' => (string)($args['redirect_url'] ?? ''),
+            'customer' => [
+                'email' => (string)($tx['customer_email'] ?? ''),
+                'phone_number' => (string)($tx['customer_phone'] ?? ''),
+                'name' => (string)(($tx['customer_name'] ?? '') !== '' ? $tx['customer_name'] : 'Customer'),
+            ],
+            'customizations' => [
+                'title' => $this->hostedText((string)($args['title'] ?? ($this->settings['business_name'] ?? 'Payment'))),
+                'description' => $this->hostedText((string)($args['description'] ?? ('Payment ' . $tx['tx_ref']))),
+            ],
+        ];
+    }
+
+    /**
      * Zambia mobile money push (MTN / Airtel / Zamtel). The customer approves on the handset;
      * poll status() until successful or failed. In sandbox Flutterwave usually returns a
      * redirect URL for a simulated approval page: pass it back to the UI.
@@ -152,6 +213,7 @@ final class Flutterwave
         $redirect = $res['meta']['authorization']['redirect'] ?? ($data['meta']['authorization']['redirect'] ?? null);
         $this->insertTransaction($txRef, $amount, [
             'payment_type' => 'mobilemoney_' . strtolower($network),
+            'network' => $network,
             'phone' => $phone,
             'email' => $args['email'] ?? null,
             'name' => $args['name'] ?? null,
@@ -196,6 +258,118 @@ final class Flutterwave
         $status = $ok ? 'successful' : ($remoteStatus === 'pending' ? 'pending' : 'failed');
         $this->touch($txRef, $status, $data, $res);
         return $this->transaction($txRef);
+    }
+
+    /**
+     * Payer detail for receipts and reports.
+     * Network and the handset number come from the charge we sent and from Flutterwave's
+     * confirmation. The network transaction id is the reference the mobile network returns
+     * (the one on the customer's SMS). When that is absent, Txn ID is Flutterwave's own id.
+     *
+     * @return array{network:string,phone:string,network_tx_id:string,lines:list<array{label:string,value:string}>,summary:string}|null
+     */
+    public static function present(?array $row): ?array
+    {
+        if (!$row) {
+            return null;
+        }
+        $raw = json_decode((string)($row['raw_response'] ?? ''), true);
+        $data = [];
+        if (is_array($raw)) {
+            $data = is_array($raw['data'] ?? null) ? $raw['data'] : $raw;
+        }
+        $network = self::networkOf($row, $data);
+        $phone = self::phoneOf($row, $data);
+        $networkTx = trim((string)($row['network_tx_id'] ?? ''));
+        if ($networkTx === '') {
+            $networkTx = self::networkTxOf($data);
+        }
+        $flwId = trim((string)($row['provider_tx_id'] ?? ''));
+        if ($flwId === '' && isset($data['id']) && $data['id'] !== '') {
+            $flwId = (string)$data['id'];
+        }
+        $card = self::cardOf($data);
+        $lines = [];
+        if ($network !== '') {
+            $lines[] = ['label' => 'Network', 'value' => $network];
+        }
+        if ($phone !== '' && $network !== '') {
+            $lines[] = ['label' => 'Number', 'value' => $phone];
+        }
+        if ($card !== '' && $network === '') {
+            $lines[] = ['label' => 'Card', 'value' => $card];
+        }
+        if ($networkTx !== '') {
+            $lines[] = ['label' => 'Network txn', 'value' => $networkTx];
+        } elseif ($flwId !== '') {
+            $lines[] = ['label' => 'Txn ID', 'value' => $flwId];
+        }
+        if ($lines === []) {
+            return null;
+        }
+        $summaryBits = [];
+        foreach ($lines as $line) {
+            $summaryBits[] = $line['value'];
+        }
+        return [
+            'network' => $network,
+            'phone' => $network !== '' ? $phone : '',
+            'card' => $card,
+            'network_tx_id' => $networkTx !== '' ? $networkTx : $flwId,
+            'lines' => $lines,
+            'summary' => implode(' · ', $summaryBits),
+        ];
+    }
+
+    /** @param list<int> $saleIds @return array<int, array{network:string,phone:string,network_tx_id:string,lines:list<array{label:string,value:string}>,summary:string}> */
+    public static function detailsForSales(PDO $pdo, array $saleIds): array
+    {
+        $saleIds = array_values(array_unique(array_filter(array_map('intval', $saleIds))));
+        if ($saleIds === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($saleIds), '?'));
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT * FROM payment_transactions
+                 WHERE provider = 'flutterwave' AND status = 'successful' AND sale_id IN ($placeholders)
+                 ORDER BY id DESC"
+            );
+            $stmt->execute($saleIds);
+            $rows = $stmt->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
+        $map = [];
+        foreach ($rows as $row) {
+            $saleId = (int)($row['sale_id'] ?? 0);
+            if ($saleId <= 0 || isset($map[$saleId])) {
+                continue;
+            }
+            $detail = self::present($row);
+            if ($detail !== null) {
+                $detail['amount'] = (float)($row['amount'] ?? 0);
+                $map[$saleId] = $detail;
+            }
+        }
+        return $map;
+    }
+
+    /** @param list<array<string, mixed>> $rows */
+    public static function attach(PDO $pdo, array $rows): array
+    {
+        $ids = [];
+        foreach ($rows as $row) {
+            if (!empty($row['id'])) {
+                $ids[] = (int)$row['id'];
+            }
+        }
+        $map = self::detailsForSales($pdo, $ids);
+        foreach ($rows as &$row) {
+            $row['gateway'] = $map[(int)($row['id'] ?? 0)] ?? null;
+        }
+        unset($row);
+        return $rows;
     }
 
     public function transaction(string $txRef): ?array
@@ -278,8 +452,8 @@ final class Flutterwave
         $this->pdo->prepare(
             'INSERT INTO payment_transactions
                 (provider, tx_ref, provider_tx_id, flw_ref, sale_id, location_id, user_id, customer_id, amount, currency, status,
-                 payment_type, customer_phone, customer_email, customer_name, checkout_url, raw_response)
-             VALUES ("flutterwave", ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?)'
+                 payment_type, network, customer_phone, customer_email, customer_name, checkout_url, raw_response)
+             VALUES ("flutterwave", ?, ?, ?, ?, ?, ?, ?, ?, ?, "pending", ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $txRef,
             $meta['provider_tx_id'] ?? null,
@@ -291,6 +465,7 @@ final class Flutterwave
             $amount,
             $this->currency(),
             $meta['payment_type'] ?? null,
+            self::namedNetwork((string)($meta['network'] ?? '')) ?: self::namedNetwork((string)($meta['payment_type'] ?? '')),
             $meta['phone'] ?? null,
             $meta['email'] ?? null,
             $meta['name'] ?? null,
@@ -301,9 +476,23 @@ final class Flutterwave
 
     private function touch(string $txRef, string $status, ?array $data, array $raw): void
     {
+        $local = $this->transaction($txRef) ?: [];
+        $data = $data ?? [];
+        $remoteType = isset($data['payment_type']) ? (string)$data['payment_type'] : null;
+        if ($remoteType !== null && strtolower($remoteType) === 'mobilemoneyzm' && self::namedNetwork((string)($local['payment_type'] ?? '')) !== null) {
+            $remoteType = null;
+        }
+        $network = self::namedNetwork(self::networkOf($local, $data));
+        $phone = self::phoneOf(['customer_phone' => null], $data);
+        if ($phone === '') {
+            $phone = null;
+        }
+        $networkTx = self::networkTxOf($data);
         $this->pdo->prepare(
             'UPDATE payment_transactions SET status = ?, provider_tx_id = COALESCE(?, provider_tx_id), flw_ref = COALESCE(?, flw_ref),
                     charged_amount = COALESCE(?, charged_amount), payment_type = COALESCE(?, payment_type),
+                    network = COALESCE(?, network), network_tx_id = COALESCE(?, network_tx_id),
+                    customer_phone = COALESCE(?, customer_phone),
                     raw_response = ?, verified_at = CASE WHEN ? = "successful" THEN NOW() ELSE verified_at END
              WHERE tx_ref = ?'
         )->execute([
@@ -311,11 +500,164 @@ final class Flutterwave
             isset($data['id']) ? (string)$data['id'] : null,
             $data['flw_ref'] ?? null,
             isset($data['charged_amount']) ? (float)$data['charged_amount'] : null,
-            $data['payment_type'] ?? null,
+            $remoteType,
+            $network !== null ? $network : null,
+            $networkTx !== '' ? $networkTx : null,
+            $phone,
             json_encode($raw, JSON_UNESCAPED_SLASHES),
             $status,
             $txRef,
         ]);
+    }
+
+    /** @param array<string, mixed> $row @param array<string, mixed> $data */
+    private static function networkOf(array $row, array $data): string
+    {
+        $stored = self::namedNetwork((string)($row['network'] ?? ''));
+        if ($stored !== null) {
+            return $stored;
+        }
+        $fromType = self::namedNetwork((string)($row['payment_type'] ?? ''));
+        if ($fromType !== null) {
+            return $fromType;
+        }
+        $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
+        $account = is_array($data['account'] ?? null) ? $data['account'] : [];
+        $candidates = [
+            $data['network'] ?? null,
+            $meta['network'] ?? null,
+            $meta['MOMO_NETWORK'] ?? null,
+            $meta['bankname'] ?? null,
+            $account['bank_name'] ?? null,
+            $account['account_bank'] ?? null,
+            $account['bank'] ?? null,
+        ];
+        foreach ($meta as $key => $value) {
+            if (is_string($key) && str_contains(strtoupper($key), 'NETWORK')) {
+                $candidates[] = $value;
+            }
+        }
+        foreach ($candidates as $candidate) {
+            $named = self::namedNetwork((string)$candidate);
+            if ($named !== null) {
+                return $named;
+            }
+        }
+        $type = strtolower((string)($data['payment_type'] ?? $row['payment_type'] ?? ''));
+        return str_contains($type, 'mobilemoney') ? 'Mobile money' : '';
+    }
+
+    private static function namedNetwork(string $value): ?string
+    {
+        $v = strtoupper($value);
+        if ($v === '') {
+            return null;
+        }
+        if (str_contains($v, 'AIRTEL')) {
+            return 'Airtel';
+        }
+        if (str_contains($v, 'ZAMTEL')) {
+            return 'Zamtel';
+        }
+        if (str_contains($v, 'MTN')) {
+            return 'MTN';
+        }
+        return null;
+    }
+
+    /** @param array<string, mixed> $row @param array<string, mixed> $data */
+    private static function phoneOf(array $row, array $data): string
+    {
+        $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
+        $account = is_array($data['account'] ?? null) ? $data['account'] : [];
+        $customer = is_array($data['customer'] ?? null) ? $data['customer'] : [];
+        $candidates = [
+            $customer['phone_number'] ?? null,
+            $data['phone_number'] ?? null,
+            $meta['originatoraccountnumber'] ?? null,
+            $meta['phone_number'] ?? null,
+            $account['account_number'] ?? null,
+            $row['customer_phone'] ?? null,
+        ];
+        foreach ($candidates as $candidate) {
+            $phone = self::localPhone((string)$candidate);
+            if ($phone !== '') {
+                return $phone;
+            }
+        }
+        return '';
+    }
+
+    private static function localPhone(string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', $phone) ?? '';
+        if (str_starts_with($digits, '260') && strlen($digits) >= 12) {
+            $digits = '0' . substr($digits, 3);
+        }
+        return strlen($digits) >= 9 ? $digits : '';
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function networkTxOf(array $data): string
+    {
+        $wanted = [
+            'network_transaction_id', 'networktransactionid', 'financial_transaction_id', 'financialtransactionid',
+            'momo_transaction_id', 'provider_transaction_id', 'external_reference', 'transaction_reference',
+            'transactionreference', 'network_reference', 'provider_reference', 'third_party_reference',
+        ];
+        $found = self::findValue($data, $wanted, 0);
+        if ($found !== '') {
+            return $found;
+        }
+        $proc = trim((string)($data['processor_response'] ?? ''));
+        if (preg_match('/(?:transaction|txn|financial)\s*(?:id|reference|ref)\s*[:#\-]?\s*([A-Za-z0-9][A-Za-z0-9.\-]{4,})/i', $proc, $match)) {
+            $id = $match[1];
+            if (!in_array(strtolower($id), ['successful', 'approved', 'success', 'pending', 'failed'], true)) {
+                return $id;
+            }
+        }
+        return '';
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function cardOf(array $data): string
+    {
+        $card = $data['card'] ?? null;
+        if (!is_array($card)) {
+            return '';
+        }
+        $brand = trim((string)($card['type'] ?? $card['issuer'] ?? ''));
+        $last4 = preg_replace('/\D+/', '', (string)($card['last_4digits'] ?? '')) ?? '';
+        if ($last4 === '') {
+            return $brand;
+        }
+        $masked = '••••' . substr($last4, -4);
+        return trim($brand . ' ' . $masked);
+    }
+
+    /** @param array<string, mixed> $node @param list<string> $wanted */
+    private static function findValue(array $node, array $wanted, int $depth): string
+    {
+        if ($depth > 4) {
+            return '';
+        }
+        foreach ($node as $key => $value) {
+            if (is_array($value)) {
+                $nested = self::findValue($value, $wanted, $depth + 1);
+                if ($nested !== '') {
+                    return $nested;
+                }
+                continue;
+            }
+            if (!is_string($key) || !in_array(strtolower($key), $wanted, true)) {
+                continue;
+            }
+            $text = trim((string)$value);
+            if ($text !== '' && !in_array(strtolower($text), ['successful', 'approved', 'success', 'pending', 'failed', 'n/a'], true)) {
+                return $text;
+            }
+        }
+        return '';
     }
 
     private function request(string $method, string $path, ?array $body = null): array

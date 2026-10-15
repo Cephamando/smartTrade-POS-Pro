@@ -56,6 +56,17 @@
     <div class="line"></div>
     <div class="flex bold"><span>GRAND TOTAL:</span> <span>ZMW <?= number_format($grandTotal, 2) ?></span></div>
 
+    <?php if (!empty($gatewayPayments)): ?>
+    <div class="line"></div>
+    <h4>FLUTTERWAVE</h4>
+    <?php foreach ($gatewayPayments as $gp): ?>
+        <div class="flex bold"><span>#<?= (int)$gp['sale_id'] ?></span><span><?= number_format((float)$gp['amount'], 2) ?></span></div>
+        <?php foreach ($gp['lines'] as $line): ?>
+        <div class="flex"><span><?= htmlspecialchars($line['label']) ?></span><span><?= htmlspecialchars($line['value']) ?></span></div>
+        <?php endforeach; ?>
+    <?php endforeach; ?>
+    <?php endif; ?>
+
     <?php $pt = $postTips ?? ['total' => 0, 'cash' => 0, 'by_method' => [], 'by_staff' => []]; if(($pt['total'] ?? 0) > 0): ?>
     <div class="line"></div>
     <h4>TIPS AFTER PAYMENT</h4>

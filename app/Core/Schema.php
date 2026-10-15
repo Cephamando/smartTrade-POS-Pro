@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 3;
+    public const VERSION = 4;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -123,12 +123,16 @@ final class Schema
                 raw_response MEDIUMTEXT NULL,
                 created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
                 verified_at DATETIME NULL,
+                network VARCHAR(20) NULL,
+                network_tx_id VARCHAR(80) NULL,
                 used_at DATETIME NULL,
                 UNIQUE KEY uq_tx_ref (tx_ref),
                 KEY idx_sale (sale_id),
                 KEY idx_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+        self::addColumn($pdo, 'payment_transactions', 'network', 'VARCHAR(20) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'network_tx_id', 'VARCHAR(80) NULL');
 
         // --- FX rates cache
         $pdo->exec(

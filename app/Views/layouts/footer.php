@@ -267,7 +267,10 @@
                 <div class="fw-bold">Guide</div>
                 <small>How-to answers from the written manuals</small>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-light" id="guideClose" aria-label="Close guide">&times;</button>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-light" id="guideClear" aria-label="Clear chat" title="Clear chat"><i class="bi bi-trash"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-light" id="guideClose" aria-label="Close guide">&times;</button>
+            </div>
         </header>
         <div class="guide-log" id="guideLog"></div>
         <form class="guide-compose" id="guideForm">
@@ -400,6 +403,14 @@
 
         openBtn.addEventListener('click', function () { toggle(); });
         document.getElementById('guideClose').addEventListener('click', function () { toggle(false); });
+
+        document.getElementById('guideClear').addEventListener('click', function () {
+            AppAlert.confirm({ title: 'Clear chat?', text: 'This will erase the guide\'s memory of this conversation.', confirmText: 'Clear', cancelText: 'Cancel', icon: 'question', confirmColor: '#dc3545' }).then(function(ok) {
+                if (!ok) return;
+                try { localStorage.removeItem(storeKey); } catch (e) {}
+                log.innerHTML = '';
+            });
+        });
 
         form.addEventListener('submit', function (event) {
             event.preventDefault();

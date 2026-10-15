@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Event;
 use App\Models\Location;
 use App\Models\Setting;
+use App\Services\Currency;
 use App\Services\Flutterwave;
 use PDO;
 
@@ -54,12 +55,12 @@ final class ShopController extends Controller
             'cartCount' => array_sum(array_column($cart, 'qty')),
             'flash' => $this->takeFlash(),
             'flwOn' => ($this->settings['shop_pay_online'] ?? '1') === '1' && (new Flutterwave($this->pdo(), $this->settings))->enabled(),
-            'counterOn' => ($this->settings['shop_pay_at_counter'] ?? '1') === '1',
             'deliveryOn' => ($this->settings['shop_delivery'] ?? '1') === '1',
             'deliveryFee' => (float)($this->settings['shop_delivery_fee'] ?? 0),
             'minOrder' => (float)($this->settings['shop_min_order'] ?? 0),
             'shopLocations' => $this->shopLocations,
             'shopLocationId' => $this->shopLocationId(),
+            'fx' => $this->shopRates(),
         ];
         if ($view === 'home' || $view === 'menu') {
             [$data['categories'], $data['products']] = $this->menu();
@@ -95,7 +96,28 @@ final class ShopController extends Controller
             if (!$data['order']) {
                 $this->go('orders');
             }
-        } elseif (in_array($view, ['orders', 'order', 'account', 'checkout'], true) && !$customer) {
+        } elseif ($view === 'pay' && $customer) {
+            $saleId = (int)($_GET['id'] ?? 0);
+            $order = Customer::order((int)$customer['id'], $saleId);
+            if (!$order) {
+                $this->go('orders');
+            }
+            if (($order['payment_status'] ?? '') === 'paid') {
+                $this->flashShop('success', 'This order is already paid.');
+                $this->go('order', ['id' => $saleId]);
+            }
+            if (($order['status'] ?? '') !== 'pending') {
+                $this->flashShop('error', 'This order can no longer be paid online.');
+                $this->go('order', ['id' => $saleId]);
+            }
+            try {
+                $data['checkout'] = $this->startOrderPayment($customer, $saleId, (float)$order['final_total'], (int)$order['location_id']);
+            } catch (\Throwable $e) {
+                $this->flashShop('error', $e->getMessage());
+                $this->go('order', ['id' => $saleId]);
+            }
+            $data['order'] = $order;
+        } elseif (in_array($view, ['orders', 'order', 'account', 'checkout', 'pay'], true) && !$customer) {
             $_SESSION['shop_after_login'] = $view;
             $this->go('login');
         }
@@ -355,12 +377,8 @@ final class ShopController extends Controller
         $pdo = $this->pdo();
         $loc = $this->shopLocationId();
         $orderType = ($p['order_type'] ?? 'pickup') === 'delivery' && ($this->settings['shop_delivery'] ?? '1') === '1' ? 'delivery' : 'pickup';
-        $payMode = ($p['pay_mode'] ?? 'counter') === 'online' ? 'online' : 'counter';
-        if ($payMode === 'online' && (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($pdo, $this->settings))->enabled())) {
-            throw new \RuntimeException('Online payment is not available at the moment. Choose pay at counter.');
-        }
-        if ($payMode === 'counter' && ($this->settings['shop_pay_at_counter'] ?? '1') !== '1') {
-            throw new \RuntimeException('Please pay online to confirm your order.');
+        if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($pdo, $this->settings))->enabled()) {
+            throw new \RuntimeException('Online payment is not available at the moment.');
         }
         $address = trim((string)($p['address'] ?? ''));
         if ($orderType === 'delivery' && $address === '') {
@@ -432,19 +450,13 @@ final class ShopController extends Controller
             throw $e;
         }
         $_SESSION['shop_cart'] = [];
-
-        if ($payMode === 'online') {
-            try {
-                $res = $this->startOrderPayment($customer, $saleId, $total, $loc);
-            } catch (\Throwable $e) {
-                $this->flashShop('error', 'The payment page did not open. Order #' . $saleId . ' is saved. Open the order and try Pay now.');
-                $this->go('order', ['id' => $saleId]);
-            }
-            header('Location: ' . $res['link']);
-            exit;
+        try {
+            $this->startOrderPayment($customer, $saleId, $total, $loc);
+        } catch (\Throwable $e) {
+            $this->flashShop('error', 'The payment window did not open. Order #' . $saleId . ' is saved. Open the order and try Pay now.');
+            $this->go('order', ['id' => $saleId]);
         }
-        $this->flashShop('success', 'Order #' . $saleId . ' placed! Pay at the counter when you collect.');
-        $this->go('order', ['id' => $saleId]);
+        $this->go('pay', ['id' => $saleId]);
     }
 
     /** @param array<string, mixed> $customer */
@@ -458,30 +470,43 @@ final class ShopController extends Controller
             $this->flashShop('success', 'This order is already paid.');
             $this->go('order', ['id' => $saleId]);
         }
-        $res = $this->startOrderPayment($customer, $saleId, (float)$order['final_total'], (int)$order['location_id']);
-        header('Location: ' . $res['link']);
-        exit;
+        $this->go('pay', ['id' => $saleId]);
     }
 
-    /** @param array<string, mixed> $customer */
+    /** @param array<string, mixed> $customer @return array<string, mixed> */
     private function startOrderPayment(array $customer, int $saleId, float $total, int $loc): array
     {
         $flw = new Flutterwave($this->pdo(), $this->settings);
-        $res = $flw->createPaymentLink([
+        $title = (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order'));
+        $args = [
             'amount' => $total,
             'email' => (string)($customer['email'] ?? ''),
             'phone' => $customer['phone'],
             'name' => $customer['name'],
             'redirect_url' => $this->baseUrl() . '/index.php?page=shop&view=pay_return&order=' . $saleId,
-            'title' => (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order')),
+            'title' => $title,
             'description' => 'Order ' . $saleId,
             'sale_id' => $saleId,
             'location_id' => $loc,
             'customer_id' => (int)$customer['id'],
             'prefix' => 'WEB',
-        ]);
-        $this->pdo()->prepare('UPDATE sales SET gateway_ref = ? WHERE id = ?')->execute([$res['tx_ref'], $saleId]);
-        return $res;
+            'payment_options' => 'card,mobilemoneyzambia',
+        ];
+        $refStmt = $this->pdo()->prepare('SELECT gateway_ref FROM sales WHERE id = ?');
+        $refStmt->execute([$saleId]);
+        $existingRef = (string)($refStmt->fetchColumn() ?: '');
+        $existing = $existingRef !== '' ? $flw->transaction($existingRef) : null;
+        if (
+            $existing
+            && ($existing['status'] ?? '') === 'pending'
+            && ($existing['payment_type'] ?? '') === 'inline'
+            && abs((float)$existing['amount'] - $total) < 0.01
+        ) {
+            return $flw->inlinePayload($existing, $args);
+        }
+        $made = $flw->beginInline($args);
+        $this->pdo()->prepare('UPDATE sales SET gateway_ref = ? WHERE id = ?')->execute([$made['tx_ref'], $saleId]);
+        return $made;
     }
 
     /** Flutterwave sends the customer back here after paying. */
@@ -507,9 +532,9 @@ final class ShopController extends Controller
                     $pdo->prepare("UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ? WHERE id = ?")->execute([$txRef, $saleId]);
                     $this->flashShop('success', 'Payment received. Your order #' . $saleId . ' is being prepared.');
                 } elseif ($tx['status'] === 'pending') {
-                    $this->flashShop('warning', 'Payment is still pending with Flutterwave. Refresh in a moment or pay at the counter.');
+                    $this->flashShop('warning', 'Payment is still pending with Flutterwave. You can try Pay now again.');
                 } else {
-                    $this->flashShop('error', 'Payment was not completed (' . $tx['status'] . '). You can pay at the counter instead.');
+                    $this->flashShop('error', 'Payment was not completed. Open the order and try Pay now again.');
                 }
             } catch (\Throwable $e) {
                 $this->flashShop('error', 'Could not confirm the payment: ' . $e->getMessage());
@@ -638,6 +663,20 @@ final class ShopController extends Controller
         $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
         $dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
         return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir;
+    }
+
+    /** @return array{enabled: bool, rates: array<string, array<string, mixed>>} */
+    private function shopRates(): array
+    {
+        try {
+            $fx = new Currency($this->pdo(), $this->settings);
+            if (!$fx->enabled()) {
+                return ['enabled' => false, 'rates' => []];
+            }
+            return ['enabled' => true] + $fx->rates();
+        } catch (\Throwable) {
+            return ['enabled' => false, 'rates' => []];
+        }
     }
 
     private function flashShop(string $type, string $msg): void

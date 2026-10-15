@@ -501,7 +501,7 @@ function getCategoryStyle($name) {
                                 <?php foreach($onlineTabs as $ot): ?>
                                     <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; ?>
                                     <button class="list-group-item list-group-item-action <?= $otPaid ? 'bg-success-subtle' : 'bg-warning-subtle' ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
-                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">PAY AT COUNTER</span>' ?></div>
+                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">UNPAID</span>' ?></div>
                                         <div class="small text-muted">#<?= (int)$ot['id'] ?> · <?= htmlspecialchars($ot['external_id'] ?? '') ?><?= !empty($ot['order_type']) ? ' · ' . strtoupper(htmlspecialchars($ot['order_type'])) : '' ?><?= !empty($ot['customer_phone']) ? ' · ' . htmlspecialchars($ot['customer_phone']) : '' ?></div>
                                         <div class="small fw-bold">ZMW <?= number_format((float)($ot['final_total'] ?: $ot['total_amount']), 2) ?> <span class="text-muted fw-normal"><?= date('H:i', strtotime($ot['created_at'])) ?></span></div>
                                     </button>
@@ -524,7 +524,7 @@ function getCategoryStyle($name) {
             <div id="online-tab-data-<?= $tid ?>">
                 <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']))): ?>
                 <div class="alert <?= $tabPaid ? 'alert-success' : 'alert-warning' ?> py-2 small mb-3">
-                    <?php if ($tabPaid): ?><strong><i class="bi bi-patch-check-fill"></i> Paid online</strong><?= !empty($tabRow['gateway_ref']) ? ' · ref ' . htmlspecialchars($tabRow['gateway_ref']) : '' ?> · <?php else: ?><strong>Pay at counter</strong> · <?php endif; ?>
+                    <?php if ($tabPaid): ?><strong><i class="bi bi-patch-check-fill"></i> Paid online</strong><?= !empty($tabRow['gateway_ref']) ? ' · ref ' . htmlspecialchars($tabRow['gateway_ref']) : '' ?> · <?php else: ?><strong>Awaiting Flutterwave</strong> · <?php endif; ?>
                     <?= !empty($tabRow['order_type']) ? '<strong>' . strtoupper(htmlspecialchars($tabRow['order_type'])) . '</strong>' : '' ?>
                     <?= !empty($tabRow['customer_phone']) ? ' · <i class="bi bi-telephone"></i> ' . htmlspecialchars($tabRow['customer_phone']) : '' ?>
                     <?= !empty($tabRow['order_notes']) ? '<div class="mt-1"><i class="bi bi-chat-left-text"></i> ' . htmlspecialchars($tabRow['order_notes']) . '</div>' : '' ?>
@@ -549,17 +549,17 @@ function getCategoryStyle($name) {
                     <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
                     <div class="col-6">
                         <?php if ($allReady && $tabPaid): ?>
-                            <form method="POST" class="js-confirm-form" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="Payment was already taken online. This closes the order and prints to ZRA." data-swal-confirm="Hand over" data-swal-icon="question">
+                            <form method="POST" class="js-confirm-form js-handover" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="Payment is already taken. This marks the order collected and prints to ZRA." data-swal-confirm="Hand over" data-swal-icon="question">
                                 <input type="hidden" name="complete_prepaid_order" value="<?= $tid ?>">
-                                <button class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-bag-check"></i> Hand Over (Paid)</button>
+                                <button class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-bag-check"></i> Hand Over</button>
                             </form>
-                        <?php elseif ($allReady): ?>
-                            <button type="button" class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
-                                <i class="bi bi-cash-coin"></i> Checkout Order
+                        <?php elseif ($tabPaid): ?>
+                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
+                                <i class="bi bi-hourglass-split"></i> Paid — still cooking
                             </button>
                         <?php else: ?>
-                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
-                                <i class="bi bi-hourglass-split"></i> Still Cooking
+                            <button type="button" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-uppercase text-dark" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
+                                <i class="bi bi-cash-coin"></i> Take payment
                             </button>
                         <?php endif; ?>
                     </div>
@@ -743,7 +743,7 @@ function getCategoryStyle($name) {
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" min="0" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" oninput="onTipChange()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= ($tier === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-        <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option><option value="Card">Card</option><option value="MTN Money">MTN Money</option><option value="Airtel Money">Airtel Money</option><option value="Zamtel Money">Zamtel Money</option>
+        <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option>
         <?php if (!empty($flwEnabled)): ?>
         <option value="Flutterwave">Flutterwave (Card / Mobile Money)<?= !empty($flwTestMode) ? ' — TEST' : '' ?></option>
         <?php endif; ?>
@@ -752,6 +752,16 @@ function getCategoryStyle($name) {
         <?php endif; ?>
 
         <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'])): ?><option value="Pending">Put on Tab</option><?php endif; ?></select></div>
+        </div>
+        <div id="splitSection" style="display:none;" class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label small fw-bold text-dark mb-0"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT</label>
+                <span id="splitStatus" class="small fw-bold text-muted"></span>
+            </div>
+            <div id="splitRows"></div>
+            <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add another payment</button>
+            <div class="small text-muted mt-2"><?php if (!empty($flwEnabled)): ?>Cash stays in the drawer. Card and mobile money are the Flutterwave line; the panel below charges that portion only.<?php else: ?>Add a line for each way the customer is paying. Use Other for a bank transfer, cheque, or voucher.<?php endif; ?></div>
+        </div>
         <?php if (!empty($flwEnabled)): ?>
         <div id="gatewayPanel" class="p-3 rounded border border-primary bg-light mb-3" style="display:none;">
             <input type="hidden" name="gateway_tx_ref" id="gatewayTxRef" value="">
@@ -765,16 +775,9 @@ function getCategoryStyle($name) {
                 <div class="col-6"><button type="button" class="btn btn-primary w-100 fw-bold" id="gwMomoBtn" onclick="gatewayMomo()"><i class="bi bi-phone-vibrate"></i> Send MoMo prompt</button></div>
                 <div class="col-6"><button type="button" class="btn btn-outline-primary w-100 fw-bold" id="gwCardBtn" onclick="gatewayCard()"><i class="bi bi-credit-card"></i> Card / other</button></div>
             </div>
-            <div class="small text-muted mt-2" id="gatewayHint">The customer approves on their phone, or pays in the Flutterwave window. The sale completes once Flutterwave confirms.</div>
+            <div class="small text-muted mt-2" id="gatewayHint">Choose MTN, Airtel, or Zamtel for a phone prompt, or open the card window. The sale completes once Flutterwave confirms.</div>
         </div>
         <?php endif; ?>
-        </div>
-        <div id="splitSection" style="display:none;" class="p-3 bg-light rounded border border-secondary mb-3">
-            <label class="form-label small fw-bold text-dark mb-2"><i class="bi bi-pie-chart-fill"></i> SPLIT PAYMENT DETAILS</label>
-            <div id="splitRows"></div>
-            <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold mt-2" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add payment method</button>
-            <div class="small text-muted mt-2">Choose a method or <strong>Other</strong> and type a custom name (bank transfer, cheque, voucher…).</div>
-        </div>
         <div class="card bg-light border-0 p-3 mt-3"><label class="form-label small fw-bold text-muted mb-1">TOTAL TENDERED</label><div class="input-group input-group-lg"><span class="input-group-text bg-white border-end-0 fw-bold">ZMW</span><input type="number" step="0.01" name="amount_tendered" id="tenderedInput" class="form-control border-start-0 fw-bold fs-3 text-success" inputmode="decimal" oninput="onTenderedEdited()"></div>
             <?php if (!empty($fx['enabled']) && !empty($fx['rates'])): ?>
             <div class="mt-2" id="fxTenderBox">
@@ -1115,6 +1118,73 @@ function getCategoryStyle($name) {
         }
         document.addEventListener('submit', function (e) {
             const form = e.target;
+            if (!form || !form.classList || !form.classList.contains('js-handover')) return;
+            if (form.dataset.swalConfirmed !== '1') return;
+            e.preventDefault();
+            e.stopPropagation();
+            const btn = form.querySelector('button');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Handing over…';
+            }
+            const body = new FormData(form);
+            body.set('ajax', '1');
+            const saleId = String(body.get('complete_prepaid_order') || '');
+            fetch('index.php?page=pos', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                body: body
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                form.dataset.swalConfirmed = '';
+                if (!data || data.status === 'error') {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-bag-check"></i> Hand Over';
+                    }
+                    AppAlert.notify({ icon: 'error', text: (data && data.msg) || 'Unable to hand over the order.' });
+                    return;
+                }
+                document.querySelectorAll('#onlineTabsModal .list-group-item').forEach(function (row) {
+                    if ((row.getAttribute('onclick') || '').replace(/\s+/g, '') === 'showOnlineTabDetails(' + saleId + ')') row.remove();
+                });
+                const tpl = document.getElementById('online-tab-data-' + saleId);
+                if (tpl) tpl.remove();
+                const list = document.querySelector('#onlineTabsModal .list-group');
+                if (list && !list.querySelector('.list-group-item')) {
+                    list.innerHTML = '<p class="text-muted text-center mt-4 fw-bold">No pending web orders.</p>';
+                }
+                const container = document.getElementById('onlineTabDetailContainer');
+                if (container) {
+                    container.innerHTML = '<p class="text-center text-muted mt-5"><i class="bi bi-bag-check fs-1"></i><br>Order handed over.</p>';
+                }
+                document.querySelectorAll('[data-live-count="web"]').forEach(function (badge) {
+                    const n = Math.max(0, (parseInt(badge.textContent, 10) || 0) - 1);
+                    badge.textContent = String(n);
+                    badge.style.display = n ? '' : 'none';
+                });
+                if (data.sale_id) {
+                    const frame = document.getElementById('receiptFrame');
+                    if (frame) {
+                        frame.src = 'about:blank';
+                        setTimeout(function () {
+                            frame.src = 'index.php?page=receipt&sale_id=' + data.sale_id + '&_cb=' + Date.now();
+                        }, 100);
+                    }
+                    safeModalShow('receiptModal');
+                }
+                AppAlert.notify({ icon: 'success', text: data.msg || 'Order handed over.', timer: data.sale_id ? 2200 : undefined });
+            }).catch(function () {
+                form.dataset.swalConfirmed = '';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-bag-check"></i> Hand Over';
+                }
+                AppAlert.notify({ icon: 'error', text: 'Unable to hand over the order.' });
+            });
+        }, true);
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
             if (!form || form.id !== 'checkoutForm') return;
             if (form.classList.contains('js-confirm-form') && form.dataset.swalConfirmed !== '1') return;
             e.preventDefault();
@@ -1268,7 +1338,7 @@ function getCategoryStyle($name) {
             });
         });
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
-        function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let onlineOpt = Array.from(pmSelect.options).find(opt => opt.value === 'Online' || opt.value === 'Card'); if(onlineOpt) { onlineOpt.selected = true; if (pmSelect.tomselect) pmSelect.tomselect.setValue(onlineOpt.value, true); } } }); }
+        function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let preferred = Array.from(pmSelect.options).find(opt => opt.value === 'Flutterwave') || Array.from(pmSelect.options).find(opt => opt.value === 'Cash'); if(preferred) { preferred.selected = true; if (pmSelect.tomselect) pmSelect.tomselect.setValue(preferred.value, true); onPaymentMethodChange(); } } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
         let currentCat = 'all';
         const subCategoriesMap = <?= json_encode($subCatsByParent) ?>;
@@ -1467,7 +1537,8 @@ function getCategoryStyle($name) {
         let gwPollTimer = null;
         function resetGateway() {
             const panel = document.getElementById('gatewayPanel'); if (!panel) return;
-            panel.style.display = 'none'; document.getElementById('gatewayTxRef').value = '';
+            panel.style.display = 'none';
+            const ref = document.getElementById('gatewayTxRef'); ref.value = ''; delete ref.dataset.charged;
             setGatewayStatus('Not started', 'secondary'); if (gwPollTimer) { clearInterval(gwPollTimer); gwPollTimer = null; }
             document.getElementById('gwMomoBtn').disabled = false; document.getElementById('gwCardBtn').disabled = false;
             const btn = document.getElementById('btnCheckoutSubmit'); if (btn) btn.disabled = false;
@@ -1492,7 +1563,9 @@ function getCategoryStyle($name) {
             const phone = document.getElementById('gwPhone').value.trim(); const network = document.getElementById('gwNetwork').value;
             if (phone.replace(/\D/g, '').length < 9) { AppAlert.notify({ icon: 'warning', text: 'Enter the customer\'s mobile money number first.' }); return; }
             document.getElementById('gwMomoBtn').disabled = true; setGatewayStatus('Sending prompt…', 'info');
-            gatewayPost('momo', { amount: amountDue().toFixed(2), phone: phone, network: network, name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
+            const charge = gatewayChargeAmount();
+            if (charge <= 0) { document.getElementById('gwMomoBtn').disabled = false; AppAlert.notify({ icon: 'warning', text: 'Enter the Flutterwave amount on the split first.' }); return; }
+            gatewayPost('momo', { amount: charge.toFixed(2), phone: phone, network: network, name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
                 if (res.status !== 'ok') { setGatewayStatus('Failed', 'danger'); document.getElementById('gwMomoBtn').disabled = false; AppAlert.notify({ icon: 'error', text: res.msg || 'Could not start the mobile money payment.' }); return; }
                 document.getElementById('gatewayTxRef').value = res.tx_ref;
                 document.getElementById('gatewayHint').textContent = res.message || 'Prompt sent. Ask the customer to approve on their phone.';
@@ -1502,8 +1575,10 @@ function getCategoryStyle($name) {
         }
         function gatewayCard() {
             document.getElementById('gwCardBtn').disabled = true; setGatewayStatus('Opening checkout…', 'info');
+            const charge = gatewayChargeAmount();
+            if (charge <= 0) { document.getElementById('gwCardBtn').disabled = false; AppAlert.notify({ icon: 'warning', text: 'Enter the Flutterwave amount on the split first.' }); return; }
             const popup = window.open('', 'flwpay', 'width=520,height=720');
-            gatewayPost('init', { amount: amountDue().toFixed(2), phone: document.getElementById('gwPhone').value.trim(), name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
+            gatewayPost('init', { amount: charge.toFixed(2), phone: document.getElementById('gwPhone').value.trim(), name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
                 if (res.status !== 'ok') { if (popup) popup.close(); setGatewayStatus('Failed', 'danger'); document.getElementById('gwCardBtn').disabled = false; AppAlert.notify({ icon: 'error', text: res.msg || 'Could not open Flutterwave checkout.' }); return; }
                 document.getElementById('gatewayTxRef').value = res.tx_ref;
                 if (popup) popup.location.href = res.link; else window.open(res.link, 'flwpay');
@@ -1524,11 +1599,14 @@ function getCategoryStyle($name) {
         }
         function gatewayConfirmed(txRef, amount) {
             if (gwPollTimer) { clearInterval(gwPollTimer); gwPollTimer = null; }
-            document.getElementById('gatewayTxRef').value = txRef;
-            setGatewayStatus('Paid ZMW ' + Number(amount || amountDue()).toFixed(2), 'success');
+            const ref = document.getElementById('gatewayTxRef');
+            ref.value = txRef;
+            ref.dataset.charged = gatewayChargeAmount().toFixed(2);
+            setGatewayStatus('Paid ZMW ' + Number(amount || gatewayChargeAmount()).toFixed(2), 'success');
             document.getElementById('gatewayHint').innerHTML = '<span class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Flutterwave confirmed the payment. Tap COMPLETE TRANSACTION to finish the receipt.</span>';
             const btn = document.getElementById('btnCheckoutSubmit'); if (btn) btn.disabled = false;
-            document.getElementById('tenderedInput').value = amountDue().toFixed(2); calcResult();
+            if (!isSplitPay()) document.getElementById('tenderedInput').value = amountDue().toFixed(2);
+            calcResult();
         }
         window.addEventListener('message', function (ev) {
             const d = ev.data || {};
@@ -1592,30 +1670,33 @@ function getCategoryStyle($name) {
             if (fxRowOpen()) { if (fxSource === 'fx') onFxTenderChange(); else syncFxFromZmw(); }
             calcResult();
         }
-        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); document.getElementById('tenderedInput').value = "0.00"; tenderedTouched = true; } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); } calcResult(); }
+        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); sumSplit(); } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); onPaymentMethodChange(); } calcResult(); }
+        const splitMethodList = <?= json_encode(array_values(array_filter([
+            'Cash',
+            !empty($flwEnabled) ? 'Flutterwave' : null,
+            $tier === 'enterprise' ? 'Online' : null,
+        ]))) ?>;
         function splitMethodOptions(selected) {
-            const opts = ['Cash', 'Card', 'MTN Money', 'Airtel Money', 'Zamtel Money', 'Online'];
-            return opts.map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v}</option>`).join('')
-                + `<option value="__custom__">Other (custom name)</option>`;
+            return splitMethodList.map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v}</option>`).join('')
+                + `<option value="__custom__" ${selected === '__custom__' ? 'selected' : ''}>Other (type a name)</option>`;
         }
         function addSplitRow(method, amount, custom) {
             const wrap = document.getElementById('splitRows');
-            if (!wrap || wrap.children.length >= 8) return;
-            method = method || (wrap.children.length === 0 ? 'Card' : 'Cash');
+            if (!wrap || wrap.children.length >= 6) return;
+            method = method || 'Cash';
             const row = document.createElement('div');
-            row.className = 'split-pay-row mb-2';
-            row.innerHTML = `<div class="row g-2 align-items-center">
-                <div class="col-5"><select name="split_method[]" class="form-select fw-bold split-method" onchange="onSplitMethodChange(this)">${splitMethodOptions(method)}</select></div>
-                <div class="col-5"><div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" min="0" name="split_amount[]" class="form-control fw-bold split-amount" placeholder="0.00" value="${amount ? Number(amount).toFixed(2) : ''}" oninput="sumSplit()"></div></div>
-                <div class="col-2"><button type="button" class="btn btn-outline-danger w-100 split-remove" onclick="removeSplitRow(this)" title="Remove">&times;</button></div>
-                <div class="col-12 split-custom-wrap" style="display:none;"><input type="text" name="split_custom[]" class="form-control split-custom" maxlength="50" placeholder="Custom method name"></div>
+            row.className = 'split-pay-row border rounded bg-white p-2 mb-2';
+            row.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-1"><span class="small fw-bold text-muted split-label">PAYMENT</span><button type="button" class="btn btn-sm btn-outline-danger split-remove" onclick="removeSplitRow(this)">Remove</button></div>
+                <div class="row g-2">
+                <div class="col-12 col-sm-6"><select name="split_method[]" class="form-select fw-bold split-method" onchange="onSplitMethodChange(this)">${splitMethodOptions(method)}</select></div>
+                <div class="col-12 col-sm-6"><div class="input-group"><span class="input-group-text bg-white">ZMW</span><input type="number" step="0.01" min="0" name="split_amount[]" class="form-control fw-bold split-amount" placeholder="0.00" value="${amount ? Number(amount).toFixed(2) : ''}" oninput="sumSplit()"></div></div>
+                <div class="col-12 split-custom-wrap" style="display:none;"><input type="text" name="split_custom[]" class="form-control split-custom" maxlength="50" placeholder="Bank transfer, cheque, voucher…"></div>
             </div>`;
             wrap.appendChild(row);
             const sel = row.querySelector('.split-method');
-            const known = ['Cash','Card','MTN Money','Airtel Money','Zamtel Money','Online'];
-            if (method === '__custom__' || (custom && !known.includes(method)) || (method && !known.includes(method))) {
+            if (method === '__custom__' || (custom && !splitMethodList.includes(method)) || (method && !splitMethodList.includes(method) && method !== '__custom__')) {
                 sel.value = '__custom__';
-                row.querySelector('.split-custom').value = custom || method;
+                row.querySelector('.split-custom').value = custom || (method === '__custom__' ? '' : method);
             }
             onSplitMethodChange(sel);
             refreshSplitRemoveButtons();
@@ -1624,8 +1705,8 @@ function getCategoryStyle($name) {
             const wrap = document.getElementById('splitRows');
             if (!wrap) return;
             wrap.innerHTML = '';
-            addSplitRow('Card');
             addSplitRow('Cash');
+            addSplitRow(splitMethodList.includes('Flutterwave') ? 'Flutterwave' : 'Cash');
         }
         function removeSplitRow(btn) {
             const wrap = document.getElementById('splitRows');
@@ -1636,24 +1717,82 @@ function getCategoryStyle($name) {
         }
         function refreshSplitRemoveButtons() {
             const rows = document.querySelectorAll('#splitRows .split-pay-row');
-            rows.forEach(row => {
+            rows.forEach((row, i) => {
+                const label = row.querySelector('.split-label');
+                if (label) label.textContent = 'PAYMENT ' + (i + 1);
                 const b = row.querySelector('.split-remove');
                 if (b) b.disabled = rows.length <= 1;
             });
         }
         function onSplitMethodChange(sel) {
-            const wrap = sel.closest('.split-pay-row').querySelector('.split-custom-wrap');
+            const row = sel.closest('.split-pay-row');
+            const wrap = row.querySelector('.split-custom-wrap');
             const input = wrap.querySelector('.split-custom');
             const isCustom = sel.value === '__custom__';
             wrap.style.display = isCustom ? 'block' : 'none';
             input.required = isCustom;
             if (!isCustom) input.value = '';
+            if (sel.value === 'Flutterwave') resetGatewayConfirmation();
+            syncSplitGateway();
+        }
+        function flutterwaveSplitAmount() {
+            let sum = 0;
+            document.querySelectorAll('#splitRows .split-pay-row').forEach(function (row) {
+                const sel = row.querySelector('.split-method');
+                if (sel && sel.value === 'Flutterwave') sum += parseFloat(row.querySelector('.split-amount').value) || 0;
+            });
+            return Math.round(sum * 100) / 100;
+        }
+        function gatewayChargeAmount() {
+            if (isSplitPay()) return flutterwaveSplitAmount();
+            return amountDue();
+        }
+        function resetGatewayConfirmation() {
+            const ref = document.getElementById('gatewayTxRef');
+            if (!ref || !ref.value) return;
+            ref.value = '';
+            delete ref.dataset.charged;
+            setGatewayStatus('Not started', 'secondary');
+            if (gwPollTimer) { clearInterval(gwPollTimer); gwPollTimer = null; }
+            const momo = document.getElementById('gwMomoBtn'); const card = document.getElementById('gwCardBtn');
+            if (momo) momo.disabled = false;
+            if (card) card.disabled = false;
+        }
+        function syncSplitGateway() {
+            const panel = document.getElementById('gatewayPanel');
+            if (!panel) return;
+            if (!isSplitPay()) return;
+            const needs = flutterwaveSplitAmount() > 0 || Array.from(document.querySelectorAll('#splitRows .split-method')).some(function (sel) { return sel.value === 'Flutterwave'; });
+            panel.style.display = needs ? '' : 'none';
+            const hint = document.getElementById('gatewayHint');
+            if (needs && hint && !document.getElementById('gatewayTxRef').value) {
+                const portion = flutterwaveSplitAmount();
+                hint.textContent = portion > 0
+                    ? 'Take ZMW ' + portion.toFixed(2) + ' on Flutterwave. The rest is the other split lines.'
+                    : 'Enter the Flutterwave amount above, then send the prompt or open the card window.';
+            }
+            const btn = document.getElementById('btnCheckoutSubmit');
+            if (btn) btn.disabled = needs && !document.getElementById('gatewayTxRef').value;
         }
         function sumSplit() {
             let total = 0;
             document.querySelectorAll('#splitRows .split-amount').forEach(el => { total += parseFloat(el.value) || 0; });
             document.getElementById('tenderedInput').value = total.toFixed(2);
             tenderedTouched = true;
+            const ref = document.getElementById('gatewayTxRef');
+            if (ref && ref.dataset.charged && Math.abs((parseFloat(ref.dataset.charged) || 0) - flutterwaveSplitAmount()) > 0.009) {
+                resetGatewayConfirmation();
+            }
+            const status = document.getElementById('splitStatus');
+            if (status) {
+                const due = amountDue();
+                const diff = Math.round((total - due) * 100) / 100;
+                if (Math.abs(diff) < 0.01) status.textContent = 'Covers the bill';
+                else if (diff < 0) status.textContent = 'Short ZMW ' + Math.abs(diff).toFixed(2);
+                else status.textContent = 'Change ZMW ' + diff.toFixed(2);
+                status.className = 'small fw-bold ' + (diff < -0.01 ? 'text-danger' : 'text-success');
+            }
+            syncSplitGateway();
             calcResult();
         }
         function addTipPercent(percent) { document.getElementById('tipInput').value = (Math.max(0, currentTotal) * percent).toFixed(2); if (!isSplitPay()) tenderedTouched = false; updateDisplays(); }

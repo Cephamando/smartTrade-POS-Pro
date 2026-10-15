@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', cvFromZmw);
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h5 class="fw-bold mb-1"><i class="bi bi-bag-heart text-info"></i> Customer ordering & registration</h5>
-                        <p class="text-muted small">A public page where customers register, browse the menu, place pickup or delivery orders and pay online or at the counter. Orders land in the POS under <strong>Web Orders</strong> and on the kitchen screens.</p>
+                        <p class="text-muted small">A public page where customers register, browse the menu, and place pickup or delivery orders. Online orders are paid with Flutterwave only. Orders land in the POS under <strong>Web Orders</strong> and on the kitchen screens.</p>
                     </div>
                     <a class="btn btn-outline-info fw-bold text-nowrap" href="index.php?page=shop" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Open page</a>
                 </div>
@@ -396,8 +396,7 @@ document.addEventListener('DOMContentLoaded', cvFromZmw);
                             <input type="number" step="0.01" min="0" name="shop_delivery_fee" class="form-control" value="<?= htmlspecialchars($settings['shop_delivery_fee'] ?? '0') ?>">
                         </div>
                         <div class="col-12 d-flex flex-wrap gap-4 mt-2">
-                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_pay_at_counter" value="1" id="shopCounter" <?= ($settings['shop_pay_at_counter'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopCounter">Allow pay at counter / on delivery</label></div>
-                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_pay_online" value="1" id="shopOnline" <?= ($settings['shop_pay_online'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopOnline">Allow Flutterwave online payment<?= $flwEnabled ? '' : ' <span class="text-danger">(enable Flutterwave first)</span>' ?></label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_pay_online" value="1" id="shopOnline" <?= ($settings['shop_pay_online'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopOnline">Take payment with Flutterwave<?= $flwEnabled ? '' : ' <span class="text-danger">(enable Flutterwave first)</span>' ?></label></div>
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_delivery" value="1" id="shopDelivery" <?= ($settings['shop_delivery'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopDelivery">Offer delivery</label></div>
                         </div>
                     </div>

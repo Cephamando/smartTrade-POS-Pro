@@ -298,6 +298,7 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
                 <th>Date</th>
                 <th>Employee</th>
                 <th>Store</th>
+                <th>Payment</th>
                 <th>Total</th>
                 <th class="text-end no-print">Action</th>
             </tr>
@@ -311,6 +312,7 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
                 <td class="text-muted" data-label="Date"><?= date('d.m.Y H:i', strtotime($row['created_at'])) ?></td>
                 <td data-label="Employee"><?= htmlspecialchars($row['cashier'] ?? 'Admin') ?></td>
                 <td data-label="Store"><?= htmlspecialchars($row['location']) ?></td>
+                <td data-label="Payment"><?= htmlspecialchars((string)(($row['gateway']['summary'] ?? '') !== '' ? $row['gateway']['summary'] : ($row['payment_method'] ?? ''))) ?></td>
                 <td class="fw-bold" data-label="Total">ZMW <?= number_format($row['final_total'], 2) ?></td>
                 <td class="text-end no-print report-card-actions" data-label="">
                     <button onclick="showReceiptModal('index.php?page=receipt&sale_id=<?= $row['id'] ?>')" class="btn btn-sm btn-light border"><i class="bi bi-receipt"></i> View</button>
@@ -418,6 +420,7 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
             </div>
             <div class="modal-body p-0">
                 <table class="table table-hover align-middle mb-0">
+                <div id="saleGatewayDetail" class="px-4 py-3 border-bottom small" style="display:none;"></div>
                     <thead class="table-light text-muted small text-uppercase">
                         <tr>
                             <th class="ps-4">Item</th>
@@ -526,6 +529,8 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
         document.getElementById('modalSaleIdBadge').innerText = '#' + saleId;
         document.getElementById('saleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted"><div class="spinner-border text-success spinner-border-sm me-2"></div> Fetching data...</td></tr>';
 
+        const gatewayBox = document.getElementById('saleGatewayDetail');
+        if (gatewayBox) { gatewayBox.style.display = 'none'; gatewayBox.textContent = ''; }
         let modal = new bootstrap.Modal(document.getElementById('saleBreakdownModal'));
         modal.show();
 
@@ -539,6 +544,17 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
             let tbody = document.getElementById('saleBreakdownBody');
             if (data.status === 'success') {
                 tbody.innerHTML = '';
+                const box = document.getElementById('saleGatewayDetail');
+                if (box) {
+                    box.textContent = '';
+                    const lines = (data.gateway && data.gateway.lines) ? data.gateway.lines : [];
+                    lines.forEach(function (line) {
+                        const row = document.createElement('div');
+                        row.textContent = line.label + ': ' + line.value;
+                        box.appendChild(row);
+                    });
+                    box.style.display = lines.length ? '' : 'none';
+                }
                 if (data.items.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No items found for this sale.</td></tr>';
                     return;

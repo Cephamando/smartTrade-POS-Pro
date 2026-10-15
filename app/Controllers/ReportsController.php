@@ -12,7 +12,13 @@ final class ReportsController extends Controller
     {
         if (isset($_POST['fetch_sale_details'])) {
             try {
-                $this->jsonExit(['status' => 'success', 'items' => Sale::saleItemsForModal((int)$_POST['sale_id'])]);
+                $saleId = (int)$_POST['sale_id'];
+                $gateway = \App\Services\Flutterwave::detailsForSales($this->pdo(), [$saleId]);
+                $this->jsonExit([
+                    'status' => 'success',
+                    'items' => Sale::saleItemsForModal($saleId),
+                    'gateway' => $gateway[$saleId] ?? null,
+                ]);
             } catch (\Throwable $e) {
                 $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage()]);
             }
@@ -128,6 +134,9 @@ final class ReportsController extends Controller
                     }
                     $reportData = $filtered;
                 }
+            }
+            if ($reportType === 'sales') {
+                $reportData = \App\Services\Flutterwave::attach($this->pdo(), $reportData);
             }
         } elseif ($reportType === 'items') {
             // Aggregated Items (Products) with direct SQL so we can reliably filter by Employee

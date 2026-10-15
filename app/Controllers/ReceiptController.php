@@ -47,6 +47,7 @@ final class ReceiptController extends Controller
             'receiptFooter' => $sysSettings['receipt_footer'] ?? 'Thank you for your business!',
             'zraTpin' => getenv('ZRA_TPIN') ?: '',
             'zraClient' => new \ZraVsdcClient($pdo),
+            'gateway' => ($gw = \App\Services\Flutterwave::detailsForSales($pdo, [$saleId]))[$saleId] ?? null,
             'sale' => $sale,
             'items' => Sale::receiptItems($saleId, $isIncremental ? $specificItems : []),
         ]);

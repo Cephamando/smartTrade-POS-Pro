@@ -114,23 +114,34 @@ final class Pos
             return ['redirect' => true];
         }
 
-        // Web order already paid online (Flutterwave on the customer portal): just hand it over.
+        // Web order already paid online: mark it collected and print ZRA without leaving the POS.
         if (isset($post['complete_prepaid_order'])) {
             $saleId = (int)$post['complete_prepaid_order'];
+            $ajax = !empty($post['ajax'])
+                || strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
             $stmt = $this->pdo->prepare("SELECT id, payment_status, status FROM sales WHERE id = ? AND payment_method = 'Online'");
             $stmt->execute([$saleId]);
             $sale = $stmt->fetch();
             if (!$sale || $sale['payment_status'] !== 'paid' || $sale['status'] !== 'pending') {
+                $msg = 'That order is not a prepaid web order.';
+                if ($ajax) {
+                    return ['json' => ['status' => 'error', 'msg' => $msg]];
+                }
                 $session['swal_type'] = 'error';
-                $session['swal_msg'] = 'That order is not a prepaid web order.';
+                $session['swal_msg'] = $msg;
                 return ['redirect' => true];
             }
             $this->pdo->prepare("UPDATE sales SET status = 'completed', shift_id = COALESCE(shift_id, ?), user_id = ? WHERE id = ?")
                 ->execute([$activeShiftId ?: null, $userId, $saleId]);
             $this->pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected', status = 'ready' WHERE sale_id = ? AND status NOT IN ('voided','refunded')")->execute([$saleId]);
             $zra = fiscalizePaidSale($this->pdo, $saleId);
+            $msg = 'Web order #' . $saleId . ' handed over.' . $zra;
+            if ($ajax) {
+                return ['json' => ['status' => 'ok', 'msg' => $msg, 'sale_id' => $saleId]];
+            }
+            $session['last_sale_id'] = $saleId;
             $session['swal_type'] = 'success';
-            $session['swal_msg'] = 'Web order #' . $saleId . ' handed over.' . $zra;
+            $session['swal_msg'] = $msg;
             return ['redirect' => true];
         }
 

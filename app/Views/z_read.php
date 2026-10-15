@@ -164,6 +164,24 @@
         </div>
     </div>
 
+    <?php if (!empty($gatewayPayments)): ?>
+    <h5 class="fw-bold text-primary mb-3"><i class="bi bi-phone"></i> Flutterwave payments</h5>
+    <table class="table table-sm table-hover align-middle border mb-4">
+        <thead class="table-light"><tr><th class="ps-2">Receipt</th><th>Network</th><th>Number</th><th>Transaction ID</th><th class="text-end pe-2">Amount</th></tr></thead>
+        <tbody>
+            <?php foreach ($gatewayPayments as $gp): ?>
+            <tr>
+                <td class="fw-bold ps-2">#<?= (int)$gp['sale_id'] ?></td>
+                <td><?= htmlspecialchars(($gp['network'] !== '' ? $gp['network'] : (string)($gp['card'] ?? '')) ?: '—') ?></td>
+                <td><?= htmlspecialchars($gp['phone'] !== '' ? $gp['phone'] : '—') ?></td>
+                <td class="font-monospace small"><?= htmlspecialchars($gp['network_tx_id'] !== '' ? $gp['network_tx_id'] : '—') ?></td>
+                <td class="text-end fw-bold pe-2">ZMW <?= number_format((float)$gp['amount'], 2) ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php endif; ?>
+
     <div>
         <h5 class="fw-bold text-info mb-3"><i class="bi bi-box-seam"></i> Itemized Sales</h5>
         <table class="table table-sm table-hover table-striped align-middle border">

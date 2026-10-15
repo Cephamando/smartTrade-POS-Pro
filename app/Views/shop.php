@@ -19,6 +19,25 @@ $shopIcon = function (string $cat): string {
     return 'bi-basket3';
 };
 $money = fn($v) => 'K' . number_format((float)$v, 2);
+$fx = $fx ?? ['rates' => []];
+$fxRates = [];
+foreach (($fx['rates'] ?? []) as $code => $row) {
+    $per = (float)($row['zmw_per_unit'] ?? 0);
+    if ($per > 0 && preg_match('/^[A-Z]{3}$/', (string)$code)) {
+        $fxRates[(string)$code] = $per;
+    }
+}
+$currencyBar = static function () use ($fxRates): string {
+    if (!$fxRates) {
+        return '';
+    }
+    $html = '<div class="cur-tabs" role="tablist" aria-label="Display currency"><button type="button" class="cur-tab is-on" data-cur="ZMW" onclick="setShopCurrency(\'ZMW\')">ZMW</button>';
+    foreach (array_keys($fxRates) as $code) {
+        $safe = htmlspecialchars($code, ENT_QUOTES);
+        $html .= '<button type="button" class="cur-tab" data-cur="' . $safe . '" onclick="setShopCurrency(\'' . $safe . '\')">' . $safe . '</button>';
+    }
+    return $html . '</div>';
+};
 $logoUrl = \App\Helpers\Media::url((string)($settings['logo_path'] ?? ''));
 $bannerUrl = \App\Helpers\Media::url((string)($settings['shop_banner_path'] ?? ''));
 $cartCount = $cartCount ?? 0;
@@ -164,6 +183,9 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .avail-tab span { margin-left: 6px; font-size: .78rem; opacity: .65; }
         .avail-tab.is-on { background: #111; color: var(--sun); border-color: #111; }
         .avail-tab.is-on span { opacity: .9; }
+        .cur-tabs { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+        .cur-tab { border: 1px solid #efe7c4; background: #fff; color: #5c5344; border-radius: 999px; padding: .4rem .8rem; font-weight: 800; font-size: .82rem; letter-spacing: .04em; }
+        .cur-tab.is-on { background: #111; color: var(--sun); border-color: #111; }
         @media (min-width: 768px) { .store-tabs { justify-content: center; flex-wrap: wrap; overflow: visible; } }
         .item-card { border: 0; border-radius: 28px; background: #fff; box-shadow: 0 12px 30px rgba(0, 0, 0, .08); overflow: hidden; }
         .menu-rail { margin: 6px 0 28px; }
@@ -549,6 +571,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <button type="button" class="avail-tab" data-avail="1" role="tab" aria-selected="false" onclick="setAvail(this)">In stock <span><?= (int)$inStockCount ?></span></button>
             <button type="button" class="avail-tab" data-avail="0" role="tab" aria-selected="false" onclick="setAvail(this)">Sold out <span><?= (int)$soldOutCount ?></span></button>
         </div>
+        <?= $currencyBar() ?>
     </div>
     <nav class="menu-crumb" id="menuCrumb" aria-label="Breadcrumb" hidden></nav>
     <div id="menuRails">
@@ -574,7 +597,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                         </div>
                         <div class="dish-copy">
                             <div class="item-name"><?= htmlspecialchars($p['name']) ?></div>
-                            <span class="price"><?= $money($p['price']) ?></span>
+                            <span class="price js-money" data-zmw="<?= htmlspecialchars((string)$p['price']) ?>"><?= $money($p['price']) ?></span>
                             <?php if ($p['available']): ?>
                             <button type="button" class="dish-add" aria-label="Add <?= htmlspecialchars($p['name']) ?>" onclick="addToCart(<?= (int)$p['id'] ?>, this)"><i class="bi bi-plus-lg"></i></button>
                             <?php else: ?><span class="dish-sold">Sold out</span><?php endif; ?>
@@ -591,7 +614,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </div>
     <div class="cart-bar <?= $cartCount ? '' : 'd-none' ?>" id="cartBar">
         <div class="d-flex justify-content-between align-items-center">
-            <div><span class="badge rounded-pill text-dark" style="background:var(--sun)" id="cartBarCount"><?= (int)$cartCount ?></span> in your bag · <strong id="cartBarTotal"><?= $money($cartTotal) ?></strong></div>
+            <div><span class="badge rounded-pill text-dark" style="background:var(--sun)" id="cartBarCount"><?= (int)$cartCount ?></span> in your bag · <strong id="cartBarTotal" class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></strong></div>
             <a href="<?= $u('cart') ?>" class="btn btn-accent rounded-pill px-4">View bag <i class="bi bi-arrow-right"></i></a>
         </div>
     </div>
@@ -771,7 +794,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         if (btn) pickCat(btn);
         else filterMenu();
     })();
-    function addToCart(pid, btn) { btn.disabled = true; const body = new URLSearchParams({ cart_add: pid, qty: 1, ajax: 1 }); fetch('index.php?page=shop&view=menu', { method: 'POST', body: body, credentials: 'same-origin' }).then(r => r.json()).then(function (res) { btn.disabled = false; if (res.status !== 'ok') { alert(res.msg || 'Could not add'); return; } document.getElementById('cartBar').classList.remove('d-none'); document.getElementById('cartBarCount').textContent = res.count; document.getElementById('cartBarTotal').textContent = 'K' + Number(res.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); btn.innerHTML = '<i class="bi bi-check-lg"></i>'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-plus-lg"></i>'; }, 900); }).catch(function () { btn.disabled = false; }); }
+    function addToCart(pid, btn) { btn.disabled = true; const body = new URLSearchParams({ cart_add: pid, qty: 1, ajax: 1 }); fetch('index.php?page=shop&view=menu', { method: 'POST', body: body, credentials: 'same-origin' }).then(r => r.json()).then(function (res) { btn.disabled = false; if (res.status !== 'ok') { alert(res.msg || 'Could not add'); return; } document.getElementById('cartBar').classList.remove('d-none'); document.getElementById('cartBarCount').textContent = res.count; var total = document.getElementById('cartBarTotal'); total.dataset.zmw = String(res.total); total.textContent = window.formatShopMoney ? formatShopMoney(res.total) : ('K' + Number(res.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); btn.innerHTML = '<i class="bi bi-check-lg"></i>'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-plus-lg"></i>'; }, 900); }).catch(function () { btn.disabled = false; }); }
     </script>
 
 <?php elseif ($view === 'cart'): ?>
@@ -785,13 +808,13 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <ul class="list-group list-group-flush">
             <?php foreach ($cart as $line): ?>
                 <li class="list-group-item d-flex align-items-center gap-3">
-                    <div class="flex-grow-1"><div class="fw-bold"><?= htmlspecialchars($line['name']) ?></div><div class="small text-muted"><?= $money($line['price']) ?> each</div></div>
+                    <div class="flex-grow-1"><div class="fw-bold"><?= htmlspecialchars($line['name']) ?></div><div class="small text-muted"><span class="js-money" data-zmw="<?= htmlspecialchars((string)$line['price']) ?>"><?= $money($line['price']) ?></span> each</div></div>
                     <input type="number" min="0" name="qty[<?= (int)$line['id'] ?>]" value="<?= (int)$line['qty'] ?>" class="form-control text-center" style="width:80px" onchange="this.form.submit()">
-                    <div class="price text-end" style="min-width:90px"><?= $money($line['price'] * $line['qty']) ?></div>
+                    <div class="price text-end js-money" style="min-width:90px" data-zmw="<?= htmlspecialchars((string)($line['price'] * $line['qty'])) ?>"><?= $money($line['price'] * $line['qty']) ?></div>
                 </li>
             <?php endforeach; ?>
             </ul>
-            <div class="card-footer bg-white d-flex justify-content-between fw-bold fs-5"><span>Subtotal</span><span><?= $money($cartTotal) ?></span></div>
+            <div class="card-footer bg-white"><div class="d-flex justify-content-between fw-bold fs-5"><span>Subtotal</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div><?= $currencyBar() ?></div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a href="<?= $u('menu') ?>" class="btn btn-outline-dark rounded-pill px-4"><i class="bi bi-plus"></i> Add more</a>
@@ -800,7 +823,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <a href="<?= $u('checkout') ?>" class="btn btn-accent rounded-pill px-4 ms-auto">Checkout <i class="bi bi-arrow-right"></i></a>
         </div>
     </form>
-    <?php if ($minOrder > 0 && $cartTotal < $minOrder): ?><div class="alert alert-warning mt-3 small">Minimum order is <?= $money($minOrder) ?>.</div><?php endif; ?>
+    <?php if ($minOrder > 0 && $cartTotal < $minOrder): ?><div class="alert alert-warning mt-3 small">Minimum order is <span class="js-money" data-zmw="<?= htmlspecialchars((string)$minOrder) ?>"><?= $money($minOrder) ?></span>.</div><?php endif; ?>
     <?php endif; ?>
 
 <?php elseif ($view === 'checkout'): ?>
@@ -814,7 +837,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 <label class="form-label fw-bold small text-muted">HOW WOULD YOU LIKE IT?</label>
                 <div class="d-flex gap-2 mb-3">
                     <input type="radio" class="btn-check" name="order_type" id="otPickup" value="pickup" checked onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otPickup"><i class="bi bi-bag"></i> Collect in store</label>
-                    <?php if ($deliveryOn): ?><input type="radio" class="btn-check" name="order_type" id="otDelivery" value="delivery" onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otDelivery"><i class="bi bi-bicycle"></i> Delivery<?= $deliveryFee > 0 ? ' (+' . $money($deliveryFee) . ')' : '' ?></label><?php endif; ?>
+                    <?php if ($deliveryOn): ?><input type="radio" class="btn-check" name="order_type" id="otDelivery" value="delivery" onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otDelivery"><i class="bi bi-bicycle"></i> Delivery<?php if ($deliveryFee > 0): ?> (+<span class="js-money" data-zmw="<?= htmlspecialchars((string)$deliveryFee) ?>"><?= $money($deliveryFee) ?></span>)<?php endif; ?></label><?php endif; ?>
                 </div>
                 <div id="deliveryBox" class="d-none mb-3">
                     <label class="form-label fw-bold small text-muted">DELIVERY ADDRESS</label>
@@ -828,26 +851,37 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div></div>
             <div class="card item-card"><div class="card-body">
                 <label class="form-label fw-bold small text-muted">PAYMENT</label>
-                <?php if ($flwOn): ?><div class="form-check mb-2"><input class="form-check-input" type="radio" name="pay_mode" id="pmOnline" value="online" <?= !$counterOn ? 'checked' : '' ?>><label class="form-check-label" for="pmOnline"><i class="bi bi-phone"></i> Pay now — Mobile Money or Card <span class="badge bg-light text-dark border">Flutterwave</span></label></div><?php endif; ?>
-                <?php if ($counterOn): ?><div class="form-check"><input class="form-check-input" type="radio" name="pay_mode" id="pmCounter" value="counter" checked><label class="form-check-label" for="pmCounter"><i class="bi bi-cash"></i> Pay at the counter / on delivery</label></div><?php endif; ?>
-                <?php if (!$flwOn && !$counterOn): ?><div class="text-danger small">No payment option is enabled. Please contact the store.</div><?php endif; ?>
+                <?php if ($flwOn): ?>
+                <input type="hidden" name="pay_mode" value="online">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-shield-check fs-4"></i>
+                    <div>
+                        <div class="fw-bold">Flutterwave</div>
+                        <div class="small text-muted">Card or Zambia mobile money. The payment window opens on the next step.</div>
+                    </div>
+                </div>
+                <?php else: ?>
+                <div class="text-danger small">Online payment is not available right now. Please contact the store.</div>
+                <?php endif; ?>
             </div></div>
         </div>
         <div class="col-lg-5">
             <div class="card item-card"><div class="card-body">
                 <h6 class="fw-bold">Order summary</h6>
-                <?php foreach ($cart as $line): ?><div class="d-flex justify-content-between small"><span><?= (int)$line['qty'] ?> × <?= htmlspecialchars($line['name']) ?></span><span><?= $money($line['price'] * $line['qty']) ?></span></div><?php endforeach; ?>
+                <?php foreach ($cart as $line): ?><div class="d-flex justify-content-between small"><span><?= (int)$line['qty'] ?> × <?= htmlspecialchars($line['name']) ?></span><span class="js-money" data-zmw="<?= htmlspecialchars((string)($line['price'] * $line['qty'])) ?>"><?= $money($line['price'] * $line['qty']) ?></span></div><?php endforeach; ?>
                 <hr>
-                <div class="d-flex justify-content-between"><span>Subtotal</span><span><?= $money($cartTotal) ?></span></div>
-                <div class="d-flex justify-content-between text-muted d-none" id="feeRow"><span>Delivery</span><span><?= $money($deliveryFee) ?></span></div>
-                <div class="d-flex justify-content-between fw-bold fs-5 mt-2"><span>Total</span><span id="grandTotal" data-sub="<?= $cartTotal ?>" data-fee="<?= $deliveryFee ?>"><?= $money($cartTotal) ?></span></div>
-                <button class="btn btn-accent w-100 rounded-pill py-2 mt-3" <?= (!$flwOn && !$counterOn) ? 'disabled' : '' ?>>Place order</button>
+                <div class="d-flex justify-content-between"><span>Subtotal</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div>
+                <div class="d-flex justify-content-between text-muted d-none" id="feeRow"><span>Delivery</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$deliveryFee) ?>"><?= $money($deliveryFee) ?></span></div>
+                <div class="d-flex justify-content-between fw-bold fs-5 mt-2"><span>Total</span><span id="grandTotal" class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>" data-sub="<?= $cartTotal ?>" data-fee="<?= $deliveryFee ?>"><?= $money($cartTotal) ?></span></div>
+                <div class="small text-muted mt-1" id="chargeNote" hidden>Charged in <?= $money($cartTotal) ?>. The other figure is a guide at today's rate.</div>
+                <?= $currencyBar() ?>
+                <button class="btn btn-accent w-100 rounded-pill py-2 mt-3" <?= $flwOn ? '' : 'disabled' ?>>Pay with Flutterwave</button>
                 <a href="<?= $u('cart') ?>" class="btn btn-link w-100 text-muted small">Back to basket</a>
             </div></div>
         </div>
     </form>
     <script>
-    function toggleDelivery() { const d = document.getElementById('otDelivery'); const on = d && d.checked; document.getElementById('deliveryBox').classList.toggle('d-none', !on); document.getElementById('feeRow').classList.toggle('d-none', !on); const g = document.getElementById('grandTotal'); const t = parseFloat(g.dataset.sub) + (on ? parseFloat(g.dataset.fee) : 0); g.textContent = 'K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function toggleDelivery() { const d = document.getElementById('otDelivery'); const on = d && d.checked; document.getElementById('deliveryBox').classList.toggle('d-none', !on); document.getElementById('feeRow').classList.toggle('d-none', !on); const g = document.getElementById('grandTotal'); const t = parseFloat(g.dataset.sub) + (on ? parseFloat(g.dataset.fee) : 0); g.dataset.zmw = String(t); g.textContent = window.formatShopMoney ? formatShopMoney(t) : ('K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); var note = document.getElementById('chargeNote'); if (note) note.innerHTML = 'Charged in K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '. The other figure is a guide at today\'s rate.'; }
     </script>
     <?php endif; ?>
 
@@ -859,7 +893,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <a href="<?= $u('order', ['id' => $o['id']]) ?>" class="list-group-item list-group-item-action py-3">
             <div class="d-flex justify-content-between"><strong>Order #<?= (int)$o['id'] ?></strong><span class="price"><?= $money($o['final_total']) ?></span></div>
             <div class="small text-muted"><?= date('d M Y H:i', strtotime($o['created_at'])) ?> · <?= (int)$o['item_count'] ?> item(s) · <?= strtoupper(htmlspecialchars($o['order_type'] ?? 'pickup')) ?></div>
-            <div class="mt-1"><span class="badge <?= $live ? ((int)$o['items_cooking'] > 0 ? 'bg-warning text-dark' : 'bg-info text-dark') : ($o['status'] === 'completed' ? 'bg-success' : 'bg-secondary') ?>"><?= $live ? ((int)$o['items_cooking'] > 0 ? 'Being prepared' : 'Ready for collection') : ucfirst($o['status']) ?></span> <span class="badge <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-light text-dark border' ?>"><?= $o['payment_status'] === 'paid' ? 'Paid' : 'Pay at counter' ?></span></div>
+            <div class="mt-1"><span class="badge <?= $live ? ((int)$o['items_cooking'] > 0 ? 'bg-warning text-dark' : 'bg-info text-dark') : ($o['status'] === 'completed' ? 'bg-success' : 'bg-secondary') ?>"><?= $live ? ((int)$o['items_cooking'] > 0 ? 'Being prepared' : 'Ready for collection') : ucfirst($o['status']) ?></span> <span class="badge <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-light text-dark border' ?>"><?= $o['payment_status'] === 'paid' ? 'Paid' : 'Unpaid' ?></span></div>
         </a>
     <?php endforeach; ?>
     </div>
@@ -870,7 +904,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <div class="card item-card mt-2 mb-3"><div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
             <div><h4 class="fw-bold mb-0">Order #<?= (int)$o['id'] ?></h4><div class="small text-muted"><?= date('d M Y H:i', strtotime($o['created_at'])) ?> · <?= strtoupper(htmlspecialchars($o['order_type'] ?? 'pickup')) ?></div></div>
-            <span class="badge fs-6 <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-warning text-dark' ?>"><?= $o['payment_status'] === 'paid' ? 'PAID' : 'PAY AT COUNTER' ?></span>
+            <span class="badge fs-6 <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-warning text-dark' ?>"><?= $o['payment_status'] === 'paid' ? 'PAID' : 'UNPAID' ?></span>
         </div>
         <div class="d-flex align-items-center gap-2 my-4">
             <span class="step done">1</span><div class="flex-grow-1 border-top <?= $cooking === 0 || $done ? 'border-warning border-2' : '' ?>"></div>
@@ -885,16 +919,45 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         </table>
         <?php if ($o['order_notes']): ?><div class="small text-muted mt-2"><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars($o['order_notes']) ?></div><?php endif; ?>
         <?php if ($flwOn && ($o['payment_status'] ?? '') !== 'paid' && ($o['status'] ?? '') === 'pending'): ?>
-            <form method="POST" action="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="mt-3">
-                <input type="hidden" name="pay_order" value="<?= (int)$o['id'] ?>">
-                <button class="btn btn-accent rounded-pill px-4">Pay now</button>
-            </form>
+            <a href="<?= $u('pay', ['id' => (int)$o['id']]) ?>" class="btn btn-accent rounded-pill px-4 mt-3">Pay with Flutterwave</a>
         <?php endif; ?>
         <?php if ($o['gateway_ref']): ?><div class="small text-muted">Payment ref <?= htmlspecialchars($o['gateway_ref']) ?></div><?php endif; ?>
         <?php if ($o['zra_rcpt_no']): ?><div class="small text-muted">ZRA receipt no <?= htmlspecialchars($o['zra_rcpt_no']) ?></div><?php endif; ?>
     </div></div>
     <?php if (!$done): ?><p class="text-center small text-muted">This page refreshes automatically.</p><script>setTimeout(function () { location.reload(); }, 30000);</script><?php endif; ?>
     <?php if (!empty($settings['shop_phone'])): ?><p class="text-center small">Questions? Call <a href="tel:<?= htmlspecialchars($settings['shop_phone']) ?>"><?= htmlspecialchars($settings['shop_phone']) ?></a></p><?php endif; ?>
+
+<?php elseif ($view === 'pay' && !empty($order) && !empty($checkout)): ?>
+    <?php $o = $order; ?>
+    <a href="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> Order #<?= (int)$o['id'] ?></a>
+    <div class="card item-card mt-2 mb-3"><div class="card-body">
+        <h4 class="fw-bold mb-1">Pay with Flutterwave</h4>
+        <p class="text-muted small mb-3">Card or Zambia mobile money. This is the only way to pay for an online order.</p>
+        <div class="d-flex justify-content-between fw-bold fs-5"><span>Order #<?= (int)$o['id'] ?></span><span><?= $money($o['final_total']) ?></span></div>
+        <p class="small mt-3 mb-0" id="payStatus">Opening the Flutterwave window…</p>
+        <button type="button" class="btn btn-accent rounded-pill px-4 mt-3" id="payLaunch">Open Flutterwave</button>
+    </div></div>
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    <script>
+    (function () {
+        var checkout = <?= json_encode($checkout, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        var status = document.getElementById('payStatus');
+        function openShopPay() {
+            if (typeof FlutterwaveCheckout !== 'function') {
+                status.textContent = 'The Flutterwave window did not load. Check your connection, then try again.';
+                return;
+            }
+            status.textContent = 'Complete the payment in the Flutterwave window. Card and mobile money only.';
+            FlutterwaveCheckout(Object.assign({}, checkout, {
+                onclose: function () {
+                    status.textContent = 'Payment was not completed. Your order is saved. Open Flutterwave to try again.';
+                }
+            }));
+        }
+        document.getElementById('payLaunch').addEventListener('click', openShopPay);
+        openShopPay();
+    })();
+    </script>
 
 <?php elseif ($view === 'login'): ?>
     <div class="col-md-6 col-lg-5 mx-auto">
@@ -1408,6 +1471,36 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     } catch (e) {}
     document.addEventListener('visibilitychange', pull);
     setInterval(pull, 8000);
+})();
+</script>
+<script>
+window.shopFx = <?= json_encode($fxRates, JSON_UNESCAPED_SLASHES) ?>;
+window.formatShopMoney = function (amount) {
+    var zmw = Number(amount) || 0;
+    var code = window.shopCur || 'ZMW';
+    var per = window.shopFx && window.shopFx[code];
+    if (code === 'ZMW' || !per) return 'K' + zmw.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return code + ' ' + (zmw / per).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+window.setShopCurrency = function (code) {
+    if (code !== 'ZMW' && !(window.shopFx && window.shopFx[code])) code = 'ZMW';
+    window.shopCur = code;
+    try { localStorage.setItem('shopCur', code); } catch (e) {}
+    document.querySelectorAll('.js-money').forEach(function (el) {
+        el.textContent = formatShopMoney(el.dataset.zmw);
+    });
+    document.querySelectorAll('.cur-tab').forEach(function (btn) {
+        var on = btn.dataset.cur === code;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    var note = document.getElementById('chargeNote');
+    if (note) note.hidden = code === 'ZMW';
+};
+(function () {
+    var saved = 'ZMW';
+    try { saved = localStorage.getItem('shopCur') || 'ZMW'; } catch (e) {}
+    setShopCurrency(saved);
 })();
 </script>
 </body>

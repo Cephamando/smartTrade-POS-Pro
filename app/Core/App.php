@@ -43,8 +43,11 @@ final class App
         header('Permissions-Policy: geolocation=(), microphone=*, camera=*');
         header(
             "Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            . "img-src 'self' data: https://api.qrserver.com; font-src 'self' data: https://fonts.gstatic.com; "
-            . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            . "img-src 'self' data: https://api.qrserver.com https://checkout.flutterwave.com https://checkout-v3.flutterwave.com; "
+            . "font-src 'self' data: https://fonts.gstatic.com; "
+            . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            . "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.flutterwave.com https://checkout-v3.flutterwave.com https://checkout-v2.dev-flutterwave.com; "
+            . "connect-src 'self' https://checkout.flutterwave.com https://checkout-v3.flutterwave.com https://checkout-v2.dev-flutterwave.com https://api.flutterwave.com https://api.ravepay.co https://api.sgmpayment.com https://ravesandboxapi.flutterwave.com https://flw-events-ge.myflutterwave.com; "
             . "frame-src 'self' http: https:; child-src 'self' http: https:;"
         );
     }

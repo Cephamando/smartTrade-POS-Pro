@@ -194,7 +194,7 @@ final class SettingsController extends Controller
             'shop_title' => trim((string)($_POST['shop_title'] ?? '')),
             'shop_intro' => trim((string)($_POST['shop_intro'] ?? '')),
             'shop_phone' => trim((string)($_POST['shop_phone'] ?? '')),
-            'shop_pay_at_counter' => isset($_POST['shop_pay_at_counter']) ? '1' : '0',
+            'shop_pay_at_counter' => '0',
             'shop_pay_online' => isset($_POST['shop_pay_online']) ? '1' : '0',
             'shop_delivery' => isset($_POST['shop_delivery']) ? '1' : '0',
             'shop_delivery_fee' => (string)max(0, (float)($_POST['shop_delivery_fee'] ?? 0)),

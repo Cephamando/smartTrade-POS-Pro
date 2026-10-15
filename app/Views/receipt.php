@@ -16,6 +16,7 @@ $surchargeReason = (string)($sale['surcharge_reason'] ?? '');
 $postTips = [];
 try { $postTips = \App\Models\Tip::forSale((int)$sale['id']); } catch (\Throwable $e) { $postTips = []; }
 $postTipTotal = array_sum(array_map(fn($t) => (float)$t['amount'], $postTips));
+$gateway = $gateway ?? null;
 $calcDisc = ($displayTotal + $tipAmt + $surchargeAmt) - (float)$sale['final_total'];
 if ($calcDisc < 0.01) {
     $calcDisc = 0;
@@ -234,7 +235,11 @@ if ($isIncremental) {
                     <tr><td>Tendered:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>
                     <tr><td>Change:</td><td class="amount fw-bold">ZMW <?= number_format($sale['change_due'], 2) ?></td></tr>
                     <?php endif; ?>
-                    <?php if(!empty($sale['gateway_ref'])): ?>
+                    <?php if (!empty($gateway['lines'])): ?>
+                    <?php foreach ($gateway['lines'] as $line): ?>
+                    <tr><td><?= htmlspecialchars($line['label']) ?>:</td><td class="amount small"><?= htmlspecialchars($line['value']) ?></td></tr>
+                    <?php endforeach; ?>
+                    <?php elseif (!empty($sale['gateway_ref'])): ?>
                     <tr><td>Gateway ref:</td><td class="amount small"><?= htmlspecialchars($sale['gateway_ref']) ?></td></tr>
                     <?php endif; ?>
                     <?php if($postTipTotal > 0): ?>

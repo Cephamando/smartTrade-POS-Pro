@@ -131,17 +131,20 @@ Until that approval, the screen says the shift is pending. **Go to Dashboard** i
 
 Single pay methods:
 
-- Cash, Card, MTN Money, Airtel Money, Zamtel Money
-- **Pending** (Pro and above) — put the order on a tab instead of taking money now
-- **Online** (Enterprise) — online delivery app
+- **Cash**
+- **Flutterwave (Card / Mobile Money)** when Payments is switched on. Card and mobile money are taken here, not as separate buttons.
+- **Online Delivery App** (Enterprise)
+- **Put on Tab** (Pro and above) — the order waits instead of taking money now
 
-**Split pay** (everything above Lite) lets you add several methods. One row can be **Other** with a name you type (bank transfer, cheque, voucher).
+**Split pay** (everything above Lite) starts with a cash line and a Flutterwave line. Add another line for cash, Flutterwave, the delivery-app method, or **Other** with a name you type (bank transfer, cheque, voucher). The status beside the heading shows whether the lines are short, cover the bill, or leave change. The Flutterwave panel under the lines charges only the Flutterwave amount, and **Complete transaction** stays locked until Flutterwave confirms that portion.
 
 **Tip** accepts an amount or 5%, 10%, or 15% of the total.
 
 **Surcharge** adds an extra charge to the bill with a reason — for example a guest who finishes a meal and then asks for it to be packed. Pick the reason from the drop-down in the payment window; each reason carries its own default amount or percentage, which you can change for this sale. **Other** lets you type a reason. The surcharge prints on the receipt as its own line, is included in the ZRA invoice, and is listed by reason in Master Reports. Administrators maintain the list under **Management → POS Surcharge Reasons** (name, default amount or percent, order, active).
 
-**Flutterwave (Card / Mobile Money)** appears as a payment method when the gateway is switched on under **Payments & Currency**. Choose it, then either **Send MoMo prompt** to the guest's phone (MTN, Airtel, Zamtel) or **Card / other** to open the Flutterwave window. The sale completes once Flutterwave confirms; the gateway reference is kept with the sale. When test keys are in use the button shows **TEST MODE**.
+**Flutterwave.** Choose it, pick **MTN**, **Airtel**, or **Zamtel**, type the number the guest will pay from, and tap **Send MoMo prompt**. Or tap **Card / other** to open the Flutterwave window. The sale completes once Flutterwave confirms. When test keys are in use the panel shows **TEST MODE**.
+
+The receipt then prints the Flutterwave detail: the **network**, the **number** paid from, and the **network transaction ID** (the reference on the customer's phone message). If the network does not send its own ID, the receipt shows Flutterwave's transaction ID instead. A card payment prints the card type and last four digits with that transaction ID. The same lines appear on the **X-Read**, the **Z-Read**, and **Master Reports** (the Payment column on Receipts, and the breakdown when you open a receipt).
 
 **Foreign currency** — tap **Paying with foreign cash?** in the payment window, pick USD, ZAR, EUR, GBP (or any currency enabled under Currency settings), and type the amount the guest hands over. The kwacha equivalent fills in as the tendered amount and change is shown in ZMW. Rates come from a live feed and are refreshed on the schedule set in **Payments & Currency**; the amount due is also shown in the enabled currencies for reference.
 
@@ -352,13 +355,13 @@ V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted 
 - Money roles (cashier, bartender, manager, administrator, developer) see their own shift: opening float, sales, payouts, expected drawer.
 - Managers also get **Master Shift Reports**: every shift, filterable by date and staff member. Open a shift to see its paid sales.
 - Starting and ending a shift can also be done from this page, with the same approval rules as the POS.
-- **Print shift** is the paper X-Read for one shift.
+- **Print shift** is the paper X-Read for one shift. Under the sales totals, **Flutterwave** lists each card or mobile-money payment with the receipt number, network, number paid from, and transaction ID.
 
 ### 10.2 End of day (Z-Read)
 
 **Management → End of Day (Z-Read).**
 
-Pick the date, time from, time to, and one workstation, then **Filter**. The report is the day’s takings for that window: totals by payment method, sales, and the figures you print for the close. **Print Z-Read** prints only the report.
+Pick the date, time from, time to, and one workstation, then **Filter**. The report is the day’s takings for that window: totals by payment method, a **Flutterwave payments** table (network, number, and transaction ID for each receipt), sales, and the figures you print for the close. **Print Z-Read** prints only the report.
 
 Z-Read is the shop’s end-of-day record. It is not the ZRA VAT return.
 
@@ -429,7 +432,7 @@ One serial is one keystore and one receipt sequence. Keep a single live till PC 
 
 | Tab | What it lists | Tap a row |
 |---|---|---|
-| **Receipts** | Each sale in the period: receipt number, date and time, employee, store, total. Refunds carry a red **Refund** badge. | Opens the line breakdown (item, qty, total; voided and refunded lines are labelled). **View** opens the printable receipt. The red arrow icon starts a refund (administrators, managers, developers; paid sales with a positive total only). |
+| **Receipts** | Each sale in the period: receipt number, date and time, employee, store, payment, total. Flutterwave rows also show the network, the number paid from, and the transaction ID. Refunds carry a red **Refund** badge. | Opens the line breakdown (item, qty, total; voided and refunded lines are labelled). A Flutterwave payment shows its network, number, and transaction ID above the lines. **View** opens the printable receipt. The red arrow icon starts a refund (administrators, managers, developers; paid sales with a positive total only). |
 | **Items** | Each product sold: name, SKU, items sold, gross sales. Sorted by revenue. | — |
 | **Categories** | Each category: items sold, gross sales. Products without a category show as Uncategorized. | — |
 | **Taxes** | VAT at 16%: taxable sales and tax amount, worked back from paid totals. | Opens the tax drilldown: every receipt in the period with its taxable amount and tax. **Print Breakdown** prints only that list. |
@@ -494,7 +497,7 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **Currency** — switch the converter on, choose which currencies the POS shows (USD, ZAR, EUR, GBP, and others), and how often rates refresh. Live rates are pulled against the kwacha and cached. You may fix a **house rate** for any currency; it overrides the live rate. **Refresh live rates now** fetches immediately. The quick converter on the tab converts any amount between enabled currencies.
 
-**Customer ordering** — the customer portal (section 16): switch it on, pick the location that fulfils web orders, title and intro text, contact phone, minimum order, delivery fee, and which options customers get (pay at counter, pay online, delivery). **Open page** shows the live portal.
+**Customer ordering** — the customer portal (section 16): switch it on, pick the location that fulfils web orders, title and intro text, contact phone, minimum order, delivery fee, Flutterwave payment, and delivery. Online orders are paid with Flutterwave only (card or Zambia mobile money). **Open page** shows the live portal.
 
 **Logo & banners** — the brand logo, shop landing page photo, promo slideshow pictures, and menu item photos. See the Branding guide.
 
@@ -533,7 +536,7 @@ How a slip is worked out: basic (pro-rated for days or hours when the pay type c
 
 The storefront runs on `index.php?page=shop` and does not need a staff login.
 
-- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. They can pay on delivery/pickup or use Flutterwave online. The order shows up in POS under Web Orders.
+- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order shows up in POS under Web Orders.
 - **Promo strip:** A scrolling bar shows promotional images. If no events are published, it cycles the promo-folder slides. If published events exist, it advertises the events instead.
 - **Events:** If the event planner (Management → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
 
