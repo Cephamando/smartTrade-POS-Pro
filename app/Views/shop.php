@@ -32,7 +32,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <title><?= htmlspecialchars($storeName) ?></title>
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&family=Source+Sans+3:wght@400;600;700&display=swap">
     <style>
         :root { --accent: #111111; --dark: #0c0c0e; --on-accent: #ffffff; --sun: #e2b04a; --gold: #c9a24a; --ink: #141414; --paper: #ffffff; --card: #ffffff; }
         * { -webkit-tap-highlight-color: transparent; }
@@ -111,7 +111,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .hero-pill { background: linear-gradient(180deg, #f3c65a, #c48416); color: #1a1206; border: 1px solid #f8e2a2; border-radius: 999px; padding: .55rem 1.15rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: .78rem; text-decoration: none; box-shadow: 0 8px 18px rgba(0,0,0,.35); }
         .hero-pill:hover { background: linear-gradient(180deg, #ffe08a, #d9a02a); color: #1a1206; }
         .club-hero .event-advert, .club-hero .promo-banner { margin-top: 22px; text-align: left; }
-        .shop-board { display: grid; grid-template-columns: minmax(168px, 240px) minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 28px; }
+        .shop-board { display: block; margin-top: 18px; }
         .menu-top { background: var(--sun); margin: -.5rem calc(50% - 50vw) 18px; padding: 28px max(16px, calc(50vw - 560px)) 22px; }
         .menu-top h2 { font-size: clamp(2.6rem, 6vw, 4.2rem); font-weight: 700; line-height: .95; margin: 0; }
         .cat-panel { position: sticky; top: 72px; background: #111; color: #fff; border-radius: 28px; padding: 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, .12); max-height: calc(100vh - 96px); overflow: auto; }
@@ -135,7 +135,79 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .search-pill { background: #fff; border-radius: 999px; box-shadow: 0 8px 24px rgba(0, 0, 0, .06); overflow: hidden; border: 1px solid #efe7c4; }
         .search-pill .form-control, .search-pill .input-group-text { border: 0; background: transparent; }
         .search-pill .form-control:focus { box-shadow: none; }
+        .store-kicker { margin: 18px 0 10px; letter-spacing: .18em; text-transform: uppercase; font-size: .72rem; font-weight: 800; }
+        .store-tabs { display: flex; gap: 10px; justify-content: flex-start; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; scrollbar-width: none; }
+        .store-tabs::-webkit-scrollbar { display: none; }
+        .store-tab { flex: 0 0 auto; scroll-snap-align: center; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: #1a1206; background: rgba(255,255,255,.42); border: 1px solid rgba(26,18,6,.14); border-radius: 999px; padding: .62rem 1.05rem; font-weight: 800; white-space: nowrap; }
+        .store-tab i { color: #8a5a10; }
+        .store-tab.is-on { background: #111; color: var(--sun); border-color: #111; box-shadow: 0 10px 22px rgba(0,0,0,.18); }
+        .store-tab.is-on i { color: var(--sun); }
+        .store-tab:hover { background: #fff; color: #1a1206; }
+        .store-tab.is-on:hover { background: #111; color: var(--sun); }
+        .menu-tools { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+        .ebay-bar { display: flex; gap: 10px; align-items: stretch; }
+        .cat-drop { position: relative; flex: 0 0 auto; }
+        .cat-drop-btn { height: 100%; min-height: 46px; border: 1px solid #efe7c4; background: #fff; border-radius: 999px; padding: 0 16px; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.06); }
+        .cat-drop-btn[aria-expanded="true"] { background: #111; color: var(--sun); }
+        .cat-menu { position: absolute; z-index: 30; top: calc(100% + 8px); left: 0; width: min(860px, calc(100vw - 32px)); background: #fff; border-radius: 18px; box-shadow: 0 18px 48px rgba(0,0,0,.16); padding: 16px 18px 18px; max-height: min(70vh, 520px); overflow: auto; }
+        .cat-menu[hidden] { display: none; }
+        .cat-all { display: block; width: 100%; text-align: left; border: 0; background: transparent; font-weight: 800; padding: 6px 0 12px; margin-bottom: 8px; border-bottom: 1px solid #f3edd4; }
+        .cat-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 28px; }
+        .cat-group-btn, .cat-child { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 3px 0; border-radius: 0; color: #3d3428; }
+        .cat-group-btn { font-weight: 800; color: #111; margin-bottom: 4px; }
+        .cat-child { font-weight: 600; padding-left: 14px; }
+        .cat-child::before { content: "›"; margin-right: 6px; color: #c9a24a; font-weight: 800; }
+        .cat-child .count, .cat-all .count { margin-left: 6px; font-size: .78rem; opacity: .55; font-weight: 700; }
+        .cat-all:hover, .cat-group-btn:hover, .cat-child:hover, .cat-all.active, .cat-group-btn.active, .cat-child.active { color: #8a5a10; background: transparent; }
+        .avail-tabs { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+        .avail-tab { border: 1px solid #efe7c4; background: #fff; color: #5c5344; border-radius: 999px; padding: .5rem .95rem; font-weight: 800; box-shadow: 0 8px 18px rgba(0,0,0,.04); white-space: nowrap; flex: 0 0 auto; }
+        .avail-tab span { margin-left: 6px; font-size: .78rem; opacity: .65; }
+        .avail-tab.is-on { background: #111; color: var(--sun); border-color: #111; }
+        .avail-tab.is-on span { opacity: .9; }
+        @media (min-width: 768px) { .store-tabs { justify-content: center; flex-wrap: wrap; overflow: visible; } }
         .item-card { border: 0; border-radius: 28px; background: #fff; box-shadow: 0 12px 30px rgba(0, 0, 0, .08); overflow: hidden; }
+        .menu-rail { margin: 6px 0 28px; }
+        .menu-rail.is-empty { display: none; }
+        #menuRails.is-side { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 28px 48px; }
+        #menuRails.is-side .menu-rail { margin: 0; }
+        #menuRails.is-side .rail-track.is-one .dish-tile,
+        #menuRails.is-side .rail-track.is-pair .dish-tile,
+        #menuRails.is-side .rail-track.is-trio .dish-tile,
+        #menuRails.is-side .rail-track.is-quad .dish-tile { flex-basis: 176px; }
+        #menuRails.is-side .dish-photo { height: 148px; }
+        .rail-title { margin: 0 0 14px; text-align: center; font-style: italic; font-weight: 600; font-size: clamp(1.7rem, 3vw, 2.35rem); }
+        .rail-kicker { display: block; margin-bottom: 2px; font-family: "Source Sans 3", "Segoe UI", sans-serif; font-style: normal; font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #8a5a10; }
+        .rail-kicker[hidden] { display: none; }
+        .menu-crumb { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin: 2px 0 14px; font-weight: 700; color: #5c5344; }
+        .menu-crumb[hidden] { display: none; }
+        .menu-crumb button { border: 0; background: transparent; padding: 0; font-weight: 800; color: #8a5a10; }
+        .menu-crumb button:hover { text-decoration: underline; }
+        .menu-crumb .crumb-here { color: #111; font-weight: 800; }
+        .menu-crumb .crumb-sep { opacity: .4; }
+        .rail-frame { position: relative; }
+        .rail-track { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 6px 4px 18px; }
+        .rail-track.is-few { justify-content: center; overflow: visible; flex-wrap: wrap; scroll-snap-type: none; }
+        .rail-track.is-one .dish-tile { flex-basis: min(280px, 100%); }
+        .rail-track.is-one .dish-photo { height: 210px; }
+        .rail-track.is-pair .dish-tile { flex-basis: 220px; }
+        .rail-track.is-pair .dish-photo { height: 180px; }
+        .rail-track.is-trio .dish-tile { flex-basis: 200px; }
+        .rail-track.is-quad .dish-tile { flex-basis: 190px; }
+        .rail-track::-webkit-scrollbar { display: none; }
+        .dish-tile { flex: 0 0 176px; scroll-snap-align: start; background: #fff; border-radius: 22px; box-shadow: 0 12px 28px rgba(40, 24, 4, .08); overflow: hidden; text-align: center; }
+        .dish-photo { height: 148px; background: #161616 center/cover no-repeat; position: relative; }
+        .dish-photo i { position: absolute; right: 12px; top: 10px; font-size: 2.6rem; color: rgba(255,255,255,.28); }
+        .dish-chip { position: absolute; left: 10px; bottom: 10px; background: var(--sun); color: #111; border-radius: 999px; padding: 2px 8px; font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+        .dish-copy { padding: 12px 12px 14px; }
+        .dish-tile .item-name { font-size: 1.12rem; min-height: 2.4em; }
+        .dish-tile .price { display: block; margin-top: 4px; }
+        .dish-add { width: 36px; height: 36px; margin-top: 10px; border: 0; border-radius: 50%; background: #111; color: var(--sun); font-size: 1.15rem; line-height: 1; box-shadow: 0 8px 16px rgba(0,0,0,.16); }
+        .dish-add:hover { background: #000; color: #ffe08a; }
+        .dish-sold { display: inline-block; margin-top: 10px; color: #8a7b62; font-size: .78rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+        .dish-tile.unavailable { opacity: .72; }
+        .rail-next { position: absolute; right: -4px; top: 58px; z-index: 2; width: 52px; height: 52px; border: 0; border-radius: 50%; background: #fff; color: #111; box-shadow: 0 10px 24px rgba(0,0,0,.16); font-size: 1.35rem; }
+        .rail-next:hover { background: var(--sun); }
+        .rail-next[hidden] { display: none; }
         .menu-pager { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 22px 0 6px; }
         .menu-pager[hidden] { display: none; }
         .menu-pager-status { margin: 0; font-weight: 700; color: #5c5344; }
@@ -181,7 +253,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .shop-foot strong { font-family: "Playfair Display", Georgia, serif; font-size: 1.35rem; }
         .list-group-item { border-color: #f3edd4; }
         @media (prefers-reduced-motion: reduce) { .dish-flip { transition: none; } }
-        @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .dish-strip { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .event-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .shop-board { grid-template-columns: minmax(118px, 42%) minmax(0, 1fr); gap: 10px; } .cat-panel { top: 64px; padding: 8px; border-radius: 16px; } .cat-tab { font-size: .82rem; padding: .45rem .5rem; } .shop-foot { margin-bottom: -110px; } }
+        @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .dish-strip { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .event-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .ebay-bar { flex-direction: column; } .cat-drop-btn { width: 100%; justify-content: space-between; } .cat-columns { grid-template-columns: 1fr 1fr; } .cat-menu { width: calc(100vw - 24px); } .store-tab, .avail-tab { padding: .45rem .75rem; font-size: .82rem; } .avail-tabs { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; } .avail-tabs::-webkit-scrollbar { display: none; } .dish-tile { flex-basis: 148px; } .rail-next { width: 42px; height: 42px; top: 52px; } .shop-foot { margin-bottom: -110px; } }
     </style>
 </head>
 <body class="<?= $view === 'home' ? 'is-home' : ($view === 'menu' ? 'is-menu' : '') ?>">
@@ -413,11 +485,16 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             return 'More';
         };
         $groups = [];
+        $inStockCount = 0;
         foreach ($products as $i => $p) {
             $family = $shopFamily((string)$p['category'], (string)($p['parent_name'] ?? ''));
             $products[$i]['family'] = $family;
             $groups[$family][(string)$p['category']] = ($groups[$family][(string)$p['category']] ?? 0) + 1;
+            if (!empty($p['available'])) {
+                $inStockCount++;
+            }
         }
+        $soldOutCount = count($products) - $inStockCount;
         $menuGroups = [];
         foreach (['Food', 'Beer & cider', 'Wine', 'Spirits', 'Cocktails', 'Soft drinks', 'Shisha', 'More'] as $familyName) {
             if (empty($groups[$familyName])) continue;
@@ -427,77 +504,89 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     ?>
     <section class="menu-top text-center">
         <h2>Order online</h2>
+        <?php if ($shopLocations): ?>
+        <p class="store-kicker">Choose a store</p>
+        <div class="store-tabs" role="tablist" aria-label="Store">
+            <?php foreach ($shopLocations as $locRow):
+                $storeOn = (int)$locRow['id'] === $shopLocationId;
+            ?>
+            <a class="store-tab<?= $storeOn ? ' is-on' : '' ?>" role="tab" aria-selected="<?= $storeOn ? 'true' : 'false' ?>" href="index.php?page=shop&amp;view=menu&amp;loc=<?= (int)$locRow['id'] ?>" onclick="return goStore(event, this)"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i><span><?= htmlspecialchars($locRow['name']) ?></span></a>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </section>
     <div class="shop-board">
-        <aside class="cat-panel" aria-label="Menu categories">
-            <div class="cat-panel-title">Categories</div>
-            <button type="button" class="cat-tab cat-all active" data-cat="" onclick="pickAll(this)">All <span class="count"><?= count($products) ?></span></button>
-            <?php foreach ($menuGroups as $familyName => $kids):
-                $familyCount = array_sum($kids);
-            ?>
-            <div class="cat-group">
-                <button type="button" class="cat-group-btn" data-group="<?= htmlspecialchars($familyName) ?>" aria-expanded="false" onclick="pickGroup(this)">
-                    <span><?= htmlspecialchars($familyName) ?></span>
-                    <span class="count"><?= (int)$familyCount ?> <i class="bi bi-chevron-down cat-chevron"></i></span>
+    <div class="menu-tools">
+        <div class="ebay-bar">
+            <div class="cat-drop">
+                <button type="button" class="cat-drop-btn" aria-expanded="false" aria-haspopup="true" onclick="toggleCatMenu(this)">
+                    <i class="bi bi-grid" aria-hidden="true"></i>
+                    <span id="catDropLabel">Shop by category</span>
+                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
                 </button>
-                <div class="cat-children" hidden>
-                    <?php foreach ($kids as $cat => $n): ?>
-                    <button type="button" class="cat-tab cat-child" data-cat="<?= htmlspecialchars($cat) ?>" data-group="<?= htmlspecialchars($familyName) ?>" onclick="pickCat(this)"><span><?= htmlspecialchars($cat) ?></span> <span class="count"><?= (int)$n ?></span></button>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php endforeach; ?>
-            <hr>
-            <button type="button" class="cat-tab" id="stockChip" data-stock="" onclick="toggleStock(this)"><span>In stock</span></button>
-        </aside>
-        <div>
-    <div class="row g-2 mb-3 align-items-center">
-        <?php if (count($shopLocations) > 1): ?>
-        <div class="col-12 col-md-4">
-            <label class="form-label small fw-bold text-muted mb-1" for="shopLoc">STORE</label>
-            <select id="shopLoc" class="form-select" onchange="if (this.value) window.location = 'index.php?page=shop&amp;loc=' + encodeURIComponent(this.value)">
-                <?php foreach ($shopLocations as $locRow): ?>
-                <option value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === $shopLocationId ? 'selected' : '' ?>><?= htmlspecialchars($locRow['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <?php elseif ($shopLocationName !== ''): ?>
-        <div class="col-12"><span class="badge rounded-pill text-bg-light border"><i class="bi bi-geo-alt-fill"></i> <?= htmlspecialchars($shopLocationName) ?></span></div>
-        <?php endif; ?>
-        <div class="<?= count($shopLocations) > 1 ? 'col-12 col-md-8' : 'col-12' ?>">
-            <label class="form-label small fw-bold text-muted mb-1" for="menuSearch">SEARCH</label>
-            <div class="input-group search-pill">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="search" id="menuSearch" class="form-control" placeholder="Name, category or code…" oninput="filterMenu()">
-            </div>
-        </div>
-    </div>
-    <div class="row g-3" id="menuGrid">
-        <?php if (!$products): ?><div class="col-12 text-center text-muted py-5">The menu is being updated. Please check back shortly.</div><?php endif; ?>
-        <?php foreach ($products as $i => $p): ?>
-        <div class="col-12 col-sm-6 menu-item<?= $i >= 8 ? ' d-none' : '' ?>" data-id="<?= (int)$p['id'] ?>" data-cat="<?= htmlspecialchars($p['category']) ?>" data-group="<?= htmlspecialchars((string)($p['family'] ?? '')) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
-            <div class="card item-card h-100 <?= $p['available'] ? '' : 'unavailable' ?>">
-                <?php $photo = \App\Helpers\Media::url((string)($p['image_path'] ?? '')); ?>
-                <?php if ($photo !== ''): ?>
-                <div class="item-face item-photo" style="background-image:linear-gradient(to top, rgba(20,10,4,.45), transparent 55%), url('<?= htmlspecialchars($photo, ENT_QUOTES) ?>')"><span><?= htmlspecialchars($p['category'] ?: 'Menu') ?></span></div>
-                <?php else: ?>
-                <div class="item-face"><i class="bi <?= $shopIcon((string)$p['category']) ?>"></i><span><?= htmlspecialchars($p['category'] ?: 'Menu') ?></span></div>
-                <?php endif; ?>
-                <div class="card-body d-flex flex-column pt-3">
-                    <div class="item-name flex-grow-1"><?= htmlspecialchars($p['name']) ?></div>
-                    <div class="d-flex justify-content-between align-items-center mt-3">
-                        <span class="price"><?= $money($p['price']) ?></span>
-                        <?php if ($p['available']): ?>
-                        <button class="btn btn-accent btn-sm rounded-pill px-3" onclick="addToCart(<?= (int)$p['id'] ?>, this)"><i class="bi bi-plus-lg"></i> Add</button>
-                        <?php else: ?><span class="badge rounded-pill text-bg-secondary">Sold out</span><?php endif; ?>
+                <div class="cat-menu" hidden>
+                    <button type="button" class="cat-all active" data-cat="" onclick="pickAll(this)">All categories <span class="count"><?= count($products) ?></span></button>
+                    <div class="cat-columns">
+                        <?php foreach ($menuGroups as $familyName => $kids): ?>
+                        <div>
+                            <button type="button" class="cat-group-btn" data-group="<?= htmlspecialchars($familyName) ?>" onclick="pickGroup(this)"><?= htmlspecialchars($familyName) ?></button>
+                            <?php foreach ($kids as $cat => $n): ?>
+                            <button type="button" class="cat-child" data-cat="<?= htmlspecialchars($cat) ?>" data-group="<?= htmlspecialchars($familyName) ?>" onclick="pickCat(this)"><?= htmlspecialchars($cat) ?> <span class="count"><?= (int)$n ?></span></button>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
             </div>
+            <label class="visually-hidden" for="menuSearch">Search the menu</label>
+            <div class="input-group search-pill flex-grow-1">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="search" id="menuSearch" class="form-control" placeholder="Search the menu…" oninput="filterMenu()">
+            </div>
         </div>
-        <?php endforeach; ?>
-        <div class="col-12 text-center text-muted py-5 d-none" id="menuEmpty">Nothing matches that search.</div>
+        <div class="avail-tabs" role="tablist" aria-label="Availability">
+            <button type="button" class="avail-tab is-on" data-avail="" role="tab" aria-selected="true" onclick="setAvail(this)">All <span><?= count($products) ?></span></button>
+            <button type="button" class="avail-tab" data-avail="1" role="tab" aria-selected="false" onclick="setAvail(this)">In stock <span><?= (int)$inStockCount ?></span></button>
+            <button type="button" class="avail-tab" data-avail="0" role="tab" aria-selected="false" onclick="setAvail(this)">Sold out <span><?= (int)$soldOutCount ?></span></button>
+        </div>
     </div>
-    <nav class="menu-pager" id="menuPager" aria-label="Menu pages" hidden></nav>
+    <nav class="menu-crumb" id="menuCrumb" aria-label="Breadcrumb" hidden></nav>
+    <div id="menuRails">
+        <?php if (!$products): ?><div class="text-center text-muted py-5">The menu is being updated. Please check back shortly.</div><?php endif; ?>
+        <?php
+        $rails = [];
+        foreach ($products as $p) {
+            $rails[(string)($p['family'] ?? 'More')][] = $p;
+        }
+        foreach ($menuGroups as $familyName => $kids):
+            if (empty($rails[$familyName])) continue;
+        ?>
+        <section class="menu-rail" data-group="<?= htmlspecialchars($familyName) ?>">
+            <h3 class="rail-title"><span class="rail-kicker" hidden></span><span class="rail-name"><?= htmlspecialchars($familyName) ?></span></h3>
+            <div class="rail-frame">
+                <div class="rail-track">
+                    <?php foreach ($rails[$familyName] as $p): ?>
+                    <?php $photo = \App\Helpers\Media::url((string)($p['image_path'] ?? '')); ?>
+                    <article class="menu-item dish-tile<?= !empty($p['available']) ? '' : ' unavailable' ?>" data-id="<?= (int)$p['id'] ?>" data-cat="<?= htmlspecialchars($p['category']) ?>" data-group="<?= htmlspecialchars((string)($p['family'] ?? '')) ?>" data-available="<?= !empty($p['available']) ? '1' : '0' ?>" data-name="<?= htmlspecialchars(strtolower($p['name'] . ' ' . $p['category'] . ' ' . $p['sku'] . ' ' . $shopLocationName)) ?>">
+                        <div class="dish-photo"<?php if ($photo !== ''): ?> style="background-image:url('<?= htmlspecialchars($photo, ENT_QUOTES) ?>')"<?php endif; ?>>
+                            <?php if ($photo === ''): ?><i class="bi <?= $shopIcon((string)$p['category']) ?>"></i><?php endif; ?>
+                            <span class="dish-chip"><?= htmlspecialchars($p['category'] ?: 'Menu') ?></span>
+                        </div>
+                        <div class="dish-copy">
+                            <div class="item-name"><?= htmlspecialchars($p['name']) ?></div>
+                            <span class="price"><?= $money($p['price']) ?></span>
+                            <?php if ($p['available']): ?>
+                            <button type="button" class="dish-add" aria-label="Add <?= htmlspecialchars($p['name']) ?>" onclick="addToCart(<?= (int)$p['id'] ?>, this)"><i class="bi bi-plus-lg"></i></button>
+                            <?php else: ?><span class="dish-sold">Sold out</span><?php endif; ?>
+                        </div>
+                    </article>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="rail-next" aria-label="More <?= htmlspecialchars($familyName) ?>" onclick="scrollRail(this)"><i class="bi bi-chevron-right"></i></button>
+            </div>
+        </section>
+        <?php endforeach; ?>
+        <div class="text-center text-muted py-5 d-none" id="menuEmpty">Nothing matches that search.</div>
     </div>
     </div>
     <div class="cart-bar <?= $cartCount ? '' : 'd-none' ?>" id="cartBar">
@@ -508,122 +597,181 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </div>
     <script>
     function clearCatActive() { document.querySelectorAll('.cat-all, .cat-group-btn, .cat-child').forEach(function (b) { b.classList.remove('active'); }); }
-    function closeGroups() {
-        document.querySelectorAll('.cat-group-btn').forEach(function (b) {
-            b.setAttribute('aria-expanded', 'false');
-            var kids = b.parentElement.querySelector('.cat-children');
-            if (kids) kids.hidden = true;
-        });
+    function closeCatMenu() {
+        var menu = document.querySelector('.cat-menu');
+        var btn = document.querySelector('.cat-drop-btn');
+        if (menu) menu.hidden = true;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
     }
-    function pickAll(btn) { clearCatActive(); closeGroups(); btn.classList.add('active'); filterMenu(); }
-    function pickGroup(btn) {
-        var wasOpen = btn.classList.contains('active') && btn.getAttribute('aria-expanded') === 'true';
-        clearCatActive();
-        closeGroups();
-        if (wasOpen) {
-            document.querySelector('.cat-all').classList.add('active');
-        } else {
-            btn.classList.add('active');
-            btn.setAttribute('aria-expanded', 'true');
-            btn.parentElement.querySelector('.cat-children').hidden = false;
-        }
-        filterMenu();
+    function toggleCatMenu(btn) {
+        var menu = btn.parentElement.querySelector('.cat-menu');
+        var open = menu.hidden;
+        menu.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-    function pickCat(btn) {
+    function chooseCat(btn, label) {
         clearCatActive();
-        closeGroups();
         btn.classList.add('active');
-        var box = btn.closest('.cat-children');
-        if (box) {
-            box.hidden = false;
-            var head = box.parentElement.querySelector('.cat-group-btn');
-            if (head) head.setAttribute('aria-expanded', 'true');
+        var name = document.getElementById('catDropLabel');
+        if (name) name.textContent = label;
+        closeCatMenu();
+        filterMenu();
+    }
+    function pickAll(btn) { chooseCat(btn, 'Shop by category'); }
+    function pickGroup(btn) { chooseCat(btn, btn.dataset.group || 'Shop by category'); }
+    function pickCat(btn) { chooseCat(btn, (btn.dataset.group ? btn.dataset.group + ' › ' : '') + (btn.dataset.cat || 'Shop by category')); }
+    function crumbGroup(name) {
+        var target = Array.from(document.querySelectorAll('.cat-group-btn')).find(function (b) { return b.dataset.group === name; });
+        if (target) pickGroup(target);
+    }
+    function renderCrumb(cat, group) {
+        var nav = document.getElementById('menuCrumb');
+        if (!nav) return;
+        if (!cat && !group) { nav.hidden = true; nav.innerHTML = ''; return; }
+        nav.innerHTML = '';
+        var all = document.createElement('button');
+        all.type = 'button';
+        all.textContent = 'Menu';
+        all.addEventListener('click', function () { pickAll(document.querySelector('.cat-all')); });
+        nav.appendChild(all);
+        function sep() {
+            var s = document.createElement('span');
+            s.className = 'crumb-sep';
+            s.setAttribute('aria-hidden', 'true');
+            s.textContent = '/';
+            nav.appendChild(s);
+        }
+        if (group) {
+            sep();
+            if (cat) {
+                var parent = document.createElement('button');
+                parent.type = 'button';
+                parent.textContent = group;
+                parent.addEventListener('click', function () { crumbGroup(group); });
+                nav.appendChild(parent);
+            } else {
+                var here = document.createElement('span');
+                here.className = 'crumb-here';
+                here.setAttribute('aria-current', 'page');
+                here.textContent = group;
+                nav.appendChild(here);
+            }
+        }
+        if (cat) {
+            sep();
+            var current = document.createElement('span');
+            current.className = 'crumb-here';
+            current.setAttribute('aria-current', 'page');
+            current.textContent = cat;
+            nav.appendChild(current);
+        }
+        nav.hidden = false;
+    }
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.cat-drop')) closeCatMenu();
+    });
+    function goStore(e, link) {
+        var avail = ((document.querySelector('.avail-tab.is-on') || {}).dataset || {}).avail || '';
+        if (avail !== '1' && avail !== '0') return true;
+        e.preventDefault();
+        window.location = link.getAttribute('href') + '&avail=' + avail;
+        return false;
+    }
+    function setAvail(btn) {
+        document.querySelectorAll('.avail-tab').forEach(function (tab) {
+            var on = tab === btn;
+            tab.classList.toggle('is-on', on);
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        if (window.history && window.history.replaceState) {
+            var url = new URL(window.location.href);
+            if (btn.dataset.avail === '1' || btn.dataset.avail === '0') url.searchParams.set('avail', btn.dataset.avail);
+            else url.searchParams.delete('avail');
+            window.history.replaceState(null, '', url);
         }
         filterMenu();
     }
-    function toggleStock(btn) { const on = btn.dataset.stock !== '1'; btn.dataset.stock = on ? '1' : ''; btn.classList.toggle('active', on); filterMenu(); }
-    var menuPage = 1;
-    var menuPageSize = 8;
-    function filterMenu(keepPage) {
-        if (keepPage !== true) menuPage = 1;
+    function scrollRail(btn) {
+        var track = btn.parentElement.querySelector('.rail-track');
+        if (!track) return;
+        var card = track.querySelector('.menu-item:not(.d-none)');
+        var step = card ? card.getBoundingClientRect().width + 16 : 192;
+        var atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 8;
+        track.scrollTo({ left: atEnd ? 0 : track.scrollLeft + step * 2, behavior: 'smooth' });
+    }
+    function filterMenu() {
         const child = document.querySelector('.cat-child.active');
         const groupBtn = document.querySelector('.cat-group-btn.active');
         const cat = child ? (child.dataset.cat || '') : '';
-        const group = !child && groupBtn ? (groupBtn.dataset.group || '') : '';
-        const stockOnly = (document.getElementById('stockChip') || {}).dataset ? document.getElementById('stockChip').dataset.stock === '1' : false;
+        const group = child ? (child.dataset.group || '') : (groupBtn ? (groupBtn.dataset.group || '') : '');
+        renderCrumb(cat, group);
+        const avail = ((document.querySelector('.avail-tab.is-on') || {}).dataset || {}).avail || '';
         const words = (document.getElementById('menuSearch').value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
-        const matches = [];
+        var shown = 0;
         document.querySelectorAll('.menu-item').forEach(function (el) {
             const okCat = (cat === '' && group === '') || (cat !== '' && el.dataset.cat === cat) || (cat === '' && group !== '' && el.dataset.group === group);
-            const okStock = !stockOnly || el.dataset.available === '1';
+            const okStock = avail === '' || el.dataset.available === avail;
             const hay = el.dataset.name || '';
             const okQ = !words.length || words.every(function (w) { return hay.indexOf(w) !== -1; });
-            if (okCat && okStock && okQ) matches.push(el);
-            else el.classList.add('d-none');
+            const ok = okCat && okStock && okQ;
+            el.classList.toggle('d-none', !ok);
+            if (ok) shown++;
         });
-        const pages = Math.max(1, Math.ceil(matches.length / menuPageSize));
-        if (menuPage > pages) menuPage = pages;
-        const start = (menuPage - 1) * menuPageSize;
-        matches.forEach(function (el, i) {
-            el.classList.toggle('d-none', i < start || i >= start + menuPageSize);
+        document.querySelectorAll('.menu-rail').forEach(function (rail) {
+            var visible = rail.querySelectorAll('.menu-item:not(.d-none)');
+            rail.classList.toggle('is-empty', visible.length === 0);
+            var titleName = rail.querySelector('.rail-name');
+            var kicker = rail.querySelector('.rail-kicker');
+            if (titleName) titleName.textContent = (cat && rail.dataset.group === group) ? cat : (rail.dataset.group || '');
+            if (kicker) {
+                var showSub = cat !== '' && rail.dataset.group === group;
+                kicker.textContent = showSub ? (rail.dataset.group || '') : '';
+                kicker.hidden = !showSub;
+            }
+            var track = rail.querySelector('.rail-track');
+            var next = rail.querySelector('.rail-next');
+            if (!track || !next) return;
+            track.classList.remove('is-few', 'is-one', 'is-pair', 'is-trio', 'is-quad');
+            if (!visible.length) { next.hidden = true; return; }
+            var count = visible.length;
+            if (count === 1) track.classList.add('is-few', 'is-one');
+            else if (count === 2) track.classList.add('is-few', 'is-pair');
+            else if (count === 3) track.classList.add('is-few', 'is-trio');
+            else if (count === 4) track.classList.add('is-few', 'is-quad');
+            track.scrollLeft = 0;
+            track.getBoundingClientRect();
+            if (count >= 4 && track.scrollWidth > track.clientWidth + 8) track.classList.remove('is-few', 'is-quad');
+            next.hidden = track.classList.contains('is-few') || track.scrollWidth <= track.clientWidth + 8;
         });
+        var openRails = Array.from(document.querySelectorAll('.menu-rail:not(.is-empty)'));
+        var sideBySide = openRails.length > 1 && openRails.every(function (rail) {
+            return rail.querySelectorAll('.menu-item:not(.d-none)').length <= 4;
+        });
+        var menuRails = document.getElementById('menuRails');
+        if (menuRails) menuRails.classList.toggle('is-side', sideBySide);
         const empty = document.getElementById('menuEmpty');
-        if (empty) empty.classList.toggle('d-none', matches.length !== 0);
-        renderMenuPager(matches.length, pages);
-    }
-    function menuPageWindow(pages) {
-        const keep = {};
-        [1, pages, menuPage - 1, menuPage, menuPage + 1].forEach(function (n) {
-            if (n >= 1 && n <= pages) keep[n] = true;
-        });
-        const nums = Object.keys(keep).map(Number).sort(function (a, b) { return a - b; });
-        const out = [];
-        nums.forEach(function (n, i) {
-            if (i && n - nums[i - 1] > 1) out.push(0);
-            out.push(n);
-        });
-        return out;
-    }
-    function renderMenuPager(total, pages) {
-        const nav = document.getElementById('menuPager');
-        if (!nav) return;
-        if (!total) {
-            nav.hidden = true;
-            nav.innerHTML = '';
-            return;
+        if (empty) {
+            empty.textContent = avail === '1' ? 'Nothing is in stock at this store.' : (avail === '0' ? 'Nothing is sold out at this store.' : 'Nothing matches that search.');
+            empty.classList.toggle('d-none', shown !== 0);
         }
-        const from = (menuPage - 1) * menuPageSize + 1;
-        const to = Math.min(total, menuPage * menuPageSize);
-        let html = '<p class="menu-pager-status">' + from + '–' + to + ' of ' + total + '</p>';
-        if (pages > 1) {
-            html += '<div class="menu-pager-pages">';
-            html += '<button type="button" class="menu-page" data-page="' + (menuPage - 1) + '"' + (menuPage === 1 ? ' disabled' : '') + ' aria-label="Previous page">Prev</button>';
-            menuPageWindow(pages).forEach(function (n) {
-                if (!n) html += '<span class="menu-page-gap" aria-hidden="true">…</span>';
-                else html += '<button type="button" class="menu-page' + (n === menuPage ? ' is-on' : '') + '" data-page="' + n + '" aria-label="Page ' + n + '"' + (n === menuPage ? ' aria-current="page"' : '') + '>' + n + '</button>';
-            });
-            html += '<button type="button" class="menu-page" data-page="' + (menuPage + 1) + '"' + (menuPage === pages ? ' disabled' : '') + ' aria-label="Next page">Next</button>';
-            html += '</div>';
-        }
-        nav.innerHTML = html;
-        nav.hidden = false;
     }
-    document.getElementById('menuPager').addEventListener('click', function (e) {
-        const btn = e.target.closest('[data-page]');
-        if (!btn || btn.disabled) return;
-        menuPage = Number(btn.dataset.page);
-        filterMenu(true);
-        const grid = document.getElementById('menuGrid');
-        if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
     (function () {
-        const want = new URLSearchParams(window.location.search).get('cat');
+        const params = new URLSearchParams(window.location.search);
+        const avail = params.get('avail');
+        if (avail === '1' || avail === '0') {
+            const availBtn = document.querySelector('.avail-tab[data-avail="' + avail + '"]');
+            if (availBtn) setAvail(availBtn);
+        }
+        const rail = document.querySelector('.store-tabs');
+        const currentStore = document.querySelector('.store-tab.is-on');
+        if (rail && currentStore) rail.scrollLeft = Math.max(0, currentStore.offsetLeft - (rail.clientWidth - currentStore.offsetWidth) / 2);
+        const want = params.get('cat');
         if (!want) { filterMenu(); return; }
         const btn = Array.from(document.querySelectorAll('.cat-child')).find(function (b) { return b.dataset.cat === want; });
         if (btn) pickCat(btn);
         else filterMenu();
     })();
-    function addToCart(pid, btn) { btn.disabled = true; const body = new URLSearchParams({ cart_add: pid, qty: 1, ajax: 1 }); fetch('index.php?page=shop&view=menu', { method: 'POST', body: body, credentials: 'same-origin' }).then(r => r.json()).then(function (res) { btn.disabled = false; if (res.status !== 'ok') { alert(res.msg || 'Could not add'); return; } document.getElementById('cartBar').classList.remove('d-none'); document.getElementById('cartBarCount').textContent = res.count; document.getElementById('cartBarTotal').textContent = 'K' + Number(res.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); btn.innerHTML = '<i class="bi bi-check-lg"></i> Added'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-plus-lg"></i> Add'; }, 900); }).catch(function () { btn.disabled = false; }); }
+    function addToCart(pid, btn) { btn.disabled = true; const body = new URLSearchParams({ cart_add: pid, qty: 1, ajax: 1 }); fetch('index.php?page=shop&view=menu', { method: 'POST', body: body, credentials: 'same-origin' }).then(r => r.json()).then(function (res) { btn.disabled = false; if (res.status !== 'ok') { alert(res.msg || 'Could not add'); return; } document.getElementById('cartBar').classList.remove('d-none'); document.getElementById('cartBarCount').textContent = res.count; document.getElementById('cartBarTotal').textContent = 'K' + Number(res.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); btn.innerHTML = '<i class="bi bi-check-lg"></i>'; setTimeout(function () { btn.innerHTML = '<i class="bi bi-plus-lg"></i>'; }, 900); }).catch(function () { btn.disabled = false; }); }
     </script>
 
 <?php elseif ($view === 'cart'): ?>
