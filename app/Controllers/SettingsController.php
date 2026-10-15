@@ -42,7 +42,7 @@ final class SettingsController extends Controller
                 } elseif (isset($_POST['save_library'])) {
                     $this->saveLibrary();
                 } elseif (isset($_POST['use_library_image'])) {
-                    $this->useLibraryImage();
+                    $this->saveLibrary();
                 } elseif (isset($_POST['remove_promo_slide_now'])) {
                     $this->removePromoSlide();
                 } elseif (isset($_POST['add_promo_files'])) {

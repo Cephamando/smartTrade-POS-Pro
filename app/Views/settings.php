@@ -421,7 +421,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
         <div class="card shadow-sm border-0 border-top border-4 border-primary mb-4">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-images text-primary"></i> Image library</h5>
-                <p class="text-muted small mb-3">Upload pictures once, then tick the ones you want. Slideshow can take several. The logo and shop banner use one picture.</p>
+                <p class="text-muted small mb-3">Upload pictures once. Tick one picture to choose the menu item it belongs to. That picture then shows on the online menu. The slideshow can take several.</p>
                 <div class="row g-2 align-items-end">
                     <div class="col-md-8">
                         <label class="form-label fw-bold small text-muted" for="libraryFiles">IMAGES</label>
@@ -483,7 +483,37 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
             .library-thumb.active { border-color: #111; }
             .library-thumb.active .tick { background: #111; }
             .library-thumb.active .tick::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #f6c90e; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+            .pick-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #f3edd4; background: #fff; padding: 8px; }
+            .pick-row.is-on { background: #fff6d8; }
+            .pick-row img, .pick-row .pick-empty { width: 46px; height: 46px; border-radius: 10px; object-fit: cover; background: #f6efe6; flex: 0 0 auto; }
+            .pick-row .pick-empty { display: inline-flex; align-items: center; justify-content: center; color: #8a7b62; }
         </style>
+        <div class="modal fade" id="menuPhotoPick" tabindex="-1" aria-labelledby="menuPhotoPickTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold" id="menuPhotoPickTitle">Choose a menu item</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex gap-3 align-items-center mb-3">
+                            <img id="menuPhotoPickPreview" alt="" style="width:88px;height:88px;object-fit:cover;border-radius:14px;background:#f6efe6;">
+                            <div>
+                                <div class="fw-bold">This picture will show on the online menu.</div>
+                                <div class="text-muted small">Search for the dish or drink, then apply it.</div>
+                            </div>
+                        </div>
+                        <label class="visually-hidden" for="menuPhotoPickSearch">Search menu items</label>
+                        <input type="search" id="menuPhotoPickSearch" class="form-control" placeholder="Name or category">
+                        <div id="menuPhotoPickList" class="border rounded mt-2" style="max-height:360px;overflow:auto;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-dark fw-bold" id="menuPhotoPickApply" disabled>Apply to menu item</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="card shadow-sm border-0 border-top border-4 border-warning">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-image text-warning"></i> Logo, banners, and shop photos</h5>
@@ -859,9 +889,19 @@ function pingShopFace() {
     var useButtons = [
         ['libUseLogo', 'logo'],
         ['libUseBanner', 'shop_banner'],
-        ['libUsePromo', 'promo_slide'],
-        ['libUseItem', 'product']
+        ['libUsePromo', 'promo_slide']
     ];
+    var menuPickItems = <?= json_encode(array_map(static function (array $item): array {
+        return [
+            'id' => (int)$item['id'],
+            'name' => (string)$item['name'],
+            'cat' => (string)$item['cat_name'],
+            'price' => number_format((float)$item['price'], 2),
+            'image' => \App\Helpers\Media::url((string)($item['image_path'] ?? '')),
+        ];
+    }, $menuPhotos), JSON_UNESCAPED_UNICODE) ?>;
+    var pickPath = '';
+    var pickId = '';
 
     function toast(data) {
         if (window.LiveRow) LiveRow.toast(data);
@@ -889,9 +929,11 @@ function pingShopFace() {
     }
 
     function toggleThumb(button) {
-        button.classList.toggle('active');
-        button.setAttribute('aria-pressed', button.classList.contains('active') ? 'true' : 'false');
+        var on = !button.classList.contains('active');
+        button.classList.toggle('active', on);
+        button.setAttribute('aria-pressed', on ? 'true' : 'false');
         syncSelection();
+        if (on && selected.length === 1) openItemPicker(button.dataset.path || '');
     }
 
     function thumb(path) {
@@ -1108,11 +1150,12 @@ function pingShopFace() {
             return;
         }
         if (target === 'product') {
-            var item = document.getElementById('menuPhotoItem');
-            if (!item || !item.value) {
-                toast({ status: 'error', msg: 'Select a menu item first.' });
+            if (selected.length !== 1) {
+                toast({ status: 'error', msg: selected.length ? 'Choose one image for a menu item.' : 'Tick one image first.' });
                 return;
             }
+            openItemPicker(selected[0]);
+            return;
         }
         var body = new FormData();
         body.set('tab', 'branding');
@@ -1120,7 +1163,6 @@ function pingShopFace() {
         body.set('ajax', '1');
         body.set('target', target);
         selected.forEach(function (path) { body.append('image_paths[]', path); });
-        if (target === 'product') body.set('product_id', document.getElementById('menuPhotoItem').value);
         post(body).then(function (data) {
             if (target === 'product') {
                 document.dispatchEvent(new CustomEvent('menu-photo-assigned', { detail: data }));
@@ -1205,6 +1247,108 @@ function pingShopFace() {
             }, 'image/jpeg', 0.9);
         });
     }
+
+    function paintPickList(query) {
+        var list = document.getElementById('menuPhotoPickList');
+        var applyBtn = document.getElementById('menuPhotoPickApply');
+        if (!list) return;
+        var words = String(query || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+        list.innerHTML = '';
+        var shown = 0;
+        var lastCat = '';
+        menuPickItems.forEach(function (item) {
+            var hay = (item.cat + ' ' + item.name).toLowerCase();
+            if (words.length && !words.every(function (w) { return hay.indexOf(w) !== -1; })) return;
+            if (item.cat !== lastCat) {
+                var head = document.createElement('div');
+                head.className = 'px-2 pt-2 small fw-bold text-muted';
+                head.textContent = item.cat;
+                list.appendChild(head);
+                lastCat = item.cat;
+            }
+            var row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'pick-row' + (String(item.id) === String(pickId) ? ' is-on' : '');
+            if (item.image) {
+                var img = document.createElement('img');
+                img.src = item.image;
+                img.alt = '';
+                row.appendChild(img);
+            } else {
+                var empty = document.createElement('span');
+                empty.className = 'pick-empty';
+                empty.innerHTML = '<i class="bi bi-image"></i>';
+                row.appendChild(empty);
+            }
+            var copy = document.createElement('span');
+            var title = document.createElement('span');
+            title.className = 'fw-bold d-block';
+            title.textContent = item.name;
+            var meta = document.createElement('span');
+            meta.className = 'small text-muted';
+            meta.textContent = 'ZMW ' + item.price + (item.image ? ' · Has a photo' : ' · No photo yet');
+            copy.appendChild(title);
+            copy.appendChild(meta);
+            row.appendChild(copy);
+            row.addEventListener('click', function () {
+                pickId = String(item.id);
+                if (applyBtn) applyBtn.disabled = false;
+                paintPickList(document.getElementById('menuPhotoPickSearch').value);
+            });
+            list.appendChild(row);
+            shown++;
+        });
+        if (!shown) list.innerHTML = '<p class="text-muted small m-2 mb-0">No menu item matches.</p>';
+    }
+
+    function openItemPicker(path) {
+        path = String(path || '').split('?')[0];
+        if (!path) return;
+        pickPath = path;
+        pickId = '';
+        var preview = document.getElementById('menuPhotoPickPreview');
+        if (preview) preview.src = path;
+        var search = document.getElementById('menuPhotoPickSearch');
+        if (search) search.value = '';
+        var applyBtn = document.getElementById('menuPhotoPickApply');
+        if (applyBtn) applyBtn.disabled = true;
+        paintPickList('');
+        var modalEl = document.getElementById('menuPhotoPick');
+        if (modalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    function applyPickedItem() {
+        if (!pickPath || !pickId) return;
+        var applyBtn = document.getElementById('menuPhotoPickApply');
+        if (applyBtn) applyBtn.disabled = true;
+        var body = new FormData();
+        body.set('tab', 'branding');
+        body.set('use_library_image', '1');
+        body.set('ajax', '1');
+        body.set('target', 'product');
+        body.set('product_id', pickId);
+        body.append('image_paths[]', pickPath);
+        post(body).then(function (data) {
+            menuPickItems.forEach(function (item) {
+                if (String(item.id) === String(data.id)) item.image = data.image || pickPath;
+            });
+            document.dispatchEvent(new CustomEvent('menu-photo-assigned', { detail: data }));
+            var modalEl = document.getElementById('menuPhotoPick');
+            if (modalEl && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            toast(data);
+            pingShopFace();
+        }).catch(function (err) {
+            if (applyBtn) applyBtn.disabled = false;
+            toast({ status: 'error', msg: err.message });
+        });
+    }
+
+    var pickSearch = document.getElementById('menuPhotoPickSearch');
+    if (pickSearch) pickSearch.addEventListener('input', function () { paintPickList(pickSearch.value); });
+    var pickApply = document.getElementById('menuPhotoPickApply');
+    if (pickApply) pickApply.addEventListener('click', applyPickedItem);
+    var useItem = document.getElementById('libUseItem');
+    if (useItem) useItem.addEventListener('click', function () { apply('product'); });
 
     useButtons.forEach(function (pair) {
         var el = document.getElementById(pair[0]);
