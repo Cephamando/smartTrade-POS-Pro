@@ -497,11 +497,13 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **POS surcharges** — the list the POS offers. Add a name, a default amount and/or percent, a sort order, and whether it is active. Edit, switch off, or delete from the table. Deleting does not change past sales.
 
-**Payments (Flutterwave)** — switch the gateway on, paste the **public key**, **secret key**, **encryption key**, and **webhook secret hash** from your Flutterwave dashboard (test keys begin with `FLWPUBK_TEST` / `FLWSECK_TEST` and put the POS in test mode). **Test keys** checks that the keys are accepted. Copy the **webhook URL** shown on the page into the Flutterwave dashboard so confirmations also reach the shop when a guest's browser closes early. The page lists the sandbox test cards and numbers.
+**Payments (Flutterwave)** — switch the gateway on and choose **Live**. Paste the v4 **client ID**, **client secret**, and **webhook secret hash** from Flutterwave → Settings → API keys (use **Switch to v4 live API keys** if the page still shows the old public and secret keys). **Test connection** checks that Flutterwave accepts them. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook. Sandbox is only for a practice client ID.
 
 **Currency** — switch the converter on, choose which currencies the POS shows (USD, ZAR, EUR, GBP, and others), and how often rates refresh. Live rates are pulled against the kwacha and cached. You may fix a **house rate** for any currency; it overrides the live rate. **Refresh live rates now** fetches immediately. The quick converter on the tab converts any amount between enabled currencies.
 
 **Customer ordering** — the customer portal (section 16): switch it on, pick the location that fulfils web orders, title and intro text, contact phone, minimum order, delivery fee, Flutterwave payment, and delivery. Online orders are paid with Flutterwave only (card or Zambia mobile money). **Open page** shows the live portal.
+
+**Order webhook** — an https address that receives a POST when an online order is ready (the kitchen has finished it, or it was drinks only) and again when the till presses Hand Over. The JSON names the order, the sale, the status (`ready` or `handed_over`), whether it is paid, the customer, and the time. If you set a secret, the header `X-SmartTrade-Signature` is the HMAC-SHA256 of that raw body. Leave the address blank and nothing is sent.
 
 **Logo & banners** — the brand logo, shop landing page photo, promo slideshow pictures, and menu item photos. See the Branding guide.
 

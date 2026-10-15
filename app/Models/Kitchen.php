@@ -75,21 +75,7 @@ final class Kitchen extends Model
         if ((int)$checkAllReady->fetchColumn() !== 0) {
             return;
         }
-        $webhookUrl = 'https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03';
-        $payload = json_encode([
-            'order_id' => $item['split_group_id'],
-            'status' => 'ready_for_collection',
-            'store_id' => 'MAIN_KITCHEN_001',
-            'timestamp' => date('c'),
-        ]);
-        $ch = curl_init($webhookUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-        curl_exec($ch);
-        curl_close($ch);
+        \App\Services\OrderWebhook::notify($pdo, (int)$item['sale_id'], 'ready');
     }
 
     public static function readyPickupOrders(int $locId): array

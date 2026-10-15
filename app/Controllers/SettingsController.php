@@ -138,37 +138,26 @@ final class SettingsController extends Controller
     private function savePayments(): void
     {
         $existing = Setting::all();
-        $secret = trim((string)($_POST['flw_secret_key'] ?? ''));
+        $secret = trim((string)($_POST['flw_client_secret'] ?? ''));
+        $environment = (string)($_POST['flw_environment'] ?? 'live') === 'sandbox' ? 'sandbox' : 'live';
         $pairs = [
             'flw_enabled' => isset($_POST['flw_enabled']) ? '1' : '0',
-            'flw_public_key' => trim((string)($_POST['flw_public_key'] ?? '')),
-            'flw_encryption_key' => trim((string)($_POST['flw_encryption_key'] ?? '')),
+            'flw_client_id' => trim((string)($_POST['flw_client_id'] ?? '')),
             'flw_webhook_hash' => trim((string)($_POST['flw_webhook_hash'] ?? '')),
-            'flw_subaccount_id' => $this->subaccountId((string)($_POST['flw_subaccount_id'] ?? '')),
+            'flw_environment' => $environment,
             'flw_currency' => 'ZMW',
+            'flw_access_token' => '',
+            'flw_token_exp' => '0',
         ];
-        // Leave the stored secret untouched when the masked field is submitted unchanged.
         if ($secret !== '' && !str_contains($secret, '••••')) {
-            $pairs['flw_secret_key'] = $secret;
+            $pairs['flw_client_secret'] = $secret;
         } elseif ($secret === '') {
-            $pairs['flw_secret_key'] = '';
+            $pairs['flw_client_secret'] = '';
         } else {
-            $pairs['flw_secret_key'] = (string)($existing['flw_secret_key'] ?? '');
+            $pairs['flw_client_secret'] = (string)($existing['flw_client_secret'] ?? '');
         }
         Setting::save($pairs);
-        $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test keys" to confirm Flutterwave accepts them.' : ''));
-    }
-
-    private function subaccountId(string $raw): string
-    {
-        $id = strtoupper(trim($raw));
-        if ($id === '') {
-            return '';
-        }
-        if (!preg_match('/^RS_[A-Z0-9]+$/', $id)) {
-            throw new \InvalidArgumentException('The subaccount ID should look like RS_ followed by letters and numbers, as shown in the Flutterwave dashboard.');
-        }
-        return $id;
+        $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test connection" to confirm Flutterwave accepts them.' : ''));
     }
 
     private function saveCurrency(): void
@@ -212,8 +201,31 @@ final class SettingsController extends Controller
             'shop_delivery' => isset($_POST['shop_delivery']) ? '1' : '0',
             'shop_delivery_fee' => (string)max(0, (float)($_POST['shop_delivery_fee'] ?? 0)),
             'shop_min_order' => (string)max(0, (float)($_POST['shop_min_order'] ?? 0)),
+            'order_webhook_url' => $this->orderWebhookUrl((string)($_POST['order_webhook_url'] ?? '')),
+            'order_webhook_secret' => $this->orderWebhookSecret((string)($_POST['order_webhook_secret'] ?? '')),
         ]);
         $this->flash('success', 'Customer ordering settings saved.');
+    }
+
+    private function orderWebhookUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+        if (!\App\Services\OrderWebhook::allowedUrl($url)) {
+            throw new \InvalidArgumentException('The order webhook must be an https address. Only localhost may use http.');
+        }
+        return $url;
+    }
+
+    private function orderWebhookSecret(string $secret): string
+    {
+        $secret = trim($secret);
+        if (strlen($secret) > 120) {
+            throw new \InvalidArgumentException('The order webhook secret is too long.');
+        }
+        return $secret;
     }
 
     private function saveBranding(): void

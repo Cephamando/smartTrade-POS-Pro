@@ -1224,11 +1224,11 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 *Expected result:* both appear in the table and in the POS surcharge drop-down on the next sale. Switching one **off** hides it from the POS without deleting past sales that used it.
 
-### Scenario 7.1b — Payments (Flutterwave test keys)
+### Scenario 7.1b — Payments (Flutterwave live)
 
-1. **Office → Settings**, Payments tab. Enable, paste the **test** public, secret, encryption keys and the webhook hash. Save. **Test keys**.
+1. **Office → Settings**, Payments tab. Enable, choose **Live**, and paste the v4 **client ID**, **client secret**, and webhook hash from Flutterwave → Settings → API keys. Save. **Test connection**.
 
-*Expected result:* "Keys accepted" and the badge **TEST MODE**. Copy the webhook URL into the Flutterwave dashboard. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of saved keys are shown on the page.
+*Expected result:* "Keys accepted" and the badge **LIVE**. Copy the webhook URL and the same secret hash into the Flutterwave dashboard. A confirmed charge marks the shop order paid even if the customer closed the browser; it stays on Web Orders until Hand Over and is not filed with ZRA from the webhook. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of saved keys are shown on the page. On the Customer ordering tab, an optional https **order webhook** receives a POST when an online order is ready and again when it is handed over. Leave it blank to send nothing.
 
 ### Scenario 7.1c — Currency
 

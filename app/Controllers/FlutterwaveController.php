@@ -75,7 +75,7 @@ final class FlutterwaveController extends Controller
                     if (!$this->isManager()) {
                         $this->jsonExit(['status' => 'error', 'msg' => 'Managers only.'], 403);
                     }
-                    $this->jsonExit($this->testKeys($flw));
+                    $this->jsonExit($flw->testConnection());
                     // no break
                 default:
                     $this->jsonExit(['status' => 'error', 'msg' => 'Unknown action.'], 404);
@@ -100,28 +100,13 @@ final class FlutterwaveController extends Controller
         return $scheme . '://' . $host . $dir . '/index.php?page=flutterwave&action=callback';
     }
 
-    private function testKeys(Flutterwave $flw): array
-    {
-        if (!$flw->enabled()) {
-            return ['status' => 'error', 'msg' => 'Enable Flutterwave and save both keys first.'];
-        }
-        try {
-            // Cheapest authenticated call: list Zambian banks.
-            $ref = new \ReflectionMethod($flw, 'request');
-            $ref->setAccessible(true);
-            $res = $ref->invoke($flw, 'GET', '/banks/ZM');
-            if (($res['status'] ?? '') === 'success') {
-                return ['status' => 'ok', 'msg' => 'Keys accepted. ' . ($flw->isTestMode() ? 'Sandbox (test) mode.' : 'LIVE mode — real money.'), 'test_mode' => $flw->isTestMode()];
-            }
-            return ['status' => 'error', 'msg' => $res['message'] ?? 'Flutterwave did not accept the keys.'];
-        } catch (\Throwable $e) {
-            return ['status' => 'error', 'msg' => $e->getMessage()];
-        }
-    }
-
     private function callback(Flutterwave $flw): void
     {
-        $txRef = trim((string)($_GET['tx_ref'] ?? ''));
+        $txRef = trim((string)($_GET['tx_ref'] ?? $_GET['reference'] ?? ''));
+        $chargeId = trim((string)($_GET['charge_id'] ?? $_GET['transaction_id'] ?? ''));
+        if ($txRef !== '' && str_starts_with($chargeId, 'chg_')) {
+            $flw->rememberCharge($txRef, $chargeId);
+        }
         $status = 'failed';
         $message = 'No payment reference was returned.';
         $amount = 0.0;

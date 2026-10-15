@@ -43,6 +43,9 @@ final class ShopController extends Controller
         if ($view === 'pay_return') {
             $this->payReturn($customer);
         }
+        if ($view === 'pay_status') {
+            $this->jsonExit($this->shopPaymentStatus($customer, (int)($_GET['id'] ?? 0)));
+        }
 
         $cart = $this->cart();
         $cartTotal = array_sum(array_map(fn($l) => $l['price'] * $l['qty'], $cart));
@@ -95,6 +98,14 @@ final class ShopController extends Controller
             $data['order'] = Customer::order((int)$customer['id'], (int)($_GET['id'] ?? 0));
             if (!$data['order']) {
                 $this->go('orders');
+            }
+            if (($data['order']['payment_status'] ?? '') !== 'paid' && trim((string)($data['order']['gateway_ref'] ?? '')) !== '') {
+                $settled = $this->confirmShopPayment((int)$data['order']['id'], (string)$data['order']['gateway_ref']);
+                if ($settled === 'paid') {
+                    $this->flashShop('success', 'Payment received. Your order #' . (int)$data['order']['id'] . ' is being prepared.');
+                    $data['flash'] = $this->takeFlash();
+                    $data['order'] = Customer::order((int)$customer['id'], (int)$data['order']['id']);
+                }
             }
         } elseif ($view === 'pay' && $customer) {
             $saleId = (int)($_GET['id'] ?? 0);
@@ -435,10 +446,14 @@ final class ShopController extends Controller
                 $customer['member_id'] ?: null,
             ]);
             $saleId = (int)$pdo->lastInsertId();
+            $needsKitchen = false;
             $ins = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, ?, ?, 'uncollected')");
             foreach ($lines as $l) {
                 $ct = strtolower($l['cat_type']);
                 $kds = (str_contains($ct, 'food') || str_contains($ct, 'meal') || str_contains($ct, 'kitchen')) ? 'pending' : 'ready';
+                if ($kds !== 'ready') {
+                    $needsKitchen = true;
+                }
                 $ins->execute([$saleId, $l['id'], $l['qty'], $l['price'], $l['price'], $kds]);
                 deductStock($pdo, $l['id'], $l['qty'], $loc, $sysUser, 'online_sale');
             }
@@ -448,6 +463,9 @@ final class ShopController extends Controller
                 $pdo->rollBack();
             }
             throw $e;
+        }
+        if (!$needsKitchen) {
+            \App\Services\OrderWebhook::notify($pdo, $saleId, 'ready');
         }
         $_SESSION['shop_cart'] = [];
         try {
@@ -499,7 +517,7 @@ final class ShopController extends Controller
         if (
             $existing
             && ($existing['status'] ?? '') === 'pending'
-            && ($existing['payment_type'] ?? '') === 'inline'
+            && trim((string)($existing['checkout_url'] ?? '')) !== ''
             && abs((float)$existing['amount'] - $total) < 0.01
         ) {
             return $flw->inlinePayload($existing, $args);
@@ -513,7 +531,7 @@ final class ShopController extends Controller
     private function payReturn(?array $customer): void
     {
         $saleId = (int)($_GET['order'] ?? 0);
-        $txRef = (string)($_GET['tx_ref'] ?? '');
+        $txRef = (string)($_GET['tx_ref'] ?? $_GET['reference'] ?? '');
         $pdo = $this->pdo();
         $stmt = $pdo->prepare('SELECT id, final_total, gateway_ref, payment_status, customer_id FROM sales WHERE id = ?');
         $stmt->execute([$saleId]);
@@ -523,27 +541,76 @@ final class ShopController extends Controller
             $this->go('menu');
         }
         $txRef = $txRef !== '' ? $txRef : (string)$sale['gateway_ref'];
+        $chargeId = trim((string)($_GET['charge_id'] ?? $_GET['transaction_id'] ?? ''));
+        if ($txRef !== '' && str_starts_with($chargeId, 'chg_')) {
+            (new Flutterwave($pdo, $this->settings))->rememberCharge($txRef, $chargeId);
+        }
         if ($sale['payment_status'] !== 'paid') {
-            try {
-                $flw = new Flutterwave($pdo, $this->settings);
-                $tx = $flw->verify($txRef);
-                if ($tx['status'] === 'successful' && (float)$tx['amount'] + 0.005 >= (float)$sale['final_total']) {
-                    $flw->claimForSale($txRef, (float)$sale['final_total'], $saleId);
-                    $pdo->prepare("UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ? WHERE id = ?")->execute([$txRef, $saleId]);
-                    $this->flashShop('success', 'Payment received. Your order #' . $saleId . ' is being prepared.');
-                } elseif ($tx['status'] === 'pending') {
-                    $this->flashShop('warning', 'Payment is still pending with Flutterwave. You can try Pay now again.');
-                } else {
-                    $this->flashShop('error', 'Payment was not completed. Open the order and try Pay now again.');
-                }
-            } catch (\Throwable $e) {
-                $this->flashShop('error', 'Could not confirm the payment: ' . $e->getMessage());
+            $settled = $this->confirmShopPayment($saleId, $txRef);
+            if ($settled === 'paid') {
+                $this->flashShop('success', 'Payment received. Your order #' . $saleId . ' is being prepared.');
+            } elseif ($settled === 'pending') {
+                $this->flashShop('warning', 'Payment is still pending with Flutterwave. You can try Pay now again.');
+            } elseif ($settled === 'failed') {
+                $this->flashShop('error', 'Payment was not completed. Open the order and try Pay now again.');
+            } else {
+                $this->flashShop('error', 'Could not confirm the payment. Open the order and try Pay now again.');
             }
         }
         if ($customer && (int)$sale['customer_id'] === (int)$customer['id']) {
             $this->go('order', ['id' => $saleId]);
         }
         $this->go('menu');
+    }
+
+    /** @param array<string, mixed>|null $customer @return array{payment_status: string} */
+    private function shopPaymentStatus(?array $customer, int $saleId): array
+    {
+        if (!$customer || $saleId <= 0) {
+            return ['payment_status' => 'unpaid'];
+        }
+        $order = Customer::order((int)$customer['id'], $saleId);
+        if (!$order) {
+            return ['payment_status' => 'unpaid'];
+        }
+        if (($order['payment_status'] ?? '') === 'paid') {
+            return ['payment_status' => 'paid'];
+        }
+        $ref = trim((string)($order['gateway_ref'] ?? ''));
+        if ($ref === '') {
+            return ['payment_status' => 'unpaid'];
+        }
+        return ['payment_status' => $this->confirmShopPayment($saleId, $ref) === 'paid' ? 'paid' : 'pending'];
+    }
+
+    /** Ask Flutterwave whether this order is paid, and record it when it is. Does not fiscalize. */
+    private function confirmShopPayment(int $saleId, string $txRef): string
+    {
+        if ($txRef === '') {
+            return 'pending';
+        }
+        try {
+            $flw = new Flutterwave($this->pdo(), $this->settings);
+            $tx = $flw->verify($txRef);
+            $status = (string)($tx['status'] ?? '');
+            if ($status === 'successful') {
+                $stmt = $this->pdo()->prepare('SELECT final_total, payment_status FROM sales WHERE id = ?');
+                $stmt->execute([$saleId]);
+                $sale = $stmt->fetch();
+                if (!$sale || ($sale['payment_status'] ?? '') === 'paid') {
+                    return 'paid';
+                }
+                if ((float)$tx['amount'] + 0.005 < (float)$sale['final_total']) {
+                    return 'pending';
+                }
+                $flw->claimForSale($txRef, (float)$sale['final_total'], $saleId);
+                $this->pdo()->prepare("UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ? WHERE id = ? AND payment_status <> 'paid'")->execute([$txRef, $saleId]);
+                return 'paid';
+            }
+            return $status === 'failed' ? 'failed' : 'pending';
+        } catch (\Throwable) {
+            return 'error';
+        }
     }
 
     // ------------------------------------------------------------------ events

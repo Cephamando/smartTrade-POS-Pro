@@ -183,27 +183,6 @@ final class Checkout
 
         if ($saleStatus === 'completed') {
             $this->pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected' WHERE sale_id = ?")->execute([$settleTabId]);
-            if ($wasOnlineOrder && $extOrderId) {
-                $webhookUrl = "https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03";
-                $payload = json_encode([
-                    "order_id" => $extOrderId,
-                    "status" => "completed",
-                    "store_id" => "MAIN_COUNTER_001",
-                    "timestamp" => date('c'),
-                ]);
-                $ch = curl_init($webhookUrl);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json',
-                    'Content-Length: ' . strlen($payload),
-                ]);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-                curl_exec($ch);
-                curl_close($ch);
-            }
         }
 
         $session['completed_sale_id'] = $settleTabId;

@@ -116,22 +116,8 @@ try {
     $checkAllReady->execute([$saleId]);
     $remaining = $checkAllReady->fetchColumn();
 
-    if ($remaining == 0 && !empty($extOrderId)) {
-        $webhookUrl = "https://webhook.site/b97db7ed-2317-469d-952c-0e9badfd7a03"; 
-        $payload = json_encode([
-            "order_id" => $extOrderId,
-            "status" => "ready_for_collection",
-            "store_id" => "MAIN_COUNTER_001",
-            "timestamp" => date('c')
-        ]);
-        $ch = curl_init($webhookUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 3); 
-        curl_exec($ch);
-        curl_close($ch);
+    if ($remaining == 0) {
+        \App\Services\OrderWebhook::notify($pdo, (int)$saleId, 'ready');
     }
 
     echo json_encode(["status" => "success", "message" => "Order verified and saved", "order_id" => $saleId, "calculated_total" => $calculatedTotal]);

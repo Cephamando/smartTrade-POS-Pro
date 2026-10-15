@@ -1581,8 +1581,15 @@ function getCategoryStyle($name) {
             gatewayPost('init', { amount: charge.toFixed(2), phone: document.getElementById('gwPhone').value.trim(), name: document.querySelector('[name="customer_name"]').value || '' }).then(function (res) {
                 if (res.status !== 'ok') { if (popup) popup.close(); setGatewayStatus('Failed', 'danger'); document.getElementById('gwCardBtn').disabled = false; AppAlert.notify({ icon: 'error', text: res.msg || 'Could not open Flutterwave checkout.' }); return; }
                 document.getElementById('gatewayTxRef').value = res.tx_ref;
-                if (popup) popup.location.href = res.link; else window.open(res.link, 'flwpay');
-                setGatewayStatus('Waiting for payment…', 'warning'); startGatewayPoll(res.tx_ref);
+                if (res.link) {
+                    if (popup) popup.location.href = res.link; else window.open(res.link, 'flwpay');
+                    setGatewayStatus('Waiting for payment…', 'warning');
+                } else {
+                    if (popup) popup.close();
+                    document.getElementById('gatewayHint').textContent = res.message || 'Prompt sent. Ask the customer to approve on their phone.';
+                    setGatewayStatus('Waiting for customer…', 'warning');
+                }
+                startGatewayPoll(res.tx_ref);
             }).catch(function () { if (popup) popup.close(); setGatewayStatus('Failed', 'danger'); document.getElementById('gwCardBtn').disabled = false; });
         }
         function startGatewayPoll(txRef) {

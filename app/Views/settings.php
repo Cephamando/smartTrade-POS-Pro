@@ -1,7 +1,7 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
 $tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email', 'guide'], true) ? $tab : 'general';
-$secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['flw_secret_key'], 0, 12) . '••••••••' : '';
+$secretMask = !empty($settings['flw_client_secret']) ? substr((string)$settings['flw_client_secret'], 0, 4) . '••••••••' : '';
 $tabs = [
     'general' => ['bi-sliders', 'General'],
     'surcharges' => ['bi-plus-slash-minus', 'POS surcharges'],
@@ -193,7 +193,7 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h5 class="fw-bold mb-1"><i class="bi bi-credit-card-2-front text-primary"></i> Flutterwave</h5>
-                        <p class="text-muted small mb-3">Adds a <strong>Flutterwave (Card / Mobile Money)</strong> payment method to the POS and online checkout to the customer ordering page. Mobile money prompts go straight to the customer's MTN / Airtel / Zamtel line; cards and bank transfers open the Flutterwave checkout window.</p>
+                        <p class="text-muted small mb-3">Live Flutterwave v4. Cards open Flutterwave checkout. Mobile money prompts go to the customer's MTN, Airtel, or Zamtel line. Charges are real money when Live is selected.</p>
                     </div>
                     <?php if ($flwEnabled): ?><span class="badge <?= $flwTestMode ? 'bg-warning text-dark' : 'bg-success' ?> fs-6"><?= $flwTestMode ? 'TEST MODE' : 'LIVE' ?></span><?php else: ?><span class="badge bg-secondary fs-6">OFF</span><?php endif; ?>
                 </div>
@@ -205,43 +205,48 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                         <label class="form-check-label fw-bold" for="flwEnabled">Enable Flutterwave payments</label>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">PUBLIC KEY</label>
-                        <input type="text" name="flw_public_key" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_public_key'] ?? '') ?>" placeholder="FLWPUBK_TEST-xxxxxxxxxxxxxxxx-X" autocomplete="off">
+                        <label class="form-label fw-bold small text-muted">ENVIRONMENT</label>
+                        <select name="flw_environment" class="form-select no-search">
+                            <option value="live" <?= ($settings['flw_environment'] ?? 'live') !== 'sandbox' ? 'selected' : '' ?>>Live — real charges</option>
+                            <option value="sandbox" <?= ($settings['flw_environment'] ?? 'live') === 'sandbox' ? 'selected' : '' ?>>Sandbox — practice only</option>
+                        </select>
+                        <div class="form-text">Keys from the sandbox dashboard — the page that says they are for test purposes only — work when this is <strong>Sandbox</strong>. Live charges need the client ID and secret from a Flutterwave business account.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">SECRET KEY</label>
-                        <input type="text" name="flw_secret_key" class="form-control font-monospace" value="<?= htmlspecialchars($secretMask) ?>" placeholder="FLWSECK_TEST-xxxxxxxxxxxxxxxx-X" autocomplete="off">
-                        <div class="form-text">Stored server-side only. Leave the masked value as is to keep the current key.</div>
+                        <label class="form-label fw-bold small text-muted">CLIENT ID</label>
+                        <input type="text" name="flw_client_id" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_client_id'] ?? '') ?>" autocomplete="off">
                     </div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small text-muted">ENCRYPTION KEY (optional)</label>
-                            <input type="text" name="flw_encryption_key" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_encryption_key'] ?? '') ?>" autocomplete="off">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold small text-muted">WEBHOOK SECRET HASH (optional)</label>
-                            <input type="text" name="flw_webhook_hash" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_webhook_hash'] ?? '') ?>" autocomplete="off">
-                            <div class="form-text">Set the same value in the Flutterwave dashboard → Settings → Webhooks. URL: <code><?= htmlspecialchars((!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/')) ?>/api/flutterwave_webhook.php</code></div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">CLIENT SECRET</label>
+                        <input type="text" name="flw_client_secret" class="form-control font-monospace" value="<?= htmlspecialchars($secretMask) ?>" autocomplete="off">
+                        <div class="form-text">Stored on the server only. Leave the masked value as it is to keep the current secret.</div>
                     </div>
-                    <div class="mb-3 mt-3">
-                        <label class="form-label fw-bold small text-muted">SUBACCOUNT ID</label>
-                        <input type="text" name="flw_subaccount_id" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_subaccount_id'] ?? '') ?>" placeholder="RS_..." autocomplete="off">
-                        <div class="form-text">Paste the ID from Flutterwave → Subaccounts. It starts with <code>RS_</code>. Card and mobile-money payments then use the percentage split already saved on that subaccount. Leave this blank to settle the full amount to this account.</div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">WEBHOOK SECRET HASH</label>
+                        <input type="text" name="flw_webhook_hash" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_webhook_hash'] ?? '') ?>" autocomplete="off">
+                        <?php
+                        $flwHost = strtolower((string)preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? '')));
+                        $flwLocal = in_array($flwHost, ['localhost', '127.0.0.1', '::1'], true);
+                        $flwScheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')) ? 'https' : 'http';
+                        $flwWebhookUrl = $flwLocal
+                            ? 'https://smartrade.odeliazm.com/api/flutterwave_webhook.php'
+                            : $flwScheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/'))), '/') . '/api/flutterwave_webhook.php';
+                        ?>
+                        <div class="form-text">Set this same value as the secret hash in Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even if the customer closed the browser. It stays on Web Orders until Hand Over. <?php if ($flwLocal): ?>Flutterwave rejects <code>localhost</code>, which is why the dashboard says the URL is invalid. Paste this public address instead: <?php else: ?>URL: <?php endif; ?><code><?= htmlspecialchars($flwWebhookUrl) ?></code></div>
                     </div>
                     <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-save"></i> Save</button>
-                        <button type="button" class="btn btn-outline-primary fw-bold" onclick="flwTest()"><i class="bi bi-plug"></i> Test keys</button>
+                        <button type="button" class="btn btn-outline-primary fw-bold" onclick="flwTest()"><i class="bi bi-plug"></i> Test connection</button>
                         <span id="flwTestResult" class="align-self-center small"></span>
                     </div>
                 </form>
                 <hr class="my-4">
-                <h6 class="fw-bold">How to test on the sandbox</h6>
+                <h6 class="fw-bold">Going live</h6>
                 <ol class="small text-muted mb-0">
-                    <li>In the Flutterwave dashboard switch to <strong>Test mode</strong> and copy the test public and secret keys here. Keys starting with <code>FLWPUBK_TEST</code> / <code>FLWSECK_TEST</code> are detected as sandbox automatically.</li>
-                    <li>On the POS choose <strong>Flutterwave</strong> as the payment method. For <em>Card / other</em> use the test card <code>5531 8866 5214 2950</code>, CVV 564, expiry 09/32, PIN 3310, OTP 12345.</li>
-                    <li>For <em>Send MoMo prompt</em> enter any Zambian number (e.g. 0977000000); the sandbox opens a simulated approval page instead of pushing to a real handset.</li>
-                    <li>The sale only completes once this server verifies the transaction with Flutterwave; the reference is printed on the receipt.</li>
+                    <li>In Flutterwave, open Settings → API keys. If you still see a public key and a secret key, click <strong>Switch to v4 live API keys</strong> and copy the client ID and client secret.</li>
+                    <li>Choose <strong>Live</strong> here, paste those two values and the webhook secret hash, then Save. <strong>Test connection</strong> should say the keys were accepted and that this is live.</li>
+                    <li>Paste the https webhook address above into Flutterwave → Settings → Webhooks, with the same secret hash. A <code>localhost</code> address is rejected.</li>
+                    <li>On the POS, Flutterwave card checkout opens Flutterwave's page. Send MoMo prompt asks the customer to approve on their handset. The sale completes only after this server confirms the charge.</li>
                 </ol>
             </div>
         </div>
@@ -399,6 +404,16 @@ document.addEventListener('DOMContentLoaded', cvFromZmw);
                         <div class="col-md-3">
                             <label class="form-label fw-bold small text-muted">DELIVERY FEE (ZMW)</label>
                             <input type="number" step="0.01" min="0" name="shop_delivery_fee" class="form-control" value="<?= htmlspecialchars($settings['shop_delivery_fee'] ?? '0') ?>">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">ORDER WEBHOOK URL</label>
+                            <input type="url" name="order_webhook_url" class="form-control font-monospace" value="<?= htmlspecialchars($settings['order_webhook_url'] ?? '') ?>" placeholder="https://example.com/orders" autocomplete="off">
+                            <div class="form-text">We POST here when an online order is <code>ready</code> (nothing left to cook, including a drinks-only order) and again when it is <code>handed_over</code>. The body is <code>order_id</code>, <code>sale_id</code>, <code>status</code>, <code>payment_status</code>, <code>customer</code>, and <code>timestamp</code>. Leave this blank to send nothing.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">WEBHOOK SECRET</label>
+                            <input type="text" name="order_webhook_secret" class="form-control font-monospace" value="<?= htmlspecialchars($settings['order_webhook_secret'] ?? '') ?>" autocomplete="off">
+                            <div class="form-text">Sent as <code>X-SmartTrade-Signature</code>, the HMAC-SHA256 of the raw body. Optional.</div>
                         </div>
                         <div class="col-12 d-flex flex-wrap gap-4 mt-2">
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_pay_online" value="1" id="shopOnline" <?= ($settings['shop_pay_online'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopOnline">Take payment with Flutterwave<?= $flwEnabled ? '' : ' <span class="text-danger">(enable Flutterwave first)</span>' ?></label></div>
