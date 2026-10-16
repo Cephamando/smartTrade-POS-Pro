@@ -488,6 +488,11 @@ final class Flutterwave
     public function handleWebhook(array $payload): void
     {
         $type = strtolower((string)($payload['type'] ?? $payload['event'] ?? ''));
+        if (str_contains($type, 'transfer')) {
+            $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+            $this->applyTransferWebhook($data);
+            return;
+        }
         if ($type !== '' && $type !== 'charge.completed') {
             return;
         }
@@ -617,9 +622,13 @@ final class Flutterwave
             $phone = null;
         }
         $networkTx = self::networkTxOf($data);
+        $figures = self::figuresFromData($data, (float)($local['amount'] ?? 0));
         $this->pdo->prepare(
             'UPDATE payment_transactions SET status = ?, provider_tx_id = COALESCE(?, provider_tx_id), flw_ref = COALESCE(?, flw_ref),
-                    charged_amount = COALESCE(?, charged_amount), payment_type = COALESCE(?, payment_type),
+                    charged_amount = COALESCE(?, charged_amount), app_fee = COALESCE(?, app_fee), merchant_fee = COALESCE(?, merchant_fee),
+                    net_amount = COALESCE(?, net_amount),
+                    settlement_status = CASE WHEN ? = "successful" THEN COALESCE(settlement_status, "pending") ELSE settlement_status END,
+                    payment_type = COALESCE(?, payment_type),
                     network = COALESCE(?, network), network_tx_id = COALESCE(?, network_tx_id),
                     customer_phone = COALESCE(?, customer_phone),
                     raw_response = ?, verified_at = CASE WHEN ? = "successful" THEN NOW() ELSE verified_at END
@@ -628,7 +637,11 @@ final class Flutterwave
             $status,
             isset($data['id']) ? (string)$data['id'] : null,
             $data['flw_ref'] ?? null,
-            isset($data['charged_amount']) ? (float)$data['charged_amount'] : null,
+            $figures['charged'],
+            $figures['fee'],
+            $figures['merchant_fee'],
+            $figures['net'],
+            $status,
             $remoteType,
             $network !== null ? $network : null,
             $networkTx !== '' ? $networkTx : null,
@@ -637,6 +650,203 @@ final class Flutterwave
             $status,
             $txRef,
         ]);
+    }
+
+    /**
+     * Totals for the dashboard Settlements tab, from confirmed Flutterwave charges.
+     *
+     * @return array{processed: float, fees: float, pending: float, settled: float, count: int, pending_count: int, settled_count: int, rows: list<array<string, mixed>>, enabled: bool}
+     */
+    public function settlementBoard(): array
+    {
+        $this->backfillSettlementFigures();
+        $sum = $this->pdo->query(
+            "SELECT COUNT(*) AS tx_count,
+                    COALESCE(SUM(CASE WHEN charged_amount > 0 THEN charged_amount ELSE amount END), 0) AS processed,
+                    COALESCE(SUM(app_fee), 0) AS fees,
+                    COALESCE(SUM(CASE WHEN settlement_status = 'settled' THEN 0 ELSE COALESCE(net_amount, amount) END), 0) AS pending_net,
+                    COALESCE(SUM(CASE WHEN settlement_status = 'settled' THEN COALESCE(net_amount, 0) ELSE 0 END), 0) AS settled_net,
+                    COALESCE(SUM(CASE WHEN settlement_status = 'settled' THEN 1 ELSE 0 END), 0) AS settled_count
+             FROM payment_transactions
+             WHERE provider = 'flutterwave' AND status = 'successful'"
+        )->fetch() ?: [];
+        $count = (int)($sum['tx_count'] ?? 0);
+        $settledCount = (int)($sum['settled_count'] ?? 0);
+        $rows = $this->pdo->query(
+            "SELECT id, tx_ref, sale_id, amount, charged_amount, app_fee, net_amount, currency, payment_type, network,
+                    settlement_status, settlement_id, settled_at, created_at
+             FROM payment_transactions
+             WHERE provider = 'flutterwave' AND status = 'successful'
+             ORDER BY id DESC
+             LIMIT 40"
+        )->fetchAll();
+        return [
+            'processed' => round((float)($sum['processed'] ?? 0), 2),
+            'fees' => round((float)($sum['fees'] ?? 0), 2),
+            'pending' => round((float)($sum['pending_net'] ?? 0), 2),
+            'settled' => round((float)($sum['settled_net'] ?? 0), 2),
+            'count' => $count,
+            'pending_count' => max(0, $count - $settledCount),
+            'settled_count' => $settledCount,
+            'rows' => $rows,
+            'enabled' => $this->enabled(),
+        ];
+    }
+
+    /**
+     * Ask Flutterwave which settlement batches have been paid out, and mark the
+     * matching local charges settled. A completed batch is the payout to the bank
+     * or Flutterwave wallet. Pending and flagged batches are left pending.
+     *
+     * @return array{status: string, msg: string, marked: int}
+     */
+    public function syncSettlements(): array
+    {
+        $this->assertEnabled();
+        $from = date('Y-m-d', strtotime('-90 days'));
+        $to = date('Y-m-d', strtotime('+1 day'));
+        $page = 1;
+        $pages = 1;
+        $marked = 0;
+        $completed = 0;
+        do {
+            $res = $this->request('GET', '/settlements?page=' . $page . '&from=' . rawurlencode($from) . '&to=' . rawurlencode($to));
+            if (($res['status'] ?? '') !== 'success') {
+                $msg = (string)($res['message'] ?? 'Flutterwave did not return settlements.');
+                if (stripos($msg, 'no settlement') !== false) {
+                    return ['status' => 'ok', 'msg' => 'Flutterwave has no settlement batches yet. Successful charges stay pending until a batch is paid out.', 'marked' => 0];
+                }
+                return ['status' => 'error', 'msg' => $msg, 'marked' => 0];
+            }
+            $batches = is_array($res['data'] ?? null) ? $res['data'] : [];
+            if ($batches === [] && $page === 1) {
+                return ['status' => 'ok', 'msg' => 'Flutterwave has no settlement batches in the last 90 days. Successful charges stay pending until a batch is paid to the bank.', 'marked' => 0];
+            }
+            foreach ($batches as $batch) {
+                if (!is_array($batch) || strtolower((string)($batch['status'] ?? '')) !== 'completed') {
+                    continue;
+                }
+                $id = trim((string)($batch['id'] ?? ''));
+                if ($id === '') {
+                    continue;
+                }
+                $completed++;
+                $detail = $this->request('GET', '/settlements/' . rawurlencode($id));
+                $body = is_array($detail['data'] ?? null) ? $detail['data'] : [];
+                $txs = is_array($body['transactions'] ?? null) ? $body['transactions'] : [];
+                $when = $body['processed_date'] ?? $batch['processed_date'] ?? null;
+                $marked += $this->markSettledTransactions($id, $txs, is_string($when) ? $when : null);
+            }
+            $pages = max(1, (int)($res['meta']['page_info']['total_pages'] ?? 1));
+            $page++;
+        } while ($page <= $pages && $page <= 8);
+
+        if ($marked > 0) {
+            $msg = $marked . ' payment' . ($marked === 1 ? '' : 's') . ' marked settled from Flutterwave.';
+        } elseif ($completed === 0) {
+            $msg = 'Flutterwave has settlement batches, but none are completed yet. These charges stay pending.';
+        } else {
+            $msg = 'Checked Flutterwave. No completed payout matched these charges yet.';
+        }
+        return ['status' => 'ok', 'msg' => $msg, 'marked' => $marked];
+    }
+
+    /** @param list<array<string, mixed>> $txs */
+    private function markSettledTransactions(string $settlementId, array $txs, ?string $when): int
+    {
+        $at = $when !== null && strtotime($when) !== false ? date('Y-m-d H:i:s', strtotime($when)) : date('Y-m-d H:i:s');
+        $stmt = $this->pdo->prepare(
+            'UPDATE payment_transactions
+             SET settlement_status = "settled", settlement_id = ?, settled_at = COALESCE(settled_at, ?),
+                 net_amount = COALESCE(?, net_amount), app_fee = COALESCE(?, app_fee)
+             WHERE provider = "flutterwave" AND status = "successful"
+               AND (settlement_status IS NULL OR settlement_status <> "settled")
+               AND (
+                    (? <> "" AND tx_ref = ?)
+                    OR (? <> "" AND flw_ref = ?)
+                    OR (? <> "" AND provider_tx_id = ?)
+               )'
+        );
+        $n = 0;
+        foreach ($txs as $tx) {
+            if (!is_array($tx)) {
+                continue;
+            }
+            $txRef = trim((string)($tx['tx_ref'] ?? ''));
+            $flwRef = trim((string)($tx['flw_ref'] ?? ''));
+            $id = trim((string)($tx['id'] ?? ''));
+            if ($txRef === '' && $flwRef === '' && $id === '') {
+                continue;
+            }
+            $net = isset($tx['settlement_amount']) ? round((float)$tx['settlement_amount'], 2) : null;
+            $fee = isset($tx['app_fee']) ? round((float)$tx['app_fee'], 2) : null;
+            $stmt->execute([$settlementId, $at, $net, $fee, $txRef, $txRef, $flwRef, $flwRef, $id, $id]);
+            $n += $stmt->rowCount();
+        }
+        return $n;
+    }
+
+    private function backfillSettlementFigures(): void
+    {
+        $rows = $this->pdo->query(
+            "SELECT id, amount, raw_response FROM payment_transactions
+             WHERE provider = 'flutterwave' AND status = 'successful' AND (app_fee IS NULL OR net_amount IS NULL)
+             ORDER BY id DESC
+             LIMIT 500"
+        )->fetchAll();
+        $upd = $this->pdo->prepare(
+            'UPDATE payment_transactions
+             SET charged_amount = COALESCE(charged_amount, ?), app_fee = COALESCE(app_fee, ?),
+                 merchant_fee = COALESCE(merchant_fee, ?), net_amount = COALESCE(net_amount, ?),
+                 settlement_status = COALESCE(NULLIF(settlement_status, ""), "pending")
+             WHERE id = ?'
+        );
+        foreach ($rows as $row) {
+            $figures = self::figuresFromRaw((string)($row['raw_response'] ?? ''), (float)$row['amount']);
+            $upd->execute([
+                $figures['charged'],
+                $figures['fee'],
+                $figures['merchant_fee'],
+                $figures['net'],
+                (int)$row['id'],
+            ]);
+        }
+        $this->pdo->exec(
+            "UPDATE payment_transactions
+             SET settlement_status = 'pending'
+             WHERE provider = 'flutterwave' AND status = 'successful' AND (settlement_status IS NULL OR settlement_status = '')"
+        );
+    }
+
+    /** @return array{charged: ?float, fee: ?float, merchant_fee: ?float, net: ?float} */
+    private static function figuresFromRaw(string $raw, float $amount): array
+    {
+        $json = json_decode($raw, true);
+        $data = [];
+        if (is_array($json)) {
+            $data = is_array($json['data'] ?? null) ? $json['data'] : $json;
+        }
+        return self::figuresFromData($data, $amount);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array{charged: ?float, fee: ?float, merchant_fee: ?float, net: ?float}
+     */
+    private static function figuresFromData(array $data, float $amount): array
+    {
+        $charged = isset($data['charged_amount']) ? round((float)$data['charged_amount'], 2) : null;
+        $fee = array_key_exists('app_fee', $data) ? round((float)$data['app_fee'], 2) : null;
+        $merchant = array_key_exists('merchant_fee', $data) ? round((float)$data['merchant_fee'], 2) : null;
+        if (isset($data['amount_settled'])) {
+            $net = round((float)$data['amount_settled'], 2);
+        } elseif ($fee !== null) {
+            $gross = ($charged !== null && $charged > 0) ? $charged : $amount;
+            $net = round(max(0, $gross - $fee - (float)$merchant), 2);
+        } else {
+            $net = null;
+        }
+        return ['charged' => $charged, 'fee' => $fee, 'merchant_fee' => $merchant, 'net' => $net];
     }
 
     /** @param array<string, mixed> $row @param array<string, mixed> $data */
@@ -806,6 +1016,372 @@ final class Flutterwave
         return '';
     }
 
+
+    /**
+     * Wallet balance, saved payout account, and recent emergency transfers.
+     *
+     * @return array{enabled: bool, test_mode: bool, balance: ?float, collection: ?float, balance_error: ?string, destination: array<string, mixed>, rows: list<array<string, mixed>>}
+     */
+    public function transferBoard(): array
+    {
+        $destination = $this->payoutDestination();
+        $balance = null;
+        $collection = null;
+        $balanceError = null;
+        $rows = [];
+        if ($this->enabled()) {
+            try {
+                $wallets = $this->walletBalances();
+                $balance = $wallets['payout'];
+                $collection = $wallets['collection'];
+            } catch (\Throwable $e) {
+                $balanceError = $e->getMessage();
+            }
+        }
+        try {
+            if ($this->enabled()) {
+                $this->refreshPendingTransfers();
+            }
+            $rows = $this->recentTransfers();
+        } catch (\Throwable $e) {
+            if ($balanceError === null) {
+                $balanceError = $e->getMessage();
+            }
+        }
+        return [
+            'enabled' => $this->enabled(),
+            'test_mode' => $this->isTestMode(),
+            'balance' => $balance,
+            'collection' => $collection,
+            'balance_error' => $balanceError,
+            'destination' => $destination,
+            'rows' => $rows,
+        ];
+    }
+
+    /** @return list<array{id: string, code: string, name: string, has_branches: bool}> */
+    public function zmBanks(): array
+    {
+        $this->assertEnabled();
+        $res = $this->request('GET', '/banks/ZM');
+        if (($res['status'] ?? '') !== 'success' || !is_array($res['data'] ?? null)) {
+            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not return Zambian banks.'));
+        }
+        $out = [];
+        foreach ($res['data'] as $bank) {
+            if (!is_array($bank)) {
+                continue;
+            }
+            $code = trim((string)($bank['code'] ?? ''));
+            $name = trim((string)($bank['name'] ?? ''));
+            if ($code === '' || $name === '') {
+                continue;
+            }
+            $out[] = [
+                'id' => trim((string)($bank['id'] ?? '')),
+                'code' => $code,
+                'name' => $name,
+                'has_branches' => !empty($bank['has_branches']) || !empty($bank['hasBranches']),
+            ];
+        }
+        usort($out, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+        return $out;
+    }
+
+    /** @return list<array{code: string, name: string}> */
+    public function bankBranches(string $bankId): array
+    {
+        $this->assertEnabled();
+        if (!preg_match('/^[A-Za-z0-9_-]+$/', $bankId)) {
+            throw new \InvalidArgumentException('Choose a bank from the list.');
+        }
+        $res = $this->request('GET', '/banks/' . rawurlencode($bankId) . '/branches');
+        if (($res['status'] ?? '') !== 'success' || !is_array($res['data'] ?? null)) {
+            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not return branches for that bank.'));
+        }
+        $out = [];
+        foreach ($res['data'] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $code = trim((string)($row['branch_code'] ?? $row['code'] ?? ''));
+            $name = trim((string)($row['branch_name'] ?? $row['name'] ?? $code));
+            if ($code === '') {
+                continue;
+            }
+            $out[] = ['code' => $code, 'name' => $name !== '' ? $name : $code];
+        }
+        return $out;
+    }
+
+    /**
+     * Queue a ZMW bank transfer from the Flutterwave balance to the account saved
+     * under Settings → Payments. The destination is not taken from this request.
+     *
+     * @return array{status: string, msg: string}
+     */
+    public function sendEmergencyTransfer(float $amount, string $narration, int $userId): array
+    {
+        $this->assertEnabled();
+        $dest = $this->payoutDestination();
+        if (empty($dest['ready'])) {
+            throw new \RuntimeException('Save the emergency payout account under Settings → Payments first.');
+        }
+        $amount = round($amount, 2);
+        if ($amount < 1) {
+            throw new \InvalidArgumentException('Enter an amount of at least ZMW 1.00.');
+        }
+        $narration = trim(preg_replace('/\s+/', ' ', $narration) ?? '');
+        if (!preg_match('/^[A-Za-z0-9 .,' . "\\-']{3,100}$/", $narration)) {
+            throw new \InvalidArgumentException('The reason should be 3 to 100 letters, numbers, or simple punctuation.');
+        }
+        $balance = $this->availableBalance();
+        if ($amount - $balance > 0.001) {
+            throw new \RuntimeException('The Flutterwave balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
+        }
+        $dupe = $this->pdo->prepare(
+            "SELECT id FROM flutterwave_transfers
+             WHERE account_number = ? AND amount = ? AND status IN ('pending', 'unknown')
+               AND created_at > (NOW() - INTERVAL 3 MINUTE)
+             LIMIT 1"
+        );
+        $dupe->execute([$dest['account'], $amount]);
+        if ($dupe->fetchColumn()) {
+            throw new \RuntimeException('A transfer for this amount is already in progress. Wait for it to finish before sending another.');
+        }
+
+        $reference = 'EMG-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        $this->pdo->prepare(
+            'INSERT INTO flutterwave_transfers
+                (reference, user_id, amount, currency, account_bank, bank_name, account_number, beneficiary_name, branch_code, narration, status)
+             VALUES (?, ?, ?, "ZMW", ?, ?, ?, ?, ?, ?, "pending")'
+        )->execute([
+            $reference,
+            $userId > 0 ? $userId : null,
+            $amount,
+            $dest['bank'],
+            $dest['bank_name'],
+            $dest['account'],
+            $dest['name'],
+            $dest['branch'] !== '' ? $dest['branch'] : null,
+            $narration,
+        ]);
+
+        $payload = [
+            'account_bank' => $dest['bank'],
+            'account_number' => $dest['account'],
+            'amount' => $amount,
+            'narration' => $narration,
+            'currency' => 'ZMW',
+            'debit_currency' => 'ZMW',
+            'beneficiary_name' => $dest['name'],
+            'reference' => $reference,
+            'callback_url' => $this->webhookUrl(),
+        ];
+        if ($dest['branch'] !== '') {
+            $payload['destination_branch_code'] = $dest['branch'];
+        }
+
+        try {
+            $res = $this->request('POST', '/transfers', $payload);
+        } catch (\Throwable $e) {
+            $this->storeTransferResult($reference, 'unknown', null, null, $e->getMessage(), null);
+            throw new \RuntimeException('Flutterwave did not answer. The transfer was not marked failed, because it may still have been queued. Check the list before sending it again.');
+        }
+
+        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+        $message = (string)($res['message'] ?? 'Flutterwave did not queue the transfer.');
+        if (($res['_http'] ?? 200) >= 400 || ($res['status'] ?? '') !== 'success') {
+            $this->storeTransferResult($reference, 'failed', null, null, $message, $res);
+            throw new \RuntimeException($message);
+        }
+        $fee = isset($data['fee']) ? round((float)$data['fee'], 2) : null;
+        $providerId = trim((string)($data['id'] ?? ''));
+        $status = $this->transferStatus($data);
+        $complete = trim((string)($data['complete_message'] ?? ''));
+        $this->storeTransferResult($reference, $status, $providerId !== '' ? $providerId : null, $fee, $complete !== '' ? $complete : null, $res);
+        $where = $dest['bank_name'] !== '' ? $dest['bank_name'] : 'the saved account';
+        return [
+            'status' => 'ok',
+            'msg' => 'Emergency transfer of ZMW ' . number_format($amount, 2) . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
+        ];
+    }
+
+    /** @return array{bank: string, bank_id: string, bank_name: string, account: string, name: string, branch: string, has_branches: bool, ready: bool, masked: string} */
+    public function payoutDestination(): array
+    {
+        $bank = trim((string)($this->settings['flw_payout_bank'] ?? ''));
+        $account = preg_replace('/\D+/', '', (string)($this->settings['flw_payout_account'] ?? '')) ?? '';
+        $name = trim((string)($this->settings['flw_payout_name'] ?? ''));
+        $branch = trim((string)($this->settings['flw_payout_branch'] ?? ''));
+        $hasBranches = ($this->settings['flw_payout_has_branches'] ?? '0') === '1';
+        $ready = $bank !== '' && $name !== '' && preg_match('/^[0-9]{6,20}$/', $account) === 1 && (!$hasBranches || $branch !== '');
+        $masked = $account === '' ? '' : (strlen($account) <= 4 ? $account : str_repeat('•', strlen($account) - 4) . substr($account, -4));
+        return [
+            'bank' => $bank,
+            'bank_id' => trim((string)($this->settings['flw_payout_bank_id'] ?? '')),
+            'bank_name' => trim((string)($this->settings['flw_payout_bank_name'] ?? '')),
+            'account' => $account,
+            'name' => $name,
+            'branch' => $branch,
+            'has_branches' => $hasBranches,
+            'ready' => $ready,
+            'masked' => $masked,
+        ];
+    }
+
+    public function webhookUrl(): string
+    {
+        $host = strtolower((string)preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? '')));
+        if (in_array($host, ['localhost', '127.0.0.1', '::1', ''], true)) {
+            return 'https://smartrade.odeliazm.com/api/flutterwave_webhook.php';
+        }
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        $dir = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
+        return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir . '/api/flutterwave_webhook.php';
+    }
+
+    /** @return array{payout: float, collection: float} */
+    private function walletBalances(): array
+    {
+        $this->assertEnabled();
+        $currency = $this->currency();
+        $res = $this->request('GET', '/balances/' . rawurlencode($currency));
+        if (($res['status'] ?? '') !== 'success') {
+            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not return the wallet balance.'));
+        }
+        $data = $res['data'] ?? null;
+        $row = null;
+        if (is_array($data) && isset($data['available_balance'])) {
+            $row = $data;
+        } elseif (is_array($data)) {
+            foreach ($data as $item) {
+                if (is_array($item) && strtoupper((string)($item['currency'] ?? '')) === $currency) {
+                    $row = $item;
+                    break;
+                }
+            }
+        }
+        if ($row === null) {
+            throw new \RuntimeException('Flutterwave did not return a ' . $currency . ' balance.');
+        }
+        return [
+            'payout' => round((float)($row['available_balance'] ?? 0), 2),
+            'collection' => round((float)($row['ledger_balance'] ?? 0), 2),
+        ];
+    }
+
+    private function availableBalance(): float
+    {
+        return $this->walletBalances()['payout'];
+    }
+
+    private function refreshPendingTransfers(): void
+    {
+        $rows = $this->pdo->query(
+            "SELECT reference, provider_id FROM flutterwave_transfers
+             WHERE status IN ('pending', 'unknown') AND provider_id IS NOT NULL AND provider_id <> ''
+             ORDER BY id DESC
+             LIMIT 8"
+        )->fetchAll();
+        foreach ($rows as $row) {
+            try {
+                $res = $this->request('GET', '/transfers/' . rawurlencode((string)$row['provider_id']));
+                $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+                if (($res['status'] ?? '') !== 'success' || $data === []) {
+                    continue;
+                }
+                $fee = isset($data['fee']) ? round((float)$data['fee'], 2) : null;
+                $complete = trim((string)($data['complete_message'] ?? ''));
+                $this->storeTransferResult(
+                    (string)$row['reference'],
+                    $this->transferStatus($data),
+                    (string)$row['provider_id'],
+                    $fee,
+                    $complete !== '' ? $complete : null,
+                    $res
+                );
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    private function applyTransferWebhook(array $data): void
+    {
+        $reference = trim((string)($data['reference'] ?? ''));
+        if ($reference === '' || !str_starts_with($reference, 'EMG-')) {
+            return;
+        }
+        $known = $this->pdo->prepare('SELECT id FROM flutterwave_transfers WHERE reference = ? LIMIT 1');
+        $known->execute([$reference]);
+        if (!$known->fetchColumn()) {
+            return;
+        }
+        $fee = isset($data['fee']) ? round((float)$data['fee'], 2) : null;
+        $providerId = trim((string)($data['id'] ?? ''));
+        $complete = trim((string)($data['complete_message'] ?? ''));
+        $this->storeTransferResult(
+            $reference,
+            $this->transferStatus($data),
+            $providerId !== '' ? $providerId : null,
+            $fee,
+            $complete !== '' ? $complete : null,
+            ['data' => $data]
+        );
+    }
+
+    /** @param array<string, mixed> $data */
+    private function transferStatus(array $data): string
+    {
+        $status = strtoupper(trim((string)($data['status'] ?? '')));
+        $complete = strtolower(trim((string)($data['complete_message'] ?? '')));
+        if (str_contains($complete, 'unsuccess') || str_contains($complete, 'fail') || in_array($status, ['FAILED', 'FAILURE', 'REVERSED'], true)) {
+            return 'failed';
+        }
+        if (preg_match('/\bsuccess/', $complete) === 1 || in_array($status, ['SUCCESSFUL', 'SUCCESS', 'COMPLETED'], true)) {
+            return 'successful';
+        }
+        return 'pending';
+    }
+
+    private function storeTransferResult(string $reference, string $status, ?string $providerId, ?float $fee, ?string $message, ?array $raw): void
+    {
+        $this->pdo->prepare(
+            'UPDATE flutterwave_transfers
+             SET status = ?, provider_id = COALESCE(?, provider_id), fee = COALESCE(?, fee),
+                 complete_message = COALESCE(?, complete_message), raw_response = COALESCE(?, raw_response), updated_at = NOW()
+             WHERE reference = ?'
+        )->execute([
+            $status,
+            $providerId,
+            $fee,
+            $message,
+            $raw !== null ? json_encode($raw, JSON_UNESCAPED_SLASHES) : null,
+            $reference,
+        ]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function recentTransfers(): array
+    {
+        $rows = $this->pdo->query(
+            "SELECT t.id, t.reference, t.amount, t.fee, t.currency, t.bank_name, t.account_number, t.beneficiary_name,
+                    t.narration, t.status, t.complete_message, t.created_at, u.username
+             FROM flutterwave_transfers t
+             LEFT JOIN users u ON u.id = t.user_id
+             ORDER BY t.id DESC
+             LIMIT 20"
+        )->fetchAll();
+        foreach ($rows as &$row) {
+            $account = (string)($row['account_number'] ?? '');
+            $row['account_masked'] = $account === '' ? '' : (strlen($account) <= 4 ? $account : str_repeat('•', strlen($account) - 4) . substr($account, -4));
+            unset($row['account_number']);
+        }
+        unset($row);
+        return $rows;
+    }
 
     private function request(string $method, string $path, ?array $body = null): array
     {

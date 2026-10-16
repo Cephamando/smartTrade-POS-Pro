@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 4;
+    public const VERSION = 6;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -133,6 +133,37 @@ final class Schema
         );
         self::addColumn($pdo, 'payment_transactions', 'network', 'VARCHAR(20) NULL');
         self::addColumn($pdo, 'payment_transactions', 'network_tx_id', 'VARCHAR(80) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'app_fee', 'DECIMAL(12,2) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'merchant_fee', 'DECIMAL(12,2) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'net_amount', 'DECIMAL(12,2) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'settlement_status', 'VARCHAR(20) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'settlement_id', 'VARCHAR(40) NULL');
+        self::addColumn($pdo, 'payment_transactions', 'settled_at', 'DATETIME NULL');
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS flutterwave_transfers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                reference VARCHAR(64) NOT NULL,
+                provider_id VARCHAR(40) NULL,
+                user_id INT NULL,
+                amount DECIMAL(12,2) NOT NULL,
+                fee DECIMAL(12,2) NULL,
+                currency VARCHAR(3) NOT NULL DEFAULT 'ZMW',
+                account_bank VARCHAR(20) NOT NULL,
+                bank_name VARCHAR(160) NULL,
+                account_number VARCHAR(30) NOT NULL,
+                beneficiary_name VARCHAR(120) NOT NULL,
+                branch_code VARCHAR(40) NULL,
+                narration VARCHAR(160) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                complete_message VARCHAR(255) NULL,
+                raw_response MEDIUMTEXT NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NULL,
+                UNIQUE KEY uq_flw_transfer_ref (reference),
+                KEY idx_flw_transfer_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
 
         // --- FX rates cache
         $pdo->exec(

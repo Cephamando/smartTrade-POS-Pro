@@ -82,6 +82,19 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
     </div>
 </div>
 
+<?php $dashTab = ($dashTab ?? '') === 'settlements' ? 'settlements' : 'overview'; ?>
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link<?= $dashTab === 'overview' ? ' active fw-bold' : '' ?>" href="index.php?page=dashboard">Overview</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link<?= $dashTab === 'settlements' ? ' active fw-bold' : '' ?>" href="index.php?page=dashboard&tab=settlements"><i class="bi bi-bank"></i> Settlements &amp; Payouts</a>
+    </li>
+</ul>
+
+<?php if ($dashTab === 'settlements'): ?>
+<?php include __DIR__ . '/partials/settlements.php'; ?>
+<?php else: ?>
 <div class="dashboard-stats-wrapper">
     <div class="stat-card-col">
         <a href="index.php?page=reports" class="text-decoration-none">
@@ -249,6 +262,7 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="modal fade" id="shiftDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -396,7 +410,9 @@ function showPickupModal() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    new Chart(document.getElementById('salesChart').getContext('2d'), {
+    const salesCanvas = document.getElementById('salesChart');
+    if (!salesCanvas) return;
+    new Chart(salesCanvas.getContext('2d'), {
         type: 'line',
         data: {
             labels: <?= json_encode($dates) ?>,

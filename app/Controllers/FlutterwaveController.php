@@ -77,6 +77,13 @@ final class FlutterwaveController extends Controller
                     }
                     $this->jsonExit($flw->testConnection());
                     // no break
+                case 'branches':
+                    if (!$this->isManager()) {
+                        $this->jsonExit(['status' => 'error', 'msg' => 'Managers only.'], 403);
+                    }
+                    $bankId = trim((string)($_GET['bank_id'] ?? ''));
+                    $this->jsonExit(['status' => 'ok', 'branches' => $flw->bankBranches($bankId)]);
+                    // no break
                 default:
                     $this->jsonExit(['status' => 'error', 'msg' => 'Unknown action.'], 404);
             }

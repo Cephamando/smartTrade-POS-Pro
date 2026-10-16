@@ -237,6 +237,52 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                         <input type="text" name="flw_subaccount_id" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_subaccount_id'] ?? '') ?>" placeholder="RS_..." autocomplete="off">
                         <div class="form-text">Paste the ID from Flutterwave → Subaccounts. It starts with <code>RS_</code>. Card and mobile-money payments then use the percentage or flat split already saved on that subaccount. Leave this blank to settle the full amount to this account.</div>
                     </div>
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-1"><i class="bi bi-bank"></i> Emergency payout account</h6>
+                    <p class="text-muted small">Used only by Settlements &amp; Payouts → Emergency transfer. The transfer always pays this account. Flutterwave must have this server's IP on the transfer whitelist.</p>
+                    <?php if (!empty($flwBanksError)): ?>
+                        <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?> You can type the bank code and name instead.</div>
+                    <?php endif; ?>
+                    <?php $payoutBanks = $flwBanks ?? []; $payoutBranches = $flwBranches ?? []; ?>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">BANK</label>
+                            <?php if ($payoutBanks !== []): ?>
+                                <select name="flw_payout_bank" id="flwPayoutBank" class="form-select" onchange="flwBankChanged(this)">
+                                    <option value="">No emergency account</option>
+                                    <?php foreach ($payoutBanks as $bank): ?>
+                                        <option value="<?= htmlspecialchars($bank['code']) ?>" data-id="<?= htmlspecialchars($bank['id']) ?>" data-name="<?= htmlspecialchars($bank['name']) ?>" data-branches="<?= $bank['has_branches'] ? '1' : '0' ?>" <?= (string)($settings['flw_payout_bank'] ?? '') === $bank['code'] ? 'selected' : '' ?>><?= htmlspecialchars($bank['name']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <input type="hidden" name="flw_payout_bank_name" id="flwPayoutBankName" value="<?= htmlspecialchars($settings['flw_payout_bank_name'] ?? '') ?>">
+                            <?php else: ?>
+                                <input type="text" name="flw_payout_bank" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_payout_bank'] ?? '') ?>" placeholder="Bank code" autocomplete="off">
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($payoutBanks === []): ?>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">BANK NAME</label>
+                            <input type="text" name="flw_payout_bank_name" class="form-control" value="<?= htmlspecialchars($settings['flw_payout_bank_name'] ?? '') ?>" autocomplete="off">
+                        </div>
+                        <?php endif; ?>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">ACCOUNT NUMBER</label>
+                            <input type="text" name="flw_payout_account" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_payout_account'] ?? '') ?>" inputmode="numeric" autocomplete="off">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">NAME ON THE ACCOUNT</label>
+                            <input type="text" name="flw_payout_name" class="form-control" value="<?= htmlspecialchars($settings['flw_payout_name'] ?? '') ?>" autocomplete="off">
+                        </div>
+                        <div class="col-md-6<?= $payoutBranches === [] ? ' d-none' : '' ?>" id="flwBranchWrap">
+                            <label class="form-label fw-bold small text-muted">BRANCH</label>
+                            <select name="flw_payout_branch" id="flwPayoutBranch" class="form-select">
+                                <option value="">Choose a branch</option>
+                                <?php foreach ($payoutBranches as $branch): ?>
+                                    <option value="<?= htmlspecialchars($branch['code']) ?>" <?= (string)($settings['flw_payout_branch'] ?? '') === $branch['code'] ? 'selected' : '' ?>><?= htmlspecialchars($branch['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
                     <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary fw-bold px-4"><i class="bi bi-save"></i> Save</button>
                         <button type="button" class="btn btn-outline-primary fw-bold" onclick="flwTest()"><i class="bi bi-plug"></i> Test keys</button>
@@ -258,6 +304,42 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
 </div>
 <script>
 function flwTest() { const out = document.getElementById('flwTestResult'); out.textContent = 'Testing…'; out.className = 'align-self-center small text-muted'; fetch('index.php?page=flutterwave&action=test', { credentials: 'same-origin' }).then(r => r.json()).then(function (res) { out.textContent = res.msg || ''; out.className = 'align-self-center small fw-bold ' + (res.status === 'ok' ? 'text-success' : 'text-danger'); }).catch(function () { out.textContent = 'Could not reach the server.'; out.className = 'align-self-center small text-danger'; }); }
+function flwBankChanged(sel) {
+    var opt = sel.options[sel.selectedIndex];
+    var name = document.getElementById('flwPayoutBankName');
+    if (name) name.value = opt && opt.dataset.name ? opt.dataset.name : '';
+    var wrap = document.getElementById('flwBranchWrap');
+    var branch = document.getElementById('flwPayoutBranch');
+    if (!wrap || !branch) return;
+    var needs = opt && opt.dataset.branches === '1' && opt.dataset.id;
+    if (!needs) {
+        wrap.classList.add('d-none');
+        if (branch.tomselect) branch.tomselect.clear(true);
+        else branch.value = '';
+        return;
+    }
+    wrap.classList.remove('d-none');
+    fetch('index.php?page=flutterwave&action=branches&bank_id=' + encodeURIComponent(opt.dataset.id), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var rows = Array.isArray(res.branches) ? res.branches : [];
+            if (branch.tomselect) {
+                branch.tomselect.clear(true);
+                branch.tomselect.clearOptions();
+                rows.forEach(function (b) { branch.tomselect.addOption({ value: b.code, text: b.name }); });
+                branch.tomselect.refreshOptions(false);
+                return;
+            }
+            branch.innerHTML = '<option value="">Choose a branch</option>';
+            rows.forEach(function (b) {
+                var o = document.createElement('option');
+                o.value = b.code;
+                o.textContent = b.name;
+                branch.appendChild(o);
+            });
+        })
+        .catch(function () {});
+}
 </script>
 
 <?php elseif ($tab === 'currency'): ?>

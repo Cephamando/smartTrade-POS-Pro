@@ -464,6 +464,8 @@ Administrators, managers, and developers.
 - **Staff & users** shortcuts: Manage Users, View Shifts, Members.
 - **7-day sales trend** and **payment mix** charts.
 - **Active shifts**: who is open, their role, and a button into that shift’s sales.
+- **Settlements & Payouts**: confirmed Flutterwave charges across every workstation. **Total processed** is what customers paid. **Service fee deducted** is Flutterwave’s fee. **Pending settlement to bank** is what Flutterwave still owes this account. **Update from Flutterwave** checks completed settlement batches and marks the matching charges settled.
+- **Emergency transfer**: sends an amount from the **payout balance** to the bank account saved under Settings → Payments. The **collection balance** is what Flutterwave is still holding. Flutterwave releases that into the payout balance on its own settlement schedule, and only when Business preferences say “Settle to my payout balance”. This app cannot move a chosen amount between those two balances. The transfer asks for a manager username and password. The row stays pending until Flutterwave reports it successful. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 - **Pickup screen** and **Approvals** when your role and tier include them.
 - **Go to POS** when this location can sell.
 

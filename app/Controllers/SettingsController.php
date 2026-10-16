@@ -79,16 +79,41 @@ final class SettingsController extends Controller
         } catch (\Throwable $e) {
             $fxData['error'] = $e->getMessage();
         }
+        $flw = new Flutterwave($this->pdo(), $settings);
+        $flwBanks = [];
+        $flwBranches = [];
+        $flwBanksError = null;
+        if ((string)($_GET['tab'] ?? '') === 'payments' && $flw->enabled()) {
+            try {
+                $flwBanks = $flw->zmBanks();
+                $savedId = trim((string)($settings['flw_payout_bank_id'] ?? ''));
+                $needsBranches = false;
+                foreach ($flwBanks as $bank) {
+                    if ($bank['code'] === (string)($settings['flw_payout_bank'] ?? '') && $bank['has_branches']) {
+                        $needsBranches = true;
+                        $savedId = $bank['id'] !== '' ? $bank['id'] : $savedId;
+                    }
+                }
+                if ($needsBranches && $savedId !== '') {
+                    $flwBranches = $flw->bankBranches($savedId);
+                }
+            } catch (\Throwable $e) {
+                $flwBanksError = $e->getMessage() !== '' ? $e->getMessage() : 'Zambian banks could not be loaded.';
+            }
+        }
         $this->render([
             'settings' => $settings,
             'tab' => (string)($_GET['tab'] ?? 'general'),
+            'flwBanks' => $flwBanks,
+            'flwBranches' => $flwBranches,
+            'flwBanksError' => $flwBanksError,
             'surchargeReasons' => SurchargeReason::all(),
             'fxData' => $fxData,
             'fxDisplay' => $fx->displayCurrencies(),
             'fxManual' => $fx->manualRates(),
             'fxKnown' => Currency::KNOWN,
-            'flwEnabled' => (new Flutterwave($this->pdo(), $settings))->enabled(),
-            'flwTestMode' => (new Flutterwave($this->pdo(), $settings))->isTestMode(),
+            'flwEnabled' => $flw->enabled(),
+            'flwTestMode' => $flw->isTestMode(),
             'locations' => Location::all(),
             'menuPhotos' => (($_GET['tab'] ?? '') === 'branding') ? Product::menuForPhotos() : [],
             'libraryImages' => (($_GET['tab'] ?? '') === 'branding') ? Media::list() : [],
@@ -154,8 +179,89 @@ final class SettingsController extends Controller
         } else {
             $pairs['flw_secret_key'] = (string)($existing['flw_secret_key'] ?? '');
         }
+        $pairs += $this->payoutAccount($pairs['flw_secret_key'], $pairs['flw_public_key'], $pairs['flw_enabled']);
         Setting::save($pairs);
         $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test keys" to confirm Flutterwave accepts them.' : ''));
+    }
+
+    /** @return array<string, string> */
+    private function payoutAccount(string $secret, string $public, string $enabled): array
+    {
+        $bank = trim((string)($_POST['flw_payout_bank'] ?? ''));
+        $account = preg_replace('/\D+/', '', (string)($_POST['flw_payout_account'] ?? '')) ?? '';
+        $name = trim((string)($_POST['flw_payout_name'] ?? ''));
+        $branch = trim((string)($_POST['flw_payout_branch'] ?? ''));
+        $empty = [
+            'flw_payout_bank' => '',
+            'flw_payout_bank_id' => '',
+            'flw_payout_bank_name' => '',
+            'flw_payout_account' => '',
+            'flw_payout_name' => '',
+            'flw_payout_branch' => '',
+            'flw_payout_has_branches' => '0',
+        ];
+        if ($bank === '' && $account === '' && $name === '' && $branch === '') {
+            return $empty;
+        }
+        if ($bank === '' || $account === '' || $name === '') {
+            throw new \InvalidArgumentException('The emergency payout account needs a bank, an account number, and the name on the account.');
+        }
+        if (!preg_match('/^[0-9]{6,20}$/', $account)) {
+            throw new \InvalidArgumentException('The payout account number should be 6 to 20 digits.');
+        }
+        if (!preg_match('/^[A-Za-z0-9 .\'-]{2,80}$/', $name)) {
+            throw new \InvalidArgumentException('The name on the payout account should be 2 to 80 letters.');
+        }
+        if ($branch !== '' && !preg_match('/^[A-Za-z0-9_-]{1,40}$/', $branch)) {
+            throw new \InvalidArgumentException('The branch code is not valid.');
+        }
+        $saved = [
+            'flw_payout_bank' => $bank,
+            'flw_payout_bank_id' => '',
+            'flw_payout_bank_name' => trim((string)($_POST['flw_payout_bank_name'] ?? '')),
+            'flw_payout_account' => $account,
+            'flw_payout_name' => $name,
+            'flw_payout_branch' => $branch,
+            'flw_payout_has_branches' => '0',
+        ];
+        if ($enabled !== '1' || $secret === '' || $public === '') {
+            if ($saved['flw_payout_bank_name'] === '') {
+                throw new \InvalidArgumentException('Enter the bank name, or enable Flutterwave so the bank can be chosen from the list.');
+            }
+            return $saved;
+        }
+        $flw = new Flutterwave($this->pdo(), array_merge(Setting::all(), [
+            'flw_enabled' => '1',
+            'flw_secret_key' => $secret,
+            'flw_public_key' => $public,
+        ]));
+        $banks = $flw->zmBanks();
+        $match = null;
+        foreach ($banks as $row) {
+            if (strcasecmp($row['code'], $bank) === 0) {
+                $match = $row;
+                break;
+            }
+        }
+        if ($match === null) {
+            throw new \InvalidArgumentException('Choose a bank from the Flutterwave list.');
+        }
+        $saved['flw_payout_bank'] = $match['code'];
+        $saved['flw_payout_bank_id'] = $match['id'];
+        $saved['flw_payout_bank_name'] = $match['name'];
+        $saved['flw_payout_has_branches'] = $match['has_branches'] ? '1' : '0';
+        if ($match['has_branches']) {
+            if ($branch === '') {
+                throw new \InvalidArgumentException($match['name'] . ' needs a branch. Choose one before saving.');
+            }
+            $codes = array_column($flw->bankBranches($match['id']), 'code');
+            if (!in_array($branch, $codes, true)) {
+                throw new \InvalidArgumentException('Choose a branch from the list for ' . $match['name'] . '.');
+            }
+        } else {
+            $saved['flw_payout_branch'] = '';
+        }
+        return $saved;
     }
 
     private function subaccountId(string $raw): string
