@@ -1226,9 +1226,9 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 ### Scenario 7.1b — Payments (Flutterwave live)
 
-1. **Office → Settings**, Payments tab. Enable, choose **Live**, and paste the v4 **client ID**, **client secret**, and webhook hash from Flutterwave → Settings → API keys. Save. **Test connection**.
+1. **Office → Settings**, Payments tab. Enable and paste the **public key**, **secret key**, and webhook hash from Flutterwave → Settings → API. Paste the **subaccount ID** when the dashboard split should apply. Save. **Test keys**.
 
-*Expected result:* "Keys accepted" and the badge **LIVE**. Copy the webhook URL and the same secret hash into the Flutterwave dashboard. A confirmed charge marks the shop order paid even if the customer closed the browser; it stays on Web Orders until Hand Over and is not filed with ZRA from the webhook. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of saved keys are shown on the page. On the Customer ordering tab, an optional https **order webhook** receives a POST when an online order is ready and again when it is handed over. Leave it blank to send nothing.
+*Expected result:* "Keys accepted" and the badge **LIVE** for live keys, or **TEST MODE** when the keys start with `FLWPUBK_TEST` or `FLWSECK_TEST`. Copy the webhook URL and the same secret hash into the Flutterwave dashboard. A confirmed charge marks the shop order paid even if the customer closed the browser; it stays on Web Orders until Hand Over and is not filed with ZRA from the webhook. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of the secret key are shown on the page. On the Customer ordering tab, an optional https **order webhook** receives a POST when an online order is ready and again when it is handed over. Leave it blank to send nothing.
 
 ### Scenario 7.1c — Currency
 

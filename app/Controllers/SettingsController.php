@@ -138,26 +138,36 @@ final class SettingsController extends Controller
     private function savePayments(): void
     {
         $existing = Setting::all();
-        $secret = trim((string)($_POST['flw_client_secret'] ?? ''));
-        $environment = (string)($_POST['flw_environment'] ?? 'live') === 'sandbox' ? 'sandbox' : 'live';
+        $secret = trim((string)($_POST['flw_secret_key'] ?? ''));
         $pairs = [
             'flw_enabled' => isset($_POST['flw_enabled']) ? '1' : '0',
-            'flw_client_id' => trim((string)($_POST['flw_client_id'] ?? '')),
+            'flw_public_key' => trim((string)($_POST['flw_public_key'] ?? '')),
+            'flw_encryption_key' => trim((string)($_POST['flw_encryption_key'] ?? '')),
             'flw_webhook_hash' => trim((string)($_POST['flw_webhook_hash'] ?? '')),
-            'flw_environment' => $environment,
+            'flw_subaccount_id' => $this->subaccountId((string)($_POST['flw_subaccount_id'] ?? '')),
             'flw_currency' => 'ZMW',
-            'flw_access_token' => '',
-            'flw_token_exp' => '0',
         ];
         if ($secret !== '' && !str_contains($secret, '••••')) {
-            $pairs['flw_client_secret'] = $secret;
+            $pairs['flw_secret_key'] = $secret;
         } elseif ($secret === '') {
-            $pairs['flw_client_secret'] = '';
+            $pairs['flw_secret_key'] = '';
         } else {
-            $pairs['flw_client_secret'] = (string)($existing['flw_client_secret'] ?? '');
+            $pairs['flw_secret_key'] = (string)($existing['flw_secret_key'] ?? '');
         }
         Setting::save($pairs);
-        $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test connection" to confirm Flutterwave accepts them.' : ''));
+        $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test keys" to confirm Flutterwave accepts them.' : ''));
+    }
+
+    private function subaccountId(string $raw): string
+    {
+        $id = strtoupper(trim($raw));
+        if ($id === '') {
+            return '';
+        }
+        if (!preg_match('/^RS_[A-Z0-9]+$/', $id)) {
+            throw new \InvalidArgumentException('The subaccount ID should look like RS_ followed by letters and numbers, as shown in the Flutterwave dashboard.');
+        }
+        return $id;
     }
 
     private function saveCurrency(): void

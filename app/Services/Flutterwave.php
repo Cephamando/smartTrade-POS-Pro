@@ -6,23 +6,21 @@ use App\Models\Setting;
 use PDO;
 
 /**
- * Flutterwave v4 (live by default).
+ * Flutterwave v3 (hosted checkout + Zambia mobile money push).
  *
- * Settings → Payments stores the v4 client ID, client secret, and webhook
- * secret hash. The client secret is exchanged for a short-lived access token.
- * Live calls go to the production host. Sandbox is a separate switch.
+ * Settings → Payments stores the public key, secret key, webhook secret hash,
+ * and the RS_ subaccount id. Test keys (FLWPUBK_TEST / FLWSECK_TEST) put the
+ * gateway in sandbox mode. Card checkout and mobile-money charges send only
+ * that subaccount id, so the percentage or flat split saved on the subaccount
+ * is the one Flutterwave applies.
  *
- * Every attempt is recorded in payment_transactions keyed by our reference.
- * A sale completes only after this server has verified the charge
- * (succeeded, amount >= due, currency matches) and it has not been used before.
+ * Every attempt is recorded in payment_transactions keyed by tx_ref. A sale
+ * completes only after this server has verified the charge (successful,
+ * amount >= due, currency matches) and it has not been used before.
  */
 final class Flutterwave
 {
-    private const TOKEN_URL = 'https://idp.flutterwave.com/realms/flutterwave/protocol/openid-connect/token';
-    private const LIVE_API = 'https://f4bexperience.flutterwave.com';
-    private const SANDBOX_API = 'https://developersandbox-api.flutterwave.com';
-    /** Charges reject http and localhost. This https page is only the browser return when the till itself is not public. */
-    private const PUBLIC_RETURN = 'https://queenbeesrestaurants.com/';
+    private const API = 'https://api.flutterwave.com/v3';
 
     public function __construct(private PDO $pdo, private ?array $settings = null)
     {
@@ -31,52 +29,41 @@ final class Flutterwave
 
     public function enabled(): bool
     {
-        return ($this->settings['flw_enabled'] ?? '0') === '1' && $this->clientId() !== '' && $this->clientSecret() !== '';
+        return ($this->settings['flw_enabled'] ?? '0') === '1' && $this->secretKey() !== '' && $this->publicKey() !== '';
+    }
+
+    public function publicKey(): string
+    {
+        return trim((string)($this->settings['flw_public_key'] ?? ''));
     }
 
     public function isTestMode(): bool
     {
-        return ($this->settings['flw_environment'] ?? 'live') !== 'live';
+        return str_starts_with($this->publicKey(), 'FLWPUBK_TEST') || str_starts_with($this->secretKey(), 'FLWSECK_TEST');
     }
 
     /**
-     * Confirms the saved client ID and secret against the selected environment.
-     * Sandbox keys are rejected by the live host, so a live failure is checked
-     * once against the sandbox host before the message is returned.
+     * Confirms the saved secret key with a small authenticated call.
      *
      * @return array{status: string, msg: string, test_mode?: bool}
      */
     public function testConnection(): array
     {
         $this->assertEnabled();
-        $why = 'Flutterwave did not accept the keys.';
         try {
-            $res = $this->request('GET', '/customers?page=1');
+            $res = $this->request('GET', '/banks/ZM');
             if (($res['status'] ?? '') === 'success') {
                 return [
                     'status' => 'ok',
-                    'msg' => 'Keys accepted. ' . ($this->isTestMode() ? 'Sandbox mode.' : 'LIVE mode — real money.'),
+                    'msg' => 'Keys accepted. ' . ($this->isTestMode() ? 'Sandbox (test) mode.' : 'LIVE mode — real money.'),
                     'test_mode' => $this->isTestMode(),
                 ];
             }
-            $why = $this->apiMessage($res, $why);
+            return ['status' => 'error', 'msg' => (string)($res['message'] ?? 'Flutterwave did not accept the keys.')];
         } catch (\Throwable $e) {
-            $why = $e->getMessage() !== '' ? $e->getMessage() : $why;
+            $why = $e->getMessage();
+            return ['status' => 'error', 'msg' => $why !== '' ? $why : 'Flutterwave did not accept the keys.'];
         }
-        if (!$this->isTestMode()) {
-            try {
-                $sandbox = $this->request('GET', '/customers?page=1', null, null, false, self::SANDBOX_API);
-                if (($sandbox['status'] ?? '') === 'success') {
-                    return [
-                        'status' => 'error',
-                        'msg' => 'These keys are from the Flutterwave sandbox. Switch Environment to Sandbox and save. Live keeps rejecting them until the client ID and secret come from a Flutterwave business account.',
-                    ];
-                }
-            } catch (\Throwable $e) {
-                // The live failure is the one to show.
-            }
-        }
-        return ['status' => 'error', 'msg' => $why];
     }
 
     public function currency(): string
@@ -84,19 +71,9 @@ final class Flutterwave
         return strtoupper((string)($this->settings['flw_currency'] ?? 'ZMW')) ?: 'ZMW';
     }
 
-    private function clientId(): string
+    private function secretKey(): string
     {
-        return trim((string)($this->settings['flw_client_id'] ?? ''));
-    }
-
-    private function clientSecret(): string
-    {
-        return trim((string)($this->settings['flw_client_secret'] ?? ''));
-    }
-
-    private function apiBase(): string
-    {
-        return $this->isTestMode() ? self::SANDBOX_API : self::LIVE_API;
+        return trim((string)($this->settings['flw_secret_key'] ?? ''));
     }
 
     public static function newTxRef(string $prefix = 'POS'): string
@@ -116,65 +93,52 @@ final class Flutterwave
             throw new \InvalidArgumentException('Amount must be greater than zero.');
         }
         $txRef = self::newTxRef($args['prefix'] ?? 'POS');
-        $email = $this->payerEmail((string)($args['email'] ?? ''), (string)($args['phone'] ?? ''));
-        $customerId = $this->ensureCustomer($email, (string)($args['name'] ?? ''), (string)($args['phone'] ?? ''));
-        $redirect = $this->payableRedirect((string)$args['redirect_url']);
-        $res = $this->request('POST', '/checkout/sessions', [
+        $phone = (string)($args['phone'] ?? '');
+        $email = trim((string)($args['email'] ?? ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $digits = preg_replace('/\D+/', '', $phone) ?: '0';
+            $email = 'customer+' . $digits . '@' . $this->emailDomain();
+        }
+        $payload = [
+            'tx_ref' => $txRef,
             'amount' => $amount,
             'currency' => $this->currency(),
-            'customer_id' => $customerId,
-            'redirect_url' => $redirect ?? (string)$args['redirect_url'],
-            'reference' => $txRef,
-        ], $txRef);
-        if ($this->redirectRejected($res)) {
-            $txRef = self::newTxRef($args['prefix'] ?? 'POS');
-            $res = $this->request('POST', '/checkout/sessions', [
-                'amount' => $amount,
-                'currency' => $this->currency(),
-                'customer_id' => $customerId,
-                'redirect_url' => self::PUBLIC_RETURN,
-                'reference' => $txRef,
-            ], $txRef);
+            'redirect_url' => (string)$args['redirect_url'],
+            'payment_options' => $args['payment_options'] ?? 'card,mobilemoneyzambia,ussd,banktransfer',
+            'customer' => [
+                'email' => $email,
+                'phonenumber' => $phone,
+                'name' => ($args['name'] ?? '') !== '' ? (string)$args['name'] : 'Walk-in customer',
+            ],
+            'customizations' => [
+                'title' => $this->hostedText($args['title'] ?? (string)($this->settings['business_name'] ?? 'smartTrade POS')),
+                'description' => $this->hostedText($args['description'] ?? ('Payment ' . $txRef)),
+            ],
+            'meta' => [
+                'sale_id' => (int)($args['sale_id'] ?? 0),
+                'location_id' => (int)($args['location_id'] ?? 0),
+                'source' => $args['prefix'] ?? 'POS',
+            ],
+        ];
+        $subaccounts = $this->subaccounts();
+        if ($subaccounts !== []) {
+            $payload['subaccounts'] = $subaccounts;
         }
-        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
-        $link = $this->checkoutLink($res);
-        $sessionId = trim((string)($data['id'] ?? ''));
-        if ($link === '' && str_starts_with($sessionId, 'che_') && ($res['status'] ?? '') === 'success') {
-            $fetched = $this->request('GET', '/checkout/sessions/' . rawurlencode($sessionId));
-            $link = $this->checkoutLink($fetched);
-            if ($link !== '') {
-                $data = is_array($fetched['data'] ?? null) ? $fetched['data'] : $data;
-                $res = $fetched;
-            }
-        }
-        if (($res['status'] ?? '') !== 'success') {
-            throw new \RuntimeException('Flutterwave: ' . $this->apiMessage($res, 'could not open checkout'));
-        }
-        if ($link === '' && $this->isTestMode()) {
-            $phone = preg_replace('/\D+/', '', (string)($args['phone'] ?? '')) ?? '';
-            if (strlen($phone) >= 9) {
-                $charged = $this->chargeMobileMoney($args + ['network' => $args['network'] ?? $this->zmNetwork($phone)]);
-                return [
-                    'tx_ref' => $charged['tx_ref'],
-                    'link' => (string)($charged['redirect'] ?? ''),
-                    'message' => (string)($charged['message'] ?? ''),
-                ];
-            }
-        }
-        if ($link === '') {
-            throw new \RuntimeException('Flutterwave did not return a payment page.');
+        $res = $this->request('POST', '/payments', $payload);
+        $link = $res['data']['link'] ?? null;
+        if (($res['status'] ?? '') !== 'success' || !$link) {
+            throw new \RuntimeException('Flutterwave: ' . ($res['message'] ?? 'could not create the payment link'));
         }
         $this->insertTransaction($txRef, $amount, [
             'payment_type' => 'hosted',
             'checkout_url' => $link,
-            'phone' => $args['phone'] ?? null,
+            'phone' => $phone !== '' ? $phone : null,
             'email' => $email,
             'name' => $args['name'] ?? null,
             'sale_id' => $args['sale_id'] ?? null,
             'location_id' => $args['location_id'] ?? null,
             'user_id' => $args['user_id'] ?? null,
             'customer_id' => $args['customer_id'] ?? null,
-            'flw_ref' => isset($data['id']) ? (string)$data['id'] : null,
         ], $res);
         return ['tx_ref' => $txRef, 'link' => $link];
     }
@@ -194,17 +158,70 @@ final class Flutterwave
         if ($amount <= 0) {
             throw new \InvalidArgumentException('Amount must be greater than zero.');
         }
-        return $this->createPaymentLink($args);
+        $txRef = self::newTxRef($args['prefix'] ?? 'WEB');
+        $phone = (string)($args['phone'] ?? '');
+        $email = trim((string)($args['email'] ?? ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $digits = preg_replace('/\D+/', '', $phone) ?: '0';
+            $email = 'customer+' . $digits . '@' . $this->emailDomain();
+        }
+        $this->insertTransaction($txRef, $amount, [
+            'payment_type' => 'inline',
+            'phone' => $phone !== '' ? $phone : null,
+            'email' => $email,
+            'name' => $args['name'] ?? null,
+            'sale_id' => $args['sale_id'] ?? null,
+            'location_id' => $args['location_id'] ?? null,
+            'user_id' => $args['user_id'] ?? null,
+            'customer_id' => $args['customer_id'] ?? null,
+        ], ['status' => 'pending', 'mode' => 'inline']);
+        $tx = $this->transaction($txRef);
+        if (!$tx) {
+            throw new \RuntimeException('The payment could not be started.');
+        }
+        return $this->inlinePayload($tx, $args);
     }
 
     /** @param array<string, mixed> $tx @param array<string, mixed> $args @return array<string, mixed> */
     public function inlinePayload(array $tx, array $args): array
     {
-        $link = trim((string)($tx['checkout_url'] ?? ''));
-        if ($link === '') {
-            return $this->createPaymentLink($args);
+        $payload = [
+            'public_key' => $this->publicKey(),
+            'tx_ref' => (string)$tx['tx_ref'],
+            'amount' => round((float)$tx['amount'], 2),
+            'currency' => (string)(($tx['currency'] ?? '') !== '' ? $tx['currency'] : $this->currency()),
+            'payment_options' => (string)($args['payment_options'] ?? 'card,mobilemoneyzambia'),
+            'redirect_url' => (string)($args['redirect_url'] ?? ''),
+            'customer' => [
+                'email' => (string)($tx['customer_email'] ?? ''),
+                'phone_number' => (string)($tx['customer_phone'] ?? ''),
+                'name' => (string)(($tx['customer_name'] ?? '') !== '' ? $tx['customer_name'] : 'Customer'),
+            ],
+            'customizations' => [
+                'title' => $this->hostedText((string)($args['title'] ?? ($this->settings['business_name'] ?? 'Payment'))),
+                'description' => $this->hostedText((string)($args['description'] ?? ('Payment ' . $tx['tx_ref']))),
+            ],
+        ];
+        $subaccounts = $this->subaccounts();
+        if ($subaccounts !== []) {
+            $payload['subaccounts'] = $subaccounts;
         }
-        return ['tx_ref' => (string)$tx['tx_ref'], 'link' => $link];
+        return $payload;
+    }
+
+    /**
+     * The subaccount's own percentage or flat split is used.
+     * Passing only the id avoids overriding the split saved in the Flutterwave dashboard.
+     *
+     * @return list<array{id: string}>
+     */
+    private function subaccounts(): array
+    {
+        $id = strtoupper(trim((string)($this->settings['flw_subaccount_id'] ?? '')));
+        if ($id === '' || !preg_match('/^RS_[A-Z0-9]+$/', $id)) {
+            return [];
+        }
+        return [['id' => $id]];
     }
 
     /**
@@ -223,57 +240,41 @@ final class Flutterwave
         if (strlen($phone) < 9) {
             throw new \InvalidArgumentException('Enter the customer\'s mobile money number.');
         }
-        $national = $phone;
-        if (str_starts_with($national, '260') && strlen($national) >= 12) {
-            $national = substr($national, 3);
-        }
-        $national = ltrim($national, '0');
-        if (strlen($national) < 7 || strlen($national) > 10) {
-            throw new \InvalidArgumentException('Enter a Zambian mobile money number.');
+        if (strlen($phone) === 9) {
+            $phone = '0' . $phone;
+        } elseif (str_starts_with($phone, '260') && strlen($phone) === 12) {
+            $phone = '0' . substr($phone, 3);
         }
         $network = strtoupper((string)($args['network'] ?? 'MTN'));
         if (!in_array($network, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
             $network = 'MTN';
         }
         $txRef = self::newTxRef($args['prefix'] ?? 'POS');
-        $email = $this->payerEmail((string)($args['email'] ?? ''), $phone);
-        $customerId = $this->ensureCustomer($email, (string)($args['name'] ?? ''), $phone);
-        $redirect = $this->payableRedirect((string)($args['redirect_url'] ?? ''));
-        if ($redirect === null && $this->isTestMode()) {
-            $redirect = self::PUBLIC_RETURN;
+        $email = trim((string)($args['email'] ?? ''));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $email = 'customer+' . $phone . '@' . $this->emailDomain();
         }
-        $method = $this->request('POST', '/payment-methods', [
-            'type' => 'mobile_money',
-            'customer_id' => $customerId,
-            'mobile_money' => [
-                'country_code' => '260',
-                'network' => $network,
-                'phone_number' => $national,
-            ],
-        ], $txRef . '-momo');
-        $methodId = (string)($method['data']['id'] ?? '');
-        if (($method['status'] ?? '') !== 'success' || $methodId === '') {
-            throw new \RuntimeException('Flutterwave: ' . $this->apiMessage($method, 'mobile money was rejected'));
-        }
-        $charge = [
-            'currency' => 'ZMW',
-            'customer_id' => $customerId,
-            'payment_method_id' => $methodId,
+        $payload = [
+            'tx_ref' => $txRef,
             'amount' => $amount,
-            'reference' => $txRef,
+            'currency' => 'ZMW',
+            'network' => $network,
+            'email' => $email,
+            'phone_number' => $phone,
+            'fullname' => ($args['name'] ?? '') !== '' ? (string)$args['name'] : 'Walk-in customer',
+            'redirect_url' => $args['redirect_url'] ?? null,
+            'meta' => ['sale_id' => (int)($args['sale_id'] ?? 0), 'source' => $args['prefix'] ?? 'POS'],
         ];
-        if ($redirect !== null) {
-            $charge['redirect_url'] = $redirect;
+        $subaccounts = $this->subaccounts();
+        if ($subaccounts !== []) {
+            $payload['subaccounts'] = $subaccounts;
         }
-        $scenario = $this->isTestMode() ? ['X-Scenario-Key: scenario:auth_redirect'] : [];
-        $res = $this->request('POST', '/charges', $charge, $txRef, false, null, $scenario);
+        $res = $this->request('POST', '/charges?type=mobile_money_zambia', $payload);
         if (($res['status'] ?? '') !== 'success') {
-            throw new \RuntimeException('Flutterwave: ' . $this->apiMessage($res, 'mobile money charge was rejected'));
+            throw new \RuntimeException('Flutterwave: ' . ($res['message'] ?? 'mobile money charge was rejected'));
         }
         $data = is_array($res['data'] ?? null) ? $res['data'] : [];
-        $next = is_array($data['next_action'] ?? null) ? $data['next_action'] : [];
-        $redirect = (string)($next['redirect_url']['url'] ?? '');
-        $note = (string)($next['payment_instruction']['note'] ?? '');
+        $redirect = $res['meta']['authorization']['redirect'] ?? ($data['meta']['authorization']['redirect'] ?? null);
         $this->insertTransaction($txRef, $amount, [
             'payment_type' => 'mobilemoney_' . strtolower($network),
             'network' => $network,
@@ -285,14 +286,14 @@ final class Flutterwave
             'user_id' => $args['user_id'] ?? null,
             'customer_id' => $args['customer_id'] ?? null,
             'provider_tx_id' => isset($data['id']) ? (string)$data['id'] : null,
-            'flw_ref' => isset($data['flw_ref']) ? (string)$data['flw_ref'] : null,
+            'flw_ref' => $data['flw_ref'] ?? null,
             'checkout_url' => $redirect,
         ], $res);
         return [
             'tx_ref' => $txRef,
-            'status' => $this->mapRemoteStatus((string)($data['status'] ?? 'pending'), true),
-            'redirect' => $redirect !== '' ? $redirect : null,
-            'message' => $note !== '' ? $note : 'Prompt sent to the customer\'s phone.',
+            'status' => strtolower((string)($data['status'] ?? 'pending')),
+            'redirect' => $redirect,
+            'message' => $data['processor_response'] ?? ($res['message'] ?? 'Prompt sent to the customer\'s phone.'),
         ];
     }
 
@@ -319,16 +320,18 @@ final class Flutterwave
         if ($local['status'] === 'successful' && $local['verified_at']) {
             return $local;
         }
-        $data = $this->fetchCharge($local);
-        if ($data === null) {
-            $this->touch($txRef, 'pending', null, ['status' => 'pending']);
+        $res = $this->request('GET', '/transactions/verify_by_reference?tx_ref=' . rawurlencode($txRef));
+        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+        $remoteStatus = strtolower((string)($data['status'] ?? ''));
+        if (($res['status'] ?? '') !== 'success' || $remoteStatus === '') {
+            $this->touch($txRef, 'pending', null, $res);
             return $this->transaction($txRef);
         }
-        $remoteStatus = strtolower((string)($data['status'] ?? ''));
-        $amountOk = strtoupper((string)($data['currency'] ?? '')) === strtoupper((string)$local['currency'])
+        $ok = $remoteStatus === 'successful'
+            && strtoupper((string)($data['currency'] ?? '')) === strtoupper((string)$local['currency'])
             && (float)($data['amount'] ?? 0) + 0.005 >= (float)$local['amount'];
-        $status = $this->mapRemoteStatus($remoteStatus, $amountOk);
-        $this->touch($txRef, $status, $data, ['status' => 'success', 'data' => $data]);
+        $status = $ok ? 'successful' : ($remoteStatus === 'pending' ? 'pending' : 'failed');
+        $this->touch($txRef, $status, $data, $res);
         return $this->transaction($txRef);
     }
 
@@ -803,238 +806,15 @@ final class Flutterwave
         return '';
     }
 
-    /** @param array<string, mixed> $local @return array<string, mixed>|null */
-    private function fetchCharge(array $local): ?array
-    {
-        $id = trim((string)($local['provider_tx_id'] ?? ''));
-        if (str_starts_with($id, 'chg_')) {
-            $res = $this->request('GET', '/charges/' . rawurlencode($id));
-            $data = is_array($res['data'] ?? null) ? $res['data'] : null;
-            if (($res['status'] ?? '') === 'success' && is_array($data) && isset($data['status'])) {
-                return $data;
-            }
-        }
-        $ref = rawurlencode((string)$local['tx_ref']);
-        $listed = $this->request('GET', '/charges?reference=' . $ref . '&size=20');
-        $match = $this->chargeMatching((string)$local['tx_ref'], $listed);
-        return $match;
-    }
 
-    /** @param array<string, mixed> $res @return array<string, mixed>|null */
-    private function chargeMatching(string $txRef, array $res): ?array
+    private function request(string $method, string $path, ?array $body = null): array
     {
-        $data = $res['data'] ?? null;
-        $rows = [];
-        if (is_array($data) && isset($data['status'], $data['reference'])) {
-            $rows[] = $data;
-        } elseif (is_array($data)) {
-            foreach ($data as $row) {
-                if (is_array($row)) {
-                    $rows[] = $row;
-                }
-            }
-        }
-        foreach ($rows as $row) {
-            if ((string)($row['reference'] ?? '') === $txRef) {
-                return $row;
-            }
-        }
-        return null;
-    }
-
-    private function mapRemoteStatus(string $remote, bool $amountOk): string
-    {
-        $remote = strtolower($remote);
-        if (in_array($remote, ['succeeded', 'successful', 'success'], true)) {
-            return $amountOk ? 'successful' : 'failed';
-        }
-        if ($remote === '' || in_array($remote, ['pending', 'processing', 'requires_action'], true)) {
-            return 'pending';
-        }
-        return 'failed';
-    }
-
-    private function payerEmail(string $email, string $phone): string
-    {
-        $email = trim($email);
-        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $email;
-        }
-        $digits = preg_replace('/\D+/', '', $phone) ?: '0';
-        return 'customer+' . $digits . '@' . $this->emailDomain();
-    }
-
-    private function ensureCustomer(string $email, string $name, string $phone): string
-    {
-        $parts = preg_split('/\s+/', trim($name)) ?: [];
-        $first = $this->personName((string)($parts[0] ?? 'Customer'));
-        $last = $this->personName(count($parts) > 1 ? implode(' ', array_slice($parts, 1)) : 'Guest');
-        $body = [
-            'email' => $email,
-            'name' => ['first' => $first, 'last' => $last],
-        ];
-        $national = preg_replace('/\D+/', '', $phone) ?? '';
-        if (str_starts_with($national, '260') && strlen($national) >= 12) {
-            $national = substr($national, 3);
-        }
-        $national = ltrim($national, '0');
-        if (strlen($national) >= 7 && strlen($national) <= 10) {
-            $body['phone'] = ['country_code' => '260', 'number' => $national];
-        }
-        $res = $this->request('POST', '/customers', $body, 'cus-' . substr(hash('sha256', strtolower($email)), 0, 24));
-        $id = (string)($res['data']['id'] ?? '');
-        if ($id !== '') {
-            return $id;
-        }
-        $found = $this->request('GET', '/customers?email=' . rawurlencode($email) . '&size=10');
-        $rows = is_array($found['data'] ?? null) ? $found['data'] : [];
-        if (isset($rows['id'])) {
-            $rows = [$rows];
-        }
-        foreach ($rows as $row) {
-            if (is_array($row) && strcasecmp((string)($row['email'] ?? ''), $email) === 0 && !empty($row['id'])) {
-                return (string)$row['id'];
-            }
-        }
-        throw new \RuntimeException('Flutterwave: ' . $this->apiMessage($res, 'could not create the customer'));
-    }
-
-    private function personName(string $name): string
-    {
-        $name = preg_replace("/[^A-Za-z ,.'-]/", '', $name) ?? '';
-        $name = trim($name);
-        if (strlen($name) < 2) {
-            return 'Guest';
-        }
-        return substr($name, 0, 50);
-    }
-
-    /** @param array<string, mixed> $res */
-    private function apiMessage(array $res, string $fallback): string
-    {
-        $error = is_array($res['error'] ?? null) ? $res['error'] : [];
-        $message = trim((string)($error['message'] ?? $res['message'] ?? ''));
-        return $message !== '' ? $message : $fallback;
-    }
-
-    private function accessToken(bool $force = false): string
-    {
-        $exp = (int)($this->settings['flw_token_exp'] ?? 0);
-        $cached = trim((string)($this->settings['flw_access_token'] ?? ''));
-        if (!$force && $cached !== '' && $exp > time() + 60) {
-            return $cached;
-        }
-        $body = http_build_query([
-            'grant_type' => 'client_credentials',
-            'client_id' => $this->clientId(),
-            'client_secret' => $this->clientSecret(),
-        ]);
-        $ch = curl_init(self::TOKEN_URL);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $body,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded', 'Accept: application/json'],
-        ]);
-        $raw = curl_exec($ch);
-        $err = curl_error($ch);
-        curl_close($ch);
-        if ($err) {
-            throw new \RuntimeException('Flutterwave sign-in unreachable: ' . $err);
-        }
-        $json = json_decode((string)$raw, true);
-        $token = is_array($json) ? trim((string)($json['access_token'] ?? '')) : '';
-        if ($token === '') {
-            throw new \RuntimeException('Flutterwave rejected the client ID or client secret. Check Settings → Payments.');
-        }
-        $ttl = max(60, (int)($json['expires_in'] ?? 600));
-        $until = time() + $ttl;
-        Setting::save([
-            'flw_access_token' => $token,
-            'flw_token_exp' => (string)$until,
-        ]);
-        $this->settings['flw_access_token'] = $token;
-        $this->settings['flw_token_exp'] = (string)$until;
-        return $token;
-    }
-
-    /** https URLs on a public host. Flutterwave charges reject http://localhost. */
-    private function payableRedirect(string $url): ?string
-    {
-        $parts = parse_url(trim($url));
-        if (!is_array($parts) || strtolower((string)($parts['scheme'] ?? '')) !== 'https') {
-            return null;
-        }
-        $host = strtolower((string)($parts['host'] ?? ''));
-        if ($host === '' || $host === 'localhost' || str_ends_with($host, '.local') || str_ends_with($host, '.localhost')) {
-            return null;
-        }
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            return null;
-        }
-        return trim($url);
-    }
-
-    private function redirectRejected(array $res): bool
-    {
-        if (($res['status'] ?? '') === 'success') {
-            return false;
-        }
-        $message = strtolower($this->apiMessage($res, ''));
-        return str_contains($message, 'redirect') && str_contains($message, 'invalid');
-    }
-
-    private function checkoutLink(array $res): string
-    {
-        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
-        $next = is_array($data['next_action'] ?? null) ? $data['next_action'] : [];
-        foreach ([
-            $data['checkout_url'] ?? null,
-            $data['link'] ?? null,
-            $data['url'] ?? null,
-            $next['redirect_url']['url'] ?? null,
-        ] as $candidate) {
-            if (is_string($candidate) && str_starts_with($candidate, 'https://')) {
-                return $candidate;
-            }
-        }
-        return '';
-    }
-
-    /** MTN 096/076, Zamtel 095/075, Airtel 097/077. */
-    private function zmNetwork(string $phone): string
-    {
-        $digits = preg_replace('/\D+/', '', $phone) ?? '';
-        if (str_starts_with($digits, '260') && strlen($digits) > 9) {
-            $digits = substr($digits, 3);
-        }
-        $digits = ltrim($digits, '0');
-        return match (substr($digits, 0, 2)) {
-            '96', '76' => 'MTN',
-            '95', '75' => 'ZAMTEL',
-            default => 'AIRTEL',
-        };
-    }
-
-    /** @param list<string> $extraHeaders */
-    private function request(string $method, string $path, ?array $body = null, ?string $idempotency = null, bool $retried = false, ?string $base = null, array $extraHeaders = []): array
-    {
+        $ch = curl_init(self::API . $path);
         $headers = [
-            'Authorization: Bearer ' . $this->accessToken($retried),
+            'Authorization: Bearer ' . $this->secretKey(),
             'Content-Type: application/json',
             'Accept: application/json',
-            'X-Trace-Id: ' . bin2hex(random_bytes(8)),
         ];
-        foreach ($extraHeaders as $header) {
-            $headers[] = $header;
-        }
-        if ($body !== null) {
-            $key = $idempotency !== null && strlen($idempotency) >= 12 ? $idempotency : bin2hex(random_bytes(8));
-            $headers[] = 'X-Idempotency-Key: ' . substr($key, 0, 255);
-        }
-        $ch = curl_init(($base ?? $this->apiBase()) . $path);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 10,
@@ -1059,14 +839,8 @@ final class Flutterwave
                 ? 'Flutterwave\'s firewall blocked the payment request (HTTP ' . $http . ').'
                 : 'Flutterwave returned HTTP ' . $http . ' with an unreadable body.');
         }
-        if ($http === 401 && !$retried) {
-            return $this->request($method, $path, $body, $idempotency, true, $base, $extraHeaders);
-        }
         if ($http === 401) {
-            throw new \RuntimeException('Flutterwave rejected the client secret (401). Check Settings → Payments.');
-        }
-        if ($http >= 200 && $http < 300 && ($json['status'] ?? '') === '') {
-            $json['status'] = 'success';
+            throw new \RuntimeException('Flutterwave rejected the secret key (401). Check Settings → Payments.');
         }
         $json['_http'] = $http;
         return $json;

@@ -934,9 +934,10 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <h4 class="fw-bold mb-1">Pay with Flutterwave</h4>
         <p class="text-muted small mb-3">Card or Zambia mobile money. This is the only way to pay for an online order.</p>
         <div class="d-flex justify-content-between fw-bold fs-5"><span>Order #<?= (int)$o['id'] ?></span><span><?= $money($o['final_total']) ?></span></div>
-        <p class="small mt-3 mb-0" id="payStatus">Opening Flutterwave…</p>
+        <p class="small mt-3 mb-0" id="payStatus">Opening the Flutterwave window…</p>
         <button type="button" class="btn btn-accent rounded-pill px-4 mt-3" id="payLaunch">Open Flutterwave</button>
     </div></div>
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
     <script>
     (function () {
         var checkout = <?= json_encode($checkout, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -945,15 +946,19 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         var status = document.getElementById('payStatus');
         var ticks = 0;
         function openShopPay() {
-            if (!checkout.link) {
-                status.textContent = checkout.message || 'Approve the payment on the mobile money phone. This page updates when Flutterwave confirms it.';
+            if (typeof FlutterwaveCheckout !== 'function') {
+                status.textContent = 'The Flutterwave window did not load. Check your connection, then try again.';
                 return;
             }
-            status.textContent = 'Flutterwave is open. Approve the payment there. This page updates when it is confirmed.';
-            var popup = window.open(checkout.link, 'flwpay', 'width=520,height=720');
-            if (!popup) {
-                window.location.href = checkout.link;
-            }
+            status.textContent = 'Complete the payment in the Flutterwave window. This page updates when Flutterwave confirms it.';
+            FlutterwaveCheckout(Object.assign({}, checkout, {
+                callback: function () {
+                    status.textContent = 'Payment sent. This page updates when Flutterwave confirms it.';
+                },
+                onclose: function () {
+                    status.textContent = 'If you finished paying, stay on this page. It updates when Flutterwave confirms it.';
+                }
+            }));
         }
         document.getElementById('payLaunch').addEventListener('click', openShopPay);
         openShopPay();
