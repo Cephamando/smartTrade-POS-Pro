@@ -238,7 +238,7 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 ### 6.5 Recipe consumption
 
-**Kitchen → Recipe use** (administrators, managers, developers, and head chefs). Filter by date range and location. It shows ingredients used by production in that period, which is separate from the sales ledger.
+**Kitchen → Recipe use** (administrators, managers, developers, and head chefs). Filter by date range and location. It shows ingredients used by production in that period, which is separate from the sales ledger. **Explain these figures** opens a window that reads the highest ingredient quantities.
 
 ---
 
@@ -267,6 +267,7 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 - Filter by location and search.
 - **Total stock value** is cost times quantity for the rows on screen.
+- **Explain these figures** writes a short note from the lines on screen (counts, zeros, and the lowest quantities), using the Gemini key under Settings → Guide. The note treats the value it is given as selling price times quantity. It is not a forecast.
 - Enter a **physical count** and a reason, then **Finish & update stock**. The adjustment is applied to live stock, so sales that happen during the count are kept. Quantity is not taken below zero.
 - **Print stock** makes a count sheet. **Download CSV** exports the grid.
 - Chefs can open this screen to look. They do not post the count.
@@ -357,7 +358,7 @@ V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted 
 **Office → Shifts.**
 
 - Money roles (cashier, bartender, manager, administrator, developer) see their own shift: opening float, sales, payouts, expected drawer.
-- Managers also get **Master Shift Reports**: every shift, filterable by date and staff member. Open a shift to see its paid sales.
+- Managers also get **Master Shift Reports**: every shift, filterable by date and staff member. Open a shift to see its paid sales. **Explain these figures** opens a window that reads the shift totals for that day (count, open shifts, sales, cash, payouts). Staff names are not sent.
 - Starting and ending a shift can also be done from this page, with the same approval rules as the POS.
 - **Print shift** is the paper X-Read for one shift. Under the sales totals, **Flutterwave** lists each card or mobile-money payment with the receipt number, network, number paid from, and transaction ID.
 
@@ -365,7 +366,7 @@ V-SIAS itself runs separately. On the shop PC it is on port 8095; on the hosted 
 
 **Office → End of day.**
 
-Pick the date, time from, time to, and one workstation, then **Filter**. The report is the day’s takings for that window: totals by payment method, a **Flutterwave payments** table (network, number, and transaction ID for each receipt), sales, and the figures you print for the close. **Print Z-Read** prints only the report.
+Pick the date, time from, time to, and one workstation, then **Filter**. The report is the day’s takings for that window: totals by payment method, a **Flutterwave payments** table (network, number, and transaction ID for each receipt), sales, and the figures you print for the close. **Print Z-Read** prints only the report. **Explain these figures** opens a window that reads those totals. It does not send the Flutterwave numbers or names.
 
 Z-Read is the shop’s end-of-day record. It is not the ZRA VAT return.
 
@@ -444,8 +445,11 @@ One serial is one keystore and one receipt sequence. Keep a single live till PC 
 | **Categories** | Each category: items sold, gross sales. Products without a category show as Uncategorized. | — |
 | **Taxes** | VAT at 16%: taxable sales and tax amount, worked back from paid totals. | Opens the tax drilldown: every receipt in the period with its taxable amount and tax. **Print Breakdown** prints only that list. |
 | **Tips & Surcharges** | Tiles for tips on receipts, tips added after payment (with the cash part), all tips, and surcharges. A table of surcharges by reason, then one row per staff member: paid receipts, tips on receipts, tips after payment (count and cash), and the total credited to them. | — |
+| **Finance** | Every money movement in the period: each paid sale and refund, paid event deposit or balance, expense (a paid payroll run is not listed twice), each paid payslip (net pay plus PAYE, NAPSA, and NHIMA), each goods-received note, and each Flutterwave service fee. Tiles show money in, money out, payroll, purchases, and the result. A bank transfer is listed and marked “not in result”, because that money was already counted as a sale. Tips, surcharges, discounts, and tax are inside the sale and are not added again. Choosing one employee leaves out event payments and bank transfers. The time-of-day filter does not apply on this tab. | — |
 
-Each table has a **Filter records** search box and pages of 50 rows.
+Each table has a **Filter records** search box and pages of 50 rows. **Explain these figures** opens a window and writes a short note from the totals on the current tab, using the Gemini key under Settings → Guide. It does not forecast, and it does not send customer or staff names.
+
+**Office → Business analysis** (administrators, managers, and developers). Pick a period of up to 120 days and, if you want, one store. Three charts show daily takings, how receipts were paid, and money in against refunds, expenses, payroll, purchases, and fees. The next 7 days on the takings chart are a projection: each day is the average of that weekday in the period. **Discuss these figures** opens a window that explains those totals and answers follow-up questions. The questions stay on this server. The reply can use only the totals behind the charts, and it will not give names, passwords, or keys. A projection is an estimate, not a promise. Changing the dates starts a fresh conversation.
 
 **On a phone** the filter bar stacks, the five tiles form a two-column grid, the tab pills scroll sideways, and each table row becomes a card with labelled values and full-width buttons. The receipt and breakdown windows open full screen.
 
@@ -556,6 +560,7 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 2. Open the run and edit **days**, **hours**, **basic**, or **tips** per person. **One-off adjustments** sets the hours, the days, a subtraction (with a reason), and any extra earning or deduction for this run only. **Recalculate** reworks every slip. Clear Hours or Days to read the shifts again. A basic figure you type is kept.
 3. **Approve** locks the figures. **Mark paid** books the net pay as an expense and stamps the pay date. **Reopen** returns an approved run to draft. Draft runs can be deleted.
 4. **Print payslips** prints the whole run or a single slip: earnings, deductions, employer NAPSA and NHIMA, net pay.
+5. **Explain these figures**, on an open run, writes a short note from the run totals (headcount, gross, PAYE, NAPSA, NHIMA, net) using the Gemini key under Settings → Guide. Employee names are not sent. It is not payroll advice and not a forecast.
 
 How a slip is worked out: basic (pro-rated for days or hours when the pay type calls for it) + allowances (+ tips if included) = gross. NAPSA employee share is 5% of gross up to the cap, and is deducted before tax. PAYE is applied to gross less NAPSA (and less non-taxable allowances) using the bands. NHIMA is 1% of basic. Net = gross − NAPSA − NHIMA − PAYE − other deductions. The employer's matching NAPSA and NHIMA appear separately and are not deducted from the worker.
 
@@ -685,6 +690,7 @@ The Guide button on the back-office shared pages (Dashboard, Management, Setting
 | Receiving bay | `index.php?page=receiving_bay` |
 | Vendors | `index.php?page=vendors` |
 | Reports | `index.php?page=reports` |
+| Business analysis | `index.php?page=analysis` |
 | End of day | `index.php?page=z_read` |
 | Shifts | `index.php?page=shifts` |
 | Users | `index.php?page=users` |

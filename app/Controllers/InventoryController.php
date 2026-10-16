@@ -5,6 +5,9 @@ namespace App\Controllers;
 use App\Models\Category;
 use App\Models\Inventory;
 use App\Models\Location;
+use App\Models\Setting;
+use App\Services\Guide;
+use App\Services\ReportNarrator;
 
 final class InventoryController extends Controller
 {
@@ -21,6 +24,38 @@ final class InventoryController extends Controller
         $catFilter = $_GET['category_id'] ?? '';
         $search = trim((string)($_GET['search'] ?? ''));
         $chefViewOnly = in_array($this->role(), ['chef', 'head_chef'], true);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['explain_stock'])) {
+            try {
+                $locId = (string)($_POST['location_id'] ?? '');
+                $catId = (string)($_POST['category_id'] ?? '');
+                $term = trim((string)($_POST['search'] ?? ''));
+                $rows = Inventory::filtered($locId, $catId, $term);
+                $locName = '';
+                foreach (Location::names() as $loc) {
+                    if ((string)$loc['id'] === $locId) {
+                        $locName = (string)$loc['name'];
+                        break;
+                    }
+                }
+                $catName = '';
+                foreach (Category::all() as $cat) {
+                    if ((string)$cat['id'] === $catId) {
+                        $catName = (string)$cat['name'];
+                        break;
+                    }
+                }
+                $narrator = new ReportNarrator();
+                $text = $narrator->explain(Setting::all(), $narrator->stockBrief($rows, [
+                    'location' => $locName,
+                    'category' => $catName,
+                    'search' => $term,
+                ]));
+                $this->jsonExit(['status' => 'success', 'text' => $text]);
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'The note could not be written.']);
+            }
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_stock_take'])) {
             if ($chefViewOnly) {
@@ -64,6 +99,7 @@ final class InventoryController extends Controller
             'categories' => Category::all(),
             'inventory' => $inventory,
             'totalValue' => $totalValue,
+            'explainReady' => Guide::ready(Setting::all()),
         ]);
     }
 }

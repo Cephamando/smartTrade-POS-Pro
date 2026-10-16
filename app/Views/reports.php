@@ -219,8 +219,39 @@ if ($reportType === 'sales' || $reportType === 'taxes') {
 $grossSales = $netSales + $refunds;
 $discounts = 0; 
 $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
+$ft = is_array($finance ?? null) ? ($finance['totals'] ?? null) : null;
 ?>
 
+<?php if ($reportType === 'finance' && $ft): ?>
+<div class="loy-metric-tabs shadow-sm">
+    <div class="loy-metric-tab active">
+        <div class="loy-metric-title">Money in</div>
+        <div class="loy-metric-value">ZMW <?= number_format($ft['in'], 2) ?></div>
+        <div class="loy-metric-sub">Sales <?= number_format($ft['sales'], 2) ?> · Events <?= number_format($ft['events'], 2) ?></div>
+    </div>
+    <div class="loy-metric-tab">
+        <div class="loy-metric-title">Money out</div>
+        <div class="loy-metric-value">ZMW <?= number_format($ft['out'], 2) ?></div>
+        <div class="loy-metric-sub">Refunds, expenses, payroll, stock, fees</div>
+    </div>
+    <div class="loy-metric-tab">
+        <div class="loy-metric-title">Payroll</div>
+        <div class="loy-metric-value">ZMW <?= number_format($ft['payroll'], 2) ?></div>
+        <div class="loy-metric-sub">Includes statutory <?= number_format($ft['statutory'], 2) ?></div>
+    </div>
+    <div class="loy-metric-tab">
+        <div class="loy-metric-title">Purchases</div>
+        <div class="loy-metric-value">ZMW <?= number_format($ft['purchases'], 2) ?></div>
+        <div class="loy-metric-sub">Goods received</div>
+    </div>
+    <div class="loy-metric-tab">
+        <div class="loy-metric-title">Result <i class="bi bi-info-circle" title="Money in minus money out. Transfers to the bank are listed but not subtracted again."></i></div>
+        <div class="loy-metric-value">ZMW <?= number_format($ft['result'], 2) ?></div>
+        <div class="loy-metric-sub">Fees <?= number_format($ft['fees'], 2) ?> · Transfers <?= number_format($ft['transfers'], 2) ?> not in this figure</div>
+    </div>
+</div>
+<p class="small text-muted px-3">Tips <?= number_format($ft['tips'], 2) ?>, surcharges <?= number_format($ft['surcharges'], 2) ?>, discounts <?= number_format($ft['discounts'], 2) ?>, and tax <?= number_format($ft['tax'], 2) ?> are already inside the sales figure. Payroll is the net pay plus PAYE, NAPSA, and NHIMA, and is not also counted as an expense. A payout transfer is the same money leaving Flutterwave, so it is listed and left out of the result. Picking one employee leaves out event payments and bank transfers. The time-of-day filter does not apply on this tab.</p>
+<?php else: ?>
 <div class="loy-metric-tabs shadow-sm">
     <div class="loy-metric-tab active">
         <div class="loy-metric-title">Gross sales <i class="bi bi-info-circle" title="Total sales before discounts and refunds"></i></div>
@@ -248,6 +279,23 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
         <div class="loy-metric-sub">0.00 ZK (0%)</div>
     </div>
 </div>
+<?php endif; ?>
+
+<?php
+$explainPage = 'reports';
+$explainAction = 'explain_report';
+$explainFields = [
+    'start' => $startDate,
+    'end' => $endDate,
+    'location' => $locationId,
+    'employee_id' => $employeeId,
+    'daypart' => $daypart ?? '',
+    'type' => $reportType,
+];
+?>
+<div class="px-3">
+<?php include __DIR__ . '/partials/explain_figures.php'; ?>
+</div>
 
 <ul class="nav nav-pills loy-report-pills mb-3 px-3 no-print" style="gap:10px;">
     <li class="nav-item">
@@ -264,6 +312,9 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
     </li>
     <li class="nav-item">
         <a class="nav-link rounded-pill border <?= $reportType == 'tips' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=tips&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Tips & Surcharges</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill border <?= $reportType == 'finance' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=finance&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Finance</a>
     </li>
 </ul>
 
@@ -391,6 +442,24 @@ $grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
                 <td class="text-center" data-label="Tips after payment"><?= (int)$row['post_count'] ?><?= $row['post_cash'] > 0 ? ' <span class="text-muted small">(cash ' . number_format($row['post_cash'], 2) . ')</span>' : '' ?></td>
                 <td class="text-end" data-label="After-payment total">ZMW <?= number_format($row['post_tips'], 2) ?></td>
                 <td class="text-end fw-bold text-success" data-label="All tips">ZMW <?= number_format($row['total'], 2) ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+
+        <?php elseif($reportType === 'finance'): ?>
+        <thead class="table-light text-muted small text-uppercase">
+            <tr><th>When</th><th>Type</th><th>Reference</th><th>Detail</th><th>Store</th><th class="text-end">In</th><th class="text-end">Out</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach($reportData as $row): ?>
+            <tr>
+                <td class="text-muted text-nowrap" data-label="When"><?= $row['at'] ? date('d.m.Y H:i', strtotime($row['at'])) : '' ?></td>
+                <td class="fw-bold report-card-title" data-label="Type"><?= htmlspecialchars($row['kind']) ?><?php if (empty($row['counts'])): ?> <span class="badge bg-light text-dark border">not in result</span><?php endif; ?></td>
+                <td data-label="Reference"><?= htmlspecialchars($row['ref']) ?></td>
+                <td class="small" data-label="Detail"><?= htmlspecialchars($row['detail']) ?></td>
+                <td data-label="Store"><?= htmlspecialchars($row['location'] ?: '—') ?></td>
+                <td class="text-end text-success" data-label="In"><?= $row['direction'] === 'in' ? 'ZMW ' . number_format($row['amount'], 2) : '' ?></td>
+                <td class="text-end text-danger" data-label="Out"><?= $row['direction'] === 'out' ? 'ZMW ' . number_format($row['amount'], 2) : '' ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>

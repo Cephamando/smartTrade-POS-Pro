@@ -37,6 +37,17 @@
     </div>
 </div>
 
+<?php
+$explainPage = 'report_consumption';
+$explainAction = 'explain_consumption';
+$explainFields = [
+    'start_date' => $startDate,
+    'end_date' => $endDate,
+    'location_id' => $locId,
+];
+include __DIR__ . '/partials/explain_figures.php';
+?>
+
 <div class="card shadow-sm border-0">
     <div class="card-body p-4">
         <div class="alert alert-info small border-0 mb-3">

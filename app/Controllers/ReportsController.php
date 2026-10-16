@@ -5,11 +5,27 @@ namespace App\Controllers;
 use App\Models\Location;
 use App\Models\Report;
 use App\Models\Sale;
+use App\Models\Setting;
+use App\Services\Guide;
+use App\Services\ReportNarrator;
 
 final class ReportsController extends Controller
 {
     public function index(): void
     {
+        if (isset($_POST['explain_report'])) {
+            if (!in_array($this->role(), ['admin', 'manager', 'dev'], true)) {
+                $this->jsonExit(['status' => 'error', 'msg' => 'You do not have permission to explain these figures.']);
+            }
+            try {
+                $narrator = new ReportNarrator();
+                $text = $narrator->explain(Setting::all(), $narrator->reportBrief($_POST));
+                $this->jsonExit(['status' => 'success', 'text' => $text]);
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'The note could not be written.']);
+            }
+        }
+
         if (isset($_POST['fetch_sale_details'])) {
             try {
                 $saleId = (int)$_POST['sale_id'];
@@ -104,7 +120,7 @@ final class ReportsController extends Controller
         }
         $hourSql = \App\Models\Report::daypartClause($daypart);
         $reportType = $_GET['type'] ?? 'sales';
-        if (!in_array($reportType, ['sales', 'items', 'categories', 'taxes', 'tips'], true)) {
+        if (!in_array($reportType, ['sales', 'items', 'categories', 'taxes', 'tips', 'finance'], true)) {
             $reportType = 'sales';
         }
 
@@ -175,9 +191,13 @@ final class ReportsController extends Controller
         }
         
         $tipsReport = null;
+        $finance = null;
         if ($reportType === 'tips') {
             $tipsReport = Report::tipsAndSurcharges($startDate, $endDate, $locationId, $daypart);
             $reportData = $tipsReport['staff'];
+        } elseif ($reportType === 'finance') {
+            $finance = Report::financial($startDate, $endDate, $locationId, (int)$employeeId);
+            $reportData = $finance['rows'];
         }
 
         $metrics = Report::metrics($startDate, $endDate, $locationId, $daypart);
@@ -196,8 +216,10 @@ final class ReportsController extends Controller
             'voidStats' => $voidStats,
             'reportData' => $reportData,
             'tipsReport' => $tipsReport,
+            'finance' => $finance,
             'locations' => Location::all(),
             'employees' => $employees,
+            'explainReady' => Guide::ready(Setting::all()),
         ]);
     }
 }

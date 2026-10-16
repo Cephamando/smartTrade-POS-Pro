@@ -262,7 +262,6 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <div class="modal fade" id="shiftDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -411,7 +410,7 @@ function showPickupModal() {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const salesCanvas = document.getElementById('salesChart');
-    if (!salesCanvas) return;
+    if (salesCanvas) {
     new Chart(salesCanvas.getContext('2d'), {
         type: 'line',
         data: {
@@ -420,10 +419,13 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
     });
+    }
 
+    const payCanvas = document.getElementById('paymentChart');
+    if (!payCanvas) return;
     const payData = <?= json_encode($pmData) ?>;
 
-    new Chart(document.getElementById('paymentChart').getContext('2d'), {
+    new Chart(payCanvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels: Object.keys(payData),
@@ -593,3 +595,4 @@ function backToShiftSales() {
     }, 400);
 }
 </script>
+<?php endif; ?>

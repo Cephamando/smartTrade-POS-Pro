@@ -21,6 +21,7 @@ return [
     'vendors' => [],
     'settings' => [],
     'reports' => [],
+    'analysis' => [],
     'report_consumption' => [],
     'shifts' => [],
     'z_read' => [],

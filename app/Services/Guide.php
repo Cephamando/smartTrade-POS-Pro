@@ -61,7 +61,7 @@ final class Guide
                 . "If the manuals give steps, leave a blank line and number them 1. 2. 3.\n"
                 . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
                 . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
                 . "If the manuals do not cover the question, say so in the first sentence and do not invent steps.\n"
                 . "Do not discuss live sales, stock counts, or customer records.\n"]]],
             'contents' => [
@@ -104,7 +104,7 @@ final class Guide
             . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
             . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
             . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
             . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
             . "Do not discuss live sales, stock counts, or customer records.\n\n";
 
@@ -450,6 +450,7 @@ final class Guide
             ['name' => 'Categories', 'href' => 'index.php?page=categories', 'blank' => false, 'keys' => ['categories']],
             ['name' => 'Vendors', 'href' => 'index.php?page=vendors', 'blank' => false, 'keys' => ['vendor', 'vendors']],
             ['name' => 'Reports', 'href' => 'index.php?page=reports', 'blank' => false, 'keys' => ['master reports', 'reports']],
+            ['name' => 'Business analysis', 'href' => 'index.php?page=analysis', 'blank' => false, 'keys' => ['business analysis', 'forecast', 'projection']],
             ['name' => 'Shifts', 'href' => 'index.php?page=shifts', 'blank' => false, 'keys' => ['shifts']],
             ['name' => 'Users', 'href' => 'index.php?page=users', 'blank' => false, 'keys' => ['users']],
             ['name' => 'Payroll', 'href' => 'index.php?page=payroll', 'blank' => false, 'keys' => ['payroll']],
@@ -479,6 +480,7 @@ final class Guide
             $page === 'inventory' => 'Stock levels',
             $page === 'receiving_bay' => 'Receiving bay',
             $page === 'z_read' => 'End of day',
+            $page === 'analysis' => 'Business analysis',
             $page === 'kds' => 'Kitchen display',
             $page === 'audit' => 'Stock history',
             default => ucfirst(str_replace('_', ' ', $page)),

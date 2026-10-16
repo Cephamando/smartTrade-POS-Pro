@@ -53,6 +53,16 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
             </div>
         </div>
 
+        <?php
+        $explainPage = 'shifts';
+        $explainAction = 'explain_shifts';
+        $explainFields = [
+            'filter_date' => $filterDate ?? date('Y-m-d'),
+            'filter_user' => $filterUser ?? '',
+        ];
+        include __DIR__ . '/partials/explain_figures.php';
+        ?>
+
         <div class="card shadow-sm border-top border-primary border-4">
             <div class="card-body p-0 table-responsive">
                 <table class="table table-hover align-middle mb-0">

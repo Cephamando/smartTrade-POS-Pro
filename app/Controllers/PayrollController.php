@@ -5,7 +5,9 @@ namespace App\Controllers;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\Guide;
 use App\Services\Payroll;
+use App\Services\ReportNarrator;
 
 final class PayrollController extends Controller
 {
@@ -14,6 +16,20 @@ final class PayrollController extends Controller
         $this->requireRole(['admin', 'manager', 'dev']);
         $payroll = new Payroll($this->pdo());
         $tab = (string)($_GET['tab'] ?? 'runs');
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['explain_payroll'])) {
+            try {
+                $run = $payroll->run((int)($_POST['run_id'] ?? 0));
+                if (!$run) {
+                    throw new \RuntimeException('That pay run was not found.');
+                }
+                $narrator = new ReportNarrator();
+                $text = $narrator->explain(Setting::all(), $narrator->payrollBrief($run));
+                $this->jsonExit(['status' => 'success', 'text' => $text]);
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'The note could not be written.']);
+            }
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tab = (string)($_POST['tab'] ?? $tab);
@@ -127,6 +143,7 @@ final class PayrollController extends Controller
             'staffUsers' => $staffUsers,
             'staffRoles' => User::staffRoles(),
             'settings' => Setting::all(),
+            'explainReady' => Guide::ready(Setting::all()),
         ]);
     }
 

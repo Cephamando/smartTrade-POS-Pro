@@ -22,6 +22,17 @@
     <h3 class="fw-bold m-0"><i class="bi bi-journal-check text-success me-2"></i> End of Day (Z-Read)</h3>
     <button onclick="window.print()" class="btn btn-dark fw-bold shadow-sm"><i class="bi bi-printer"></i> Print Z-Read</button>
 </div>
+<?php
+$explainPage = 'z_read';
+$explainAction = 'explain_zread';
+$explainFields = [
+    'date' => $date,
+    'time_from' => $timeFrom,
+    'time_to' => $timeTo,
+    'location_id' => $locationId,
+];
+include __DIR__ . '/partials/explain_figures.php';
+?>
 
 <div class="card shadow-sm border-0 mb-4 border-top border-success border-4 no-print">
     <div class="card-body bg-light p-4">

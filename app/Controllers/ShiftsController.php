@@ -4,6 +4,9 @@ namespace App\Controllers;
 
 use App\Models\Shift;
 use App\Models\User;
+use App\Models\Setting;
+use App\Services\Guide;
+use App\Services\ReportNarrator;
 
 final class ShiftsController extends Controller
 {
@@ -15,6 +18,22 @@ final class ShiftsController extends Controller
         $moneyRoles = ['cashier', 'manager', 'admin', 'dev', 'bartender'];
         $isMoneyRole = in_array($userRole, $moneyRoles, true);
         $isManager = $this->isManager();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['explain_shifts'])) {
+            if (!$isManager) {
+                $this->jsonExit(['status' => 'error', 'msg' => 'You do not have permission to explain these figures.']);
+            }
+            try {
+                $filterDate = (string)($_POST['filter_date'] ?? date('Y-m-d'));
+                $filterUser = (string)($_POST['filter_user'] ?? '');
+                $rows = Shift::filteredForManager($filterDate, $filterUser, $userRole, $locId);
+                $narrator = new ReportNarrator();
+                $text = $narrator->explain(Setting::all(), $narrator->shiftsBrief($rows, $filterDate, $filterUser !== ''));
+                $this->jsonExit(['status' => 'success', 'text' => $text]);
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'The note could not be written.']);
+            }
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
@@ -90,6 +109,7 @@ final class ShiftsController extends Controller
             'staffList' => $isManager ? User::staffForFilter() : [],
             'filterDate' => $filterDate,
             'filterUser' => $filterUser,
+            'explainReady' => Guide::ready(Setting::all()),
         ]);
     }
 }

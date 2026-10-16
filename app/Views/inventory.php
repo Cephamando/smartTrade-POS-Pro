@@ -64,6 +64,17 @@
         </div>
     </div>
 
+    <?php
+    $explainPage = 'inventory';
+    $explainAction = 'explain_stock';
+    $explainFields = [
+        'location_id' => $locFilter,
+        'category_id' => $catFilter,
+        'search' => $search,
+    ];
+    include __DIR__ . '/partials/explain_figures.php';
+    ?>
+
     <div class="card shadow-sm border-0 mb-4 no-print">
         <div class="card-body bg-light">
             <form method="GET" class="row g-2 align-items-end">

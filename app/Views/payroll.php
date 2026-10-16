@@ -43,6 +43,12 @@ $deductions = array_values(array_filter($components, fn($c) => $c['kind'] === 'd
         <?php endif; ?>
     </div>
 </div>
+<?php
+$explainPage = 'payroll';
+$explainAction = 'explain_payroll';
+$explainFields = ['run_id' => (int)$run['id']];
+include __DIR__ . '/partials/explain_figures.php';
+?>
 <div class="row g-3 mb-3">
     <?php foreach ([['Gross', $run['total_gross'], 'dark'], ['PAYE', $run['total_paye'], 'danger'], ['NAPSA (both)', $run['total_napsa'], 'warning'], ['NHIMA (both)', $run['total_nhima'], 'info'], ['Net pay', $run['total_net'], 'success']] as [$l, $v, $c]): ?>
     <div class="col-6 col-md"><div class="card border-0 shadow-sm border-start border-4 border-<?= $c ?>"><div class="card-body py-2"><div class="small text-muted fw-bold"><?= $l ?></div><div class="fs-5 fw-bold">K<?= $money($v) ?></div></div></div></div>

@@ -444,6 +444,335 @@ final class Report extends Model
         return $out;
     }
 
+    /**
+     * Every money movement in the period: sales, refunds, events, expenses,
+     * paid payroll, goods received, and card or mobile-money fees.
+     * A Flutterwave transfer is listed but not subtracted again, because the sale was already counted.
+     *
+     * @return array{rows: list<array<string, mixed>>, totals: array<string, float>}
+     */
+    public static function financial(string $start, string $end, $locationId, int $employeeId = 0): array
+    {
+        $from = $start . ' 00:00:00';
+        $to = $end . ' 23:59:59';
+        $loc = (int)$locationId;
+        $emp = $employeeId > 0 ? $employeeId : 0;
+        $rows = array_merge(
+            self::financeSales($from, $to, $loc, $emp),
+            self::financeEvents($from, $to, $loc, $emp),
+            self::financeExpenses($from, $to, $loc, $emp),
+            self::financePayroll($start, $end, $loc, $emp),
+            self::financePurchases($from, $to, $loc, $emp),
+            self::financeFees($from, $to, $loc, $emp),
+            self::financeTransfers($from, $to, $loc, $emp)
+        );
+        usort($rows, fn($a, $b) => strcmp((string)$b['at'], (string)$a['at']));
+        $totals = [
+            'in' => 0.0, 'out' => 0.0, 'sales' => 0.0, 'refunds' => 0.0, 'events' => 0.0,
+            'discounts' => 0.0, 'tips' => 0.0, 'surcharges' => 0.0, 'tax' => 0.0,
+            'expenses' => 0.0, 'payroll' => 0.0, 'statutory' => 0.0, 'purchases' => 0.0,
+            'fees' => 0.0, 'transfers' => 0.0,
+        ];
+        foreach ($rows as $row) {
+            $totals[$row['bucket']] = ($totals[$row['bucket']] ?? 0) + (float)$row['amount'];
+            if (!empty($row['counts'])) {
+                if ($row['direction'] === 'in') {
+                    $totals['in'] += (float)$row['amount'];
+                } else {
+                    $totals['out'] += (float)$row['amount'];
+                }
+            }
+            $totals['discounts'] += (float)($row['discount'] ?? 0);
+            $totals['tips'] += (float)($row['tip'] ?? 0);
+            $totals['surcharges'] += (float)($row['surcharge'] ?? 0);
+            $totals['tax'] += (float)($row['tax'] ?? 0);
+            $totals['statutory'] += (float)($row['statutory'] ?? 0);
+        }
+        $totals['result'] = round($totals['in'] - $totals['out'], 2);
+        foreach ($totals as $key => $value) {
+            $totals[$key] = round((float)$value, 2);
+        }
+        return ['rows' => $rows, 'totals' => $totals];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financeSales(string $from, string $to, int $loc, int $emp): array
+    {
+        $sql = "SELECT s.id, s.created_at, s.final_total, s.discount, s.total_tax, s.tip_amount, s.surcharge_amount,
+                       s.payment_method, s.payment_status, s.customer_name, l.name AS location_name, u.username AS cashier
+                FROM sales s
+                LEFT JOIN locations l ON l.id = s.location_id
+                LEFT JOIN users u ON u.id = s.user_id
+                WHERE s.created_at BETWEEN ? AND ?
+                  AND (s.payment_status = 'paid' OR s.final_total < 0 OR s.payment_status = 'refunded')";
+        $params = [$from, $to];
+        if ($loc > 0) {
+            $sql .= ' AND s.location_id = ?';
+            $params[] = $loc;
+        }
+        if ($emp > 0) {
+            $sql .= ' AND s.user_id = ?';
+            $params[] = $emp;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $s) {
+            $amount = (float)$s['final_total'];
+            $refund = $amount < 0 || strtolower((string)$s['payment_status']) === 'refunded';
+            $out[] = self::financeRow(
+                (string)$s['created_at'],
+                $refund ? 'Refund' : 'Sale',
+                '#' . (int)$s['id'],
+                trim((string)($s['customer_name'] ?: 'Walk-in') . ' · ' . (string)$s['payment_method'] . ($s['cashier'] ? ' · ' . $s['cashier'] : '')),
+                (string)($s['location_name'] ?? ''),
+                abs($amount),
+                $refund ? 'out' : 'in',
+                $refund ? 'refunds' : 'sales',
+                true,
+                [
+                    'discount' => $refund ? 0 : (float)$s['discount'],
+                    'tip' => $refund ? 0 : (float)$s['tip_amount'],
+                    'surcharge' => $refund ? 0 : (float)$s['surcharge_amount'],
+                    'tax' => $refund ? 0 : (float)$s['total_tax'],
+                ]
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financeEvents(string $from, string $to, int $loc, int $emp): array
+    {
+        if ($emp > 0) {
+            return [];
+        }
+        $sql = "SELECT ep.id, ep.created_at, ep.amount, ep.purpose, ep.method, ev.title, l.name AS location_name
+                FROM event_payments ep
+                JOIN events ev ON ev.id = ep.event_id
+                LEFT JOIN locations l ON l.id = ev.location_id
+                WHERE ep.status = 'paid' AND ep.created_at BETWEEN ? AND ?";
+        $params = [$from, $to];
+        if ($loc > 0) {
+            $sql .= ' AND ev.location_id = ?';
+            $params[] = $loc;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $r) {
+            $out[] = self::financeRow(
+                (string)$r['created_at'],
+                'Event',
+                '#' . (int)$r['id'],
+                (string)$r['title'] . ' · ' . (string)$r['purpose'] . ' · ' . (string)$r['method'],
+                (string)($r['location_name'] ?? ''),
+                (float)$r['amount'],
+                'in',
+                'events'
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financeExpenses(string $from, string $to, int $loc, int $emp): array
+    {
+        $sql = "SELECT e.id, e.created_at, e.amount, e.reason, e.description, l.name AS location_name, u.username
+                FROM expenses e
+                LEFT JOIN locations l ON l.id = e.location_id
+                LEFT JOIN users u ON u.id = e.user_id
+                WHERE e.created_at BETWEEN ? AND ?
+                  AND COALESCE(e.reason, '') NOT LIKE 'Payroll:%'
+                  AND COALESCE(e.description, '') NOT LIKE 'Payroll:%'";
+        $params = [$from, $to];
+        if ($loc > 0) {
+            $sql .= ' AND e.location_id = ?';
+            $params[] = $loc;
+        }
+        if ($emp > 0) {
+            $sql .= ' AND e.user_id = ?';
+            $params[] = $emp;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $r) {
+            $why = trim((string)($r['reason'] ?: $r['description'] ?: 'Expense'));
+            $out[] = self::financeRow(
+                (string)$r['created_at'],
+                'Expense',
+                '#' . (int)$r['id'],
+                $why . ($r['username'] ? ' · ' . $r['username'] : ''),
+                (string)($r['location_name'] ?? ''),
+                (float)$r['amount'],
+                'out',
+                'expenses'
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financePayroll(string $start, string $end, int $loc, int $emp): array
+    {
+        $sql = "SELECT p.id, r.title, r.pay_date, r.paid_at, e.full_name, l.name AS location_name,
+                       p.net_pay, p.paye, p.napsa_employee, p.napsa_employer, p.nhima_employee, p.nhima_employer
+                FROM payslips p
+                JOIN payroll_runs r ON r.id = p.run_id
+                JOIN employees e ON e.id = p.employee_id
+                LEFT JOIN locations l ON l.id = e.location_id
+                WHERE r.status = 'paid' AND COALESCE(r.pay_date, DATE(r.paid_at)) BETWEEN ? AND ?";
+        $params = [$start, $end];
+        if ($loc > 0) {
+            $sql .= ' AND e.location_id = ?';
+            $params[] = $loc;
+        }
+        if ($emp > 0) {
+            $sql .= ' AND e.user_id = ?';
+            $params[] = $emp;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $r) {
+            $statutory = (float)$r['paye'] + (float)$r['napsa_employee'] + (float)$r['napsa_employer'] + (float)$r['nhima_employee'] + (float)$r['nhima_employer'];
+            $when = (string)($r['pay_date'] ?: $r['paid_at']);
+            $out[] = self::financeRow(
+                strlen($when) === 10 ? $when . ' 00:00:00' : $when,
+                'Payroll',
+                'Slip #' . (int)$r['id'],
+                (string)$r['full_name'] . ' · ' . (string)$r['title'] . ' · net ' . number_format((float)$r['net_pay'], 2) . ' · statutory ' . number_format($statutory, 2),
+                (string)($r['location_name'] ?? ''),
+                (float)$r['net_pay'] + $statutory,
+                'out',
+                'payroll',
+                true,
+                ['statutory' => $statutory]
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financePurchases(string $from, string $to, int $loc, int $emp): array
+    {
+        $sql = "SELECT g.id, g.created_at, g.total_cost, g.reference_no, v.name AS vendor, l.name AS location_name
+                FROM grvs g
+                LEFT JOIN vendors v ON v.id = g.vendor_id
+                LEFT JOIN locations l ON l.id = g.location_id
+                WHERE g.created_at BETWEEN ? AND ?";
+        $params = [$from, $to];
+        if ($loc > 0) {
+            $sql .= ' AND g.location_id = ?';
+            $params[] = $loc;
+        }
+        if ($emp > 0) {
+            $sql .= ' AND g.received_by = ?';
+            $params[] = $emp;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $r) {
+            $out[] = self::financeRow(
+                (string)$r['created_at'],
+                'Purchase',
+                (string)($r['reference_no'] ?: ('GRV #' . (int)$r['id'])),
+                (string)($r['vendor'] ?: 'Supplier'),
+                (string)($r['location_name'] ?? ''),
+                (float)$r['total_cost'],
+                'out',
+                'purchases'
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financeFees(string $from, string $to, int $loc, int $emp): array
+    {
+        $sql = "SELECT id, created_at, sale_id, COALESCE(app_fee, 0) + COALESCE(merchant_fee, 0) AS fee
+                FROM payment_transactions
+                WHERE created_at BETWEEN ? AND ?
+                  AND LOWER(status) IN ('successful', 'success', 'completed', 'paid')
+                  AND (COALESCE(app_fee, 0) + COALESCE(merchant_fee, 0)) > 0";
+        $params = [$from, $to];
+        if ($loc > 0) {
+            $sql .= ' AND location_id = ?';
+            $params[] = $loc;
+        }
+        if ($emp > 0) {
+            $sql .= ' AND user_id = ?';
+            $params[] = $emp;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $r) {
+            $out[] = self::financeRow(
+                (string)$r['created_at'],
+                'Service fee',
+                $r['sale_id'] ? ('Sale #' . (int)$r['sale_id']) : ('#' . (int)$r['id']),
+                'Flutterwave fee taken before settlement',
+                '',
+                (float)$r['fee'],
+                'out',
+                'fees'
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financeTransfers(string $from, string $to, int $loc, int $emp): array
+    {
+        if ($loc > 0) {
+            return [];
+        }
+        $sql = "SELECT id, created_at, amount, fee, narration, beneficiary_name
+                FROM flutterwave_transfers
+                WHERE created_at BETWEEN ? AND ?
+                  AND LOWER(status) IN ('successful', 'success', 'completed')";
+        $params = [$from, $to];
+        if ($emp > 0) {
+            $sql .= ' AND user_id = ?';
+            $params[] = $emp;
+        }
+        $out = [];
+        foreach (self::financeFetch($sql, $params) as $r) {
+            $out[] = self::financeRow(
+                (string)$r['created_at'],
+                'Transfer',
+                '#' . (int)$r['id'],
+                trim((string)($r['beneficiary_name'] ?: 'Payout') . ($r['narration'] ? ' · ' . $r['narration'] : '')),
+                'All stores',
+                (float)$r['amount'] + (float)$r['fee'],
+                'out',
+                'transfers',
+                false
+            );
+        }
+        return $out;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function financeFetch(string $sql, array $params): array
+    {
+        try {
+            $stmt = self::db()->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll() ?: [];
+        } catch (\Throwable $e) {
+            error_log('Finance report query failed: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /** @param array<string, float> $extra */
+    private static function financeRow(string $at, string $kind, string $ref, string $detail, string $location, float $amount, string $direction, string $bucket, bool $counts = true, array $extra = []): array
+    {
+        return [
+            'at' => $at,
+            'kind' => $kind,
+            'ref' => $ref,
+            'detail' => $detail,
+            'location' => $location,
+            'amount' => round($amount, 2),
+            'direction' => $direction,
+            'bucket' => $bucket,
+            'counts' => $counts,
+        ] + $extra;
+    }
+
     public static function daypartClause(string $daypart): string
     {
         return match ($daypart) {
