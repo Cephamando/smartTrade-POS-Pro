@@ -1178,7 +1178,9 @@ final class Flutterwave
             'reference' => $reference,
             'callback_url' => $this->webhookUrl(),
         ];
-        if ($dest['branch'] !== '') {
+        if (($dest['method'] ?? 'bank') === 'momo') {
+            $payload['account_bank'] = 'MPS';
+        } elseif ($dest['branch'] !== '') {
             $payload['destination_branch_code'] = $dest['branch'];
         }
 
@@ -1207,17 +1209,32 @@ final class Flutterwave
         ];
     }
 
-    /** @return array{bank: string, bank_id: string, bank_name: string, account: string, name: string, branch: string, has_branches: bool, ready: bool, masked: string} */
+    /** @return array{method: string, network: string, bank: string, bank_id: string, bank_name: string, account: string, name: string, branch: string, has_branches: bool, ready: bool, masked: string} */
     public function payoutDestination(): array
     {
+        $method = (string)($this->settings['flw_payout_method'] ?? '');
         $bank = trim((string)($this->settings['flw_payout_bank'] ?? ''));
+        if ($method !== 'momo' && $method !== 'bank') {
+            $method = strtoupper($bank) === 'MPS' ? 'momo' : 'bank';
+        }
         $account = preg_replace('/\D+/', '', (string)($this->settings['flw_payout_account'] ?? '')) ?? '';
         $name = trim((string)($this->settings['flw_payout_name'] ?? ''));
         $branch = trim((string)($this->settings['flw_payout_branch'] ?? ''));
-        $hasBranches = ($this->settings['flw_payout_has_branches'] ?? '0') === '1';
-        $ready = $bank !== '' && $name !== '' && preg_match('/^[0-9]{6,20}$/', $account) === 1 && (!$hasBranches || $branch !== '');
+        $network = strtoupper(trim((string)($this->settings['flw_payout_network'] ?? '')));
+        $hasBranches = $method === 'bank' && ($this->settings['flw_payout_has_branches'] ?? '0') === '1';
+        if ($method === 'momo') {
+            $bank = 'MPS';
+            if (!in_array($network, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
+                $network = 'MTN';
+            }
+            $ready = $name !== '' && preg_match('/^260[0-9]{9}$/', $account) === 1;
+        } else {
+            $ready = $bank !== '' && $bank !== 'MPS' && $name !== '' && preg_match('/^[0-9]{6,20}$/', $account) === 1 && (!$hasBranches || $branch !== '');
+        }
         $masked = $account === '' ? '' : (strlen($account) <= 4 ? $account : str_repeat('•', strlen($account) - 4) . substr($account, -4));
         return [
+            'method' => $method,
+            'network' => $network,
             'bank' => $bank,
             'bank_id' => trim((string)($this->settings['flw_payout_bank_id'] ?? '')),
             'bank_name' => trim((string)($this->settings['flw_payout_bank_name'] ?? '')),
@@ -1228,6 +1245,26 @@ final class Flutterwave
             'ready' => $ready,
             'masked' => $masked,
         ];
+    }
+
+    public static function payoutNameOk(string $name): bool
+    {
+        return preg_match('/^[A-Za-z0-9 .\'\\-\/,&()]{2,80}$/', trim($name)) === 1;
+    }
+
+    /** Zambia mobile number as 260 and nine digits, the form Flutterwave expects on a transfer. */
+    public static function payoutPhone(string $raw): string
+    {
+        $digits = preg_replace('/\D+/', '', $raw) ?? '';
+        if (strlen($digits) === 9) {
+            $digits = '260' . $digits;
+        } elseif (strlen($digits) === 10 && str_starts_with($digits, '0')) {
+            $digits = '260' . substr($digits, 1);
+        }
+        if (preg_match('/^260[0-9]{9}$/', $digits) !== 1) {
+            throw new \InvalidArgumentException('Enter a Zambian mobile number, for example 0971234567.');
+        }
+        return $digits;
     }
 
     public function webhookUrl(): string

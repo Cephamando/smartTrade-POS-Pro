@@ -1111,9 +1111,9 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 
 *Expected result:* collection is what Flutterwave is still holding. Payout is the only money an emergency transfer can send. This screen cannot move a chosen amount from collection into payout. That release happens when Flutterwave settles, and only if Flutterwave → Settings → Business preferences is **Settle to my payout balance**.
 
-4. **Office → Settings → Payments**. Under **Emergency payout account**, choose the bank, type the account number and the name on the account, and save. If the bank asks for a branch, choose it.
+4. **Office → Settings → Payments**. Under **Emergency payout account**, choose **Bank account** or **Mobile money**. For a bank, pick the bank, account number, and name. For mobile money, choose **MTN**, **Airtel**, or **Zamtel** and a number such as 0971234567. Save. If the bank asks for a branch, choose it.
 
-*Expected result:* Settlements & Payouts names that account and shows only the last digits of the account number.
+*Expected result:* Settlements & Payouts names that account and shows only the last digits. A company name with & or a comma is accepted.
 
 5. Enter an amount no higher than the payout balance, a short reason, and a manager username and password. **Send emergency transfer**.
 
@@ -1255,7 +1255,7 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 *Expected result:* "Keys accepted" and the badge **LIVE** for live keys, or **TEST MODE** when the keys start with `FLWPUBK_TEST` or `FLWSECK_TEST`. Copy the webhook URL and the same secret hash into the Flutterwave dashboard. A confirmed charge marks the shop order paid even if the customer closed the browser; it stays on Web Orders until Hand Over and is not filed with ZRA from the webhook. The same webhook updates an emergency transfer when Flutterwave finishes it. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of the secret key are shown on the page. On the Customer ordering tab, an optional https **order webhook** receives a POST when an online order is ready and again when it is handed over. Leave it blank to send nothing.
 
-2. Under **Emergency payout account**, choose the bank, account number, and name on the account. Save. Leave the bank blank and save again only when the account should be removed.
+2. Under **Emergency payout account**, choose **Bank account** or **Mobile money** (MTN, Airtel, or Zamtel). Save. Leave the account blank and save again only when it should be removed.
 
 *Expected result:* Dashboard → Settlements & Payouts can name that account (scenario 5.12). Flutterwave must whitelist this server’s IP before a live transfer is accepted. Sandbox keys do not pay a real bank.
 

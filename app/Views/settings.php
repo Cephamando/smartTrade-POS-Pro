@@ -239,13 +239,36 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                     </div>
                     <hr class="my-4">
                     <h6 class="fw-bold mb-1"><i class="bi bi-bank"></i> Emergency payout account</h6>
-                    <p class="text-muted small">Used only by Settlements &amp; Payouts → Emergency transfer. The transfer always pays this account. Flutterwave must have this server's IP on the transfer whitelist.</p>
+                    <p class="text-muted small">Used only by Settlements &amp; Payouts → Emergency transfer. The transfer always pays this account. Flutterwave must have this server's IP on the transfer whitelist. A company name may include &amp; and commas.</p>
                     <?php if (!empty($flwBanksError)): ?>
-                        <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?> You can type the bank code and name instead.</div>
+                        <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?> You can type the bank code and name instead, or use mobile money.</div>
                     <?php endif; ?>
-                    <?php $payoutBanks = $flwBanks ?? []; $payoutBranches = $flwBranches ?? []; ?>
+                    <?php
+                    $payoutBanks = $flwBanks ?? [];
+                    $payoutBranches = $flwBranches ?? [];
+                    $payoutMethod = (($settings['flw_payout_method'] ?? '') === 'momo' || ($settings['flw_payout_bank'] ?? '') === 'MPS') ? 'momo' : 'bank';
+                    $payoutNetwork = strtoupper((string)($settings['flw_payout_network'] ?? 'MTN'));
+                    if (!in_array($payoutNetwork, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
+                        $payoutNetwork = 'MTN';
+                    }
+                    ?>
                     <div class="row g-3">
                         <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">PAY INTO</label>
+                            <select name="flw_payout_method" id="flwPayoutMethod" class="form-select no-search" onchange="flwPayoutMethodChanged(this.value)">
+                                <option value="bank" <?= $payoutMethod === 'bank' ? 'selected' : '' ?>>Bank account</option>
+                                <option value="momo" <?= $payoutMethod === 'momo' ? 'selected' : '' ?>>Mobile money</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6<?= $payoutMethod === 'momo' ? '' : ' d-none' ?>" id="flwMomoFields">
+                            <label class="form-label fw-bold small text-muted">NETWORK</label>
+                            <select name="flw_payout_network" id="flwPayoutNetwork" class="form-select no-search" <?= $payoutMethod === 'momo' ? '' : 'disabled' ?>>
+                                <?php foreach (['MTN' => 'MTN', 'AIRTEL' => 'Airtel', 'ZAMTEL' => 'Zamtel'] as $code => $label): ?>
+                                    <option value="<?= $code ?>" <?= $payoutNetwork === $code ? 'selected' : '' ?>><?= $label ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6<?= $payoutMethod === 'bank' ? '' : ' d-none' ?>" id="flwBankFields">
                             <label class="form-label fw-bold small text-muted">BANK</label>
                             <?php if ($payoutBanks !== []): ?>
                                 <select name="flw_payout_bank" id="flwPayoutBank" class="form-select" onchange="flwBankChanged(this)">
@@ -266,8 +289,8 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                         </div>
                         <?php endif; ?>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold small text-muted">ACCOUNT NUMBER</label>
-                            <input type="text" name="flw_payout_account" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_payout_account'] ?? '') ?>" inputmode="numeric" autocomplete="off">
+                            <label class="form-label fw-bold small text-muted" id="flwPayoutAccountLabel"><?= $payoutMethod === 'momo' ? 'MOBILE NUMBER' : 'ACCOUNT NUMBER' ?></label>
+                            <input type="text" name="flw_payout_account" id="flwPayoutAccount" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_payout_account'] ?? '') ?>" inputmode="numeric" autocomplete="off" placeholder="<?= $payoutMethod === 'momo' ? '0971234567' : '' ?>">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">NAME ON THE ACCOUNT</label>
@@ -304,6 +327,31 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
 </div>
 <script>
 function flwTest() { const out = document.getElementById('flwTestResult'); out.textContent = 'Testing…'; out.className = 'align-self-center small text-muted'; fetch('index.php?page=flutterwave&action=test', { credentials: 'same-origin' }).then(r => r.json()).then(function (res) { out.textContent = res.msg || ''; out.className = 'align-self-center small fw-bold ' + (res.status === 'ok' ? 'text-success' : 'text-danger'); }).catch(function () { out.textContent = 'Could not reach the server.'; out.className = 'align-self-center small text-danger'; }); }
+function flwPayoutMethodChanged(method) {
+    var momo = document.getElementById('flwMomoFields');
+    var bank = document.getElementById('flwBankFields');
+    var branch = document.getElementById('flwBranchWrap');
+    var network = document.getElementById('flwPayoutNetwork');
+    var label = document.getElementById('flwPayoutAccountLabel');
+    var account = document.getElementById('flwPayoutAccount');
+    var isMomo = method === 'momo';
+    if (momo) momo.classList.toggle('d-none', !isMomo);
+    if (bank) bank.classList.toggle('d-none', isMomo);
+    if (network) network.disabled = !isMomo;
+    if (bank) bank.querySelectorAll('input, select').forEach(function (el) { el.disabled = isMomo; });
+    if (branch) {
+        branch.querySelectorAll('select').forEach(function (el) { el.disabled = isMomo; });
+        if (isMomo) {
+            branch.classList.add('d-none');
+        } else {
+            var bankSel = document.getElementById('flwPayoutBank');
+            var opt = bankSel && bankSel.selectedOptions ? bankSel.selectedOptions[0] : null;
+            if (opt && opt.dataset.branches === '1') branch.classList.remove('d-none');
+        }
+    }
+    if (label) label.textContent = isMomo ? 'MOBILE NUMBER' : 'ACCOUNT NUMBER';
+    if (account) account.placeholder = isMomo ? '0971234567' : '';
+}
 function flwBankChanged(sel) {
     var opt = sel.options[sel.selectedIndex];
     var name = document.getElementById('flwPayoutBankName');

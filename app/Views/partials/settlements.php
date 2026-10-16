@@ -81,7 +81,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
         <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
             <div>
                 <h5 class="fw-bold mb-1"><i class="bi bi-send text-danger"></i> Emergency transfer</h5>
-                <p class="text-muted small mb-2">Sends from the payout balance to the saved bank account. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance. That release happens when Flutterwave settles, and only if the Flutterwave business preference is set to settle into the payout balance.</p>
+                <p class="text-muted small mb-2">Sends from the payout balance to the saved bank account or mobile-money number. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance. That release happens when Flutterwave settles, and only if the Flutterwave business preference is set to settle into the payout balance.</p>
                 <?php if (!empty($payout['test_mode'])): ?><span class="badge bg-warning text-dark">Sandbox keys — this will not pay a real bank</span><?php endif; ?>
             </div>
             <div class="d-flex gap-4 text-md-end">
@@ -99,7 +99,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
         </div>
         <?php if (!empty($payout['balance_error'])): ?><div class="small text-danger mt-2"><?= htmlspecialchars((string)$payout['balance_error']) ?></div><?php endif; ?>
         <?php if (empty($dest['ready'])): ?>
-            <div class="alert alert-warning small mb-0 mt-3">Save the bank, account number, and account name under <a href="index.php?page=settings&amp;tab=payments">Settings → Payments</a> before an emergency transfer can be sent.</div>
+            <div class="alert alert-warning small mb-0 mt-3">Save a bank account or a mobile-money number under <a href="index.php?page=settings&amp;tab=payments">Settings → Payments</a> before an emergency transfer can be sent.</div>
         <?php else: ?>
             <div class="small mt-3 mb-3">Pays <strong><?= htmlspecialchars((string)($dest['name'] ?? '')) ?></strong>, <?= htmlspecialchars((string)(($dest['bank_name'] ?? '') !== '' ? $dest['bank_name'] : 'saved bank')) ?> <?= htmlspecialchars((string)($dest['masked'] ?? '')) ?>.</div>
             <form method="POST" action="index.php?page=dashboard&amp;tab=settlements" class="row g-3">
