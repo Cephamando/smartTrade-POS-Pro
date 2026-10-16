@@ -1095,6 +1095,30 @@ If a deposit is set, the shop adds that the deposit is collected on the private 
 
 **If it goes wrong:** cancelling the dialog leaves the event in place. Use **Remove event** only for a function you mean to delete. To hide one you may bring back, set **Status** to `closed` or **Visibility** to `Private invite` instead.
 
+### 5.12 Settlements and payouts
+
+Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved (scenario 7.1b).
+
+1. Open **Dashboard → Settlements & Payouts**.
+
+*Expected result:* four totals for the whole business: **Total processed**, **Service fee deducted**, **Pending settlement to bank**, and **Settled to bank**. Changing the workstation does not change them. The table lists each confirmed charge with its reference, receipt, fee, and **Pending** or **Settled**.
+
+2. Click **Update from Flutterwave**.
+
+*Expected result:* a message. If Flutterwave has no completed settlement batch in the last 90 days, every charge stays pending. A completed batch that includes a charge marks that charge **Settled**.
+
+3. Read **Collection balance** and **Payout balance**.
+
+*Expected result:* collection is what Flutterwave is still holding. Payout is the only money an emergency transfer can send. This screen cannot move a chosen amount from collection into payout. That release happens when Flutterwave settles, and only if Flutterwave → Settings → Business preferences is **Settle to my payout balance**.
+
+4. **Office → Settings → Payments**. Under **Emergency payout account**, choose the bank, type the account number and the name on the account, and save. If the bank asks for a branch, choose it.
+
+*Expected result:* Settlements & Payouts names that account and shows only the last digits of the account number.
+
+5. Enter an amount no higher than the payout balance, a short reason, and a manager username and password. **Send emergency transfer**.
+
+*Expected result:* the button is off when the payout balance is under ZMW 1.00, or when no account is saved. A wrong password is refused and nothing is sent. Sandbox keys say the transfer will not pay a real bank. A queued transfer stays **Pending** until Flutterwave marks it successful.
+
 ### Assessment — manager
 
 | # | Checkpoint | Pass |
@@ -1116,6 +1140,7 @@ If a deposit is set, the shop adds that the deposit is collected on the private 
 | M15 | Creates an employee, runs payroll, checks PAYE/NAPSA/NHIMA, prints payslips | |
 | M16 | Receives a web order on the POS and hands over a prepaid one | |
 | M17 | Publishes an event with tiers and a framed cover, takes a registration, records the deposit then the balance, and removes the training event | |
+| M18 | Reads Settlements & Payouts, explains collection versus payout balance, and knows the emergency transfer pays only the saved account | |
 
 ---
 
@@ -1228,7 +1253,11 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 
 1. **Office → Settings**, Payments tab. Enable and paste the **public key**, **secret key**, and webhook hash from Flutterwave → Settings → API. Paste the **subaccount ID** when the dashboard split should apply. Save. **Test keys**.
 
-*Expected result:* "Keys accepted" and the badge **LIVE** for live keys, or **TEST MODE** when the keys start with `FLWPUBK_TEST` or `FLWSECK_TEST`. Copy the webhook URL and the same secret hash into the Flutterwave dashboard. A confirmed charge marks the shop order paid even if the customer closed the browser; it stays on Web Orders until Hand Over and is not filed with ZRA from the webhook. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of the secret key are shown on the page. On the Customer ordering tab, an optional https **order webhook** receives a POST when an online order is ready and again when it is handed over. Leave it blank to send nothing.
+*Expected result:* "Keys accepted" and the badge **LIVE** for live keys, or **TEST MODE** when the keys start with `FLWPUBK_TEST` or `FLWSECK_TEST`. Copy the webhook URL and the same secret hash into the Flutterwave dashboard. A confirmed charge marks the shop order paid even if the customer closed the browser; it stays on Web Orders until Hand Over and is not filed with ZRA from the webhook. The same webhook updates an emergency transfer when Flutterwave finishes it. The POS now offers **Flutterwave** as a payment method (scenario 2.6d). Only the first characters of the secret key are shown on the page. On the Customer ordering tab, an optional https **order webhook** receives a POST when an online order is ready and again when it is handed over. Leave it blank to send nothing.
+
+2. Under **Emergency payout account**, choose the bank, account number, and name on the account. Save. Leave the bank blank and save again only when the account should be removed.
+
+*Expected result:* Dashboard → Settlements & Payouts can name that account (scenario 5.12). Flutterwave must whitelist this server’s IP before a live transfer is accepted. Sandbox keys do not pay a real bank.
 
 ### Scenario 7.1c — Currency
 
@@ -1345,6 +1374,9 @@ Give the trainee the symptom only. They must find the cause and the right action
 | "already a tier" | That name is already on this event | Remove it, or type a different custom name |
 | Tier "does not have enough places left" | The party would pass that tier's limit | Lower the party or raise the limit. A limit of 0 means no limit |
 | Pay now says Flutterwave is not enabled | Payment keys are missing | Record cash on the event, or add test keys under Payments |
+| Emergency transfer button is off | Payout balance is under ZMW 1, or no payout account is saved | Read the two balances. Save the account under Settings → Payments. Wait until Flutterwave settles into the payout balance |
+| Collection balance is large and payout balance is zero | Flutterwave has not released the collection yet | Set Flutterwave business preferences to settle into the payout balance. Do not transfer the collection amount |
+| Update from Flutterwave says there are no settlement batches | No completed batch in the last 90 days | Charges stay pending until Flutterwave pays a batch |
 | The Guide says it is not set up | Gemini key is missing | Add it in System Settings → Guide |
 
 ---

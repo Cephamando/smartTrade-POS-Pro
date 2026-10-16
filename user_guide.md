@@ -464,12 +464,26 @@ Administrators, managers, and developers.
 - **Staff & users** shortcuts: Manage Users, View Shifts, Members.
 - **7-day sales trend** and **payment mix** charts.
 - **Active shifts**: who is open, their role, and a button into that shift’s sales.
-- **Settlements & Payouts**: confirmed Flutterwave charges across every workstation. **Total processed** is what customers paid. **Service fee deducted** is Flutterwave’s fee. **Pending settlement to bank** is what Flutterwave still owes this account. **Update from Flutterwave** checks completed settlement batches and marks the matching charges settled.
-- **Emergency transfer**: sends an amount from the **payout balance** to the bank account saved under Settings → Payments. The **collection balance** is what Flutterwave is still holding. Flutterwave releases that into the payout balance on its own settlement schedule, and only when Business preferences say “Settle to my payout balance”. This app cannot move a chosen amount between those two balances. The transfer asks for a manager username and password. The row stays pending until Flutterwave reports it successful. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
+- **Settlements & Payouts**: the second tab. See below.
 - **Pickup screen** and **Approvals** when your role and tier include them.
 - **Go to POS** when this location can sell.
 
 On a phone the stat tiles scroll sideways and the buttons stretch to full width.
+
+### Settlements & Payouts
+
+**Dashboard → Settlements & Payouts.** These figures are for the whole business. The workstation pin does not filter them.
+
+- **Total processed** is what customers paid on confirmed Flutterwave charges.
+- **Service fee deducted** is Flutterwave’s fee on those charges.
+- **Pending settlement to bank** is what Flutterwave still owes this account.
+- **Settled to bank** is what a completed settlement batch has already matched.
+- The table lists each confirmed charge: when, reference, receipt, method, what the customer paid, the fee, the amount due to this account, and **Pending** or **Settled**.
+- **Update from Flutterwave** checks completed settlement batches from the last 90 days and marks the matching charges settled. A pending or flagged batch stays pending. If Flutterwave has no completed batch, the message says so and the charges stay pending.
+
+**Collection balance** is the ledger Flutterwave is still holding. **Payout balance** is the only money an emergency transfer can send. Flutterwave releases collection into the payout balance on its own settlement schedule, and only when Flutterwave → Settings → Business preferences is set to **Settle to my payout balance**. This app cannot move a chosen amount from collection into payout.
+
+**Emergency transfer** pays the bank account saved under Settings → Payments. Enter the amount (not more than the payout balance), a short reason, and a manager username and password. The row stays **Pending** until Flutterwave reports it successful; opening this tab checks transfers that are still waiting. The button stays off when the payout balance is under ZMW 1.00, or when no payout account is saved. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 ---
 
@@ -499,7 +513,9 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **POS surcharges** — the list the POS offers. Add a name, a default amount and/or percent, a sort order, and whether it is active. Edit, switch off, or delete from the table. Deleting does not change past sales.
 
-**Payments (Flutterwave)** — switch the gateway on and paste the **public key**, **secret key**, and **webhook secret hash** from Flutterwave → Settings → API. Keys that start with `FLWPUBK_TEST` or `FLWSECK_TEST` are sandbox; the other keys are live. **Test keys** checks that Flutterwave accepts them. Paste the **subaccount ID** (`RS_…`) when card and mobile-money payments should follow the percentage or flat split already saved on that subaccount. Leave it blank to settle the full amount here. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook.
+**Payments (Flutterwave)** — switch the gateway on and paste the **public key**, **secret key**, and **webhook secret hash** from Flutterwave → Settings → API. Keys that start with `FLWPUBK_TEST` or `FLWSECK_TEST` are sandbox; the other keys are live. **Test keys** checks that Flutterwave accepts them. Paste the **subaccount ID** (`RS_…`) when card and mobile-money payments should follow the percentage or flat split already saved on that subaccount. Leave it blank to settle the full amount here. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook. The same webhook also updates an emergency transfer when Flutterwave finishes it.
+
+**Emergency payout account** — the bank, account number, and name on the account used by Dashboard → Settlements & Payouts → Emergency transfer. The transfer always pays this saved account; it is not typed again at send time. Choose the bank from the Flutterwave list. If that bank has branches, choose the branch before saving. Leave the bank blank and save to remove the account. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 **Currency** — switch the converter on, choose which currencies the POS shows (USD, ZAR, EUR, GBP, and others), and how often rates refresh. Live rates are pulled against the kwacha and cached. You may fix a **house rate** for any currency; it overrides the live rate. **Refresh live rates now** fetches immediately. The quick converter on the tab converts any amount between enabled currencies.
 
