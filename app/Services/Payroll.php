@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Setting;
+use App\Models\User;
 use PDO;
 
 /**
@@ -28,29 +29,40 @@ final class Payroll
         $this->settings ??= Setting::all();
     }
 
-    /** @return array<int, array{upto: ?float, rate: float}> */
+    /** @return array<int, array{upto: ?float, rate: float}> ZRA monthly bands used when none have been saved, or every saved rate is 0. */
+    public function defaultPayeBands(): array
+    {
+        return [
+            ['upto' => 5100.0, 'rate' => 0.0],
+            ['upto' => 7100.0, 'rate' => 20.0],
+            ['upto' => 9200.0, 'rate' => 30.0],
+            ['upto' => null, 'rate' => 37.0],
+        ];
+    }
+
     public function payeBands(): array
     {
         $json = (string)($this->settings['payroll_paye_bands'] ?? '');
         $bands = json_decode($json, true);
         if (!is_array($bands) || !$bands) {
-            $bands = [
-                ['upto' => 5100, 'rate' => 0],
-                ['upto' => 7100, 'rate' => 20],
-                ['upto' => 9200, 'rate' => 30],
-                ['upto' => null, 'rate' => 37],
-            ];
+            return $this->defaultPayeBands();
         }
-        return array_values(array_map(fn($b) => ['upto' => isset($b['upto']) && $b['upto'] !== '' && $b['upto'] !== null ? (float)$b['upto'] : null, 'rate' => (float)($b['rate'] ?? 0)], $bands));
+        $parsed = array_values(array_map(fn($b) => ['upto' => isset($b['upto']) && $b['upto'] !== '' && $b['upto'] !== null ? (float)$b['upto'] : null, 'rate' => (float)($b['rate'] ?? 0)], $bands));
+        foreach ($parsed as $band) {
+            if ($band['rate'] > 0) {
+                return $parsed;
+            }
+        }
+        return $this->defaultPayeBands();
     }
 
     public function config(): array
     {
         return [
             'paye_bands' => $this->payeBands(),
-            'napsa_rate' => (float)($this->settings['payroll_napsa_rate'] ?? 5),
-            'napsa_cap' => (float)($this->settings['payroll_napsa_cap'] ?? 1708.20),
-            'nhima_rate' => (float)($this->settings['payroll_nhima_rate'] ?? 1),
+            'napsa_rate' => $this->settingFloat('payroll_napsa_rate', 5),
+            'napsa_cap' => $this->settingFloat('payroll_napsa_cap', 1708.20),
+            'nhima_rate' => $this->settingFloat('payroll_nhima_rate', 1),
             'working_days' => (int)($this->settings['payroll_working_days'] ?? 26),
             'include_tips' => ($this->settings['payroll_include_tips'] ?? '1') === '1',
             'tips_taxable' => ($this->settings['payroll_tips_taxable'] ?? '0') === '1',
@@ -74,6 +86,162 @@ final class Payroll
             $lower = $upper;
         }
         return round(max(0, $tax), 2);
+    }
+
+    /** A closed shift longer than this is left out of the automatic hours. */
+    public const MAX_SHIFT_HOURS = 16;
+
+    /** A shift that was never closed counts as a standard working day. */
+    public const OPEN_SHIFT_HOURS = 8;
+
+    /**
+     * Hours and days from shifts that overlap the pay period.
+     * A shift still open counts as 8 hours for each day from the day it opened
+     * through today, stopped at the pay-period end. On a daily rate each of
+     * those days counts as 1 day. The same calendar day is not counted twice.
+     * A closed shift longer than 16 hours is not counted.
+     *
+     * @param list<int> $userIds
+     * @return array<int, array{hours: float, days: ?int, excluded: list<array{start: string, end: string, hours: float}>, open: list<array{start: string, hours: float, day: bool}>}>
+     */
+    public function attendanceForPeriod(array $userIds, string $periodStart, string $periodEnd): array
+    {
+        $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+        $out = [];
+        foreach ($userIds as $id) {
+            $out[$id] = $this->blankAttendance();
+        }
+        if (!$userIds || strtotime($periodStart) === false || strtotime($periodEnd) === false) {
+            return $out;
+        }
+        $from = $periodStart . ' 00:00:00';
+        $to = $periodEnd . ' 23:59:59';
+        $fromTs = strtotime($from);
+        $toTs = strtotime($to);
+        $now = time();
+        $marks = implode(',', array_fill(0, count($userIds), '?'));
+        $payTypes = [];
+        $typeStmt = $this->pdo->prepare("SELECT user_id, pay_type FROM employees WHERE user_id IN ($marks)");
+        $typeStmt->execute($userIds);
+        foreach ($typeStmt->fetchAll() as $typeRow) {
+            $payTypes[(int)$typeRow['user_id']] = (string)$typeRow['pay_type'];
+        }
+        $stmt = $this->pdo->prepare(
+            "SELECT user_id, status, start_time, end_time FROM shifts
+             WHERE status IN ('open', 'closed') AND user_id IN ($marks)
+               AND start_time < ? AND (end_time IS NULL OR end_time > ?)"
+        );
+        $stmt->execute([...$userIds, $to, $from]);
+        $daySets = [];
+        $openDaySets = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $uid = (int)$row['user_id'];
+            if (!isset($out[$uid])) {
+                continue;
+            }
+            $open = $row['status'] === 'open' || $row['end_time'] === null;
+            $startTs = strtotime((string)$row['start_time']);
+            if ($startTs === false) {
+                continue;
+            }
+            if ($open) {
+                $clipFrom = max($startTs, $fromTs);
+                $clipTo = min($now, $toTs);
+                if ($clipTo < $clipFrom) {
+                    continue;
+                }
+                $cursor = strtotime(date('Y-m-d 00:00:00', $clipFrom));
+                $lastDay = strtotime(date('Y-m-d 00:00:00', $clipTo));
+                $covered = 0;
+                while ($cursor !== false && $lastDay !== false && $cursor <= $lastDay) {
+                    $openDaySets[$uid][date('Y-m-d', $cursor)] = true;
+                    $covered++;
+                    $cursor = strtotime('+1 day', $cursor);
+                }
+                if ($covered > 0) {
+                    $out[$uid]['open'][] = [
+                        'start' => (string)$row['start_time'],
+                        'hours' => $covered * self::OPEN_SHIFT_HOURS,
+                        'days' => $covered,
+                        'day' => ($payTypes[$uid] ?? 'monthly') !== 'monthly',
+                    ];
+                }
+                continue;
+            }
+            $endTs = strtotime((string)$row['end_time']);
+            if ($endTs === false || $endTs <= $startTs) {
+                continue;
+            }
+            $rawHours = ($endTs - $startTs) / 3600;
+            if ($rawHours > self::MAX_SHIFT_HOURS) {
+                $out[$uid]['excluded'][] = [
+                    'start' => (string)$row['start_time'],
+                    'end' => (string)$row['end_time'],
+                    'hours' => round($rawHours, 2),
+                ];
+                continue;
+            }
+            $clipStart = max($startTs, $fromTs);
+            $clipEnd = min($endTs, $toTs);
+            if ($clipEnd <= $clipStart) {
+                continue;
+            }
+            $out[$uid]['hours'] += ($clipEnd - $clipStart) / 3600;
+            $daySets[$uid][date('Y-m-d', $startTs < $fromTs ? $fromTs : $startTs)] = true;
+        }
+        foreach ($openDaySets as $uid => $dates) {
+            $out[$uid]['hours'] += count($dates) * self::OPEN_SHIFT_HOURS;
+            if (($payTypes[$uid] ?? 'monthly') !== 'monthly') {
+                foreach (array_keys($dates) as $key) {
+                    $daySets[$uid][$key] = true;
+                }
+            }
+        }
+        foreach ($out as $uid => $row) {
+            $out[$uid]['hours'] = round($row['hours'], 2);
+            $out[$uid]['days'] = isset($daySets[$uid]) ? count($daySets[$uid]) : null;
+        }
+        return $out;
+    }
+
+    /** @return array{hours: float, days: null, excluded: array, open: array} */
+    private function blankAttendance(): array
+    {
+        return ['hours' => 0.0, 'days' => null, 'excluded' => [], 'open' => []];
+    }
+
+    /** A blank or zero saved rate falls back to the Zambian default. Untick a deduction on the employee to skip it. */
+    private function settingFloat(string $key, float $default): float
+    {
+        if (!isset($this->settings[$key]) || trim((string)$this->settings[$key]) === '') {
+            return $default;
+        }
+        $value = (float)$this->settings[$key];
+        return $value > 0 ? $value : $default;
+    }
+
+    private function isExempt(array $employee, string $key): bool
+    {
+        return (int)($employee[$key] ?? 0) === 1;
+    }
+
+    /** Basic pay the shift hours and days would produce, before a typed basic replaces it. */
+    private function formulaBasic(array $employee, $hours, $days): float
+    {
+        $cfg = $this->config();
+        $payType = $employee['pay_type'] ?? 'monthly';
+        if ($payType === 'hourly') {
+            return round((float)($employee['hourly_rate'] ?? 0) * (float)($hours ?? 0), 2);
+        }
+        if ($payType === 'daily') {
+            $usedDays = ($days === null || $days === '') ? $cfg['working_days'] : (float)$days;
+            return round((float)($employee['daily_rate'] ?? 0) * $usedDays, 2);
+        }
+        $basic = (float)($employee['basic_salary'] ?? 0);
+        if ($days !== null && $days !== '' && $cfg['working_days'] > 0 && (float)$days < $cfg['working_days']) {
+            $basic = $basic * (float)$days / $cfg['working_days'];
+        }
+        return round($basic, 2);
     }
 
     /**
@@ -127,24 +295,35 @@ final class Payroll
                 $lines[] = ['name' => $c['name'], 'kind' => 'earning', 'amount' => round($amt, 2), 'taxable' => !empty($c['is_taxable'])];
             }
         }
+        $subtraction = isset($input['subtraction']) && $input['subtraction'] !== '' ? round((float)$input['subtraction'], 2) : 0.0;
+        if ($subtraction > 0) {
+            $label = trim((string)($input['subtraction_label'] ?? ''));
+            $deductions += $subtraction;
+            $lines[] = [
+                'name' => $label !== '' ? $label : 'Subtraction',
+                'kind' => 'deduction',
+                'amount' => $subtraction,
+                'manual' => true,
+            ];
+        }
         $tips = $cfg['include_tips'] ? round((float)($input['tips'] ?? 0), 2) : 0.0;
 
         $gross = round($basic + $allowances + $tips, 2);
         $taxable = $basic + $taxableAllow + ($cfg['tips_taxable'] ? $tips : 0);
 
         $napsaEmp = $napsaEr = 0.0;
-        if (empty($employee['napsa_exempt'])) {
+        if (!$this->isExempt($employee, 'napsa_exempt')) {
             $napsaEmp = min(round($gross * $cfg['napsa_rate'] / 100, 2), $cfg['napsa_cap']);
             $napsaEr = $napsaEmp;
         }
         $nhimaEmp = $nhimaEr = 0.0;
-        if (empty($employee['nhima_exempt'])) {
+        if (!$this->isExempt($employee, 'nhima_exempt')) {
             $nhimaEmp = round($basic * $cfg['nhima_rate'] / 100, 2);
             $nhimaEr = $nhimaEmp;
         }
         // NAPSA employee contribution is deductible before PAYE.
         $taxable = max(0, round($taxable - $napsaEmp, 2));
-        $paye = empty($employee['paye_exempt']) ? $this->paye($taxable) : 0.0;
+        $paye = $this->isExempt($employee, 'paye_exempt') ? 0.0 : $this->paye($taxable);
 
         $net = round($gross - $paye - $napsaEmp - $nhimaEmp - $deductions, 2);
 
@@ -196,12 +375,22 @@ final class Payroll
 
     public function saveEmployee(?int $id, array $d, array $componentAmounts): int
     {
-        $name = trim((string)($d['full_name'] ?? ''));
+        $userId = (int)($d['user_id'] ?? 0);
+        $staff = $userId > 0 ? User::staffMember($userId) : null;
+        if (!$staff) {
+            throw new \InvalidArgumentException('Choose an employee from the staff list.');
+        }
+        $name = trim((string)($staff['full_name'] ?: $staff['username']));
         if ($name === '') {
-            throw new \InvalidArgumentException('Employee name is required.');
+            throw new \InvalidArgumentException('That staff member has no name.');
+        }
+        $taken = $this->pdo->prepare('SELECT id FROM employees WHERE user_id = ? AND id <> ? LIMIT 1');
+        $taken->execute([$userId, $id ?: 0]);
+        if ($taken->fetch()) {
+            throw new \InvalidArgumentException($name . ' is already on the payroll.');
         }
         $cols = [
-            'user_id' => !empty($d['user_id']) ? (int)$d['user_id'] : null,
+            'user_id' => $userId,
             'employee_no' => trim((string)($d['employee_no'] ?? '')) ?: null,
             'full_name' => $name,
             'nrc' => trim((string)($d['nrc'] ?? '')) ?: null,
@@ -210,7 +399,7 @@ final class Payroll
             'nhima_no' => trim((string)($d['nhima_no'] ?? '')) ?: null,
             'phone' => trim((string)($d['phone'] ?? '')) ?: null,
             'email' => trim((string)($d['email'] ?? '')) ?: null,
-            'position' => trim((string)($d['position'] ?? '')) ?: null,
+            'position' => $this->positionFromStaff((string)($d['position'] ?? ''), $id),
             'department' => trim((string)($d['department'] ?? '')) ?: null,
             'location_id' => !empty($d['location_id']) ? (int)$d['location_id'] : null,
             'hire_date' => !empty($d['hire_date']) ? $d['hire_date'] : null,
@@ -223,9 +412,9 @@ final class Payroll
             'bank_name' => trim((string)($d['bank_name'] ?? '')) ?: null,
             'bank_account' => trim((string)($d['bank_account'] ?? '')) ?: null,
             'mobile_money' => trim((string)($d['mobile_money'] ?? '')) ?: null,
-            'napsa_exempt' => !empty($d['napsa_exempt']) ? 1 : 0,
-            'nhima_exempt' => !empty($d['nhima_exempt']) ? 1 : 0,
-            'paye_exempt' => !empty($d['paye_exempt']) ? 1 : 0,
+            'napsa_exempt' => empty($d['deduct_napsa']) ? 1 : 0,
+            'nhima_exempt' => empty($d['deduct_nhima']) ? 1 : 0,
+            'paye_exempt' => empty($d['deduct_paye']) ? 1 : 0,
             'is_active' => isset($d['is_active']) ? (int)(bool)$d['is_active'] : 1,
         ];
         if ($id) {
@@ -244,6 +433,29 @@ final class Payroll
             }
         }
         return $id;
+    }
+
+    /** Role label from the staff list. A payroll row may keep a title saved before roles were listed. */
+    private function positionFromStaff(string $posted, ?int $employeeId): ?string
+    {
+        $posted = trim($posted);
+        if ($posted === '') {
+            throw new \InvalidArgumentException('Choose a role from the staff list.');
+        }
+        foreach (User::staffRoles() as $role) {
+            if ($posted === $role['key'] || strcasecmp($posted, $role['label']) === 0) {
+                return $role['label'];
+            }
+        }
+        if ($employeeId) {
+            $cur = $this->pdo->prepare('SELECT position FROM employees WHERE id = ?');
+            $cur->execute([$employeeId]);
+            $existing = trim((string)$cur->fetchColumn());
+            if ($existing !== '' && $posted === $existing) {
+                return $existing;
+            }
+        }
+        throw new \InvalidArgumentException('Choose a role from the staff list.');
     }
 
     public function components(bool $activeOnly = false): array
@@ -298,7 +510,7 @@ final class Payroll
             return null;
         }
         $slips = $this->pdo->prepare(
-            'SELECT p.*, e.full_name, e.employee_no, e.position, e.pay_type, e.pay_method, e.bank_name, e.bank_account, e.mobile_money, e.user_id
+            'SELECT p.*, e.full_name, e.employee_no, e.position, e.pay_type, e.hourly_rate, e.daily_rate, e.pay_method, e.bank_name, e.bank_account, e.mobile_money, e.user_id, e.paye_exempt, e.napsa_exempt, e.nhima_exempt
              FROM payslips p JOIN employees e ON e.id = p.employee_id WHERE p.run_id = ? ORDER BY e.full_name'
         );
         $slips->execute([$id]);
@@ -306,6 +518,17 @@ final class Payroll
             $s['lines'] = json_decode((string)$s['breakdown'], true) ?: [];
             return $s;
         }, $slips->fetchAll());
+        $userIds = [];
+        foreach ($run['slips'] as $s) {
+            if (!empty($s['user_id'])) {
+                $userIds[] = (int)$s['user_id'];
+            }
+        }
+        $attendance = $this->attendanceForPeriod($userIds, (string)$run['period_start'], (string)$run['period_end']);
+        foreach ($run['slips'] as &$slip) {
+            $slip['attendance'] = $attendance[(int)($slip['user_id'] ?? 0)] ?? $this->blankAttendance();
+        }
+        unset($slip);
         return $run;
     }
 
@@ -319,6 +542,17 @@ final class Payroll
         $row = $stmt->fetch();
         if ($row) {
             $row['lines'] = json_decode((string)$row['breakdown'], true) ?: [];
+            $uid = (int)($row['user_id'] ?? 0);
+            $att = $uid > 0
+                ? ($this->attendanceForPeriod([$uid], (string)$row['period_start'], (string)$row['period_end'])[$uid] ?? null)
+                : null;
+            $row['attendance'] = $att ?? $this->blankAttendance();
+            $row['hours_display'] = ($row['hours_worked'] !== null && $row['hours_worked'] !== '')
+                ? (float)$row['hours_worked']
+                : (float)$row['attendance']['hours'];
+            $row['days_display'] = ($row['days_worked'] !== null && $row['days_worked'] !== '')
+                ? $row['days_worked']
+                : $row['attendance']['days'];
         }
         return $row ?: null;
     }
@@ -380,6 +614,13 @@ final class Payroll
             throw new \RuntimeException('Only draft pay runs can be recalculated.');
         }
         $tips = $this->config()['include_tips'] ? $this->tipsForPeriod($run['period_start'], $run['period_end']) : [];
+        $userIds = [];
+        foreach ($this->employees(true) as $emp) {
+            if (!empty($emp['user_id'])) {
+                $userIds[] = (int)$emp['user_id'];
+            }
+        }
+        $attendance = $this->attendanceForPeriod($userIds, (string)$run['period_start'], (string)$run['period_end']);
         $components = [];
         foreach ($this->components(true) as $c) {
             $components[(int)$c['id']] = $c;
@@ -409,6 +650,26 @@ final class Payroll
             }
             if (!isset($in['tips']) || $in['tips'] === '') {
                 $in['tips'] = $e['user_id'] ? ($tips[(int)$e['user_id']] ?? 0) : 0;
+            }
+            $att = $attendance[(int)($e['user_id'] ?? 0)] ?? $this->blankAttendance();
+            $postedHours = $in['hours_worked'] ?? null;
+            $hoursBlank = $postedHours === null || $postedHours === '';
+            if ($hoursBlank && $att['hours'] > 0) {
+                $in['hours_worked'] = $att['hours'];
+            }
+            $postedDays = $in['days_worked'] ?? null;
+            $daysBlank = $postedDays === null || $postedDays === '';
+            if ($daysBlank && $att['days'] !== null) {
+                $in['days_worked'] = $att['days'];
+            }
+            $postedBasic = trim((string)($in['basic'] ?? ''));
+            $followsFormula = $postedBasic === '';
+            if (!$followsFormula && $prev) {
+                $expected = $this->formulaBasic($e, $prev['hours_worked'], $prev['days_worked']);
+                $followsFormula = abs((float)$postedBasic - $expected) < 0.009;
+            }
+            if ($followsFormula) {
+                $in['basic'] = '';
             }
             $empComp->execute([$eid]);
             $resolved = [];

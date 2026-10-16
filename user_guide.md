@@ -379,10 +379,13 @@ The top of the page shows whether the local service answers, how many paid sales
 
 ### 11.1 Device card
 
-You will see TPIN, branch ID, device serial (from the shop’s configuration, matching ZRA Device Management), taxpayer name, **SDC ID**, **MRC number**, last invoice number, standard-code count, and UNSPSC count.
+You will see TPIN, branch ID, device serial, taxpayer name, **SDC ID**, **MRC number**, last invoice number, standard-code count, and UNSPSC count.
+
+A developer enters the TPIN, branch, and device serial on this page and clicks **Save device** before the first handshake. Those three are not typed into the server file. Leave the VSDC address as `http://vsdc:8080/sandboxvsdc` when the device container is the usual one. Tick **Turnover tax** for a non-VAT taxpayer. For a live shop, set the receipt portal to `https://www.zra.org.zm`. Saving does not initialize the device.
 
 | Control | When to use it |
 |---|---|
+| **Save device** | Developer only, before the first handshake, and again if the TPIN, branch, or serial changes. |
 | **Test connection** | Any time you need to prove the device still has keys and can reach ZRA. Safe to repeat. |
 | **Initialize device** | Once, on a brand-new serial, when the badge says **Not initialized**. The button is disabled after an SDC ID exists. Initializing again, or doing it on a second PC with the same serial, burns the device. |
 | **Sync standard codes** | After the first successful handshake, before you register items. |
@@ -529,6 +532,8 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **Guide** — The Gemini API key and model for the AI staff guide. To speed up answers and save tokens, tap **Sync Documentation** after saving the key to upload the manuals into Gemini's context cache. Sync again if the manuals change.
 
+**Developer** (the developer login only) — **Activity log** lists each staff sign-in (successful or failed), sign-out, workstation change, and sale or refund, with the location. Stock movements stay on stock history. **Clear sales and stock** removes transactions and quantities and leaves the products and UNSPSC classes. **Wipe products and UNSPSC** does that and then deletes the catalogue. Both ask you to type a confirmation. On **ZRA invoices**, the same login can set the TPIN, branch, device serial, the local VSDC address, whether the taxpayer is on turnover tax, and the receipt portal. Saving those does not initialize the device again.
+
 ### 14.4 Searching in drop-downs
 
 Every drop-down in the system can be searched. Click or tap it and type: the list narrows as you type and matches more than the visible label — products match on SKU and barcode, vendors on contact name and phone, ingredients on unit and SKU, staff on username and full name. Use the arrow keys and Enter, or tap the match. Clear the box to see the full list again.
@@ -539,7 +544,7 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 
 **Office → Payroll.** Four tabs.
 
-**Employees.** Add a person: name, NRC, NAPSA and NHIMA numbers, TPIN, job title, location, the POS login they use (so tips can be pulled in), **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. Tick exemptions when a worker is not registered for NAPSA or NHIMA. Switch people off instead of deleting them when they leave.
+**Employees.** Choose the person and their role from the staff list (the same people and roles as Office → Staff). The name is taken from that staff record, and tips are taken from that login. Then NRC, NAPSA and NHIMA numbers, TPIN, location, **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. PAYE, NAPSA and NHIMA are ticked by default and calculated on each pay run. Untick one when a worker is not registered for it. Switch people off instead of deleting them when they leave.
 
 **Components.** Earnings (housing, transport, overtime, commission…) and deductions (loan, advance, uniform…). Each is a fixed amount or a percent of basic pay, taxable or not, and active or not. Active components appear on every employee form so you can set a standing amount per person.
 
@@ -547,8 +552,8 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 
 **Pay runs.**
 
-1. **New run**: title, period start and end, pay date. Every active employee gets a slip. Tips the staff member earned on the POS in that period (on receipts and after payment) are pulled in automatically when tips are enabled.
-2. Open the run and edit **days worked**, **basic**, or **tips** per person; add one-off **adjustments** (extra earnings or deductions). **Recalculate** reworks every slip.
+1. **New run**: title, period start and end, pay date. Every active employee gets a slip. Shifts in that period fill the hours worked for the linked staff login. A shift still open counts as 8 hours for each day from the day it opened through today, or through the end of the pay period. On a daily rate each of those days counts as 1 day. A closed shift longer than 16 hours is left out and named on the run. Hourly basic is the hourly rate times the hours. Tips the staff member earned on the POS in that period (on receipts and after payment) are pulled in automatically when tips are enabled.
+2. Open the run and edit **days**, **hours**, **basic**, or **tips** per person. **One-off adjustments** sets the hours, the days, a subtraction (with a reason), and any extra earning or deduction for this run only. **Recalculate** reworks every slip. Clear Hours or Days to read the shifts again. A basic figure you type is kept.
 3. **Approve** locks the figures. **Mark paid** books the net pay as an expense and stamps the pay date. **Reopen** returns an approved run to draft. Draft runs can be deleted.
 4. **Print payslips** prints the whole run or a single slip: earnings, deductions, employer NAPSA and NHIMA, net pay.
 

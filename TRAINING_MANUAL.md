@@ -894,7 +894,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 #### Scenario 5.9.2 — Components and employee (Must pass)
 
 1. **Components → Add**: **Housing allowance**, earning, fixed, 500, taxable. Add **Staff loan**, deduction, fixed, 0 (amount set per person).
-2. **Employees → Add**: the training cashier. Link to the `train_cashier` login, pay type **Monthly**, basic **8,000**, NRC, NAPSA and NHIMA numbers, bank. Under standing components set Housing 500 and Staff loan 500. Save.
+2. **Employees → Add**: choose the training cashier from the staff list. The role fills in from that login. Pay type **Monthly**, basic **8,000**, NRC, NAPSA and NHIMA numbers, bank. Under standing components set Housing 500 and Staff loan 500. Save.
 
 *Expected result:* the employee is listed as active with their pay type and basic.
 
@@ -906,7 +906,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 2. Set the cashier's **Days worked** to 26. **Recalculate**.
 
-*Expected result (without tips):* gross 8,500 (8,000 + 500 housing); NAPSA employee 425; taxable 8,075; PAYE 692.50; NHIMA 80; loan 500; **net 6,802.50**. Employer NAPSA 425 and NHIMA 80 are shown separately.
+*Expected result (without tips):* gross 8,500 (8,000 + 500 housing); NAPSA employee 425; taxable 8,075; PAYE 692.50; NHIMA 80; loan 500; **net 6,802.50**. Employer NAPSA 425 and NHIMA 80 are shown separately. A shift left open counts as 8 hours for each day it stays open, and as 1 day on a daily rate. This cashier is monthly, so those hours do not change the 8,000 basic.
 
 3. Set days worked to 13 and recalculate.
 
@@ -1152,7 +1152,7 @@ Train this on a **sandbox** device only. The live device must be initialized onc
 
 1. **Office → ZRA invoices**.
 
-*Expected result:* four tiles: VSDC service, Pending sales, Fiscalized sales, Unsynced products. A device card with TPIN, branch, serial, taxpayer, SDC ID, MRC. Unfiscalized paid sales. Recent fiscal receipts.
+*Expected result:* four tiles: VSDC service, Pending sales, Fiscalized sales, Unsynced products. A device card with TPIN, branch, serial, taxpayer, SDC ID, MRC. Unfiscalized paid sales. Recent fiscal receipts. A developer also sees **Save device** for the TPIN, branch, and serial. Trainees do not change those.
 
 2. Match the badge to the SDC ID.
 

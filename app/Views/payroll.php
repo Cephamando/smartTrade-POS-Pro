@@ -1,5 +1,9 @@
 <?php
 $money = fn($v) => number_format((float)$v, 2);
+$hoursText = function ($v): string {
+    $text = rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.');
+    return $text === '' ? '0' : $text;
+};
 $tabs = ['runs' => ['bi-calendar2-check', 'Pay runs'], 'employees' => ['bi-person-badge', 'Employees'], 'components' => ['bi-list-check', 'Pay components'], 'rules' => ['bi-bank', 'Statutory rules']];
 $earnings = array_values(array_filter($components, fn($c) => $c['kind'] === 'earning'));
 $deductions = array_values(array_filter($components, fn($c) => $c['kind'] === 'deduction'));
@@ -66,6 +70,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                         <?php if ($isDraft): ?><th style="width:36px"><input type="checkbox" class="form-check-input bulk-all" data-bulk-form="bulkSlips" title="Select all"></th><?php endif; ?>
                         <th>Employee</th>
                         <th class="text-end" style="width:90px">Days</th>
+                        <th class="text-end" style="width:90px">Hours</th>
                         <th class="text-end" style="width:110px">Basic</th>
                         <th class="text-end">Allowances</th>
                         <th class="text-end" style="width:100px">Tips</th>
@@ -79,23 +84,50 @@ include __DIR__ . '/partials/bulk_bar.php';
                     </tr>
                 </thead>
                 <tbody>
-                <?php if (!$run['slips']): ?><tr><td colspan="<?= $isDraft ? 13 : 12 ?>" class="text-center text-muted py-4">No employees on this run. Add active employees and click Recalculate.</td></tr><?php endif; ?>
+                <?php if (!$run['slips']): ?><tr><td colspan="<?= $isDraft ? 14 : 13 ?>" class="text-center text-muted py-4">No employees on this run. Add active employees and click Recalculate.</td></tr><?php endif; ?>
                 <?php foreach ($run['slips'] as $s): $eid = (int)$s['employee_id']; ?>
                     <tr>
                         <?php if ($isDraft): ?><td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= $eid ?>" form="bulkSlips"></td><?php endif; ?>
                         <td>
                             <div class="fw-bold"><?= htmlspecialchars($s['full_name']) ?></div>
-                            <div class="small text-muted"><?= htmlspecialchars($s['position'] ?? '') ?> · <?= htmlspecialchars($s['pay_type']) ?><?= $s['employee_no'] ? ' · ' . htmlspecialchars($s['employee_no']) : '' ?></div>
+                            <div class="small text-muted"><?= htmlspecialchars($s['position'] ?? '') ?> · <?= htmlspecialchars($s['pay_type']) ?><?= $s['pay_type'] === 'hourly' ? ' · K' . $money($s['hourly_rate'] ?? 0) . '/hr' : '' ?><?= $s['employee_no'] ? ' · ' . htmlspecialchars($s['employee_no']) : '' ?></div>
+                            <?php
+                            $workedHours = ($s['hours_worked'] !== null && $s['hours_worked'] !== '')
+                                ? (float)$s['hours_worked']
+                                : (float)($s['attendance']['hours'] ?? 0);
+                            $workedDays = ($s['days_worked'] !== null && $s['days_worked'] !== '')
+                                ? $s['days_worked']
+                                : ($s['attendance']['days'] ?? null);
+                            $manualSub = '';
+                            $manualLabel = '';
+                            foreach ($s['lines'] as $ln) {
+                                if (!empty($ln['manual']) && ($ln['kind'] ?? '') === 'deduction') {
+                                    $manualSub = number_format((float)$ln['amount'], 2, '.', '');
+                                    $manualLabel = (string)$ln['name'];
+                                    break;
+                                }
+                            }
+                            ?>
+                            <div class="small fw-bold text-dark">Hours worked: <?= $hoursText($workedHours) ?></div>
+                            <?php if (!empty($s['attendance']['open'])): ?>
+                                <div class="small text-muted"><?php foreach ($s['attendance']['open'] as $op): $openDays = (int)($op['days'] ?? 1); ?>Still open since <?= date('d M H:i', strtotime($op['start'])) ?>, counted as <?= $openDays ?> <?= $openDays === 1 ? 'day' : 'days' ?> (<?= $hoursText($op['hours']) ?> hours). <?php endforeach; ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($s['attendance']['excluded'])): ?>
+                                <div class="small text-warning"><?php foreach ($s['attendance']['excluded'] as $ex): ?>Shift <?= date('d M H:i', strtotime($ex['start'])) ?>–<?= date('d M H:i', strtotime($ex['end'])) ?> (<?= $hoursText($ex['hours']) ?> hrs) was left out. Type the hours. <?php endforeach; ?></div>
+                            <?php endif; ?>
+                            <input type="hidden" name="slip[<?= $eid ?>][subtraction]" value="<?= htmlspecialchars($manualSub) ?>">
+                            <input type="hidden" name="slip[<?= $eid ?>][subtraction_label]" value="<?= htmlspecialchars($manualLabel) ?>">
                             <?php if ($s['lines']): ?><div class="small text-muted"><?php foreach ($s['lines'] as $ln): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($ln['name']) ?> <?= $ln['kind'] === 'deduction' ? '−' : '+' ?><?= $money($ln['amount']) ?></span><?php endforeach; ?></div><?php endif; ?>
                         </td>
-                        <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.5" min="0" name="slip[<?= $eid ?>][days_worked]" class="form-control form-control-sm text-end" value="<?= $s['days_worked'] !== null ? htmlspecialchars(rtrim(rtrim((string)$s['days_worked'], '0'), '.')) : '' ?>" placeholder="full"><?php else: ?><?= $s['days_worked'] !== null ? rtrim(rtrim((string)$s['days_worked'], '0'), '.') : '—' ?><?php endif; ?></td>
+                        <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.5" min="0" name="slip[<?= $eid ?>][days_worked]" class="form-control form-control-sm text-end" value="<?= $workedDays !== null && $workedDays !== '' ? htmlspecialchars(rtrim(rtrim(number_format((float)$workedDays, 2, '.', ''), '0'), '.')) : '' ?>" placeholder="full"><?php else: ?><?= $workedDays !== null && $workedDays !== '' ? rtrim(rtrim(number_format((float)$workedDays, 2, '.', ''), '0'), '.') : '—' ?><?php endif; ?></td>
+                        <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.01" min="0" name="slip[<?= $eid ?>][hours_worked]" class="form-control form-control-sm text-end" value="<?= $s['hours_worked'] !== null && $s['hours_worked'] !== '' ? htmlspecialchars($hoursText($s['hours_worked'])) : htmlspecialchars($hoursText($workedHours)) ?>"><?php else: ?><?= $hoursText($workedHours) ?><?php endif; ?></td>
                         <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.01" min="0" name="slip[<?= $eid ?>][basic]" class="form-control form-control-sm text-end" value="<?= number_format((float)$s['basic_pay'], 2, '.', '') ?>"><?php else: ?><?= $money($s['basic_pay']) ?><?php endif; ?></td>
                         <td class="text-end"><?= $money($s['allowances']) ?></td>
                         <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.01" min="0" name="slip[<?= $eid ?>][tips]" class="form-control form-control-sm text-end" value="<?= number_format((float)$s['tips'], 2, '.', '') ?>"><?php else: ?><?= $money($s['tips']) ?><?php endif; ?></td>
                         <td class="text-end fw-bold"><?= $money($s['gross_pay']) ?></td>
-                        <td class="text-end text-danger"><?= $money($s['paye']) ?></td>
-                        <td class="text-end"><?= $money($s['napsa_employee']) ?></td>
-                        <td class="text-end"><?= $money($s['nhima_employee']) ?></td>
+                        <td class="text-end text-danger"><?= (int)($s['paye_exempt'] ?? 0) === 1 ? '<span class="text-muted">Exempt</span>' : $money($s['paye']) ?></td>
+                        <td class="text-end"><?= (int)($s['napsa_exempt'] ?? 0) === 1 ? '<span class="text-muted">Exempt</span>' : $money($s['napsa_employee']) ?></td>
+                        <td class="text-end"><?= (int)($s['nhima_exempt'] ?? 0) === 1 ? '<span class="text-muted">Exempt</span>' : $money($s['nhima_employee']) ?></td>
                         <td class="text-end"><?= $money($s['other_deductions']) ?></td>
                         <td class="text-end fw-bold text-success">K<?= $money($s['net_pay']) ?></td>
                         <td class="text-end text-nowrap">
@@ -122,13 +154,22 @@ include __DIR__ . '/partials/bulk_bar.php';
 <?php if ($isDraft): foreach ($run['slips'] as $s): ?>
 <form method="POST" id="removeSlip<?= (int)$s['employee_id'] ?>" class="js-confirm-form" data-swal-title="Remove <?= htmlspecialchars($s['full_name']) ?> from this run?" data-swal-confirm="Remove" data-swal-icon="warning"><input type="hidden" name="tab" value="runs"><input type="hidden" name="run_id" value="<?= (int)$run['id'] ?>"><input type="hidden" name="remove_slip" value="<?= (int)$s['employee_id'] ?>"></form>
 <?php endforeach; endif; ?>
-<div class="alert alert-light border small mt-3"><i class="bi bi-info-circle"></i> Tips are pulled automatically from POS receipts and tips-after-payment for the linked user over the pay period — overwrite the Tips column to adjust. Days left blank means a full month. Use <i class="bi bi-plus-slash-minus"></i> to add one-off overtime, advances or shortages for this run only.</div>
+<div class="alert alert-light border small mt-3"><i class="bi bi-info-circle"></i> Hours worked comes from that person's shifts in the pay period. A shift still open counts as 8 hours for each day from the day it opened through today, or through the end of the pay period. On a daily rate each of those days counts as 1 day. A closed shift longer than 16 hours is named on the row and left out. One-off adjustments can set the hours, the days, and a subtraction for this run only. Clear Hours or Days and recalculate to read the shifts again. A Basic amount you change is kept.</div>
 
 <!-- one-off adjustments modal -->
 <div class="modal fade" id="extraModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title fw-bold">One-off adjustments · <span id="extraName"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
-        <p class="small text-muted">Amounts apply to this pay run only (the employee's standing allowances are unchanged).</p>
+        <p class="small text-muted">These apply to this pay run only. Standing allowances on the employee are unchanged.</p>
+        <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label small fw-bold text-muted">DAYS WORKED</label><input type="number" step="0.5" min="0" class="form-control form-control-sm" id="extraDays"></div>
+            <div class="col-6"><label class="form-label small fw-bold text-muted">HOURS WORKED</label><input type="number" step="0.01" min="0" class="form-control form-control-sm" id="extraHours"></div>
+        </div>
+        <div class="row g-2 mb-3">
+            <div class="col-7"><label class="form-label small fw-bold text-muted">SUBTRACTION</label><input type="text" class="form-control form-control-sm" id="extraSubLabel" maxlength="80" placeholder="Reason, e.g. advance, shortage"></div>
+            <div class="col-5"><label class="form-label small fw-bold text-muted">AMOUNT</label><input type="number" step="0.01" min="0" class="form-control form-control-sm" id="extraSub" placeholder="0.00"></div>
+        </div>
+        <?php if ($components): ?><div class="small fw-bold text-muted mb-2">OTHER ONE-OFF AMOUNTS</div><?php endif; ?>
         <?php foreach ($components as $c): ?>
         <div class="row g-2 align-items-center mb-2">
             <div class="col-7"><span class="badge <?= $c['kind'] === 'deduction' ? 'bg-danger' : 'bg-success' ?> me-1"><?= $c['kind'] === 'deduction' ? '−' : '+' ?></span><?= htmlspecialchars($c['name']) ?></div>
@@ -140,8 +181,42 @@ include __DIR__ . '/partials/bulk_bar.php';
 </div></div></div>
 <script>
 let extraEid = 0;
-function openExtra(eid, name) { extraEid = eid; document.getElementById('extraName').textContent = name; document.querySelectorAll('.js-extra').forEach(function (i) { const ex = document.querySelector('input[name="slip[' + eid + '][extra][' + i.dataset.cid + ']"]'); i.value = ex ? ex.value : ''; }); new bootstrap.Modal(document.getElementById('extraModal')).show(); }
-function applyExtra() { const holder = document.getElementById('extraInputs'); document.querySelectorAll('.js-extra').forEach(function (i) { const name = 'slip[' + extraEid + '][extra][' + i.dataset.cid + ']'; let h = holder.querySelector('input[name="' + name + '"]'); if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = name; holder.appendChild(h); } h.value = i.value; }); document.getElementById('runForm').submit(); }
+function slipField(eid, field) { return document.querySelector('#runForm [name="slip[' + eid + '][' + field + ']"]'); }
+function openExtra(eid, name) {
+    extraEid = eid;
+    document.getElementById('extraName').textContent = name;
+    document.querySelectorAll('.js-extra').forEach(function (i) {
+        const ex = document.querySelector('#runForm [name="slip[' + eid + '][extra][' + i.dataset.cid + ']"]');
+        i.value = ex ? ex.value : '';
+    });
+    const days = slipField(eid, 'days_worked');
+    const hours = slipField(eid, 'hours_worked');
+    const sub = slipField(eid, 'subtraction');
+    const subLabel = slipField(eid, 'subtraction_label');
+    document.getElementById('extraDays').value = days ? days.value : '';
+    document.getElementById('extraHours').value = hours ? hours.value : '';
+    document.getElementById('extraSub').value = sub ? sub.value : '';
+    document.getElementById('extraSubLabel').value = subLabel ? subLabel.value : '';
+    new bootstrap.Modal(document.getElementById('extraModal')).show();
+}
+function applyExtra() {
+    const holder = document.getElementById('extraInputs');
+    document.querySelectorAll('.js-extra').forEach(function (i) {
+        const name = 'slip[' + extraEid + '][extra][' + i.dataset.cid + ']';
+        let h = holder.querySelector('input[name="' + name + '"]');
+        if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = name; holder.appendChild(h); }
+        h.value = i.value;
+    });
+    const days = slipField(extraEid, 'days_worked');
+    const hours = slipField(extraEid, 'hours_worked');
+    const sub = slipField(extraEid, 'subtraction');
+    const subLabel = slipField(extraEid, 'subtraction_label');
+    if (days) days.value = document.getElementById('extraDays').value;
+    if (hours) hours.value = document.getElementById('extraHours').value;
+    if (sub) sub.value = document.getElementById('extraSub').value;
+    if (subLabel) subLabel.value = document.getElementById('extraSubLabel').value;
+    document.getElementById('runForm').submit();
+}
 </script>
 
 <?php elseif ($tab === 'runs'): ?>
@@ -197,12 +272,32 @@ function applyExtra() { const holder = document.getElementById('extraInputs'); d
                     <input type="hidden" name="tab" value="employees"><input type="hidden" name="save_employee" value="1">
                     <input type="hidden" name="employee_id" value="<?= (int)($e['id'] ?? 0) ?>">
                     <div class="row g-2">
-                        <div class="col-8"><label class="form-label small fw-bold text-muted">FULL NAME</label><input type="text" name="full_name" class="form-control" required value="<?= htmlspecialchars($e['full_name'] ?? '') ?>"></div>
+                        <div class="col-8"><label class="form-label small fw-bold text-muted">EMPLOYEE</label>
+                            <select name="user_id" id="empStaff" class="form-select" required data-placeholder="Choose a staff member">
+                                <option value="">Choose a staff member</option>
+                                <?php foreach ($staffUsers as $u): $staffLabel = $u['full_name'] ?: $u['username']; ?>
+                                <option value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars((string)$u['role']) ?>" data-name="<?= htmlspecialchars($staffLabel) ?>" data-location="<?= (int)($u['location_id'] ?? 0) ?>" <?= (int)($e['user_id'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>><?= htmlspecialchars($staffLabel) ?> (<?= htmlspecialchars($u['username']) ?>)</option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text">The name and the tips come from this staff login.</div>
+                        </div>
                         <div class="col-4"><label class="form-label small fw-bold text-muted">EMP NO</label><input type="text" name="employee_no" class="form-control" value="<?= htmlspecialchars($e['employee_no'] ?? '') ?>"></div>
-                        <div class="col-6"><label class="form-label small fw-bold text-muted">POSITION</label><input type="text" name="position" class="form-control" value="<?= htmlspecialchars($e['position'] ?? '') ?>" placeholder="Waiter, Chef…"></div>
+                        <div class="col-6"><label class="form-label small fw-bold text-muted">ROLE</label>
+                            <?php $posNow = strtolower(trim((string)($e['position'] ?? ''))); $roleMatched = false; ?>
+                            <select name="position" id="empRole" class="form-select" required data-placeholder="Choose a role">
+                                <option value="">Choose a role</option>
+                                <?php foreach ($staffRoles as $role):
+                                    $roleOn = $posNow !== '' && ($posNow === strtolower($role['key']) || $posNow === strtolower($role['label']));
+                                    if ($roleOn) { $roleMatched = true; }
+                                ?>
+                                <option value="<?= htmlspecialchars($role['key']) ?>" data-role="<?= htmlspecialchars($role['key']) ?>" <?= $roleOn ? 'selected' : '' ?>><?= htmlspecialchars($role['label']) ?></option>
+                                <?php endforeach; ?>
+                                <?php if ($e && !$roleMatched && trim((string)($e['position'] ?? '')) !== ''): ?>
+                                <option value="<?= htmlspecialchars($e['position']) ?>" selected><?= htmlspecialchars($e['position']) ?></option>
+                                <?php endif; ?>
+                            </select>
+                        </div>
                         <div class="col-6"><label class="form-label small fw-bold text-muted">DEPARTMENT</label><input type="text" name="department" class="form-control" value="<?= htmlspecialchars($e['department'] ?? '') ?>"></div>
-                        <div class="col-6"><label class="form-label small fw-bold text-muted">POS LOGIN (for tips)</label>
-                            <select name="user_id" class="form-select"><option value="">— not linked —</option><?php foreach ($staffUsers as $u): ?><option value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>" <?= (int)($e['user_id'] ?? 0) === (int)$u['id'] ? 'selected' : '' ?>><?= htmlspecialchars($u['full_name'] ?: $u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</option><?php endforeach; ?></select></div>
                         <div class="col-6"><label class="form-label small fw-bold text-muted">LOCATION</label>
                             <select name="location_id" class="form-select"><option value="">—</option><?php foreach ($locations as $l): ?><option value="<?= (int)$l['id'] ?>" data-type="<?= htmlspecialchars($l['type'] ?? '') ?>" <?= (int)($e['location_id'] ?? 0) === (int)$l['id'] ? 'selected' : '' ?>><?= htmlspecialchars($l['name']) ?></option><?php endforeach; ?></select></div>
                         <div class="col-6"><label class="form-label small fw-bold text-muted">PHONE</label><input type="text" name="phone" class="form-control" value="<?= htmlspecialchars($e['phone'] ?? '') ?>"></div>
@@ -234,11 +329,18 @@ function applyExtra() { const holder = document.getElementById('extraInputs'); d
                         <div class="col-5"><input type="number" step="0.01" min="0" name="comp[<?= (int)$c['id'] ?>]" class="form-control form-control-sm" value="<?= isset($ec[$c['id']]) ? htmlspecialchars((string)$ec[$c['id']]) : '' ?>" placeholder="<?= (float)$c['amount'] > 0 ? 'default ' . $c['amount'] : '0' ?>"></div>
                     </div>
                     <?php endforeach; ?>
-                    <div class="d-flex flex-wrap gap-3 mt-3 small">
-                        <div class="form-check"><input class="form-check-input" type="checkbox" name="paye_exempt" value="1" id="payeEx" <?= !empty($e['paye_exempt']) ? 'checked' : '' ?>><label class="form-check-label" for="payeEx">PAYE exempt</label></div>
-                        <div class="form-check"><input class="form-check-input" type="checkbox" name="napsa_exempt" value="1" id="napsaEx" <?= !empty($e['napsa_exempt']) ? 'checked' : '' ?>><label class="form-check-label" for="napsaEx">NAPSA exempt</label></div>
-                        <div class="form-check"><input class="form-check-input" type="checkbox" name="nhima_exempt" value="1" id="nhimaEx" <?= !empty($e['nhima_exempt']) ? 'checked' : '' ?>><label class="form-check-label" for="nhimaEx">NHIMA exempt</label></div>
-                        <div class="form-check"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="empActive" <?= ($e['is_active'] ?? 1) ? 'checked' : '' ?>><label class="form-check-label" for="empActive">Active</label></div>
+                    <div class="mt-3">
+                        <label class="form-label small fw-bold text-muted mb-1">STATUTORY DEDUCTIONS</label>
+                        <div class="d-flex flex-wrap gap-3 small">
+                            <?php $deductOn = empty($e['id']) || (int)($e['paye_exempt'] ?? 0) !== 1; ?>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="deduct_paye" value="1" id="payeEx" <?= $deductOn ? 'checked' : '' ?>><label class="form-check-label" for="payeEx">PAYE</label></div>
+                            <?php $deductOn = empty($e['id']) || (int)($e['napsa_exempt'] ?? 0) !== 1; ?>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="deduct_napsa" value="1" id="napsaEx" <?= $deductOn ? 'checked' : '' ?>><label class="form-check-label" for="napsaEx">NAPSA</label></div>
+                            <?php $deductOn = empty($e['id']) || (int)($e['nhima_exempt'] ?? 0) !== 1; ?>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="deduct_nhima" value="1" id="nhimaEx" <?= $deductOn ? 'checked' : '' ?>><label class="form-check-label" for="nhimaEx">NHIMA</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" name="is_active" value="1" id="empActive" <?= ($e['is_active'] ?? 1) ? 'checked' : '' ?>><label class="form-check-label" for="empActive">Active</label></div>
+                        </div>
+                        <div class="form-text">Ticked items are calculated on every pay run. Untick one when that worker is not registered for it.</div>
                     </div>
                     <div class="d-flex gap-2 mt-3">
                         <button class="btn btn-success fw-bold flex-grow-1"><i class="bi bi-save"></i> Save employee</button>
@@ -286,7 +388,31 @@ function applyExtra() { const holder = document.getElementById('extraInputs'); d
     </div>
 </div>
 <script>
-(function () { const sel = document.getElementById('payType'); const upd = function () { document.querySelectorAll('.pay-field').forEach(function (f) { f.classList.toggle('d-none', f.dataset.for !== sel.value); }); }; sel.addEventListener('change', upd); upd(); })();
+(function () {
+    const sel = document.getElementById('payType');
+    const upd = function () { document.querySelectorAll('.pay-field').forEach(function (f) { f.classList.toggle('d-none', f.dataset.for !== sel.value); }); };
+    sel.addEventListener('change', upd);
+    upd();
+    function setSelect(el, value) {
+        if (!el) return;
+        if (el.tomselect) el.tomselect.setValue(value || '', true);
+        else el.value = value || '';
+    }
+    const staff = document.getElementById('empStaff');
+    staff.addEventListener('change', function () {
+        const opt = staff.options[staff.selectedIndex];
+        if (!opt || !opt.value) return;
+        const roleKey = opt.getAttribute('data-role') || '';
+        const roleSel = document.getElementById('empRole');
+        let match = '';
+        Array.prototype.forEach.call(roleSel.options, function (o) {
+            if (o.getAttribute('data-role') === roleKey || o.value === roleKey) match = o.value;
+        });
+        if (match) setSelect(roleSel, match);
+        const locId = opt.getAttribute('data-location') || '0';
+        setSelect(document.querySelector('select[name="location_id"]'), locId === '0' ? '' : locId);
+    });
+})();
 </script>
 
 <?php elseif ($tab === 'components'): ?>

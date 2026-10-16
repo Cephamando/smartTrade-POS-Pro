@@ -34,6 +34,13 @@ final class LoginController extends Controller
                         $_SESSION['location_id'] = $user['location_id'];
                         $_SESSION['location_name'] = $user['location_name'];
                         $_SESSION['force_change'] = $user['force_password_change'];
+                        \App\Services\Activity::log($this->pdo(), 'login', 'ok', [
+                            'user_id' => (int)$user['id'],
+                            'username' => (string)$user['username'],
+                            'location_id' => (int)($user['location_id'] ?? 0),
+                            'location_name' => (string)($user['location_name'] ?? ''),
+                            'subject' => 'Signed in',
+                        ]);
 
                         if ((int)$user['force_password_change'] === 1) {
                             $this->redirect('change_password');
@@ -47,6 +54,11 @@ final class LoginController extends Controller
                         $this->redirect('pos');
                     }
                     $error = "Username or password is incorrect.";
+                    \App\Services\Activity::log($this->pdo(), 'login', 'failed', [
+                        'user_id' => is_array($user) ? (int)$user['id'] : 0,
+                        'username' => $username,
+                        'subject' => 'Sign-in failed',
+                    ]);
                 }
             }
         }

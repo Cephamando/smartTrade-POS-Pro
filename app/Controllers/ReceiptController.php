@@ -35,6 +35,7 @@ final class ReceiptController extends Controller
             die('Sale not found.');
         }
 
+        $zraClient = new \ZraVsdcClient($pdo);
         $this->render([
             'saleId' => $saleId,
             'isBill' => $isBill,
@@ -45,8 +46,8 @@ final class ReceiptController extends Controller
             'logoUrl' => \App\Helpers\Media::url((string)($sysSettings['logo_path'] ?? '')),
             'receiptHeader' => $sysSettings['receipt_header'] ?? '',
             'receiptFooter' => $sysSettings['receipt_footer'] ?? 'Thank you for your business!',
-            'zraTpin' => getenv('ZRA_TPIN') ?: '',
-            'zraClient' => new \ZraVsdcClient($pdo),
+            'zraTpin' => $zraClient->getConfig()['tpin'],
+            'zraClient' => $zraClient,
             'gateway' => ($gw = \App\Services\Flutterwave::detailsForSales($pdo, [$saleId]))[$saleId] ?? null,
             'sale' => $sale,
             'items' => Sale::receiptItems($saleId, $isIncremental ? $specificItems : []),

@@ -125,6 +125,15 @@ final class Checkout
         }
 
         $this->pdo->commit();
+        $loggedSaleId = $fiscalizeAfterCommit > 0 ? $fiscalizeAfterCommit : $savedSaleId;
+        if ($loggedSaleId > 0) {
+            Activity::log($this->pdo, $checkTotal < 0 ? 'refund' : 'sale', 'ok', [
+                'user_id' => $userId,
+                'location_id' => $locationId,
+                'subject' => ($checkTotal < 0 ? 'Refund #' : 'Sale #') . $loggedSaleId,
+                'detail' => 'K' . number_format((float)$checkTotal, 2) . ' · ' . (string)$pm,
+            ]);
+        }
         if ($clearCartAfterCommit) {
             $session['cart'] = [];
             $session['current_customer'] = '';

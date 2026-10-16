@@ -65,6 +65,61 @@ final class User extends Model
         )->fetchAll();
     }
 
+    /** Staff row for a payroll link, including an inactive login already on file. */
+    public static function staffMember(int $id): ?array
+    {
+        $stmt = self::db()->prepare(
+            "SELECT u.id, u.username, u.full_name, u.role, u.location_id, l.name as location_name
+             FROM users u
+             LEFT JOIN locations l ON u.location_id = l.id
+             WHERE u.id = ?"
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    /**
+     * Roles that exist on staff logins. Labels match the Staff screen.
+     * @return list<array{key: string, label: string}>
+     */
+    public static function staffRoles(): array
+    {
+        $labels = [
+            'dev' => 'Developer',
+            'admin' => 'Administrator',
+            'manager' => 'Manager',
+            'head_chef' => 'Head Chef',
+            'chef' => 'Chef',
+            'bartender' => 'Bartender',
+            'cashier' => 'Cashier',
+            'waiter' => 'Waiter',
+        ];
+        $found = self::db()->query(
+            "SELECT DISTINCT role FROM users WHERE role IS NOT NULL AND TRIM(role) <> ''"
+        )->fetchAll(\PDO::FETCH_COLUMN);
+        $keys = array_values(array_unique(array_map('strval', $found ?: [])));
+        if (!$keys) {
+            $keys = array_keys($labels);
+        }
+        $order = array_keys($labels);
+        usort($keys, static function (string $a, string $b) use ($order): int {
+            $ia = array_search($a, $order, true);
+            $ib = array_search($b, $order, true);
+            $ia = $ia === false ? 99 : $ia;
+            $ib = $ib === false ? 99 : $ib;
+            return $ia <=> $ib ?: strcasecmp($a, $b);
+        });
+        $out = [];
+        foreach ($keys as $key) {
+            $out[] = [
+                'key' => $key,
+                'label' => $labels[$key] ?? ucwords(str_replace('_', ' ', $key)),
+            ];
+        }
+        return $out;
+    }
+
     public static function locationIdOrNull(int $locationId): ?int
     {
         return $locationId > 0 ? $locationId : null;

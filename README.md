@@ -15,7 +15,7 @@ How to use the till, kitchen, stock, and ZRA screens: [user_guide.md](user_guide
 
 ## Run
 
-1. Copy `.env.example` to `.env` and set the database passwords, ports, ZRA device values, and V-SIAS URLs.
+1. Copy `.env.example` to `.env` and set the database passwords, ports, and V-SIAS URLs. The ZRA TPIN, branch, and device serial are entered later on **ZRA invoices** by the developer. Leave the VSDC address as `http://vsdc:8080/sandboxvsdc`.
 2. Put the ZRA VSDC `.war` in `api/`. Leave the archive intact; Tomcat explodes it.
 3. From the project root:
 

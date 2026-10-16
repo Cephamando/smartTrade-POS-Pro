@@ -65,27 +65,11 @@ One serial = one Initialize = one keystore. That serial is spent on the PC you i
 
 The container deploys any `.war` it finds as `/sandboxvsdc`. The local path stays the same even in production.
 
-### 3. Shop PC — `.env`
+### 3. Shop PC — device details
 
-Edit `.env`. Keep VSDC local. Point the **QR portal** at production.
+Sign in as the developer and open **ZRA invoices**. Enter the production TPIN, branch, and device serial exactly as they appear in ZRA Device Management, then click **Save device**. Leave the VSDC address as `http://vsdc:8080/sandboxvsdc`. Set the receipt portal to `https://www.zra.org.zm`. Tick **Turnover tax** only for a non-VAT taxpayer.
 
-```env
-ZRA_TPIN=the_production_tpin
-ZRA_BHF_ID=000
-ZRA_DVC_SRL_NO=the_production_serial_exactly_as_on_the_portal
-
-# Local Tomcat — never https://www.zra.org.zm
-ZRA_VSDC_URL=http://vsdc:8080/sandboxvsdc
-
-# Receipt QR + verification links
-ZRA_PORTAL_URL=https://www.zra.org.zm
-```
-
-If you change `.env` after containers are already up:
-
-```bash
-docker compose up -d
-```
+You do not put the TPIN, branch, or serial in `.env`. An empty box on that form falls back to `.env`, so leave those `.env` lines unused once the form is saved.
 
 ### 4. First start (empty keystore)
 
@@ -107,16 +91,17 @@ The shop PC needs **internet** so VSDC can reach ZRA.
 
 ### 5. Handshake (once)
 
-In the POS, open **ZRA Smart Invoice**:
+In the POS, open **ZRA invoices** as the developer:
 
-1. **Test connection** — local VSDC must be reachable.
-2. **Initialize device** — **once**. Wait for success and an SDC ID / MRC.
-3. **Sync standard codes**
-4. **Sync UNSPSC classes**
-5. **Register products** until unsynced products is 0
-6. Ring **one live paid sale** (not 0.00, not an empty cart)
-7. Check the receipt: TPIN, SDC ID, signature, QR
-8. Scan the QR — it must open the **production** portal, not sandbox
+1. **Save device** — production TPIN, branch, and serial. Receipt portal `https://www.zra.org.zm`.
+2. **Test connection** — local VSDC must be reachable.
+3. **Initialize device** — **once**. Wait for success and an SDC ID / MRC.
+4. **Sync standard codes**
+5. **Sync UNSPSC classes**
+6. **Register products** until unsynced products is 0
+7. Ring **one live paid sale** (not 0.00, not an empty cart)
+8. Check the receipt: TPIN, SDC ID, signature, QR
+9. Scan the QR — it must open the **production** portal, not sandbox
 
 If Initialize succeeds, **never click it again**.
 
@@ -187,9 +172,9 @@ Different companies / TPINs each need their own serial, WAR, volume, and one Ini
 
 ## Quick “am I live?” checks
 
-1. `.env` serial matches **production** Device Management.
-2. `ZRA_VSDC_URL` is still `http://vsdc:8080/sandboxvsdc`.
-3. `ZRA_PORTAL_URL` is `https://www.zra.org.zm`.
+1. The TPIN, branch, and serial on **ZRA invoices** match **production** Device Management.
+2. The VSDC address is still `http://vsdc:8080/sandboxvsdc`.
+3. The receipt portal is `https://www.zra.org.zm`.
 4. ZRA admin shows SDC ID and MRC.
 5. A real paid sale prints a QR that opens the **production** receipt page.
 6. `backups/vsdc_webapps-*.tgz` exists somewhere that is not only that PC.

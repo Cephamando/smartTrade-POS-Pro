@@ -1,4 +1,4 @@
-<?php $money = fn($v) => number_format((float)$v, 2); $biz = $settings['business_name'] ?? 'smartTrade POS'; ?>
+<?php $money = fn($v) => number_format((float)$v, 2); $hoursText = function ($v): string { $text = rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.'); return $text === '' ? '0' : $text; }; $biz = $settings['business_name'] ?? 'smartTrade POS'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -41,7 +41,8 @@
             <div class="text-muted">NAPSA <?= htmlspecialchars($s['napsa_no'] ?: '—') ?> · NHIMA <?= htmlspecialchars($s['nhima_no'] ?: '—') ?></div>
         </div>
         <div class="col-6 text-end text-muted">
-            <div>Pay type: <?= htmlspecialchars(ucfirst($s['pay_type'])) ?><?= $s['days_worked'] !== null ? ' · ' . rtrim(rtrim((string)$s['days_worked'], '0'), '.') . ' days' : '' ?><?= $s['hours_worked'] !== null ? ' · ' . rtrim(rtrim((string)$s['hours_worked'], '0'), '.') . ' hrs' : '' ?></div>
+            <div>Pay type: <?= htmlspecialchars(ucfirst($s['pay_type'])) ?><?php if (isset($s['days_display']) && $s['days_display'] !== null && $s['days_display'] !== ''): $dayCount = rtrim(rtrim(number_format((float)$s['days_display'], 2, '.', ''), '0'), '.'); ?><?= ' · ' . $dayCount . ' ' . ($dayCount === '1' ? 'day' : 'days') ?><?php endif; ?></div>
+            <div class="fw-bold text-dark">Hours worked: <?= $hoursText($s['hours_display'] ?? 0) ?></div>
             <div>Paid by: <?= htmlspecialchars(ucfirst($s['pay_method'])) ?><?= $s['pay_method'] === 'bank' && $s['bank_name'] ? ' · ' . htmlspecialchars($s['bank_name']) . ' ' . htmlspecialchars($s['bank_account'] ?? '') : '' ?><?= $s['pay_method'] === 'mobile' && $s['mobile_money'] ? ' · ' . htmlspecialchars($s['mobile_money']) : '' ?></div>
         </div>
     </div>
@@ -50,7 +51,8 @@
             <table class="table table-sm mb-0">
                 <thead><tr class="table-light"><th>EARNINGS</th><th class="amt">ZMW</th></tr></thead>
                 <tbody>
-                    <tr><td>Basic pay</td><td class="amt"><?= $money($s['basic_pay']) ?></td></tr>
+                    <tr><td>Hours worked</td><td class="amt"><?= $hoursText($s['hours_display'] ?? 0) ?></td></tr>
+                    <tr><td>Basic pay<?php if (($s['pay_type'] ?? '') === 'hourly' && (float)($s['hourly_rate'] ?? 0) > 0): ?> <span class="text-muted small">(K<?= $money($s['hourly_rate']) ?> × <?= $hoursText($s['hours_display'] ?? 0) ?> hrs)</span><?php endif; ?></td><td class="amt"><?= $money($s['basic_pay']) ?></td></tr>
                     <?php foreach ($s['lines'] as $ln): if ($ln['kind'] !== 'earning') continue; ?>
                     <tr><td><?= htmlspecialchars($ln['name']) ?><?= empty($ln['taxable']) ? ' <span class="text-muted small">(non-taxable)</span>' : '' ?></td><td class="amt"><?= $money($ln['amount']) ?></td></tr>
                     <?php endforeach; ?>

@@ -2,24 +2,13 @@
 
 This guide outlines the end-to-end process for deploying smartTrade-POS for a new client, specifically covering database sanitization, environment configuration, and ZRA Virtual Sales Data Controller (VSDC) initialization.
 
-**1. Clone and Configure the Environment**
-After cloning the repository and setting up the Docker containers, configure the client's `.env` file with their specific ZRA API credentials from the Sandbox/Live portal.
+**1. Clone and start the containers**
+After cloning the repository, copy `.env.example` to `.env` and set the database passwords and ports. Leave the ZRA lines at their defaults. Put the VSDC `.war` in `api/`, then start the containers. The device address stays `http://vsdc:8080/sandboxvsdc` when the `vsdc` container is on the same Docker network.
 
-```ini
-# ZRA Smart Invoice Configuration
-ZRA_TPIN=client_TPIN_Here
-ZRA_BHF_ID=Device_Brach_Code_Here
-ZRA_DVC_SRL_NO=Device_Serial_Here
-ZRA_VSDC_URL=http://vsdc:8080/sandboxvsdc
+**2. Enter the device on ZRA invoices**
+Sign in as the developer. Open **Office → ZRA invoices**. Enter the TPIN, branch, and device serial from ZRA Device Management, then click **Save device**. Tick **Turnover tax** only when that TPIN is not VAT-registered. For a live shop, set the receipt portal to `https://www.zra.org.zm`. You do not open `.env` for these values. A saved value on this page is what Initialize and the sync buttons use.
 
-# Set 'ZRA_NON_VAT' to true for Turnover Tax (TOT) clients, false for standard VAT
-ZRA_NON_VAT=true 
-
-```
-
-*Note: If `ZRA_NON_VAT` is changed after containers are running, use `docker-compose up -d` to refresh the environment variables without destroying volumes.*
-
-**2. Database Sanitization (Crucial for Pre-populated Databases)**
+**3. Database sanitization (crucial for a copied database)**
 If deploying a pre-populated database (e.g., migrating a catalog from another branch or test environment), you **must** purge all old transactional data, reset product sync flags, standardize unit codes to ZRA formats (e.g., `EA`), and wipe the old SDC keystore locks. Failing to do this will trigger cryptographic mismatches (Error 901) or routing errors (Error 904). Run this combined SQL script against the database container:
 
 ```bash
@@ -70,20 +59,21 @@ SQL_END
 
 ```
 
-**3. ZRA VSDC UI Initialization Workflow**
-Once the database is clean and the `.env` is loaded, log into the POS web interface and navigate to the **ZRA Smart Invoice** module. Perform the following steps in exact order:
+**4. ZRA VSDC UI Initialization Workflow**
+Once the database is clean, sign in as the developer and open **ZRA invoices**. Perform the following steps in this order:
 
-* **Test Connection:** Ensures the POS can reach the local Tomcat container.
-* **Initialize Device:** Fetches the cryptographic keys (SDC ID and MRC No) for the active `ZRA_DVC_SRL_NO`. **Do this only once.** Re-initializing or wiping the Tomcat `vsdc_webapps` Docker volume will permanently burn the device serial.
-* **Sync Standard Codes:** Downloads the latest ZRA dictionaries (taxes, units, payments).
-* **Sync UNSPSC Classes:** Downloads the valid product classification hierarchy.
-* **Register Products:** Pushes the local product catalog to the ZRA Gateway.
+* **Save device:** TPIN, branch, and device serial. Do this before Initialize.
+* **Test connection:** The POS can reach the local Tomcat container.
+* **Initialize device:** Fetches the cryptographic keys (SDC ID and MRC No) for the serial you just saved. **Do this only once.** Re-initializing or wiping the Tomcat `vsdc_webapps` Docker volume will permanently burn the device serial.
+* **Sync standard codes:** Downloads the latest ZRA dictionaries (taxes, units, payments).
+* **Sync UNSPSC classes:** Downloads the valid product classification hierarchy.
+* **Register products:** Pushes the local product catalog to the ZRA Gateway.
 
 **4. Common Error Codes & Resolutions**
 
 * **Error 904 (Unknown Action):** Usually indicates a routing failure in the POS payload mapping (e.g., targeting `item/saveItem` instead of `items/saveItem`), or attempting to register a product lacking an 8-digit Level-4 UNSPSC code.
-* **Error 913 (Parameter Error):** Commonly caused by sending `vatCatCd` strings (like 'A' or 'B') when the TPIN is strictly registered for Non-VAT/Turnover Tax. Ensure `ZRA_NON_VAT=true` is applied.
-* **Error 901/899 (Invalid Device / Client Error):** The local SQLite keystore inside the Tomcat container has been lost or doesn't match ZRA's records. Generate a new `STPOS001...` serial on the ZRA portal, update the `.env`, clear the `settings` table locks (Step 2E), and re-initialize.
+* **Error 913 (Parameter Error):** Commonly caused by sending VAT category codes when the TPIN is registered for turnover tax. Tick **Turnover tax** on ZRA invoices and save the device, then retry.
+* **Error 901/899 (Invalid Device / Client Error):** The local keystore inside the Tomcat container has been lost or does not match ZRA's records. Register a new serial on the ZRA portal, enter it on ZRA invoices, save the device, clear the old SDC lock (step 3E), and initialize once.
 * **Error 931 (Duplicate/Excess Credit):** Thrown when attempting to issue a credit note that exceeds the original fiscal invoice amount or if the original ZRA receipt number and SDC ID are missing from the payload.
 
 **4. GitHub Configuration - CLI**

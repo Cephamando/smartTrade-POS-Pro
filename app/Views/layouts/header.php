@@ -8,6 +8,11 @@ if (isset($_POST['change_global_location']) && isset($_SESSION['user_id']) && is
         $_SESSION['location_id'] = $newLocId;
         $_SESSION['location_name'] = $newLocName;
         $_SESSION['pos_location_id'] = $newLocId;
+        \App\Services\Activity::log($pdo, 'location', 'ok', [
+            'location_id' => $newLocId,
+            'location_name' => (string)$newLocName,
+            'subject' => 'Workstation changed',
+        ]);
     }
     header("Location: " . $_SERVER['REQUEST_URI']);
     exit;
@@ -307,7 +312,7 @@ $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
 $navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
-$navOfficePages = ['reports', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings', 'members'];
+$navOfficePages = ['reports', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings', 'members', 'activity'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
         return '';
@@ -476,6 +481,9 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (in_array($role, ['admin', 'dev'], true)): ?>
                         <li><h6 class="dropdown-header">Setup</h6></li>
                         <li><a class="dropdown-item<?= $navItem('settings') ?>" href="index.php?page=settings"><i class="bi bi-gear"></i> Settings</a></li>
+                        <?php endif; ?>
+                        <?php if ($role === 'dev'): ?>
+                        <li><a class="dropdown-item<?= $navItem('activity') ?>" href="index.php?page=activity"><i class="bi bi-person-lines-fill"></i> Activity log</a></li>
                         <?php endif; ?>
                     </ul>
                 </li>

@@ -11,6 +11,7 @@ class ZraVsdcClient
     private string $tpin;
     private string $bhfId;
     private string $dvcSrlNo;
+    private string $portalUrl;
     private bool $isNonVat;
     private static bool $schemaReady = false;
 
@@ -35,13 +36,26 @@ class ZraVsdcClient
             }
         }
         
-        $this->tpin = $env['ZRA_TPIN'] ?? getenv('ZRA_TPIN') ?: '1004784338';
-        $this->bhfId = $env['ZRA_BHF_ID'] ?? getenv('ZRA_BHF_ID') ?: '001';
-        $this->dvcSrlNo = $env['ZRA_DVC_SRL_NO'] ?? getenv('ZRA_DVC_SRL_NO') ?: 'STPOS001V4';
-        $this->baseUrl = rtrim($env['ZRA_VSDC_URL'] ?? getenv('ZRA_VSDC_URL') ?: 'http://vsdc:8080/sandboxvsdc', '/');
+        $saved = [];
+        try {
+            $savedStmt = $this->pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'zra\\_%'");
+            $saved = $savedStmt ? ($savedStmt->fetchAll(PDO::FETCH_KEY_PAIR) ?: []) : [];
+        } catch (\Throwable $e) {
+            $saved = [];
+        }
+
+        $this->tpin = $this->pick($saved, $env, 'zra_tpin', 'ZRA_TPIN', '1004784338');
+        $this->bhfId = $this->pick($saved, $env, 'zra_bhf_id', 'ZRA_BHF_ID', '001');
+        $this->dvcSrlNo = $this->pick($saved, $env, 'zra_dvc_srl_no', 'ZRA_DVC_SRL_NO', 'STPOS001V4');
+        $this->baseUrl = rtrim($this->pick($saved, $env, 'zra_vsdc_url', 'ZRA_VSDC_URL', 'http://vsdc:8080/sandboxvsdc'), '/');
+        $this->portalUrl = trim((string)($saved['zra_portal_url'] ?? ''));
         
-        $nonVatEnv = $env['ZRA_NON_VAT'] ?? getenv('ZRA_NON_VAT') ?: 'false';
-        $this->isNonVat = filter_var($nonVatEnv, FILTER_VALIDATE_BOOLEAN);
+        if (isset($saved['zra_non_vat']) && trim((string)$saved['zra_non_vat']) !== '') {
+            $this->isNonVat = (string)$saved['zra_non_vat'] === '1';
+        } else {
+            $nonVatEnv = $env['ZRA_NON_VAT'] ?? getenv('ZRA_NON_VAT') ?: 'false';
+            $this->isNonVat = filter_var($nonVatEnv, FILTER_VALIDATE_BOOLEAN);
+        }
         
         // 2. Hardcode Sandbox Turnover Tax TPIN as a fail-safe
         if ($this->tpin === '1004784338') {
@@ -51,6 +65,20 @@ class ZraVsdcClient
         $this->ensureSchema();
     }
 
+    /** A saved settings value wins. An empty box falls back to .env, then the default. */
+    private function pick(array $saved, array $env, string $settingKey, string $envKey, string $default): string
+    {
+        $fromSetting = trim((string)($saved[$settingKey] ?? ''));
+        if ($fromSetting !== '') {
+            return $fromSetting;
+        }
+        $fromEnv = trim((string)($env[$envKey] ?? ''));
+        if ($fromEnv === '') {
+            $fromEnv = trim((string)(getenv($envKey) ?: ''));
+        }
+        return $fromEnv !== '' ? $fromEnv : $default;
+    }
+
     public function getConfig(): array
     {
         return [
@@ -58,6 +86,7 @@ class ZraVsdcClient
             'bhfId' => $this->bhfId,
             'dvcSrlNo' => $this->dvcSrlNo,
             'baseUrl' => $this->baseUrl,
+            'portalUrl' => $this->portalUrl,
             'isNonVat' => $this->isNonVat,
         ];
     }
@@ -103,7 +132,7 @@ class ZraVsdcClient
         }
         $tpin = str_pad(preg_replace('/\D+/', '', $this->tpin) ?: $this->tpin, 10, '0', STR_PAD_LEFT);
         $bhf = str_pad(preg_replace('/\D+/', '', $this->bhfId) ?: $this->bhfId, 3, '0', STR_PAD_LEFT);
-        $portal = rtrim((string)(getenv('ZRA_PORTAL_URL') ?: ''), '/');
+        $portal = rtrim($this->portalUrl !== '' ? $this->portalUrl : (string)getenv('ZRA_PORTAL_URL'), '/');
         if ($portal === '') {
             $haystack = $this->baseUrl . ' ' . (string)getenv('ZRA_VSDC_URL');
             $portal = (stripos($haystack, 'sandbox') !== false)
@@ -236,7 +265,7 @@ class ZraVsdcClient
         if ($cd === '899' || str_contains($msg, 'regarding client')) {
             return [
                 'layer' => 'client',
-                'hint' => 'VSDC has no usable API keys for this serial. Code 902 (“This device is installed”) means ZRA already initialized STPOS001V2, but this Tomcat copy never stored sdcId/mrcNo. Recreating the container wiped the local SQLite keystore. Register a new device serial on the portal (e.g. STPOS001V3), put that value in .env as ZRA_DVC_SRL_NO, wipe the vsdc_webapps volume, start VSDC, and Initialize once immediately.',
+                'hint' => 'VSDC has no usable API keys for this serial. Code 902 (“This device is installed”) means ZRA already initialized this serial, but this Tomcat copy never stored the SDC ID. Recreating the container wiped the local keystore. Register a new device serial on the portal, enter it on ZRA invoices, click Save device, wipe the vsdc_webapps volume, start VSDC, and Initialize once.',
             ];
         }
 

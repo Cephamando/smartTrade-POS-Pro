@@ -39,6 +39,42 @@ final class ZraController extends Controller
             }
 
             try {
+                if ($action === 'save_device') {
+                    if ($this->role() !== 'dev') {
+                        throw new \RuntimeException('Only a developer can change the ZRA device.');
+                    }
+                    $tpin = preg_replace('/\D+/', '', (string)($_POST['zra_tpin'] ?? '')) ?? '';
+                    if ($tpin !== '' && strlen($tpin) !== 10) {
+                        throw new \RuntimeException('TPIN must be 10 digits.');
+                    }
+                    $bhf = preg_replace('/\D+/', '', (string)($_POST['zra_bhf_id'] ?? '')) ?? '';
+                    if ($bhf !== '') {
+                        $bhf = str_pad(substr($bhf, -3), 3, '0', STR_PAD_LEFT);
+                    }
+                    $serial = trim((string)($_POST['zra_dvc_srl_no'] ?? ''));
+                    $url = trim((string)($_POST['zra_vsdc_url'] ?? ''));
+                    $portal = trim((string)($_POST['zra_portal_url'] ?? ''));
+                    if ($url !== '' && filter_var($url, FILTER_VALIDATE_URL) === false) {
+                        throw new \RuntimeException('The VSDC address must be a full http address.');
+                    }
+                    if ($portal !== '' && filter_var($portal, FILTER_VALIDATE_URL) === false) {
+                        throw new \RuntimeException('The receipt portal must be a full https address.');
+                    }
+                    \App\Models\Setting::save([
+                        'zra_tpin' => $tpin,
+                        'zra_bhf_id' => $bhf,
+                        'zra_dvc_srl_no' => $serial,
+                        'zra_vsdc_url' => $url,
+                        'zra_portal_url' => $portal,
+                        'zra_non_vat' => isset($_POST['zra_non_vat']) ? '1' : '0',
+                    ]);
+                    \App\Services\Activity::log($this->pdo(), 'zra_device', 'ok', [
+                        'subject' => 'ZRA device settings saved',
+                        'detail' => 'TPIN ' . ($tpin !== '' ? $tpin : 'from server') . ' · branch ' . ($bhf !== '' ? $bhf : 'from server'),
+                    ]);
+                    $this->flash('success', 'ZRA device settings saved. Initialize only if this device has never been registered.');
+                    $this->redirect('zra');
+                }
                 $actionResult = match ($action) {
                     'initialize' => $zra->initialize(!empty($_REQUEST['force']) || !empty($json['force'])),
                     'test_connection' => $zra->testConnection(),

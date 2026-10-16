@@ -1,6 +1,10 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$tab = in_array($tab ?? 'general', ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email', 'guide'], true) ? $tab : 'general';
+$allowedTabs = ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email', 'guide'];
+if ($userRole === 'dev') {
+    $allowedTabs[] = 'developer';
+}
+$tab = in_array($tab ?? 'general', $allowedTabs, true) ? $tab : 'general';
 $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['flw_secret_key'], 0, 12) . '••••••••' : '';
 $tabs = [
     'general' => ['bi-sliders', 'General'],
@@ -12,6 +16,9 @@ $tabs = [
     'email' => ['bi-envelope', 'Email'],
     'guide' => ['bi-chat-left-text', 'Guide'],
 ];
+if ($userRole === 'dev') {
+    $tabs['developer'] = ['bi-wrench', 'Developer'];
+}
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">⚙️ System Settings</h3>
@@ -1628,4 +1635,40 @@ function pingShopFace() {
         </div>
     </div>
 </div>
+<?php endif; ?>
+
+<?php if ($tab === 'developer' && $userRole === 'dev'): ?>
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0 border-top border-4 border-warning">
+            <div class="card-body p-4">
+                <h5 class="fw-bold">Clear sales and stock</h5>
+                <p class="small text-muted">Removes sales, refunds, tips, payments, shifts, end-of-day closures, expenses, purchase orders, goods received, stock transfers, and stock on hand. Products, UNSPSC classes, staff, settings, and locations stay.</p>
+                <form method="POST" action="index.php?page=settings" class="js-confirm-form" data-swal-title="Clear every sale and the stock on hand?" data-swal-text="Products and UNSPSC classes are kept. This cannot be undone." data-swal-confirm="Clear" data-swal-icon="warning">
+                    <input type="hidden" name="tab" value="developer">
+                    <input type="hidden" name="clean_slate" value="operations">
+                    <label class="form-label small fw-bold text-muted">TYPE RESET</label>
+                    <input type="text" name="confirm_phrase" class="form-control mb-3" autocomplete="off" required>
+                    <button class="btn btn-warning fw-bold">Clear sales and stock</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0 border-top border-4 border-danger">
+            <div class="card-body p-4">
+                <h5 class="fw-bold text-danger">Wipe products and UNSPSC</h5>
+                <p class="small text-muted">Does the clear above, then deletes every product, recipe, and UNSPSC class. Categories, staff, settings, and locations stay. The menu will be empty until you enter it again.</p>
+                <form method="POST" action="index.php?page=settings" class="js-confirm-form" data-swal-title="Delete the product catalogue and UNSPSC classes?" data-swal-text="Sales and stock go with them. This cannot be undone." data-swal-confirm="Wipe catalogue" data-swal-icon="warning">
+                    <input type="hidden" name="tab" value="developer">
+                    <input type="hidden" name="clean_slate" value="catalogue">
+                    <label class="form-label small fw-bold text-muted">TYPE WIPE PRODUCTS</label>
+                    <input type="text" name="confirm_phrase" class="form-control mb-3" autocomplete="off" required>
+                    <button class="btn btn-danger fw-bold">Wipe products and UNSPSC</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<p class="small text-muted mt-3">Sign-ins, sales, and these resets are listed under <a href="index.php?page=activity">Office → Activity log</a>. Stock movements stay on stock history.</p>
 <?php endif; ?>

@@ -73,6 +73,8 @@ final class PayrollController extends Controller
                             'hours_worked' => $row['hours_worked'] ?? null,
                             'tips' => $row['tips'] ?? '',
                             'basic' => $row['basic'] ?? '',
+                            'subtraction' => $row['subtraction'] ?? '',
+                            'subtraction_label' => $row['subtraction_label'] ?? '',
                             'extra' => (array)($row['extra'] ?? []),
                         ];
                     }
@@ -103,17 +105,27 @@ final class PayrollController extends Controller
         if (!in_array($tab, ['runs', 'employees', 'components', 'rules'], true)) {
             $tab = 'runs';
         }
+        $editEmployee = !empty($_GET['employee_id']) ? $payroll->employee((int)$_GET['employee_id']) : null;
+        $staffUsers = User::activeStaff();
+        $linkedId = (int)($editEmployee['user_id'] ?? 0);
+        if ($linkedId > 0 && !array_filter($staffUsers, fn($u) => (int)$u['id'] === $linkedId)) {
+            $linked = User::staffMember($linkedId);
+            if ($linked) {
+                $staffUsers[] = $linked;
+            }
+        }
         $this->render([
             'tab' => $tab,
             'payroll' => $payroll,
             'config' => $payroll->config(),
             'employees' => $payroll->employees(),
-            'editEmployee' => !empty($_GET['employee_id']) ? $payroll->employee((int)$_GET['employee_id']) : null,
+            'editEmployee' => $editEmployee,
             'components' => $payroll->components(),
             'runs' => $payroll->runs(),
             'run' => !empty($_GET['run_id']) ? $payroll->run((int)$_GET['run_id']) : null,
             'locations' => Location::all(),
-            'staffUsers' => User::activeStaff(),
+            'staffUsers' => $staffUsers,
+            'staffRoles' => User::staffRoles(),
             'settings' => Setting::all(),
         ]);
     }
@@ -128,11 +140,16 @@ final class PayrollController extends Controller
             $bands[] = ['upto' => $upto === '' ? null : (float)$upto, 'rate' => (float)$rate];
         }
         usort($bands, fn($a, $b) => ($a['upto'] ?? INF) <=> ($b['upto'] ?? INF));
+        $posted = static function (string $key, float $default): string {
+            $raw = trim((string)($_POST[$key] ?? ''));
+            $value = $raw === '' ? $default : (float)$raw;
+            return (string)($value > 0 ? $value : $default);
+        };
         Setting::save([
             'payroll_paye_bands' => json_encode($bands),
-            'payroll_napsa_rate' => (string)(float)($_POST['napsa_rate'] ?? 5),
-            'payroll_napsa_cap' => (string)(float)($_POST['napsa_cap'] ?? 1708.20),
-            'payroll_nhima_rate' => (string)(float)($_POST['nhima_rate'] ?? 1),
+            'payroll_napsa_rate' => $posted('napsa_rate', 5),
+            'payroll_napsa_cap' => $posted('napsa_cap', 1708.20),
+            'payroll_nhima_rate' => $posted('nhima_rate', 1),
             'payroll_working_days' => (string)max(1, (int)($_POST['working_days'] ?? 26)),
             'payroll_include_tips' => isset($_POST['include_tips']) ? '1' : '0',
             'payroll_tips_taxable' => isset($_POST['tips_taxable']) ? '1' : '0',

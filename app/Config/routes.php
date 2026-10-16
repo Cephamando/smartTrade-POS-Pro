@@ -38,6 +38,7 @@ return [
     'menu' => [],
     'tables' => [],
     'audit' => [],
+    'activity' => [],
     'change_password' => [],
     'zra' => [],
     'unspsc' => [],

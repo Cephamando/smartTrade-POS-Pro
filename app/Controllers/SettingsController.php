@@ -7,6 +7,7 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\SurchargeReason;
+use App\Services\CleanSlate;
 use App\Services\Currency;
 use App\Services\Flutterwave;
 use App\Services\Guide;
@@ -57,6 +58,8 @@ final class SettingsController extends Controller
                     $this->saveGuide();
                 } elseif (isset($_POST['sync_guide'])) {
                     $this->syncGuide();
+                } elseif (isset($_POST['clean_slate'])) {
+                    $this->cleanSlate();
                 } elseif (isset($_POST['bulk_action'])) {
                     $this->bulkSurcharges();
                 } else {
@@ -112,8 +115,8 @@ final class SettingsController extends Controller
             'fxDisplay' => $fx->displayCurrencies(),
             'fxManual' => $fx->manualRates(),
             'fxKnown' => Currency::KNOWN,
-            'flwEnabled' => $flw->enabled(),
-            'flwTestMode' => $flw->isTestMode(),
+            'flwEnabled' => (new Flutterwave($this->pdo(), $settings))->enabled(),
+            'flwTestMode' => (new Flutterwave($this->pdo(), $settings))->isTestMode(),
             'locations' => Location::all(),
             'menuPhotos' => (($_GET['tab'] ?? '') === 'branding') ? Product::menuForPhotos() : [],
             'libraryImages' => (($_GET['tab'] ?? '') === 'branding') ? Media::list() : [],
@@ -145,6 +148,35 @@ final class SettingsController extends Controller
         }
         Setting::save($settingsToSave);
         $this->flash('success', 'Settings saved.');
+    }
+
+    private function cleanSlate(): void
+    {
+        if ($this->role() !== 'dev') {
+            throw new \RuntimeException('Only a developer can reset the books.');
+        }
+        $which = (string)($_POST['clean_slate'] ?? '');
+        $phrase = trim((string)($_POST['confirm_phrase'] ?? ''));
+        $slate = new CleanSlate();
+        if ($which === 'operations') {
+            if ($phrase !== 'RESET') {
+                throw new \RuntimeException('Type RESET to clear sales and stock.');
+            }
+            $slate->clearOperations($this->pdo());
+            \App\Services\Activity::log($this->pdo(), 'reset', 'ok', ['subject' => 'Cleared sales and stock']);
+            $this->flash('success', 'Sales, payments, and stock on hand were removed. Products and UNSPSC classes were kept.');
+            return;
+        }
+        if ($which === 'catalogue') {
+            if ($phrase !== 'WIPE PRODUCTS') {
+                throw new \RuntimeException('Type WIPE PRODUCTS to remove the catalogue.');
+            }
+            $slate->clearCatalogue($this->pdo());
+            \App\Services\Activity::log($this->pdo(), 'reset', 'ok', ['subject' => 'Cleared sales, stock, products, and UNSPSC']);
+            $this->flash('success', 'Sales, stock, products, and UNSPSC classes were removed. Staff, settings, and locations were kept.');
+            return;
+        }
+        throw new \RuntimeException('Unknown reset.');
     }
 
     private function saveSurcharge(): void

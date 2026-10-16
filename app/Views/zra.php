@@ -88,9 +88,43 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                     <tr><th>UNSPSC classes</th><td><?= (int)$zraSummary['item_classes'] ?></td></tr>
                 </table>
                 <p class="small text-muted mb-3">
-                    Credentials come from <code>.env</code> (<code>ZRA_TPIN</code>, <code>ZRA_BHF_ID</code>, <code>ZRA_DVC_SRL_NO</code>).
-                    They must match Device Management on the ZRA sandbox portal.
+                    A developer sets the TPIN, branch, and device serial here. Empty boxes keep using the server file.
+                    Saving does not register the device again. The taxpayer name and SDC ID come back from ZRA after Initialize.
                 </p>
+                <?php if (strtolower((string)($_SESSION['role'] ?? '')) === 'dev'): ?>
+                <form method="post" class="border rounded p-3 mb-3 bg-light">
+                    <input type="hidden" name="zra_action" value="save_device">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">TPIN</label>
+                            <input type="text" name="zra_tpin" class="form-control font-monospace" inputmode="numeric" maxlength="10" value="<?= htmlspecialchars($zraConfig['tpin']) ?>" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">BRANCH</label>
+                            <input type="text" name="zra_bhf_id" class="form-control font-monospace" inputmode="numeric" maxlength="3" value="<?= htmlspecialchars($zraConfig['bhfId']) ?>" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted">DEVICE SERIAL</label>
+                            <input type="text" name="zra_dvc_srl_no" class="form-control font-monospace" maxlength="40" value="<?= htmlspecialchars($zraConfig['dvcSrlNo']) ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">VSDC ADDRESS</label>
+                            <input type="url" name="zra_vsdc_url" class="form-control font-monospace" value="<?= htmlspecialchars($zraConfig['baseUrl']) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">RECEIPT PORTAL</label>
+                            <input type="url" name="zra_portal_url" class="form-control" placeholder="https://sandboxportal.zra.org.zm" value="<?= htmlspecialchars($zraConfig['portalUrl'] ?? '') ?>">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="zra_non_vat" value="1" id="zraNonVat" <?= !empty($zraConfig['isNonVat']) ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="zraNonVat">Turnover tax (not VAT). The sandbox TPIN always uses this.</label>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-dark fw-bold mt-3">Save device</button>
+                </form>
+                <?php endif; ?>
                 <div class="d-flex flex-wrap gap-2">
                     <form method="post">
                         <input type="hidden" name="zra_action" value="test_connection">

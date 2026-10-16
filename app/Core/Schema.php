@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 6;
+    public const VERSION = 7;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -306,6 +306,25 @@ final class Schema
                 last_login_at DATETIME NULL,
                 created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_phone (phone)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS activity_log (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NULL,
+                username VARCHAR(80) NULL,
+                action VARCHAR(40) NOT NULL,
+                outcome VARCHAR(20) NOT NULL DEFAULT 'ok',
+                location_id INT NULL,
+                location_name VARCHAR(120) NULL,
+                subject VARCHAR(160) NULL,
+                detail VARCHAR(500) NULL,
+                ip VARCHAR(45) NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_activity_when (created_at),
+                KEY idx_activity_user (user_id, created_at),
+                KEY idx_activity_action (action, created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
     }
