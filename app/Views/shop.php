@@ -966,8 +966,9 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 <label class="form-label fw-bold small text-muted">HOW WOULD YOU LIKE IT?</label>
                 <div class="d-flex gap-2 mb-3">
                     <input type="radio" class="btn-check" name="order_type" id="otPickup" value="pickup" checked onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otPickup"><i class="bi bi-bag"></i> Collect in store</label>
-                    <?php if ($deliveryOn): ?><input type="radio" class="btn-check" name="order_type" id="otDelivery" value="delivery" onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otDelivery"><i class="bi bi-bicycle"></i> Delivery<?php if ($deliveryFee > 0): ?> (+<span class="js-money" data-zmw="<?= htmlspecialchars((string)$deliveryFee) ?>"><?= $money($deliveryFee) ?></span>)<?php endif; ?></label><?php endif; ?>
+                    <?php if ($deliveryOn): ?><input type="radio" class="btn-check" name="order_type" id="otDelivery" value="delivery" onchange="toggleDelivery()" <?= $shopTable ? 'disabled' : '' ?>><label class="btn btn-outline-dark rounded-pill flex-fill<?= $shopTable ? ' disabled' : '' ?>" for="otDelivery"><i class="bi bi-bicycle"></i> Delivery<?php if ($deliveryFee > 0 && !$shopTable): ?> (+<span class="js-money" data-zmw="<?= htmlspecialchars((string)$deliveryFee) ?>"><?= $money($deliveryFee) ?></span>)<?php endif; ?></label><?php endif; ?>
                 </div>
+                <?php if ($shopTable && $deliveryOn): ?><p class="small text-muted">Delivery is turned off for a reserved table. <a href="<?= $u('cart') ?>">Clear the table</a> if the order should be delivered.</p><?php endif; ?>
                 <?php if ($shopTable && $reserveAmount > 0): ?>
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" name="reserve_table" value="1" id="reserveTable" <?= $reserveOn ? 'checked' : '' ?> onchange="paintCheckout()">

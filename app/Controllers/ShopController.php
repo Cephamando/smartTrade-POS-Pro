@@ -446,7 +446,8 @@ final class ShopController extends Controller
         }
         $pdo = $this->pdo();
         $loc = $this->shopLocationId();
-        $orderType = ($p['order_type'] ?? 'pickup') === 'delivery' && ($this->settings['shop_delivery'] ?? '1') === '1' ? 'delivery' : 'pickup';
+        $table = $this->shopTable();
+        $orderType = ($p['order_type'] ?? 'pickup') === 'delivery' && ($this->settings['shop_delivery'] ?? '1') === '1' && !$table ? 'delivery' : 'pickup';
         if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($pdo, $this->settings))->enabled()) {
             throw new \RuntimeException('Online payment is not available at the moment.');
         }
@@ -456,7 +457,6 @@ final class ShopController extends Controller
         }
         $notes = trim((string)($p['notes'] ?? ''));
         $when = trim((string)($p['pickup_time'] ?? ''));
-        $table = $this->shopTable();
         $wantReserve = $table && !empty($p['reserve_table']);
         $_SESSION['shop_table_reserve'] = $wantReserve ? 1 : 0;
         $preset = $this->reservePreset();
