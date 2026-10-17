@@ -268,7 +268,8 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 - Filter by location and search.
 - **Total stock value** is cost times quantity for the rows on screen.
 - **Explain these figures** writes a short note from the lines on screen (counts, zeros, and the lowest quantities), using the Gemini key under Settings → Guide. The note treats the value it is given as selling price times quantity. It is not a forecast.
-- Enter a **physical count** and a reason, then **Finish & update stock**. The adjustment is applied to live stock, so sales that happen during the count are kept. Quantity is not taken below zero.
+- Enter a **physical count** and a reason, then **Finish & update stock**. The grid updates in place. The adjustment is applied to live stock, so sales that happen during the count are kept. Quantity is not taken below zero.
+- The pencil saves that row's quantity and selling price in place. The price belongs to the product, so every location of that item on the screen updates.
 - **Print stock** makes a count sheet. **Download CSV** exports the grid.
 - Chefs can open this screen to look. They do not post the count.
 - **Add product** jumps back to the catalog.

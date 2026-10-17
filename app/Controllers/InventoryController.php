@@ -59,28 +59,40 @@ final class InventoryController extends Controller
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_stock_take'])) {
             if ($chefViewOnly) {
-                $this->flash('error', 'Kitchen staff have view-only access to stock.');
-                $this->redirect('inventory');
+                $this->stockJsonOrRedirect('error', 'Kitchen staff have view-only access to stock.');
             }
             try {
-                $count = Inventory::applyStockTake($_POST, $this->userId());
-                $this->flash('success', "Stock take complete. $count item(s) adjusted against live stock.");
+                $result = Inventory::applyStockTake($_POST, $this->userId());
+                $message = 'Stock take complete. ' . $result['count'] . ' item(s) adjusted against live stock.';
+                if ($this->wantsAjax()) {
+                    $this->jsonExit(['status' => 'success', 'message' => $message, 'lines' => $result['lines']]);
+                }
+                $this->flash('success', $message);
             } catch (\Throwable $e) {
-                $this->flash('error', 'Unable to apply the stock take.');
+                $msg = $e instanceof \PDOException || $e->getMessage() === '' ? 'Unable to apply the stock take.' : $e->getMessage();
+                $this->stockJsonOrRedirect('error', $msg);
             }
             $this->redirect('inventory');
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_product'])) {
             if ($chefViewOnly) {
-                $this->flash('error', 'You do not have permission to update stock.');
-                $this->redirect('inventory');
+                $this->stockJsonOrRedirect('error', 'You do not have permission to update stock.');
             }
             try {
-                Inventory::updateQtyAndPrice((int)$_POST['inventory_id'], (float)$_POST['quantity'], (float)$_POST['price']);
+                $inventoryId = (int)$_POST['inventory_id'];
+                Inventory::updateQtyAndPrice($inventoryId, (float)$_POST['quantity'], (float)$_POST['price']);
+                $line = Inventory::findLine($inventoryId);
+                if (!$line) {
+                    throw new \RuntimeException('That stock row could not be found.');
+                }
+                if ($this->wantsAjax()) {
+                    $this->jsonExit(['status' => 'success', 'message' => 'Inventory updated.', 'line' => $line]);
+                }
                 $this->flash('success', 'Inventory updated.');
             } catch (\Throwable $e) {
-                $this->flash('error', $e->getMessage());
+                $msg = $e instanceof \PDOException || $e->getMessage() === '' ? 'Unable to update stock.' : $e->getMessage();
+                $this->stockJsonOrRedirect('error', $msg);
             }
             $this->redirect('inventory');
         }
@@ -101,5 +113,14 @@ final class InventoryController extends Controller
             'totalValue' => $totalValue,
             'explainReady' => Guide::ready(Setting::all()),
         ]);
+    }
+
+    private function stockJsonOrRedirect(string $status, string $message): never
+    {
+        if ($this->wantsAjax()) {
+            $this->jsonExit(['status' => $status, 'msg' => $message], $status === 'success' ? 200 : 400);
+        }
+        $this->flash($status, $message);
+        $this->redirect('inventory');
     }
 }

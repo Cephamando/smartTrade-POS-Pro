@@ -122,7 +122,28 @@ final class Inventory extends Model
         return $stmt->fetchAll();
     }
 
-    public static function applyStockTake(array $post, int $userId): int
+    /** @return array{inventory_id:int,product_id:int,quantity:float,price:float}|null */
+    public static function findLine(int $inventoryId): ?array
+    {
+        $stmt = self::db()->prepare(
+            "SELECT i.id AS inventory_id, i.product_id, GREATEST(i.quantity, 0) AS quantity, p.price
+             FROM inventory i JOIN products p ON p.id = i.product_id WHERE i.id = ?"
+        );
+        $stmt->execute([$inventoryId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+        return [
+            'inventory_id' => (int)$row['inventory_id'],
+            'product_id' => (int)$row['product_id'],
+            'quantity' => (float)$row['quantity'],
+            'price' => (float)$row['price'],
+        ];
+    }
+
+    /** @return array{count:int,lines:list<array{inventory_id:int,quantity:float}>} */
+    public static function applyStockTake(array $post, int $userId): array
     {
         $pdo = self::db();
         $pdo->beginTransaction();
@@ -134,6 +155,7 @@ final class Inventory extends Model
             $locIds = $post['location_id'] ?? [];
             $sysQtys = $post['sys_qty'] ?? [];
             $processedCount = 0;
+            $lines = [];
             for ($i = 0; $i < count($invIds); $i++) {
                 if ($physQtys[$i] === '' || $physQtys[$i] === null) {
                     continue;
@@ -164,10 +186,11 @@ final class Inventory extends Model
                     $newQty,
                     trim($reasons[$i] ?? 'Physical Count Adjustment'),
                 ]);
+                $lines[] = ['inventory_id' => $invId, 'quantity' => $newQty];
                 $processedCount++;
             }
             $pdo->commit();
-            return $processedCount;
+            return ['count' => $processedCount, 'lines' => $lines];
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();

@@ -52,7 +52,7 @@
 
             <div class="bg-light p-2 rounded border">
                 <span class="text-muted small fw-bold text-uppercase me-2">Total Stock Value:</span>
-                <span class="fs-5 fw-bold text-success">ZMW <?= number_format($totalValue, 2) ?></span>
+                <span class="fs-5 fw-bold text-success" id="stockTotalValue">ZMW <?= number_format($totalValue, 2) ?></span>
             </div>
         </div>
     </div>
@@ -138,14 +138,14 @@
                             <?php endif; ?>
 
                             <?php foreach ($inventory as $item): ?>
-                                <tr class="<?= ($item['quantity'] <= 5) ? 'table-warning' : '' ?>">
+                                <tr class="js-stock-row<?= ($item['quantity'] <= 5) ? ' table-warning' : '' ?>" data-inv-id="<?= (int)$item['inventory_id'] ?>" data-product-id="<?= (int)$item['product_id'] ?>" data-qty="<?= htmlspecialchars((string)$item['quantity']) ?>" data-price="<?= htmlspecialchars((string)$item['price']) ?>">
                                     <td>
                                         <div class="fw-bold"><?= htmlspecialchars($item['product_name']) ?></div>
                                         <small class="text-muted"><?= htmlspecialchars($item['sku'] ?? '-') ?></small>
                                     </td>
                                     <td><span class="badge bg-secondary"><?= htmlspecialchars($item['category_name'] ?? 'Uncategorized') ?></span></td>
                                     <td><?= htmlspecialchars($item['location_name']) ?></td>
-                                    <td class="text-center fw-bold fs-5 text-secondary"><?= number_format($item['quantity'], 2) ?></td>
+                                    <td class="text-center fw-bold fs-5 text-secondary js-sys"><?= number_format($item['quantity'], 2) ?></td>
                                     
                                     <td>
                                         <input type="hidden" name="inv_id[]" value="<?= $item['inventory_id'] ?>">
@@ -162,9 +162,9 @@
                                         <input type="text" class="form-control form-control-sm reason-input" name="reason[]" placeholder="Why the variance?" disabled>
                                     </td>
 
-                                    <td class="text-end text-muted">ZMW <?= number_format($item['price'], 2) ?></td>
+                                    <td class="text-end text-muted js-price">ZMW <?= number_format($item['price'], 2) ?></td>
                                     <td class="text-end no-print">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editProductModal" onclick="populateEdit('<?= $item['inventory_id'] ?>', '<?= addslashes($item['product_name']) ?>', '<?= $item['quantity'] ?>', '<?= $item['price'] ?>', '<?= addslashes($item['location_name']) ?>')">
+                                        <button type="button" class="btn btn-sm btn-outline-primary js-edit-stock" data-bs-toggle="modal" data-bs-target="#editProductModal" data-inv-id="<?= (int)$item['inventory_id'] ?>" data-name="<?= htmlspecialchars($item['product_name'], ENT_QUOTES) ?>" data-qty="<?= htmlspecialchars((string)$item['quantity']) ?>" data-price="<?= htmlspecialchars((string)$item['price']) ?>" data-location="<?= htmlspecialchars($item['location_name'], ENT_QUOTES) ?>">
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                     </td>
@@ -185,7 +185,7 @@
                 <h5 class="modal-title">Edit Inventory</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="index.php?page=inventory">
+            <form method="POST" action="index.php?page=inventory" id="editStockForm">
                 <div class="modal-body">
                     <input type="hidden" name="update_product" value="1">
                     <input type="hidden" name="inventory_id" id="edit_inv_id">
@@ -262,12 +262,136 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 
-function populateEdit(id, name, qty, price, loc) {
-    document.getElementById('edit_inv_id').value = id;
-    document.getElementById('edit_name').value = name;
-    document.getElementById('edit_qty').value = qty;
-    document.getElementById('edit_price').value = price;
-    document.getElementById('edit_location').innerText = "Location: " + loc;
+function stockFixed(n) {
+    var x = Math.round(Number(n) * 100) / 100;
+    var neg = x < 0;
+    var parts = Math.abs(x).toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (neg ? '-' : '') + parts.join('.');
+}
+
+function stockPulse(tr) {
+    var low = parseFloat(tr.dataset.qty) <= 5;
+    tr.classList.add('table-warning');
+    window.setTimeout(function () {
+        tr.classList.toggle('table-warning', low);
+    }, 1600);
+}
+
+function paintStockTotal() {
+    var total = 0;
+    document.querySelectorAll('tr.js-stock-row').forEach(function (tr) {
+        total += parseFloat(tr.dataset.qty || '0') * parseFloat(tr.dataset.price || '0');
+    });
+    var el = document.getElementById('stockTotalValue');
+    if (el) el.textContent = 'ZMW ' + stockFixed(total);
+}
+
+function applyStockQty(tr, qty) {
+    tr.dataset.qty = String(qty);
+    var sys = tr.querySelector('.js-sys');
+    if (sys) sys.textContent = stockFixed(qty);
+    var hidden = tr.querySelector('input[name="sys_qty[]"]');
+    if (hidden) hidden.value = String(qty);
+    var phys = tr.querySelector('.phys-input');
+    if (phys) {
+        phys.dataset.sys = String(qty);
+        phys.value = '';
+    }
+    var reason = tr.querySelector('.reason-input');
+    if (reason) {
+        reason.value = '';
+        reason.disabled = true;
+        reason.required = false;
+    }
+    var cell = tr.querySelector('.variance-cell');
+    if (cell) {
+        cell.textContent = '--';
+        cell.className = 'text-center fw-bold fs-5 variance-cell text-muted';
+    }
+    var btn = tr.querySelector('.js-edit-stock');
+    if (btn) btn.dataset.qty = String(qty);
+    stockPulse(tr);
+}
+
+function applyStockPrice(tr, price) {
+    tr.dataset.price = String(price);
+    var cell = tr.querySelector('.js-price');
+    if (cell) cell.textContent = 'ZMW ' + stockFixed(price);
+    var btn = tr.querySelector('.js-edit-stock');
+    if (btn) btn.dataset.price = String(price);
+}
+
+document.querySelectorAll('.js-edit-stock').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.getElementById('edit_inv_id').value = btn.dataset.invId || '';
+        document.getElementById('edit_name').value = btn.dataset.name || '';
+        document.getElementById('edit_qty').value = btn.dataset.qty || '';
+        document.getElementById('edit_price').value = btn.dataset.price || '';
+        document.getElementById('edit_location').innerText = 'Location: ' + (btn.dataset.location || '');
+    });
+});
+
+var stockTakeForm = document.getElementById('stockTakeForm');
+if (stockTakeForm) {
+    stockTakeForm.addEventListener('submit', function (e) {
+        if (stockTakeForm.dataset.swalConfirmed !== '1') return;
+        e.preventDefault();
+        e.stopPropagation();
+        delete stockTakeForm.dataset.swalConfirmed;
+        var finishBtn = document.querySelector('[form="stockTakeForm"]');
+        if (finishBtn) finishBtn.disabled = true;
+        LiveRow.postForm(stockTakeForm).then(function (data) {
+            (data.lines || []).forEach(function (line) {
+                var tr = document.querySelector('tr.js-stock-row[data-inv-id="' + String(line.inventory_id).replace(/[^0-9]/g, '') + '"]');
+                if (tr) applyStockQty(tr, line.quantity);
+            });
+            document.querySelectorAll('.phys-input').forEach(function (input) {
+                if (input.value === '') return;
+                var tr = input.closest('tr');
+                var sys = parseFloat(input.dataset.sys);
+                var phys = parseFloat(input.value);
+                if (!tr || isNaN(phys) || Math.abs(phys - sys) > 0.001) return;
+                input.value = '';
+                var reason = tr.querySelector('.reason-input');
+                if (reason) {
+                    reason.value = '';
+                    reason.disabled = true;
+                    reason.required = false;
+                }
+                var cell = tr.querySelector('.variance-cell');
+                if (cell) {
+                    cell.textContent = '--';
+                    cell.className = 'text-center fw-bold fs-5 variance-cell text-muted';
+                }
+            });
+            paintStockTotal();
+            LiveRow.toast(data);
+        }).catch(function (err) {
+            LiveRow.toast({ status: 'error', msg: err.message });
+        }).finally(function () {
+            if (finishBtn) finishBtn.disabled = false;
+        });
+    });
+}
+
+var editStockForm = document.getElementById('editStockForm');
+if (editStockForm) {
+    editStockForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        LiveRow.postForm(editStockForm).then(function (data) {
+            var line = data.line || {};
+            document.querySelectorAll('tr.js-stock-row[data-product-id="' + String(line.product_id).replace(/[^0-9]/g, '') + '"]').forEach(function (tr) {
+                applyStockPrice(tr, line.price);
+                if (tr.dataset.invId === String(line.inventory_id)) applyStockQty(tr, line.quantity);
+            });
+            paintStockTotal();
+            LiveRow.closeModal(editStockForm);
+            LiveRow.toast(data);
+        }).catch(function (err) {
+            LiveRow.toast({ status: 'error', msg: err.message });
+        });
+    });
 }
 
 // --- FILE MANAGER: EXPORT TO CSV ---
