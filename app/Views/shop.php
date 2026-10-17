@@ -843,7 +843,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <?php if (!$cart): ?>
         <div class="text-center py-5 text-muted"><i class="bi bi-basket fs-1"></i><p class="mt-2">Nothing here yet.</p><a href="<?= $u('menu') ?>" class="btn btn-accent rounded-pill px-4">Browse the menu</a></div>
     <?php else: ?>
-    <form method="POST" action="<?= $u('cart') ?>">
+    <form method="POST" action="<?= $u('cart') ?>" id="bagForm">
         <input type="hidden" name="cart_update" value="1">
         <div class="card item-card mb-3">
             <ul class="list-group list-group-flush">
@@ -855,60 +855,102 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 </li>
             <?php endforeach; ?>
             </ul>
-            <div class="card-footer bg-white"><div class="d-flex justify-content-between fw-bold fs-5"><span>Subtotal</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div><?= $currencyBar() ?></div>
+            <?php $bagDue = $cartTotal + (($shopTable && $reserveOn) ? $reserveAmount : 0); ?>
+            <div class="card-footer bg-white">
+                <div class="d-flex justify-content-between"><span>Subtotal</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div>
+                <?php if ($shopTable && $reserveOn && $reserveAmount > 0): ?>
+                <div class="d-flex justify-content-between text-muted"><span><?= htmlspecialchars($reserveLabel) ?></span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$reserveAmount) ?>"><?= $money($reserveAmount) ?></span></div>
+                <div class="d-flex justify-content-between fw-bold fs-5"><span>Total</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$bagDue) ?>"><?= $money($bagDue) ?></span></div>
+                <?php else: ?>
+                <div class="d-flex justify-content-between fw-bold fs-5"><span>Total</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div>
+                <?php endif; ?>
+                <?= $currencyBar() ?>
+            </div>
         </div>
-        <form method="POST" action="<?= $u('cart') ?>" class="card item-card mb-3">
+    </form>
+        <form method="POST" action="<?= $u('cart') ?>" id="seatForm" class="card item-card mb-3">
             <div class="card-body">
                 <input type="hidden" name="choose_seat" value="1">
+                <input type="hidden" name="reserve_table" id="reserveFlag" value="">
                 <label class="form-label fw-bold small text-muted">LOCATION</label>
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     <?php foreach ($shopLocations as $locRow): ?>
                     <label class="btn btn-outline-dark rounded-pill<?= (int)$locRow['id'] === $shopLocationId ? ' active' : '' ?>">
-                        <input type="radio" class="btn-check" name="seat_location" value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === $shopLocationId ? 'checked' : '' ?> onchange="document.querySelectorAll('[name=seat_table]').forEach(function (el) { el.disabled = true; }); document.getElementById('reserveTableCart') && (document.getElementById('reserveTableCart').disabled = true); this.form.submit();">
+                        <input type="radio" class="btn-check" name="seat_location" value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === $shopLocationId ? 'checked' : '' ?> onchange="this.form.submit()">
                         <?= htmlspecialchars($locRow['name']) ?>
                     </label>
                     <?php endforeach; ?>
                 </div>
-                <label class="form-label fw-bold small text-muted">TABLE</label>
+                <label class="form-label fw-bold small text-muted" for="seatTable">TABLE</label>
                 <?php if (!$shopTables): ?>
                     <p class="text-muted small mb-0">No free tables at this store. You can still collect the order.</p>
                     <input type="hidden" name="seat_table" value="0">
                 <?php else: ?>
-                    <div class="d-flex flex-column gap-2">
-                        <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-0">
-                            <span><input type="radio" name="seat_table" value="0" <?= $shopTable ? '' : 'checked' ?> onchange="this.form.submit()"> No table</span>
-                        </label>
+                    <select name="seat_table" id="seatTable" class="form-select no-search">
+                        <option value="0">No table</option>
                         <?php
                         $seatGroups = [];
                         foreach ($shopTables as $seat) {
                             $seatGroups[$seat['zone_name'] ?: 'Floor'][] = $seat;
                         }
                         foreach ($seatGroups as $zone => $seats): ?>
-                        <div class="small text-muted fw-bold text-uppercase"><?= htmlspecialchars((string)$zone) ?></div>
-                        <?php foreach ($seats as $seat): $picked = $shopTable && (int)$shopTable['id'] === (int)$seat['id']; ?>
-                        <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-0">
-                            <span><input type="radio" name="seat_table" value="<?= (int)$seat['id'] ?>" <?= $picked ? 'checked' : '' ?> onchange="this.form.submit()"> <?= htmlspecialchars($seat['table_name']) ?></span>
-                            <span class="text-muted small"><?= (int)$seat['capacity'] ?> seats</span>
-                        </label>
+                        <optgroup label="<?= htmlspecialchars((string)$zone) ?>">
+                            <?php foreach ($seats as $seat): ?>
+                            <option value="<?= (int)$seat['id'] ?>" <?= $shopTable && (int)$shopTable['id'] === (int)$seat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($seat['table_name']) ?> · <?= (int)$seat['capacity'] ?> seats</option>
+                            <?php endforeach; ?>
+                        </optgroup>
                         <?php endforeach; ?>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php if ($shopTable && $reserveAmount > 0): ?>
-                    <div class="form-check mt-3">
-                        <input class="form-check-input" type="checkbox" name="reserve_table" value="1" id="reserveTableCart" <?= $reserveOn ? 'checked' : '' ?> onchange="this.form.submit()">
-                        <label class="form-check-label" for="reserveTableCart"><?= htmlspecialchars($reserveLabel) ?> · <?= $fxMoney($reserveAmount) ?></label>
-                    </div>
-                    <?php endif; ?>
+                    </select>
                 <?php endif; ?>
             </div>
         </form>
+        <?php if ($shopTables): ?>
+        <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
+        <script>
+        (function () {
+            var seat = document.getElementById('seatTable');
+            var form = document.getElementById('seatForm');
+            var flag = document.getElementById('reserveFlag');
+            if (!seat || !form) return;
+            var previous = seat.value;
+            var fee = <?= json_encode($reserveAmount) ?>;
+            var label = <?= json_encode($reserveLabel) ?>;
+            seat.addEventListener('change', function () {
+                var chosen = seat.value;
+                if (chosen === '0' || !(fee > 0)) {
+                    flag.value = '';
+                    form.submit();
+                    return;
+                }
+                var name = seat.options[seat.selectedIndex].text;
+                var money = window.formatShopMoney ? formatShopMoney(fee) : ('K' + Number(fee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+                Swal.fire({
+                    title: label,
+                    text: name + ' adds ' + money + ' to the bill.',
+                    icon: 'question',
+                    showCancelButton: true,
+                    reverseButtons: true,
+                    confirmButtonText: 'Add to bill',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#111111'
+                }).then(function (result) {
+                    if (!result.isConfirmed) {
+                        seat.value = previous;
+                        return;
+                    }
+                    flag.value = '1';
+                    form.submit();
+                });
+            });
+        })();
+        </script>
+        <?php endif; ?>
         <div class="d-flex gap-2 flex-wrap">
             <a href="<?= $u('menu') ?>" class="btn btn-outline-dark rounded-pill px-4"><i class="bi bi-plus"></i> Add more</a>
-            <button type="submit" class="btn btn-outline-secondary rounded-pill">Update</button>
-            <button type="submit" name="cart_clear" value="1" class="btn btn-outline-danger rounded-pill" formnovalidate>Clear</button>
+            <button type="submit" class="btn btn-outline-secondary rounded-pill" form="bagForm">Update</button>
+            <button type="submit" name="cart_clear" value="1" class="btn btn-outline-danger rounded-pill" form="bagForm" formnovalidate>Clear</button>
             <a href="<?= $u('checkout') ?>" class="btn btn-accent rounded-pill px-4 ms-auto">Checkout <i class="bi bi-arrow-right"></i></a>
         </div>
-    </form>
     <?php if ($minOrder > 0 && $cartTotal < $minOrder): ?><div class="alert alert-warning mt-3 small">Minimum order is <span class="js-money" data-zmw="<?= htmlspecialchars((string)$minOrder) ?>"><?= $money($minOrder) ?></span>.</div><?php endif; ?>
     <?php endif; ?>
 

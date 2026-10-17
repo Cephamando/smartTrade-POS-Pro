@@ -166,7 +166,7 @@ On the POS, attaching a member fills the customer name and offers a **10% off** 
 
 **Tabs** holds an unpaid order. From the cart, add the order to an existing tab or a new one. You can name it and, on Pro+ and Enterprise, assign a table. **Transfer / merge** moves selected lines from one tab to another.
 
-**Tables** (Pro+ and Enterprise) opens the floor plan. Tables are green when free and red when occupied. A waiter can open their own table; a manager can open any occupied table. Define tables first under **Office → Tables**: location, zone (Patio, Inside), table name, and seat count. The same page prints one QR code for the online menu, `https://queenbeesrestaurants.com/index.php?page=shop&view=menu`. In the bag, the guest picks a store and then a free table. Reserving that table adds the surcharge saved on the Tables page. The guest can remove the fee before paying. The web order is filed against that table.
+**Tables** (Pro+ and Enterprise) opens the floor plan. Tables are green when free and red when occupied. A waiter can open their own table; a manager can open any occupied table. Define tables first under **Office → Tables**: location, zone (Patio, Inside), table name, and seat count. The same page prints one QR code for the online menu, `https://queenbeesrestaurants.com/index.php?page=shop&view=menu`. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill. They can remove the fee before paying. The web order is filed against that table.
 
 **Got it / Later** appears on food and meal lines when the tier is Pro+. **Got it** means the guest has the item. **Later** sends it toward the kitchen and the pickup queue. On Lite, those lines are simply marked collected.
 
@@ -570,7 +570,7 @@ How a slip is worked out: basic (pro-rated for days or hours when the pay type c
 
 The storefront runs on `index.php?page=shop` and does not need a staff login.
 
-- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order shows up in POS under Web Orders. A QR code from **Office → Tables** opens this menu. In the bag, the guest picks a store and then a free table. Reserving the table adds the surcharge saved on the Tables page, and the guest can remove it before paying.
+- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order shows up in POS under Web Orders. A QR code from **Office → Tables** opens this menu. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill, and they can remove the fee before paying.
 - **Promo strip:** A scrolling bar shows promotional images. If no events are published, it cycles the promo-folder slides. If published events exist, it advertises the events instead.
 - **Events:** If the event planner (Office → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
 
