@@ -91,7 +91,7 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 3. **Exit**, then sign in as `train_mgr`.
 
-*Expected result:* the Dashboard opens. The navbar shows Dashboard, Stock, Kitchen, Office, and a green **POS**.
+*Expected result:* the Dashboard opens. The navbar shows Dashboard, Stock, Kitchen, Office, and a green **POS**. The sales trend can switch to day, week, month, year, or custom dates. **Items** draws chosen products as a line, bars, or both. **Explain** writes a note from those points. Clicking the chart opens a larger copy.
 
 4. **Logout**, then sign in as `train_chef`.
 
@@ -797,9 +797,9 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 
 *Expected result:* Lagers, Soft drinks, Food, and Uncategorized if any product has no category.
 
-3. **Taxes**. Tap the VAT row.
+3. **Tax & statutory**. Tap the VAT row.
 
-*Expected result:* the drilldown lists each receipt with taxable amount and tax at 16%. **Print Breakdown** prints only that list.
+*Expected result:* the drilldown lists each receipt with taxable amount and tax at 16%. **Print Breakdown** prints only that list. PAYE, NAPSA, and NHIMA each appear once when a paid pay run falls in the period. NAPSA is a percentage of gross and NHIMA is a percentage of basic; each amount adds the worker’s share and the business share. Opening NAPSA or NHIMA lists those two shares on every payslip.
 
 #### Scenario 5.5.4 — Refund from reports
 
@@ -894,7 +894,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 #### Scenario 5.9.2 — Components and employee (Must pass)
 
 1. **Components → Add**: **Housing allowance**, earning, fixed, 500, taxable. Add **Staff loan**, deduction, fixed, 0 (amount set per person).
-2. **Employees → Add**: choose the training cashier from the staff list. The role fills in from that login. Pay type **Monthly**, basic **8,000**, NRC, NAPSA and NHIMA numbers, bank. Under standing components set Housing 500 and Staff loan 500. Save.
+2. **Employees → Add**: choose the training cashier from the staff list. The role fills in from that login. Pay type **Monthly**, basic **8,000**, NRC, NAPSA and NHIMA numbers, bank. Under standing components set Housing 500 and Staff loan 500. Save. If a component is **% of basic**, the number is the percent: 10 on an 8,000 basic is K800, and the payslip shows 10% of basic K8,000.00 next to that kwacha.
 
 *Expected result:* the employee is listed as active with their pay type and basic.
 
@@ -1329,7 +1329,7 @@ Run these on the phone. They confirm the floor staff can work without a PC.
 |---|---|---|
 | P1 | Waiter signs in, taps the green **POS** pill | POS opens without opening the menu |
 | P2 | Manager taps **Menu**, opens Office, taps Reports | Panel closes; reports load |
-| P3 | Manager opens Master Reports and swipes the tab pills | Receipts, Items, Categories, Taxes scroll sideways |
+| P3 | Manager opens Master Reports and swipes the tab pills | Receipts, Items, Categories, Tax & statutory scroll sideways |
 | P4 | Manager taps a receipt card | Breakdown opens full screen; Close returns |
 | P5 | Manager taps **‹** twice | Range moves back two days |
 | P6 | Manager taps **Export** | Print dialog with the report header |

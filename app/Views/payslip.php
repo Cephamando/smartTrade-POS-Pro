@@ -1,4 +1,15 @@
-<?php $money = fn($v) => number_format((float)$v, 2); $hoursText = function ($v): string { $text = rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.'); return $text === '' ? '0' : $text; }; $biz = $settings['business_name'] ?? 'smartTrade POS'; ?>
+<?php
+$money = fn($v) => number_format((float)$v, 2);
+$hoursText = function ($v): string { $text = rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.'); return $text === '' ? '0' : $text; };
+$percentOf = function (array $ln) use ($money): string {
+    if (($ln['calc'] ?? '') !== 'percent' || !isset($ln['rate'])) {
+        return '';
+    }
+    $rateText = rtrim(rtrim(number_format((float)$ln['rate'], 2, '.', ''), '0'), '.');
+    return $rateText . '% of basic K' . $money($ln['base'] ?? 0);
+};
+$biz = $settings['business_name'] ?? 'smartTrade POS';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -53,8 +64,8 @@
                 <tbody>
                     <tr><td>Hours worked</td><td class="amt"><?= $hoursText($s['hours_display'] ?? 0) ?></td></tr>
                     <tr><td>Basic pay<?php if (($s['pay_type'] ?? '') === 'hourly' && (float)($s['hourly_rate'] ?? 0) > 0): ?> <span class="text-muted small">(K<?= $money($s['hourly_rate']) ?> × <?= $hoursText($s['hours_display'] ?? 0) ?> hrs)</span><?php endif; ?></td><td class="amt"><?= $money($s['basic_pay']) ?></td></tr>
-                    <?php foreach ($s['lines'] as $ln): if ($ln['kind'] !== 'earning') continue; ?>
-                    <tr><td><?= htmlspecialchars($ln['name']) ?><?= empty($ln['taxable']) ? ' <span class="text-muted small">(non-taxable)</span>' : '' ?></td><td class="amt"><?= $money($ln['amount']) ?></td></tr>
+                    <?php foreach ($s['lines'] as $ln): if ($ln['kind'] !== 'earning') continue; $pct = $percentOf($ln); ?>
+                    <tr><td><?= htmlspecialchars($ln['name']) ?><?= $pct !== '' ? ' <span class="text-muted small">(' . htmlspecialchars($pct) . ')</span>' : '' ?><?= empty($ln['taxable']) ? ' <span class="text-muted small">(non-taxable)</span>' : '' ?></td><td class="amt"><?= $money($ln['amount']) ?></td></tr>
                     <?php endforeach; ?>
                     <?php if ((float)$s['tips'] > 0): ?><tr><td>Tips (POS)</td><td class="amt"><?= $money($s['tips']) ?></td></tr><?php endif; ?>
                     <tr class="total"><td>Gross pay</td><td class="amt"><?= $money($s['gross_pay']) ?></td></tr>
@@ -66,10 +77,10 @@
                 <thead><tr class="table-light"><th>DEDUCTIONS</th><th class="amt">ZMW</th></tr></thead>
                 <tbody>
                     <tr><td>PAYE <span class="text-muted small">(taxable <?= $money($s['taxable_pay']) ?>)</span></td><td class="amt"><?= $money($s['paye']) ?></td></tr>
-                    <tr><td>NAPSA (employee)</td><td class="amt"><?= $money($s['napsa_employee']) ?></td></tr>
-                    <tr><td>NHIMA (employee)</td><td class="amt"><?= $money($s['nhima_employee']) ?></td></tr>
-                    <?php foreach ($s['lines'] as $ln): if ($ln['kind'] !== 'deduction') continue; ?>
-                    <tr><td><?= htmlspecialchars($ln['name']) ?></td><td class="amt"><?= $money($ln['amount']) ?></td></tr>
+                    <tr><td>NAPSA (employee)<?= !empty($s['napsa_note']) ? ' <span class="text-muted small">(' . htmlspecialchars($s['napsa_note']) . ')</span>' : '' ?></td><td class="amt"><?= $money($s['napsa_employee']) ?></td></tr>
+                    <tr><td>NHIMA (employee)<?= !empty($s['nhima_note']) ? ' <span class="text-muted small">(' . htmlspecialchars($s['nhima_note']) . ')</span>' : '' ?></td><td class="amt"><?= $money($s['nhima_employee']) ?></td></tr>
+                    <?php foreach ($s['lines'] as $ln): if ($ln['kind'] !== 'deduction') continue; $pct = $percentOf($ln); ?>
+                    <tr><td><?= htmlspecialchars($ln['name']) ?><?= $pct !== '' ? ' <span class="text-muted small">(' . htmlspecialchars($pct) . ')</span>' : '' ?></td><td class="amt"><?= $money($ln['amount']) ?></td></tr>
                     <?php endforeach; ?>
                     <tr class="total"><td>Total deductions</td><td class="amt"><?= $money($s['paye'] + $s['napsa_employee'] + $s['nhima_employee'] + $s['other_deductions']) ?></td></tr>
                 </tbody>
@@ -77,7 +88,7 @@
         </div>
     </div>
     <div class="d-flex justify-content-between align-items-center mt-3">
-        <div class="small text-muted">Employer contributions: NAPSA <?= $money($s['napsa_employer']) ?> · NHIMA <?= $money($s['nhima_employer']) ?></div>
+        <div class="small text-muted">Employer contributions: NAPSA <?= $money($s['napsa_employer']) ?><?= !empty($s['napsa_note']) ? ' (' . htmlspecialchars($s['napsa_note']) . ')' : '' ?> · NHIMA <?= $money($s['nhima_employer']) ?><?= !empty($s['nhima_note']) ? ' (' . htmlspecialchars($s['nhima_note']) . ')' : '' ?></div>
         <div class="net">NET PAY &nbsp; K<?= $money($s['net_pay']) ?></div>
     </div>
     <div class="d-flex justify-content-between mt-5 small text-muted">

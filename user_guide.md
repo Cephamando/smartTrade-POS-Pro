@@ -443,7 +443,7 @@ One serial is one keystore and one receipt sequence. Keep a single live till PC 
 | **Receipts** | Each sale in the period: receipt number, date and time, employee, store, payment, total. Flutterwave rows also show the network, the number paid from, and the transaction ID. Refunds carry a red **Refund** badge. | Opens the line breakdown (item, qty, total; voided and refunded lines are labelled). A Flutterwave payment shows its network, number, and transaction ID above the lines. **View** opens the printable receipt. The red arrow icon starts a refund (administrators, managers, developers; paid sales with a positive total only). |
 | **Items** | Each product sold: name, SKU, items sold, gross sales. Sorted by revenue. | — |
 | **Categories** | Each category: items sold, gross sales. Products without a category show as Uncategorized. | — |
-| **Taxes** | VAT at 16%: taxable sales and tax amount, worked back from paid totals. | Opens the tax drilldown: every receipt in the period with its taxable amount and tax. **Print Breakdown** prints only that list. |
+| **Tax & statutory** | VAT at 16%: taxable sales and tax amount, worked back from paid totals. Under that, one line each for PAYE, NAPSA, and NHIMA from paid pay runs whose pay date falls in the period. NAPSA is the percentage of gross set under Payroll → Statutory rules, charged to the worker and again to the business, added into one amount. NHIMA is the percentage of basic, added the same way. These payroll amounts are not sent to Smart Invoice. | VAT opens every receipt in the period with its taxable amount and tax. A payroll row opens the payslips that make up that amount. NAPSA and NHIMA list the worker’s share and the business share on each payslip. The worker’s name opens that payslip in a window, and the run name opens the run’s payslips in a window. |
 | **Tips & Surcharges** | Tiles for tips on receipts, tips added after payment (with the cash part), all tips, and surcharges. A table of surcharges by reason, then one row per staff member: paid receipts, tips on receipts, tips after payment (count and cash), and the total credited to them. | — |
 | **Finance** | Every money movement in the period: each paid sale and refund, paid event deposit or balance, expense (a paid payroll run is not listed twice), each paid payslip (net pay plus PAYE, NAPSA, and NHIMA), each goods-received note, and each Flutterwave service fee. Tiles show money in, money out, payroll, purchases, and the result. A bank transfer is listed and marked “not in result”, because that money was already counted as a sale. Tips, surcharges, discounts, and tax are inside the sale and are not added again. Choosing one employee leaves out event payments and bank transfers. The time-of-day filter does not apply on this tab. | — |
 
@@ -455,7 +455,7 @@ Each table has a **Filter records** search box and pages of 50 rows. **Explain t
 
 Reports show the shop’s sales ledger. They are not the ZRA VAT return; that is filed on the ZRA portal from the invoices Smart Invoice already sent.
 
-The dashboard charts (sales over recent days, payment mix, active shifts) are a short view of the same shop. Today’s sales and transaction counts link here.
+The dashboard sales trend can show today, the last 7 days, this month, this year, or dates you choose. Pick items to draw each one with the total, as a line, as bars, or as both. Click the chart to open the same view larger. Today’s sales and transaction counts link here.
 
 ---
 
@@ -469,7 +469,7 @@ Administrators, managers, and developers.
 - **Inventory** shortcuts: Receiving bay, Goods received, products, and History.
 - **Kitchen & menu** shortcuts on Pro+ and Enterprise: KDS, Meal Production, Menu Builder.
 - **Staff & users** shortcuts: Manage Users, View Shifts, Members.
-- **7-day sales trend** and **payment mix** charts.
+- **Sales trend.** Day, week, month, year, or a custom range. **Line**, **Bar**, or **Both**. **Items** picks up to 8 products sold in that period; each is drawn with the total. **Explain** writes a short note from the points on the chart, using the Gemini key under Settings → Guide. It does not forecast. Click the chart, or **Expand**, for a larger copy with the same button. **Payment mix** is today only.
 - **Active shifts**: who is open, their role, and a button into that shift’s sales.
 - **Settlements & Payouts**: the second tab. See below.
 - **Pickup screen** and **Approvals** when your role and tier include them.
@@ -550,7 +550,7 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 
 **Employees.** Choose the person and their role from the staff list (the same people and roles as Office → Staff). The name is taken from that staff record, and tips are taken from that login. Then NRC, NAPSA and NHIMA numbers, TPIN, location, **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. PAYE, NAPSA and NHIMA are ticked by default and calculated on each pay run. Untick one when a worker is not registered for it. Switch people off instead of deleting them when they leave.
 
-**Components.** Earnings (housing, transport, overtime, commission…) and deductions (loan, advance, uniform…). Each is a fixed amount or a percent of basic pay, taxable or not, and active or not. Active components appear on every employee form so you can set a standing amount per person.
+**Components.** Earnings (housing, transport, overtime, commission…) and deductions (loan, advance, uniform…). Each is a fixed amount or a percent of basic pay, taxable or not, and active or not. Active components appear on every employee form. On a percent component the number you enter is the percent: 10 means 10% of that payslip’s basic. The payslip prints the percent, the basic, and the kwacha. A fixed component is the kwacha amount you type.
 
 **Statutory rules.** Zambian PAYE bands (editable upper limits and rates), NAPSA rate and monthly cap, NHIMA rate, standard working days a month, and whether tips are included in pay and whether they are taxed. A quick PAYE check lets you type a gross figure and see the tax.
 
@@ -559,10 +559,10 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 1. **New run**: title, period start and end, pay date. Every active employee gets a slip. Shifts in that period fill the hours worked for the linked staff login. A shift still open counts as 8 hours for each day from the day it opened through today, or through the end of the pay period. On a daily rate each of those days counts as 1 day. A closed shift longer than 16 hours is left out and named on the run. Hourly basic is the hourly rate times the hours. Tips the staff member earned on the POS in that period (on receipts and after payment) are pulled in automatically when tips are enabled.
 2. Open the run and edit **days**, **hours**, **basic**, or **tips** per person. **One-off adjustments** sets the hours, the days, a subtraction (with a reason), and any extra earning or deduction for this run only. **Recalculate** reworks every slip. Clear Hours or Days to read the shifts again. A basic figure you type is kept.
 3. **Approve** locks the figures. **Mark paid** books the net pay as an expense and stamps the pay date. **Reopen** returns an approved run to draft. Draft runs can be deleted.
-4. **Print payslips** prints the whole run or a single slip: earnings, deductions, employer NAPSA and NHIMA, net pay.
+4. **Print payslips** prints the whole run or a single slip: earnings, deductions, employer NAPSA and NHIMA, net pay. A percent allowance shows the rate and the basic next to the kwacha, and NAPSA and NHIMA show their percentage of gross or basic.
 5. **Explain these figures**, on an open run, writes a short note from the run totals (headcount, gross, PAYE, NAPSA, NHIMA, net) using the Gemini key under Settings → Guide. Employee names are not sent. It is not payroll advice and not a forecast.
 
-How a slip is worked out: basic (pro-rated for days or hours when the pay type calls for it) + allowances (+ tips if included) = gross. NAPSA employee share is 5% of gross up to the cap, and is deducted before tax. PAYE is applied to gross less NAPSA (and less non-taxable allowances) using the bands. NHIMA is 1% of basic. Net = gross − NAPSA − NHIMA − PAYE − other deductions. The employer's matching NAPSA and NHIMA appear separately and are not deducted from the worker.
+How a slip is worked out: basic (pro-rated for days or hours when the pay type calls for it) + allowances (+ tips if included) = gross. An allowance set to percent of basic is that percent of the basic on the slip. NAPSA employee share is 5% of gross up to the cap, and is deducted before tax. PAYE is applied to gross less NAPSA (and less non-taxable allowances) using the bands. NHIMA is 1% of basic. Net = gross − NAPSA − NHIMA − PAYE − other deductions. The employer's matching NAPSA and NHIMA appear separately and are not deducted from the worker.
 
 ---
 

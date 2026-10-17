@@ -495,6 +495,125 @@ final class Report extends Model
         return ['rows' => $rows, 'totals' => $totals];
     }
 
+    /**
+     * VAT is separate. These are payroll amounts on paid runs whose pay date falls in the period.
+     * They are not Smart Invoice documents.
+     *
+     * @return array{rows: list<array<string, mixed>>, total: float}
+     */
+    public static function statutory(string $start, string $end, $locationId, int $employeeId = 0): array
+    {
+        $sql = "SELECT p.id AS slip_id, p.run_id, e.full_name, r.title,
+                       COALESCE(r.pay_date, DATE(r.paid_at)) AS pay_date,
+                       p.paye, p.napsa_employee, p.napsa_employer, p.nhima_employee, p.nhima_employer
+                FROM payslips p
+                JOIN payroll_runs r ON r.id = p.run_id
+                JOIN employees e ON e.id = p.employee_id
+                WHERE r.status = 'paid'
+                  AND COALESCE(r.pay_date, DATE(r.paid_at)) BETWEEN ? AND ?";
+        $params = [$start, $end];
+        if ((int)$locationId > 0) {
+            $sql .= ' AND e.location_id = ?';
+            $params[] = (int)$locationId;
+        }
+        if ($employeeId > 0) {
+            $sql .= ' AND e.user_id = ?';
+            $params[] = $employeeId;
+        }
+        $sql .= ' ORDER BY pay_date DESC, e.full_name ASC';
+        try {
+            $stmt = self::db()->prepare($sql);
+            $stmt->execute($params);
+            $slips = $stmt->fetchAll() ?: [];
+        } catch (\Throwable $e) {
+            $slips = [];
+        }
+
+        $settings = Setting::all();
+        $napsaRate = self::percentText((float)($settings['payroll_napsa_rate'] ?? 5));
+        $nhimaRate = self::percentText((float)($settings['payroll_nhima_rate'] ?? 1));
+        $groups = [
+            'paye' => ['PAYE', 'ZRA employer return', 'Deducted from the worker', ['paye']],
+            'napsa' => ['NAPSA', 'NAPSA', $napsaRate . '% of gross, worker and business', ['napsa_employee', 'napsa_employer']],
+            'nhima' => ['NHIMA', 'NHIMA', $nhimaRate . '% of basic, worker and business', ['nhima_employee', 'nhima_employer']],
+        ];
+        $rows = [];
+        foreach ($groups as $key => [$name, $office, $side, $parts]) {
+            $amount = 0.0;
+            $count = 0;
+            foreach ($slips as $slip) {
+                $value = 0.0;
+                foreach ($parts as $part) {
+                    $value += (float)($slip[$part] ?? 0);
+                }
+                if ($value == 0.0) {
+                    continue;
+                }
+                $amount += $value;
+                $count++;
+            }
+            $rows[] = [
+                'key' => $key,
+                'name' => $name,
+                'office' => $office,
+                'side' => $side,
+                'amount' => round($amount, 2),
+                'slips' => $count,
+            ];
+        }
+        return [
+            'rows' => $rows,
+            'total' => round(array_sum(array_column($rows, 'amount')), 2),
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function statutoryLines(string $start, string $end, $locationId, int $employeeId, string $key): array
+    {
+        $parts = [
+            'paye' => ['paye'],
+            'napsa' => ['napsa_employee', 'napsa_employer'],
+            'nhima' => ['nhima_employee', 'nhima_employer'],
+        ][$key] ?? null;
+        if ($parts === null) {
+            return [];
+        }
+        $select = implode(', ', array_map(static fn(string $col): string => 'p.' . $col, $parts));
+        $either = implode(' OR ', array_map(static fn(string $col): string => 'p.' . $col . ' <> 0', $parts));
+        $sql = "SELECT p.id AS slip_id, p.run_id, e.full_name, r.title,
+                       COALESCE(r.pay_date, DATE(r.paid_at)) AS pay_date,
+                       {$select}
+                FROM payslips p
+                JOIN payroll_runs r ON r.id = p.run_id
+                JOIN employees e ON e.id = p.employee_id
+                WHERE r.status = 'paid'
+                  AND COALESCE(r.pay_date, DATE(r.paid_at)) BETWEEN ? AND ?
+                  AND ({$either})";
+        $params = [$start, $end];
+        if ((int)$locationId > 0) {
+            $sql .= ' AND e.location_id = ?';
+            $params[] = (int)$locationId;
+        }
+        if ($employeeId > 0) {
+            $sql .= ' AND e.user_id = ?';
+            $params[] = $employeeId;
+        }
+        $sql .= ' ORDER BY pay_date DESC, e.full_name ASC';
+        try {
+            $stmt = self::db()->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll() ?: [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    private static function percentText(float $rate): string
+    {
+        $text = rtrim(rtrim(number_format($rate, 2, '.', ''), '0'), '.');
+        return $text === '' ? '0' : $text;
+    }
+
     /** @return list<array<string, mixed>> */
     private static function financeSales(string $from, string $to, int $loc, int $emp): array
     {

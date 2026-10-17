@@ -250,4 +250,208 @@ final class Sale extends Model
         $stmt->execute([$saleId]);
         return $stmt->fetchAll();
     }
+
+    /**
+     * Paid sales for the dashboard trend, with optional item series.
+     *
+     * @param list<int> $productIds
+     * @return array<string, mixed>
+     */
+    public static function salesTrend(int $locationId, string $range, string $start, string $end, array $productIds): array
+    {
+        $window = self::trendWindow($range, $start, $end);
+        $locSql = $locationId > 0 ? ' AND s.location_id = ?' : '';
+        $params = [$window['from'], $window['to']];
+        if ($locationId > 0) {
+            $params[] = $locationId;
+        }
+        $bucketSql = self::trendBucketSql($window['bucket']);
+        $empty = [
+            'status' => 'success',
+            'range' => $window['range'],
+            'from' => substr($window['from'], 0, 10),
+            'to' => substr($window['to'], 0, 10),
+            'labels' => array_column($window['buckets'], 'label'),
+            'total' => array_fill(0, count($window['buckets']), 0),
+            'series' => [],
+            'choices' => [],
+        ];
+        try {
+            $totals = self::db()->prepare(
+                "SELECT {$bucketSql} AS bucket, SUM(s.final_total) AS amount
+                 FROM sales s
+                 WHERE s.payment_status = 'paid' AND s.created_at BETWEEN ? AND ?{$locSql}
+                 GROUP BY {$bucketSql}"
+            );
+            $totals->execute($params);
+            $totalMap = [];
+            foreach ($totals->fetchAll() as $row) {
+                $totalMap[(string)$row['bucket']] = round((float)$row['amount'], 2);
+            }
+            $choices = self::db()->prepare(
+                "SELECT COALESCE(p.id, 0) AS id, COALESCE(p.name, 'Custom item') AS name,
+                        SUM(si.price * si.quantity) AS amount
+                 FROM sale_items si
+                 JOIN sales s ON s.id = si.sale_id
+                 LEFT JOIN products p ON p.id = si.product_id
+                 WHERE s.payment_status = 'paid'
+                   AND s.created_at BETWEEN ? AND ?
+                   AND si.status NOT IN ('voided', 'refunded'){$locSql}
+                 GROUP BY COALESCE(p.id, 0), COALESCE(p.name, 'Custom item')
+                 ORDER BY amount DESC
+                 LIMIT 40"
+            );
+            $choices->execute($params);
+            $choiceRows = [];
+            foreach ($choices->fetchAll() as $row) {
+                $choiceRows[] = ['id' => (int)$row['id'], 'name' => (string)$row['name']];
+            }
+            $series = [];
+            $wanted = array_values(array_unique(array_map('intval', $productIds)));
+            $wanted = array_slice($wanted, 0, 8);
+            if ($wanted !== []) {
+                $marks = implode(',', array_fill(0, count($wanted), '?'));
+                $itemSql = self::db()->prepare(
+                    "SELECT {$bucketSql} AS bucket, COALESCE(p.id, 0) AS id, COALESCE(p.name, 'Custom item') AS name,
+                            SUM(si.price * si.quantity) AS amount
+                     FROM sale_items si
+                     JOIN sales s ON s.id = si.sale_id
+                     LEFT JOIN products p ON p.id = si.product_id
+                     WHERE s.payment_status = 'paid'
+                       AND s.created_at BETWEEN ? AND ?
+                       AND si.status NOT IN ('voided', 'refunded')
+                       AND COALESCE(p.id, 0) IN ({$marks}){$locSql}
+                     GROUP BY {$bucketSql}, COALESCE(p.id, 0), COALESCE(p.name, 'Custom item')"
+                );
+                $itemParams = [$window['from'], $window['to']];
+                foreach ($wanted as $id) {
+                    $itemParams[] = $id;
+                }
+                if ($locationId > 0) {
+                    $itemParams[] = $locationId;
+                }
+                $itemSql->execute($itemParams);
+                $byId = [];
+                foreach ($itemSql->fetchAll() as $row) {
+                    $id = (int)$row['id'];
+                    $byId[$id]['name'] = (string)$row['name'];
+                    $byId[$id]['points'][(string)$row['bucket']] = round((float)$row['amount'], 2);
+                }
+                foreach ($wanted as $id) {
+                    if (!isset($byId[$id])) {
+                        continue;
+                    }
+                    $data = [];
+                    foreach ($window['buckets'] as $bucket) {
+                        $data[] = $byId[$id]['points'][$bucket['key']] ?? 0;
+                    }
+                    $series[] = ['id' => $id, 'name' => $byId[$id]['name'], 'data' => $data];
+                }
+            }
+            $total = [];
+            foreach ($window['buckets'] as $bucket) {
+                $total[] = $totalMap[$bucket['key']] ?? 0;
+            }
+            $empty['total'] = $total;
+            $empty['series'] = $series;
+            $empty['choices'] = $choiceRows;
+            return $empty;
+        } catch (\Throwable $e) {
+            $empty['status'] = 'error';
+            return $empty;
+        }
+    }
+
+    /** @return array{range: string, bucket: string, from: string, to: string, buckets: list<array{key: string, label: string}>} */
+    private static function trendWindow(string $range, string $start, string $end): array
+    {
+        $range = in_array($range, ['day', 'week', 'month', 'year', 'custom'], true) ? $range : 'week';
+        $today = new \DateTimeImmutable('today');
+        if ($range === 'day') {
+            $fromDay = $today;
+            $toDay = $today;
+            $bucket = 'hour';
+        } elseif ($range === 'month') {
+            $fromDay = $today->modify('first day of this month');
+            $toDay = $today->modify('last day of this month');
+            $bucket = 'day';
+        } elseif ($range === 'year') {
+            $fromDay = $today->setDate((int)$today->format('Y'), 1, 1);
+            $toDay = $today->setDate((int)$today->format('Y'), 12, 31);
+            $bucket = 'month';
+        } elseif ($range === 'custom') {
+            $fromDay = \DateTimeImmutable::createFromFormat('!Y-m-d', $start) ?: $today->modify('-6 days');
+            $toDay = \DateTimeImmutable::createFromFormat('!Y-m-d', $end) ?: $today;
+            if ($fromDay > $toDay) {
+                [$fromDay, $toDay] = [$toDay, $fromDay];
+            }
+            if ((int)$fromDay->diff($toDay)->days > 366) {
+                $fromDay = $toDay->modify('-366 days');
+            }
+            $span = (int)$fromDay->diff($toDay)->days;
+            $bucket = $span === 0 ? 'hour' : ($span <= 62 ? 'day' : ($span <= 180 ? 'week' : 'month'));
+        } else {
+            $fromDay = $today->modify('-6 days');
+            $toDay = $today;
+            $bucket = 'day';
+            $range = 'week';
+        }
+        return [
+            'range' => $range,
+            'bucket' => $bucket,
+            'from' => $fromDay->format('Y-m-d') . ' 00:00:00',
+            'to' => $toDay->format('Y-m-d') . ' 23:59:59',
+            'buckets' => self::trendBuckets($bucket, $fromDay, $toDay),
+        ];
+    }
+
+    /** @return list<array{key: string, label: string}> */
+    private static function trendBuckets(string $bucket, \DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        $out = [];
+        if ($bucket === 'hour') {
+            for ($hour = 0; $hour < 24; $hour++) {
+                $out[] = ['key' => (string)$hour, 'label' => sprintf('%02d:00', $hour)];
+            }
+            return $out;
+        }
+        if ($bucket === 'month') {
+            $cursor = $from->modify('first day of this month');
+            $last = $to->modify('first day of this month');
+            while ($cursor <= $last) {
+                $out[] = ['key' => $cursor->format('Y-m'), 'label' => $cursor->format('M Y')];
+                $cursor = $cursor->modify('+1 month');
+            }
+            return $out;
+        }
+        if ($bucket === 'week') {
+            $cursor = $from->modify('-' . $from->format('N') . ' days +1 day');
+            $last = $to->modify('-' . $to->format('N') . ' days +1 day');
+            while ($cursor <= $last) {
+                $out[] = ['key' => $cursor->format('Y-m-d'), 'label' => $cursor->format('d M')];
+                $cursor = $cursor->modify('+7 days');
+            }
+            return $out;
+        }
+        $cursor = $from;
+        while ($cursor <= $to) {
+            $out[] = ['key' => $cursor->format('Y-m-d'), 'label' => $cursor->format('D j')];
+            $cursor = $cursor->modify('+1 day');
+        }
+        return $out;
+    }
+
+    private static function trendBucketSql(string $bucket): string
+    {
+        if ($bucket === 'hour') {
+            return 'HOUR(s.created_at)';
+        }
+        if ($bucket === 'month') {
+            return "DATE_FORMAT(s.created_at, '%Y-%m')";
+        }
+        if ($bucket === 'week') {
+            return 'DATE(DATE_SUB(s.created_at, INTERVAL WEEKDAY(s.created_at) DAY))';
+        }
+        return 'DATE(s.created_at)';
+    }
 }

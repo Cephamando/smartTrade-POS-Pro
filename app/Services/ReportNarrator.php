@@ -137,6 +137,90 @@ final class ReportNarrator
         throw new \RuntimeException('The note could not be written. Try again in a moment.');
     }
 
+    /** @param array<string, mixed> $trend */
+    public function trendBrief(array $trend, int $locationId): string
+    {
+        $range = (string)($trend['range'] ?? 'week');
+        $rangeName = [
+            'day' => 'today, by hour',
+            'week' => 'the last 7 days',
+            'month' => 'this calendar month',
+            'year' => 'this calendar year, by month',
+            'custom' => 'dates chosen on the chart',
+        ][$range] ?? 'dates chosen on the chart';
+        $labels = array_values($trend['labels'] ?? []);
+        $total = array_values($trend['total'] ?? []);
+        $lines = [
+            'Screen: Dashboard sales trend',
+            'Period: ' . (string)($trend['from'] ?? '') . ' to ' . (string)($trend['to'] ?? '') . ' (' . $rangeName . ')',
+            'Store: ' . $this->storeLabel((string)$locationId),
+            'The total is paid sale receipts. An item series is that product’s lines on those receipts, so the items can add up to less than the total.',
+            'Do not forecast. Describe only these points.',
+        ];
+        $lines[] = 'Total: ' . $this->money(array_sum($total));
+        $lines = array_merge($lines, $this->trendPoints('Total', $labels, $total));
+        $series = is_array($trend['series'] ?? null) ? $trend['series'] : [];
+        if ($series === []) {
+            $lines[] = 'No individual items are drawn. The chart shows the total only.';
+        } else {
+            $lines[] = 'Items drawn on the chart:';
+            foreach ($series as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $name = $this->clip((string)($row['name'] ?? 'Item'));
+                $data = array_values($row['data'] ?? []);
+                $lines[] = $name . ' total: ' . $this->money(array_sum($data));
+                $lines = array_merge($lines, $this->trendPoints($name, $labels, $data));
+            }
+        }
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param list<mixed> $labels
+     * @param list<mixed> $values
+     * @return list<string>
+     */
+    private function trendPoints(string $name, array $labels, array $values): array
+    {
+        $count = min(count($labels), count($values));
+        if ($count === 0) {
+            return [$name . ' has no points.'];
+        }
+        $high = (float)$values[0];
+        $low = (float)$values[0];
+        $highAt = (string)$labels[0];
+        $lowAt = (string)$labels[0];
+        $points = [];
+        for ($i = 0; $i < $count; $i++) {
+            $amount = (float)$values[$i];
+            $label = $this->clip((string)$labels[$i], 24);
+            if ($amount >= $high) {
+                $high = $amount;
+                $highAt = $label;
+            }
+            if ($amount <= $low) {
+                $low = $amount;
+                $lowAt = $label;
+            }
+            if ($count <= 31 || $amount != 0.0) {
+                $points[] = $label . ' ' . $this->money($amount);
+            }
+        }
+        $lines = [
+            $name . ' highest: ' . $highAt . ' ' . $this->money($high),
+            $name . ' lowest: ' . $lowAt . ' ' . $this->money($low),
+        ];
+        if (count($points) > 40) {
+            $points = array_slice($points, 0, 40);
+            $lines[] = $name . ' points (first 40 non-zero when the chart is long): ' . implode('; ', $points);
+        } else {
+            $lines[] = $name . ' points: ' . implode('; ', $points);
+        }
+        return $lines;
+    }
+
     /** @param array<string, mixed> $input */
     public function reportBrief(array $input): string
     {
@@ -215,6 +299,13 @@ final class ReportNarrator
             $lines[] = 'Paid sales included: ' . $this->money($sum);
             $lines[] = 'Taxable sales: ' . $this->money($taxable);
             $lines[] = 'Tax amount: ' . $this->money($tax);
+            $lines[] = 'Time of day does not apply to payroll statutory.';
+            $stat = Report::statutory($start, $end, $locationId, $employeeId);
+            foreach ($stat['rows'] as $levy) {
+                $lines[] = $levy['name'] . ' (' . $levy['office'] . ', ' . $levy['side'] . '): ' . $this->money($levy['amount']) . ' across ' . (int)$levy['slips'] . ' payslips';
+            }
+            $lines[] = 'Payroll statutory total: ' . $this->money($stat['total']);
+            $lines[] = 'PAYE, NAPSA, and NHIMA are each one reporting line. NAPSA and NHIMA already add the worker share and the business share. They are not Smart Invoice documents.';
             return implode("\n", $lines);
         }
 
@@ -638,7 +729,7 @@ final class ReportNarrator
         return match ($type) {
             'items' => 'Items report',
             'categories' => 'Categories report',
-            'taxes' => 'Taxes report',
+            'taxes' => 'Tax and statutory',
             'tips' => 'Tips and surcharges report',
             'finance' => 'Finance report',
             default => 'Receipts report',

@@ -3,6 +3,7 @@ $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 $topColSize = in_array($tier, ['pro', 'pro+', 'enterprise']) ? 'col-md-3' : 'col-md-4';
 $midColSize = in_array($tier, ['pro+', 'enterprise']) ? 'col-md-4' : 'col-md-6';
 $activeShifts = $activeShifts ?? [];
+$explainReady = !empty($explainReady);
 $dates = $dates ?? [];
 $salesData =$salesData ?? [];
 $pmData =$pmData ?? [];
@@ -198,8 +199,34 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
     <div class="col-md-6">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body p-2">
-                <h6 class="card-title text-muted small fw-bold mb-2">7-Day Sales Trend</h6>
-                <div style="height: 180px;">
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <h6 class="card-title text-muted small fw-bold mb-0">Sales trend</h6>
+                    <span class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-dark py-0 js-trend-explain" <?= empty($explainReady) ? 'disabled' : '' ?> title="<?= empty($explainReady) ? 'Save a Gemini key under Settings, Guide' : 'Explain this chart' ?>"><i class="bi bi-stars"></i> Explain</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0" id="trendExpand">Expand</button>
+                    </span>
+                </div>
+                <div class="d-flex flex-wrap gap-1 align-items-center mb-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Sales period">
+                        <?php foreach (['day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year', 'custom' => 'Custom'] as $key => $label): ?>
+                        <button type="button" class="btn <?= $key === 'week' ? 'btn-success' : 'btn-outline-secondary' ?> js-trend-range" data-range="<?= $key ?>"><?= $label ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Chart style">
+                        <button type="button" class="btn btn-success js-trend-style" data-style="line">Line</button>
+                        <button type="button" class="btn btn-outline-secondary js-trend-style" data-style="bar">Bar</button>
+                        <button type="button" class="btn btn-outline-secondary js-trend-style" data-style="both">Both</button>
+                    </div>
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside">Items</button>
+                        <div class="dropdown-menu p-2 small js-trend-items" style="max-height: 240px; overflow: auto; min-width: 220px;"></div>
+                    </div>
+                </div>
+                <div class="js-trend-custom d-none flex-wrap gap-1 mb-2">
+                    <input type="date" class="form-control form-control-sm js-trend-start" style="width: auto;" aria-label="From">
+                    <input type="date" class="form-control form-control-sm js-trend-end" style="width: auto;" aria-label="To">
+                </div>
+                <div id="trendPlot" style="height: 180px; cursor: pointer;" title="Open a larger chart">
                     <canvas id="salesChart"></canvas>
                 </div>
             </div>
@@ -407,19 +434,329 @@ function showPickupModal() {
 </script>
 <?php endif; ?>
 
+<div class="modal fade" id="trendExplainModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Explain these figures</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small" style="white-space: pre-wrap;" id="trendExplainText"></div>
+                <p class="small text-muted mb-0 mt-3">Written from the totals on this chart. This is not a forecast.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="trendModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-md-down">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold me-auto">Sales trend</h5>
+                <button type="button" class="btn btn-sm btn-outline-dark js-trend-explain" <?= empty($explainReady) ? 'disabled' : '' ?> title="<?= empty($explainReady) ? 'Save a Gemini key under Settings, Guide' : 'Explain this chart' ?>"><i class="bi bi-stars"></i> Explain</button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap gap-1 align-items-center mb-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Sales period">
+                        <?php foreach (['day' => 'Day', 'week' => 'Week', 'month' => 'Month', 'year' => 'Year', 'custom' => 'Custom'] as $key => $label): ?>
+                        <button type="button" class="btn <?= $key === 'week' ? 'btn-success' : 'btn-outline-secondary' ?> js-trend-range" data-range="<?= $key ?>"><?= $label ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Chart style">
+                        <button type="button" class="btn btn-success js-trend-style" data-style="line">Line</button>
+                        <button type="button" class="btn btn-outline-secondary js-trend-style" data-style="bar">Bar</button>
+                        <button type="button" class="btn btn-outline-secondary js-trend-style" data-style="both">Both</button>
+                    </div>
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside">Items</button>
+                        <div class="dropdown-menu p-2 small js-trend-items" style="max-height: 280px; overflow: auto; min-width: 240px;"></div>
+                    </div>
+                </div>
+                <div class="js-trend-custom d-none flex-wrap gap-1 mb-2">
+                    <input type="date" class="form-control form-control-sm js-trend-start" style="width: auto;" aria-label="From">
+                    <input type="date" class="form-control form-control-sm js-trend-end" style="width: auto;" aria-label="To">
+                </div>
+                <div style="height: min(62vh, 560px);">
+                    <canvas id="salesChartLarge"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const salesCanvas = document.getElementById('salesChart');
-    if (salesCanvas) {
-    new Chart(salesCanvas.getContext('2d'), {
-        type: 'line',
-        data: {
+    const trendColors = ['#0d6efd', '#fd7e14', '#6f42c1', '#d63384', '#20c997', '#dc3545', '#0dcaf0', '#6c757d'];
+    const trendState = {
+        range: 'week',
+        style: 'line',
+        start: '',
+        end: '',
+        items: [],
+        payload: {
             labels: <?= json_encode($dates) ?>,
-            datasets: [{ label: 'Revenue (ZMW)', data: <?= json_encode($salesData) ?>, borderColor: '#198754', backgroundColor: 'rgba(25, 135, 84, 0.1)', fill: true, tension: 0.3 }]
+            total: <?= json_encode(array_map('floatval', $salesData)) ?>,
+            series: [],
+            choices: []
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
+        card: null,
+        large: null
+    };
+
+    function trendDatasets(payload, style) {
+        const hasItems = (payload.series || []).length > 0;
+        const datasets = [{
+            type: style === 'line' ? 'line' : 'bar',
+            label: 'Total',
+            data: payload.total || [],
+            borderColor: '#198754',
+            backgroundColor: style === 'line' ? 'rgba(25, 135, 84, 0.12)' : 'rgba(25, 135, 84, 0.8)',
+            fill: style === 'line',
+            tension: 0.3,
+            borderWidth: 2,
+            order: 2
+        }];
+        (payload.series || []).forEach(function (series, index) {
+            const color = trendColors[index % trendColors.length];
+            const asLine = style !== 'bar';
+            datasets.push({
+                type: asLine ? 'line' : 'bar',
+                label: series.name,
+                data: series.data || [],
+                borderColor: color,
+                backgroundColor: asLine ? 'transparent' : color,
+                fill: false,
+                tension: 0.3,
+                borderWidth: 2,
+                pointRadius: (payload.labels || []).length > 24 ? 0 : 3,
+                order: 1
+            });
+        });
+        return { datasets: datasets, legend: hasItems };
     }
+
+    function drawTrend(canvas, compact) {
+        if (!canvas || typeof Chart === 'undefined') return null;
+        const built = trendDatasets(trendState.payload, trendState.style);
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        return new Chart(canvas.getContext('2d'), {
+            type: trendState.style === 'line' ? 'line' : 'bar',
+            data: { labels: trendState.payload.labels || [], datasets: built.datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: built.legend, position: compact ? 'bottom' : 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (item) {
+                                const value = Number(item.parsed.y || 0);
+                                return item.dataset.label + ': K' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true },
+                    x: { ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: compact ? 8 : 16 } }
+                }
+            }
+        });
+    }
+
+    function paintTrends() {
+        trendState.card = drawTrend(document.getElementById('salesChart'), true);
+        const large = document.getElementById('salesChartLarge');
+        if (large && document.getElementById('trendModal').classList.contains('show')) {
+            trendState.large = drawTrend(large, false);
+        }
+    }
+
+    function renderItemMenus() {
+        document.querySelectorAll('.js-trend-items').forEach(function (menu) {
+            menu.innerHTML = '';
+            const choices = trendState.payload.choices || [];
+            if (!choices.length) {
+                menu.innerHTML = '<div class="text-muted px-1">No items in this period.</div>';
+                return;
+            }
+            const note = document.createElement('div');
+            note.className = 'text-muted px-1 mb-1';
+            note.textContent = 'Up to 8 items. Each one is drawn with the total.';
+            menu.appendChild(note);
+            choices.forEach(function (choice) {
+                const row = document.createElement('label');
+                row.className = 'd-flex align-items-center gap-2 py-1 px-1';
+                const box = document.createElement('input');
+                box.type = 'checkbox';
+                box.className = 'form-check-input m-0';
+                box.value = String(choice.id);
+                box.checked = trendState.items.indexOf(String(choice.id)) !== -1;
+                box.addEventListener('change', function () {
+                    const id = String(choice.id);
+                    if (box.checked) {
+                        if (trendState.items.length >= 8) {
+                            box.checked = false;
+                            return;
+                        }
+                        trendState.items.push(id);
+                    } else {
+                        trendState.items = trendState.items.filter(function (kept) { return kept !== id; });
+                    }
+                    document.querySelectorAll('.js-trend-items input[value="' + id + '"]').forEach(function (other) {
+                        other.checked = box.checked;
+                    });
+                    loadTrend();
+                });
+                const text = document.createElement('span');
+                text.textContent = choice.name;
+                row.appendChild(box);
+                row.appendChild(text);
+                menu.appendChild(row);
+            });
+        });
+    }
+
+    function syncTrendButtons() {
+        document.querySelectorAll('.js-trend-range').forEach(function (button) {
+            const on = button.dataset.range === trendState.range;
+            button.classList.toggle('btn-success', on);
+            button.classList.toggle('btn-outline-secondary', !on);
+        });
+        document.querySelectorAll('.js-trend-style').forEach(function (button) {
+            const on = button.dataset.style === trendState.style;
+            button.classList.toggle('btn-success', on);
+            button.classList.toggle('btn-outline-secondary', !on);
+        });
+        document.querySelectorAll('.js-trend-custom').forEach(function (box) {
+            box.classList.toggle('d-none', trendState.range !== 'custom');
+            box.classList.toggle('d-flex', trendState.range === 'custom');
+        });
+    }
+
+    function loadTrend() {
+        const body = new URLSearchParams();
+        body.set('sales_trend', '1');
+        body.set('range', trendState.range);
+        body.set('start', trendState.start);
+        body.set('end', trendState.end);
+        trendState.items.forEach(function (id) { body.append('items[]', id); });
+        fetch('index.php?page=dashboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (!data || data.status !== 'success') return;
+            trendState.payload = data;
+            if (data.from) {
+                trendState.start = data.from;
+                document.querySelectorAll('.js-trend-start').forEach(function (input) { input.value = data.from; });
+            }
+            if (data.to) {
+                trendState.end = data.to;
+                document.querySelectorAll('.js-trend-end').forEach(function (input) { input.value = data.to; });
+            }
+            renderItemMenus();
+            paintTrends();
+        })
+        .catch(function () {});
+    }
+
+    function openTrend() {
+        const modalEl = document.getElementById('trendModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    }
+    document.getElementById('trendModal').addEventListener('shown.bs.modal', function () {
+        trendState.large = drawTrend(document.getElementById('salesChartLarge'), false);
+    });
+
+    document.querySelectorAll('.js-trend-range').forEach(function (button) {
+        button.addEventListener('click', function () {
+            trendState.range = button.dataset.range;
+            syncTrendButtons();
+            if (trendState.range !== 'custom' || (trendState.start && trendState.end)) loadTrend();
+        });
+    });
+    document.querySelectorAll('.js-trend-style').forEach(function (button) {
+        button.addEventListener('click', function () {
+            trendState.style = button.dataset.style;
+            syncTrendButtons();
+            paintTrends();
+            if (document.getElementById('trendModal').classList.contains('show')) {
+                trendState.large = drawTrend(document.getElementById('salesChartLarge'), false);
+            }
+        });
+    });
+    document.querySelectorAll('.js-trend-start, .js-trend-end').forEach(function (input) {
+        input.addEventListener('change', function () {
+            const start = input.classList.contains('js-trend-start');
+            document.querySelectorAll(start ? '.js-trend-start' : '.js-trend-end').forEach(function (other) {
+                other.value = input.value;
+            });
+            trendState.start = (document.querySelector('.js-trend-start') || {}).value || '';
+            trendState.end = (document.querySelector('.js-trend-end') || {}).value || '';
+            trendState.range = 'custom';
+            syncTrendButtons();
+            if (trendState.start && trendState.end) loadTrend();
+        });
+    });
+    function explainTrend(button) {
+        if (!button || button.disabled) return;
+        const text = document.getElementById('trendExplainText');
+        const modalEl = document.getElementById('trendExplainModal');
+        if (!text || !modalEl || !window.bootstrap) return;
+        const label = button.innerHTML;
+        document.querySelectorAll('.js-trend-explain').forEach(function (el) { el.disabled = true; });
+        text.classList.remove('text-danger');
+        text.textContent = 'Writing a note from the points on this chart…';
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        const body = new URLSearchParams();
+        body.set('explain_trend', '1');
+        body.set('range', trendState.range);
+        body.set('start', trendState.start);
+        body.set('end', trendState.end);
+        trendState.items.forEach(function (id) { body.append('items[]', id); });
+        fetch('index.php?page=dashboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success') {
+                text.textContent = data.text || '';
+            } else {
+                text.classList.add('text-danger');
+                text.textContent = (data && data.msg) ? data.msg : 'The note could not be written.';
+            }
+        })
+        .catch(function () {
+            text.classList.add('text-danger');
+            text.textContent = 'The note could not be written. Try again in a moment.';
+        })
+        .finally(function () {
+            document.querySelectorAll('.js-trend-explain').forEach(function (el) {
+                el.disabled = <?= empty($explainReady) ? 'true' : 'false' ?>;
+                if (el === button) el.innerHTML = label;
+            });
+        });
+    }
+    document.querySelectorAll('.js-trend-explain').forEach(function (button) {
+        button.addEventListener('click', function () { explainTrend(button); });
+    });
+
+    const plot = document.getElementById('trendPlot');
+    if (plot) plot.addEventListener('click', openTrend);
+    const expand = document.getElementById('trendExpand');
+    if (expand) expand.addEventListener('click', openTrend);
+    paintTrends();
+    loadTrend();
 
     const payCanvas = document.getElementById('paymentChart');
     if (!payCanvas) return;

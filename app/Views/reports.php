@@ -308,7 +308,7 @@ $explainFields = [
         <a class="nav-link rounded-pill border <?= $reportType == 'categories' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=categories&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Categories</a>
     </li>
     <li class="nav-item">
-        <a class="nav-link rounded-pill border <?= $reportType == 'taxes' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=taxes&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Taxes</a>
+        <a class="nav-link rounded-pill border <?= $reportType == 'taxes' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=taxes&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Tax & statutory</a>
     </li>
     <li class="nav-item">
         <a class="nav-link rounded-pill border <?= $reportType == 'tips' ? 'active bg-success text-white border-success fw-bold' : 'text-dark border-secondary' ?>" href="index.php?page=reports&type=tips&start=<?= $startDate ?>&end=<?= $endDate ?>&location=<?= $locationId ?>&employee_id=<?= $employeeId ?>&daypart=<?= htmlspecialchars($daypart ?? '') ?>">Tips & Surcharges</a>
@@ -337,6 +337,10 @@ $explainFields = [
         </table>
     </div>
 </div>
+<?php endif; ?>
+
+<?php if ($reportType === 'taxes'): ?>
+<p class="small text-muted px-3">VAT is the sales tax already sent with each Smart Invoice. PAYE, NAPSA, and NHIMA are taken from paid pay runs in this period. NAPSA is a percentage of gross and NHIMA is a percentage of basic, each shown once for the worker and the business together. Open a row to see each payslip. They are filed with ZRA, NAPSA, and NHIMA, and they are not Smart Invoice documents. The time-of-day filter does not apply to payroll.</p>
 <?php endif; ?>
 
 <div class="table-responsive report-table-wrap p-3 bg-white">
@@ -404,10 +408,10 @@ $explainFields = [
 
         <?php elseif($reportType === 'taxes'): ?>
         <thead class="table-light text-muted small text-uppercase">
-            <tr><th>Tax Name</th><th>Tax Rate</th><th class="text-center">Taxable Sales</th><th class="text-end">Tax Amount</th></tr>
+            <tr><th>Levy</th><th>Filed with</th><th>Basis</th><th class="text-end">Amount</th></tr>
         </thead>
         <tbody>
-            <?php 
+            <?php
             $taxableSales = 0;
             $taxAmount = 0;
             foreach($reportData as $row) {
@@ -420,11 +424,27 @@ $explainFields = [
             }
             if ($taxableSales > 0):
             ?>
-            <tr style="cursor:pointer; transition: 0.2s;" onclick="viewTaxDetails('Value Added Tax', '16%')" onmouseover="this.classList.add('bg-light')" onmouseout="this.classList.remove('bg-light')">
-                <td class="fw-bold text-primary report-card-title" data-label="Tax">Value Added Tax (VAT) <i class="bi bi-box-arrow-up-right ms-1 small"></i></td>
-                <td data-label="Rate">16%</td>
-                <td class="text-center" data-label="Taxable sales">ZMW <?= number_format($taxableSales, 2) ?></td>
-                <td class="text-end fw-bold text-success" data-label="Tax amount">ZMW <?= number_format($taxAmount, 2) ?></td>
+            <tr style="cursor:pointer;" onclick="viewTaxDetails('Value Added Tax', '16%')">
+                <td class="fw-bold text-primary report-card-title" data-label="Levy">Value added tax <i class="bi bi-box-arrow-up-right ms-1 small"></i></td>
+                <td data-label="Filed with">ZRA Smart Invoice</td>
+                <td data-label="Basis">16% worked back from paid receipts (ZMW <?= number_format($taxableSales, 2) ?> taxable)</td>
+                <td class="text-end fw-bold text-success" data-label="Amount">ZMW <?= number_format($taxAmount, 2) ?></td>
+            </tr>
+            <?php endif; ?>
+            <?php foreach (($statutory['rows'] ?? []) as $levy): ?>
+            <tr <?= $levy['slips'] > 0 ? 'style="cursor:pointer;" onclick="viewStatutory(\'' . htmlspecialchars($levy['key'], ENT_QUOTES) . '\', \'' . htmlspecialchars($levy['name'], ENT_QUOTES) . '\')"' : '' ?>>
+                <td class="fw-bold report-card-title" data-label="Levy"><?= htmlspecialchars($levy['name']) ?><?php if ($levy['slips'] > 0): ?> <i class="bi bi-box-arrow-up-right ms-1 small text-primary"></i><?php endif; ?></td>
+                <td data-label="Filed with"><?= htmlspecialchars($levy['office']) ?></td>
+                <td data-label="Basis"><?= htmlspecialchars($levy['side']) ?> · <?= (int)$levy['slips'] ?> payslip<?= $levy['slips'] === 1 ? '' : 's' ?></td>
+                <td class="text-end fw-bold" data-label="Amount">ZMW <?= number_format($levy['amount'], 2) ?></td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (!empty($statutory['rows'])): ?>
+            <tr>
+                <td class="fw-bold report-card-title" data-label="Levy">Payroll statutory total</td>
+                <td data-label="Filed with">Not one return</td>
+                <td data-label="Basis">PAYE plus NAPSA and NHIMA, both sides</td>
+                <td class="text-end fw-bold" data-label="Amount">ZMW <?= number_format($statutory['total'] ?? 0, 2) ?></td>
             </tr>
             <?php endif; ?>
         </tbody>
@@ -466,16 +486,16 @@ $explainFields = [
         <?php endif; ?>
     </table>
     <?php if(empty($reportData) && $reportType !== 'taxes'): ?><div class="p-5 text-center text-muted"><i class="bi bi-receipt display-1 text-light"></i><p class="mt-3">No data available for the selected period.</p></div><?php endif; ?>
-    <?php if($reportType === 'taxes' && $taxableSales == 0): ?><div class="p-5 text-center text-muted"><i class="bi bi-receipt display-1 text-light"></i><p class="mt-3">No taxable sales found for the selected period.</p></div><?php endif; ?>
+    <?php if($reportType === 'taxes' && $taxableSales == 0 && (float)($statutory['total'] ?? 0) == 0): ?><div class="p-5 text-center text-muted"><i class="bi bi-receipt display-1 text-light"></i><p class="mt-3">No VAT and no paid payroll statutory in this period.</p></div><?php endif; ?>
 </div>
 
 <!-- Receipt Viewer Modal (Bumped z-index to overlay tax modal) -->
 <div class="modal fade" id="reportModal" tabindex="-1" style="z-index: 1060;">
     <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
         <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-dark text-white"><h5 class="modal-title">Receipt</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body p-0" style="height: min(500px, 70vh);"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div>
-            <div class="modal-footer border-0 bg-light"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-success fw-bold" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer"></i> Print Receipt</button></div>
+            <div class="modal-header bg-dark text-white"><h5 class="modal-title" id="reportModalTitle">Receipt</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body p-0" id="reportModalBody" style="height: min(500px, 70vh);"><iframe id="reportFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div>
+            <div class="modal-footer border-0 bg-light"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-success fw-bold" id="reportPrintBtn" onclick="document.getElementById('reportFrame').contentWindow.print()"><i class="bi bi-printer"></i> Print</button></div>
         </div>
     </div>
 </div>
@@ -540,6 +560,28 @@ $explainFields = [
     </div>
 </div>
 
+<div class="modal fade" id="statutoryModal" tabindex="-1" style="z-index: 1055;">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-md-down">
+        <div class="modal-content border-0 shadow-lg border-top border-4 border-success">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-coin text-success me-2"></i> <span id="statutoryModalName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 p-md-4">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-muted small text-uppercase" id="statutoryHead">
+                        <tr><th>Payslip</th><th>Pay run</th><th>Date</th><th class="text-end">Amount</th></tr>
+                    </thead>
+                    <tbody id="statutoryBody"></tbody>
+                </table>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <link href="vendor/datatables/dataTables.bootstrap5.min.css" rel="stylesheet">
 <script src="vendor/datatables/jquery.dataTables.min.js"></script>
 <script src="vendor/datatables/dataTables.bootstrap5.min.js"></script>
@@ -592,7 +634,12 @@ $explainFields = [
         document.getElementById('loyverseFilterForm').submit();
     }
 
-    function showReceiptModal(url) { document.getElementById('reportFrame').src = url; new bootstrap.Modal(document.getElementById('reportModal')).show(); }
+    function showReceiptModal(url, title) {
+        document.getElementById('reportModalTitle').textContent = title || 'Receipt';
+        document.getElementById('reportModalBody').style.height = title ? 'min(78vh, 820px)' : 'min(500px, 70vh)';
+        document.getElementById('reportFrame').src = url;
+        new bootstrap.Modal(document.getElementById('reportModal')).show();
+    }
 
     function viewSaleBreakdown(saleId) {
         document.getElementById('modalSaleIdBadge').innerText = '#' + saleId;
@@ -648,6 +695,58 @@ $explainFields = [
             }
         }).catch(err => {
             document.getElementById('saleBreakdownBody').innerHTML = '<tr><td colspan="3" class="text-center py-3 text-muted">Unable to load sale details.</td></tr>';
+        });
+    }
+
+    function viewStatutory(key, name) {
+        document.getElementById('statutoryModalName').textContent = name;
+        let modal = new bootstrap.Modal(document.getElementById('statutoryModal'));
+        modal.show();
+        let tbody = document.getElementById('statutoryBody');
+        let head = document.getElementById('statutoryHead');
+        head.innerHTML = '<tr><th>Payslip</th><th>Pay run</th><th>Date</th><th class="text-end">Amount</th></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Loading payslips…</td></tr>';
+        let formData = new URLSearchParams();
+        formData.append('fetch_statutory_details', '1');
+        formData.append('key', key);
+        formData.append('start', document.getElementById('actualStart').value);
+        formData.append('end', document.getElementById('actualEnd').value);
+        formData.append('location', document.querySelector('select[name="location"]').value);
+        formData.append('employee_id', document.querySelector('select[name="employee_id"]').value);
+        fetch('index.php?page=reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            tbody.innerHTML = '';
+            const split = !!(data && data.split);
+            const cols = split ? 6 : 4;
+            head.innerHTML = split
+                ? '<tr><th>Payslip</th><th>Pay run</th><th>Date</th><th class="text-end">Employee</th><th class="text-end">Employer</th><th class="text-end">Total</th></tr>'
+                : '<tr><th>Payslip</th><th>Pay run</th><th>Date</th><th class="text-end">Amount</th></tr>';
+            if (!data || data.status !== 'success' || !data.data.length) {
+                tbody.innerHTML = '<tr><td colspan="' + cols + '" class="text-center text-muted py-3">No payslips for this levy.</td></tr>';
+                return;
+            }
+            data.data.forEach(row => {
+                const person = '<td class="fw-bold"><a href="javascript:void(0)" class="text-decoration-none" onclick="showReceiptModal(\'index.php?page=payslip&id=' + row.slip_id + '\', \'Payslip\')">' + escapeHtml(row.name) + '</a></td>'
+                    + '<td><a href="javascript:void(0)" class="text-decoration-none" onclick="showReceiptModal(\'index.php?page=payslip&run_id=' + row.run_id + '\', \'Pay run\')">' + escapeHtml(row.run) + '</a></td>'
+                    + '<td class="text-muted">' + escapeHtml(row.date) + '</td>';
+                tbody.innerHTML += split
+                    ? '<tr>' + person + '<td class="text-end">ZMW ' + row.employee + '</td><td class="text-end">ZMW ' + row.employer + '</td><td class="text-end fw-bold">ZMW ' + row.amount + '</td></tr>'
+                    : '<tr>' + person + '<td class="text-end fw-bold">ZMW ' + row.amount + '</td></tr>';
+            });
+        })
+        .catch(() => {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">The payslips could not be loaded.</td></tr>';
+        });
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
         });
     }
 

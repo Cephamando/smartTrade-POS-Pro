@@ -123,7 +123,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                             <?php endif; ?>
                             <input type="hidden" name="slip[<?= $eid ?>][subtraction]" value="<?= htmlspecialchars($manualSub) ?>">
                             <input type="hidden" name="slip[<?= $eid ?>][subtraction_label]" value="<?= htmlspecialchars($manualLabel) ?>">
-                            <?php if ($s['lines']): ?><div class="small text-muted"><?php foreach ($s['lines'] as $ln): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($ln['name']) ?> <?= $ln['kind'] === 'deduction' ? '−' : '+' ?><?= $money($ln['amount']) ?></span><?php endforeach; ?></div><?php endif; ?>
+                            <?php if ($s['lines']): ?><div class="small text-muted"><?php foreach ($s['lines'] as $ln): $pct = ''; if (($ln['calc'] ?? '') === 'percent' && isset($ln['rate'])) { $pct = ' (' . rtrim(rtrim(number_format((float)$ln['rate'], 2, '.', ''), '0'), '.') . '% of basic)'; } ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($ln['name']) ?> <?= $ln['kind'] === 'deduction' ? '−' : '+' ?><?= $money($ln['amount']) ?><?= $pct ?></span><?php endforeach; ?></div><?php endif; ?>
                         </td>
                         <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.5" min="0" name="slip[<?= $eid ?>][days_worked]" class="form-control form-control-sm text-end" value="<?= $workedDays !== null && $workedDays !== '' ? htmlspecialchars(rtrim(rtrim(number_format((float)$workedDays, 2, '.', ''), '0'), '.')) : '' ?>" placeholder="full"><?php else: ?><?= $workedDays !== null && $workedDays !== '' ? rtrim(rtrim(number_format((float)$workedDays, 2, '.', ''), '0'), '.') : '—' ?><?php endif; ?></td>
                         <td class="text-end"><?php if ($isDraft): ?><input type="number" step="0.01" min="0" name="slip[<?= $eid ?>][hours_worked]" class="form-control form-control-sm text-end" value="<?= $s['hours_worked'] !== null && $s['hours_worked'] !== '' ? htmlspecialchars($hoursText($s['hours_worked'])) : htmlspecialchars($hoursText($workedHours)) ?>"><?php else: ?><?= $hoursText($workedHours) ?><?php endif; ?></td>
@@ -332,7 +332,7 @@ function applyExtra() {
                     <?php foreach ($components as $c): if (!$c['is_active']) continue; ?>
                     <div class="row g-2 align-items-center mb-1">
                         <div class="col-7 small"><span class="badge <?= $c['kind'] === 'deduction' ? 'bg-danger' : 'bg-success' ?> me-1"><?= $c['kind'] === 'deduction' ? '−' : '+' ?></span><?= htmlspecialchars($c['name']) ?> <span class="text-muted"><?= $c['calc'] === 'percent' ? '(% of basic)' : '' ?></span></div>
-                        <div class="col-5"><input type="number" step="0.01" min="0" name="comp[<?= (int)$c['id'] ?>]" class="form-control form-control-sm" value="<?= isset($ec[$c['id']]) ? htmlspecialchars((string)$ec[$c['id']]) : '' ?>" placeholder="<?= (float)$c['amount'] > 0 ? 'default ' . $c['amount'] : '0' ?>"></div>
+                        <div class="col-5"><input type="number" step="0.01" min="0" name="comp[<?= (int)$c['id'] ?>]" class="form-control form-control-sm<?= $c['calc'] === 'percent' ? ' js-pct-rate' : '' ?>" value="<?= isset($ec[$c['id']]) ? htmlspecialchars((string)$ec[$c['id']]) : '' ?>" placeholder="<?= (float)$c['amount'] > 0 ? 'default ' . $c['amount'] : '0' ?>"><?php if ($c['calc'] === 'percent'): ?><div class="form-text js-pct-result"></div><?php endif; ?></div>
                     </div>
                     <?php endforeach; ?>
                     <div class="mt-3">
@@ -418,6 +418,27 @@ function applyExtra() {
         const locId = opt.getAttribute('data-location') || '0';
         setSelect(document.querySelector('select[name="location_id"]'), locId === '0' ? '' : locId);
     });
+    function percentPreview() {
+        const monthly = document.querySelector('[name="basic_salary"]');
+        const basic = monthly ? parseFloat(monthly.value || '0') : 0;
+        const showBasic = sel.value === 'monthly' && basic > 0;
+        document.querySelectorAll('.js-pct-rate').forEach(function (input) {
+            const note = input.parentElement.querySelector('.js-pct-result');
+            if (!note) return;
+            const rate = parseFloat(input.value || '0');
+            if (!(rate > 0) || !showBasic) {
+                note.textContent = 'Percent of basic pay on the payslip';
+                return;
+            }
+            const amount = Math.round(basic * rate) / 100;
+            note.textContent = String(rate).replace(/\.0+$/, '') + '% of K' + basic.toFixed(2) + ' = K' + amount.toFixed(2);
+        });
+    }
+    document.querySelectorAll('.js-pct-rate').forEach(function (input) { input.addEventListener('input', percentPreview); });
+    const basicInput = document.querySelector('[name="basic_salary"]');
+    if (basicInput) basicInput.addEventListener('input', percentPreview);
+    sel.addEventListener('change', percentPreview);
+    percentPreview();
 })();
 </script>
 

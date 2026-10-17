@@ -4,15 +4,54 @@ namespace App\Controllers;
 
 use App\Models\Location;
 use App\Models\Sale;
+use App\Models\Setting;
 use App\Models\Shift;
 use App\Models\User;
 use App\Services\Flutterwave;
+use App\Services\Guide;
+use App\Services\ReportNarrator;
 
 final class DashboardController extends Controller
 {
     public function index(): void
     {
         $tab = (string)($_GET['tab'] ?? '') === 'settlements' ? 'settlements' : 'overview';
+        if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['explain_trend'])) {
+            if (!in_array($this->role(), ['admin', 'manager', 'dev'], true)) {
+                $this->jsonExit(['status' => 'error', 'msg' => 'You do not have permission to explain this chart.']);
+            }
+            try {
+                $ids = [];
+                foreach ((array)($_POST['items'] ?? []) as $id) {
+                    $ids[] = (int)$id;
+                }
+                $trend = Sale::salesTrend(
+                    $this->locationId(),
+                    (string)($_POST['range'] ?? 'week'),
+                    (string)($_POST['start'] ?? ''),
+                    (string)($_POST['end'] ?? ''),
+                    $ids
+                );
+                $narrator = new ReportNarrator();
+                $text = $narrator->explain(Setting::all(), $narrator->trendBrief($trend, $this->locationId()));
+                $this->jsonExit(['status' => 'success', 'text' => $text]);
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() !== '' ? $e->getMessage() : 'The note could not be written.']);
+            }
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['sales_trend'])) {
+            $ids = [];
+            foreach ((array)($_POST['items'] ?? []) as $id) {
+                $ids[] = (int)$id;
+            }
+            $this->jsonExit(Sale::salesTrend(
+                $this->locationId(),
+                (string)($_POST['range'] ?? 'week'),
+                (string)($_POST['start'] ?? ''),
+                (string)($_POST['end'] ?? ''),
+                $ids
+            ));
+        }
         if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['sync_settlements'])) {
             $this->requireRole(['admin', 'manager', 'dev']);
             try {
@@ -57,6 +96,7 @@ final class DashboardController extends Controller
             'dashTab' => $tab,
             'settlement' => $settlement,
             'payout' => $payout,
+            'explainReady' => Guide::ready(Setting::all()),
             'activeShifts' => Shift::openWithStats(),
             'tier' => defined('LICENSE_TIER') ? LICENSE_TIER : 'lite',
         ]));

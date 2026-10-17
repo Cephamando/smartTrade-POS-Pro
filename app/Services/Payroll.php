@@ -277,23 +277,28 @@ final class Payroll
         $deductions = 0.0;
         $lines = [];
         foreach ($components as $c) {
-            $amt = (float)($c['amount'] ?? 0);
-            if (($c['calc'] ?? 'fixed') === 'percent') {
-                $amt = round($basic * $amt / 100, 2);
-            }
+            $rate = (float)($c['amount'] ?? 0);
+            $isPercent = ($c['calc'] ?? 'fixed') === 'percent';
+            $amt = $isPercent ? round($basic * $rate / 100, 2) : $rate;
             if ($amt == 0.0) {
                 continue;
             }
-            if (($c['kind'] ?? 'earning') === 'deduction') {
+            $line = ['name' => $c['name'], 'kind' => ($c['kind'] ?? 'earning') === 'deduction' ? 'deduction' : 'earning', 'amount' => round($amt, 2)];
+            if ($isPercent) {
+                $line['calc'] = 'percent';
+                $line['rate'] = $rate;
+                $line['base'] = $basic;
+            }
+            if ($line['kind'] === 'deduction') {
                 $deductions += $amt;
-                $lines[] = ['name' => $c['name'], 'kind' => 'deduction', 'amount' => round($amt, 2)];
             } else {
                 $allowances += $amt;
-                if (!empty($c['is_taxable'])) {
+                $line['taxable'] = !empty($c['is_taxable']);
+                if ($line['taxable']) {
                     $taxableAllow += $amt;
                 }
-                $lines[] = ['name' => $c['name'], 'kind' => 'earning', 'amount' => round($amt, 2), 'taxable' => !empty($c['is_taxable'])];
             }
+            $lines[] = $line;
         }
         $subtraction = isset($input['subtraction']) && $input['subtraction'] !== '' ? round((float)$input['subtraction'], 2) : 0.0;
         if ($subtraction > 0) {
@@ -516,7 +521,7 @@ final class Payroll
         $slips->execute([$id]);
         $run['slips'] = array_map(function ($s) {
             $s['lines'] = json_decode((string)$s['breakdown'], true) ?: [];
-            return $s;
+            return $this->annotateSlip($s);
         }, $slips->fetchAll());
         $userIds = [];
         foreach ($run['slips'] as $s) {
@@ -542,6 +547,7 @@ final class Payroll
         $row = $stmt->fetch();
         if ($row) {
             $row['lines'] = json_decode((string)$row['breakdown'], true) ?: [];
+            $row = $this->annotateSlip($row);
             $uid = (int)($row['user_id'] ?? 0);
             $att = $uid > 0
                 ? ($this->attendanceForPeriod([$uid], (string)$row['period_start'], (string)$row['period_end'])[$uid] ?? null)
@@ -555,6 +561,161 @@ final class Payroll
                 : $row['attendance']['days'];
         }
         return $row ?: null;
+    }
+
+    /**
+     * Percent lines keep the rate and the basic they were taken from, so a payslip can show
+     * "10% of basic K8,000.00" next to the kwacha. A saved line that stored the bare percent
+     * (10 instead of 10% of basic) is turned into that kwacha and the slip totals follow it.
+     */
+    private function annotateSlip(array $row): array
+    {
+        [$lines, $changed] = $this->describeLines(
+            $row['lines'] ?? [],
+            (int)($row['employee_id'] ?? 0),
+            (float)($row['basic_pay'] ?? 0)
+        );
+        $row['lines'] = $lines;
+        if ($changed) {
+            $row = $this->retotalFromLines($row);
+        }
+        $cfg = $this->config();
+        $row['napsa_note'] = $this->levyNote(
+            (float)($row['napsa_employee'] ?? 0),
+            (float)($row['gross_pay'] ?? 0),
+            'gross',
+            (float)$cfg['napsa_rate'],
+            (float)$cfg['napsa_cap']
+        );
+        $row['nhima_note'] = $this->levyNote(
+            (float)($row['nhima_employee'] ?? 0),
+            (float)($row['basic_pay'] ?? 0),
+            'basic',
+            (float)$cfg['nhima_rate'],
+            null
+        );
+        return $row;
+    }
+
+    /** @return array{0: array, 1: bool} */
+    private function describeLines(array $lines, int $employeeId, float $basic): array
+    {
+        $byName = [];
+        foreach ($this->components() as $c) {
+            $byName[strtolower((string)$c['name'])] = $c;
+        }
+        $rates = [];
+        if ($employeeId > 0) {
+            $stmt = $this->pdo->prepare('SELECT component_id, amount FROM employee_components WHERE employee_id = ?');
+            $stmt->execute([$employeeId]);
+            foreach ($stmt->fetchAll() as $ec) {
+                $rates[(int)$ec['component_id']] = (float)$ec['amount'];
+            }
+        }
+        $changed = false;
+        foreach ($lines as &$ln) {
+            if (!empty($ln['manual']) || (($ln['calc'] ?? '') === 'percent' && isset($ln['rate']))) {
+                continue;
+            }
+            $comp = $byName[strtolower((string)($ln['name'] ?? ''))] ?? null;
+            if (!$comp || ($comp['calc'] ?? '') !== 'percent' || $basic <= 0) {
+                continue;
+            }
+            $rate = $rates[(int)$comp['id']] ?? (float)$comp['amount'];
+            $expected = round($basic * $rate / 100, 2);
+            $amount = (float)($ln['amount'] ?? 0);
+            if (abs($amount - $expected) < 0.02) {
+                $ln['calc'] = 'percent';
+                $ln['rate'] = $rate;
+                $ln['base'] = $basic;
+            } elseif (abs($amount - $rate) < 0.02 && abs($expected - $amount) >= 0.02) {
+                $ln['amount'] = $expected;
+                $ln['calc'] = 'percent';
+                $ln['rate'] = $rate;
+                $ln['base'] = $basic;
+                if (($ln['kind'] ?? 'earning') !== 'deduction') {
+                    $ln['taxable'] = !empty($comp['is_taxable']);
+                }
+                $changed = true;
+            } else {
+                $implied = round($amount / $basic * 100, 2);
+                if ($implied > 0 && abs(round($basic * $implied / 100, 2) - $amount) < 0.02) {
+                    $ln['calc'] = 'percent';
+                    $ln['rate'] = $implied;
+                    $ln['base'] = $basic;
+                }
+            }
+        }
+        unset($ln);
+        return [$lines, $changed];
+    }
+
+    private function retotalFromLines(array $row): array
+    {
+        $basic = round((float)$row['basic_pay'], 2);
+        $tips = round((float)$row['tips'], 2);
+        $allowances = 0.0;
+        $taxableAllow = 0.0;
+        $deductions = 0.0;
+        foreach ($row['lines'] as $ln) {
+            $amt = round((float)($ln['amount'] ?? 0), 2);
+            if (($ln['kind'] ?? 'earning') === 'deduction') {
+                $deductions += $amt;
+                continue;
+            }
+            $allowances += $amt;
+            if (!empty($ln['taxable'])) {
+                $taxableAllow += $amt;
+            }
+        }
+        $cfg = $this->config();
+        $gross = round($basic + $allowances + $tips, 2);
+        $taxable = $basic + $taxableAllow + ($cfg['tips_taxable'] ? $tips : 0);
+        $napsaEmp = $napsaEr = 0.0;
+        if (!$this->isExempt($row, 'napsa_exempt')) {
+            $napsaEmp = min(round($gross * $cfg['napsa_rate'] / 100, 2), $cfg['napsa_cap']);
+            $napsaEr = $napsaEmp;
+        }
+        $nhimaEmp = $nhimaEr = 0.0;
+        if (!$this->isExempt($row, 'nhima_exempt')) {
+            $nhimaEmp = round($basic * $cfg['nhima_rate'] / 100, 2);
+            $nhimaEr = $nhimaEmp;
+        }
+        $taxable = max(0, round($taxable - $napsaEmp, 2));
+        $paye = $this->isExempt($row, 'paye_exempt') ? 0.0 : $this->paye($taxable);
+        $row['allowances'] = round($allowances, 2);
+        $row['gross_pay'] = $gross;
+        $row['taxable_pay'] = $taxable;
+        $row['paye'] = $paye;
+        $row['napsa_employee'] = $napsaEmp;
+        $row['napsa_employer'] = $napsaEr;
+        $row['nhima_employee'] = $nhimaEmp;
+        $row['nhima_employer'] = $nhimaEr;
+        $row['other_deductions'] = round($deductions, 2);
+        $row['net_pay'] = round($gross - $paye - $napsaEmp - $nhimaEmp - $deductions, 2);
+        return $row;
+    }
+
+    private function levyNote(float $amount, float $base, string $of, float $rate, ?float $cap): string
+    {
+        if ($amount <= 0 || $base <= 0 || $rate <= 0) {
+            return '';
+        }
+        $uncapped = round($base * $rate / 100, 2);
+        $phrase = $this->ratePhrase($rate, $of, $base);
+        if (abs($amount - $uncapped) < 0.02) {
+            return $phrase;
+        }
+        if ($cap !== null && abs($amount - $cap) < 0.02 && $uncapped > $cap + 0.009) {
+            return $phrase . ', capped at K' . number_format($cap, 2);
+        }
+        return '';
+    }
+
+    private function ratePhrase(float $rate, string $of, float $base): string
+    {
+        $rateText = rtrim(rtrim(number_format($rate, 2, '.', ''), '0'), '.');
+        return $rateText . '% of ' . $of . ' K' . number_format($base, 2);
     }
 
     /** Tips earned by linked POS users in the period (receipt tips + tips after payment). */

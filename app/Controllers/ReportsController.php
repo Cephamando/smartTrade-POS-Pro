@@ -81,7 +81,47 @@ final class ReportsController extends Controller
                     }
                 }
                 
-                $this->jsonExit(['status' => 'success', 'data' => $data]);
+            $this->jsonExit(['status' => 'success', 'data' => $data]);
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage()]);
+            }
+        }
+
+        if (isset($_POST['fetch_statutory_details'])) {
+            try {
+                $key = (string)($_POST['key'] ?? '');
+                $lines = Report::statutoryLines(
+                    (string)($_POST['start'] ?? ''),
+                    (string)($_POST['end'] ?? ''),
+                    $_POST['location'] ?? '',
+                    (int)($_POST['employee_id'] ?? 0),
+                    $key
+                );
+                $split = $key !== 'paye';
+                $data = [];
+                foreach ($lines as $line) {
+                    if ($key === 'napsa') {
+                        $employee = (float)($line['napsa_employee'] ?? 0);
+                        $employer = (float)($line['napsa_employer'] ?? 0);
+                    } elseif ($key === 'nhima') {
+                        $employee = (float)($line['nhima_employee'] ?? 0);
+                        $employer = (float)($line['nhima_employer'] ?? 0);
+                    } else {
+                        $employee = (float)($line['paye'] ?? 0);
+                        $employer = 0.0;
+                    }
+                    $data[] = [
+                        'slip_id' => (int)$line['slip_id'],
+                        'run_id' => (int)$line['run_id'],
+                        'name' => (string)$line['full_name'],
+                        'run' => (string)$line['title'],
+                        'date' => $line['pay_date'] ? date('d M Y', strtotime((string)$line['pay_date'])) : '',
+                        'employee' => number_format($employee, 2),
+                        'employer' => number_format($employer, 2),
+                        'amount' => number_format($employee + $employer, 2),
+                    ];
+                }
+                $this->jsonExit(['status' => 'success', 'split' => $split, 'data' => $data]);
             } catch (\Throwable $e) {
                 $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage()]);
             }
@@ -200,6 +240,10 @@ final class ReportsController extends Controller
             $reportData = $finance['rows'];
         }
 
+        $statutory = $reportType === 'taxes'
+            ? Report::statutory($startDate, $endDate, $locationId, (int)$employeeId)
+            : null;
+
         $metrics = Report::metrics($startDate, $endDate, $locationId, $daypart);
         $refundStats = Report::refundStats($startDate, $endDate, $locationId, $daypart);
         $voidStats = Report::voidStats($startDate, $endDate, $locationId, $daypart);
@@ -217,6 +261,7 @@ final class ReportsController extends Controller
             'reportData' => $reportData,
             'tipsReport' => $tipsReport,
             'finance' => $finance,
+            'statutory' => $statutory,
             'locations' => Location::all(),
             'employees' => $employees,
             'explainReady' => Guide::ready(Setting::all()),
