@@ -41,7 +41,7 @@ final class SettingsController extends Controller
                 } elseif (isset($_POST['save_branding'])) {
                     $this->saveBranding();
                 } elseif (isset($_POST['save_library'])) {
-                    $this->saveLibrary();
+                    $this->uploadLibrary();
                 } elseif (isset($_POST['use_library_image'])) {
                     $this->saveLibrary();
                 } elseif (isset($_POST['remove_promo_slide_now'])) {
@@ -489,6 +489,20 @@ final class SettingsController extends Controller
             $this->jsonExit(['status' => 'success', 'msg' => 'Synced. Cache ID: ' . $cacheName]);
         }
         $this->flash('success', 'Documentation synced to Gemini context cache.');
+    }
+
+    private function uploadLibrary(): void
+    {
+        $saved = Media::storeMany('library_images', 10, 'library');
+        $message = count($saved) === 1 ? 'Image added to the library.' : count($saved) . ' images added to the library.';
+        if ($this->wantsAjax()) {
+            $this->jsonExit([
+                'status' => 'success',
+                'message' => $message,
+                'images' => Media::list(),
+            ]);
+        }
+        $this->flash('success', $message);
     }
 
     private function saveLibrary(): void
