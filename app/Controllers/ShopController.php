@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\Customer;
 use App\Models\Event;
 use App\Models\Location;
+use App\Models\RestaurantTable;
 use App\Models\Setting;
 use App\Services\Currency;
 use App\Services\Flutterwave;
@@ -65,6 +66,13 @@ final class ShopController extends Controller
             'shopLocationId' => $this->shopLocationId(),
             'fx' => $this->shopRates(),
         ];
+        $shopTable = $this->shopTable();
+        $reserve = $this->reservePreset();
+        $data['shopTable'] = $shopTable;
+        $data['shopTables'] = RestaurantTable::freeForLocation($this->shopLocationId(), (int)($shopTable['id'] ?? 0));
+        $data['reserveOn'] = $shopTable && !empty($_SESSION['shop_table_reserve']);
+        $data['reserveAmount'] = $reserve['amount'];
+        $data['reserveLabel'] = $reserve['label'];
         if ($view === 'home' || $view === 'menu') {
             [$data['categories'], $data['products']] = $this->menu();
         }
@@ -249,6 +257,9 @@ final class ShopController extends Controller
                 $_SESSION['shop_cart'] = [];
                 $this->go('menu');
             }
+            if (isset($p['choose_seat'])) {
+                $this->chooseSeat($p);
+            }
             if (isset($p['cart_update'])) {
                 $cart = $this->cart();
                 foreach ((array)($p['qty'] ?? []) as $pid => $qty) {
@@ -321,6 +332,54 @@ final class ShopController extends Controller
         }
         $_SESSION['shop_location_id'] = $pick;
         $this->shopLoc = $pick;
+    }
+
+    private function chooseSeat(array $p): never
+    {
+        $allowed = array_map('intval', array_column($this->shopLocations, 'id'));
+        $loc = (int)($p['seat_location'] ?? 0);
+        if (in_array($loc, $allowed, true) && $loc !== $this->shopLocationId()) {
+            $_SESSION['shop_location_id'] = $loc;
+            $this->shopLoc = $loc;
+            unset($_SESSION['shop_table_id'], $_SESSION['shop_table_reserve']);
+            $this->go('cart');
+        }
+        $tableId = (int)($p['seat_table'] ?? 0);
+        if ($tableId <= 0) {
+            unset($_SESSION['shop_table_id'], $_SESSION['shop_table_reserve']);
+            $this->go('cart');
+        }
+        $freeIds = array_map('intval', array_column(RestaurantTable::freeForLocation($this->shopLocationId()), 'id'));
+        $table = RestaurantTable::find($tableId);
+        if (!$table || (int)$table['location_id'] !== $this->shopLocationId() || !in_array($tableId, $freeIds, true)) {
+            throw new \RuntimeException('That table is not free.');
+        }
+        $_SESSION['shop_table_id'] = $tableId;
+        $_SESSION['shop_table_reserve'] = (!empty($p['reserve_table']) && $this->reservePreset()['amount'] > 0) ? 1 : 0;
+        $this->go('cart');
+    }
+
+    private function shopTable(): ?array
+    {
+        $id = (int)($_SESSION['shop_table_id'] ?? 0);
+        if ($id <= 0) {
+            return null;
+        }
+        $table = RestaurantTable::find($id);
+        if (!$table || (int)$table['location_id'] !== $this->shopLocationId()) {
+            unset($_SESSION['shop_table_id'], $_SESSION['shop_table_reserve']);
+            return null;
+        }
+        return $table;
+    }
+
+    /** @return array{label: string, amount: float} */
+    private function reservePreset(): array
+    {
+        return [
+            'label' => TablesController::reserveLabel($this->settings),
+            'amount' => round(max(0, (float)($this->settings['shop_reserve_amount'] ?? 0)), 2),
+        ];
     }
 
     private function shopLocationId(): int
@@ -397,7 +456,19 @@ final class ShopController extends Controller
         }
         $notes = trim((string)($p['notes'] ?? ''));
         $when = trim((string)($p['pickup_time'] ?? ''));
-        $fullNotes = trim(($when !== '' ? 'Time: ' . $when . '. ' : '') . ($orderType === 'delivery' ? 'Deliver to: ' . $address . '. ' : '') . $notes);
+        $table = $this->shopTable();
+        $wantReserve = $table && !empty($p['reserve_table']);
+        $_SESSION['shop_table_reserve'] = $wantReserve ? 1 : 0;
+        $preset = $this->reservePreset();
+        $reserveFee = $wantReserve ? $preset['amount'] : 0.0;
+        $tableNote = '';
+        if ($table) {
+            $tableNote = 'Table: ' . $table['zone_name'] . ' · ' . $table['table_name'] . '.';
+            if ($wantReserve) {
+                $tableNote .= ' ' . $preset['label'] . '.';
+            }
+        }
+        $fullNotes = trim($tableNote . ' ' . ($when !== '' ? 'Time: ' . $when . '. ' : '') . ($orderType === 'delivery' ? 'Deliver to: ' . $address . '. ' : '') . $notes);
 
         $pdo->beginTransaction();
         try {
@@ -428,7 +499,15 @@ final class ShopController extends Controller
                 throw new \RuntimeException('Minimum order is K' . number_format($minOrder, 2) . '.');
             }
             $deliveryFee = $orderType === 'delivery' ? (float)($this->settings['shop_delivery_fee'] ?? 0) : 0.0;
-            $total = round($subtotal + $deliveryFee, 2);
+            $surcharge = round($deliveryFee + $reserveFee, 2);
+            $reasons = [];
+            if ($deliveryFee > 0) {
+                $reasons[] = 'Delivery';
+            }
+            if ($reserveFee > 0) {
+                $reasons[] = $preset['label'];
+            }
+            $total = round($subtotal + $surcharge, 2);
 
             $shift = $pdo->prepare("SELECT id FROM shifts WHERE location_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1");
             $shift->execute([$loc]);
@@ -437,11 +516,11 @@ final class ShopController extends Controller
             $extId = 'WEB-' . date('ymd') . '-' . strtoupper(bin2hex(random_bytes(2)));
 
             $pdo->prepare(
-                "INSERT INTO sales (location_id, user_id, shift_id, subtotal, total_amount, final_total, surcharge_amount, surcharge_reason, status, payment_status, payment_method,
+                "INSERT INTO sales (location_id, table_id, user_id, shift_id, subtotal, total_amount, final_total, surcharge_amount, surcharge_reason, status, payment_status, payment_method,
                                     split_group_id, customer_name, customer_id, customer_phone, order_source, order_type, order_notes, member_id, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'Online', ?, ?, ?, ?, 'portal', ?, ?, ?, NOW())"
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', 'Online', ?, ?, ?, ?, 'portal', ?, ?, ?, NOW())"
             )->execute([
-                $loc, $sysUser, $shiftId, $subtotal, $subtotal, $total, $deliveryFee, $deliveryFee > 0 ? 'Delivery' : null,
+                $loc, $table ? (int)$table['id'] : null, $sysUser, $shiftId, $subtotal, $subtotal, $total, $surcharge, $reasons ? implode(', ', $reasons) : null,
                 $extId, 'ONLINE: ' . $customer['name'], (int)$customer['id'], $customer['phone'], $orderType, $fullNotes !== '' ? substr($fullNotes, 0, 500) : null,
                 $customer['member_id'] ?: null,
             ]);

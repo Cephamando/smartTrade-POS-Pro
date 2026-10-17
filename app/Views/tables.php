@@ -104,3 +104,79 @@
         </div>
     </div>
 </div>
+
+<div class="card shadow-sm border-0 mb-4" id="menuQrCard">
+    <div class="card-header bg-dark text-white py-3">
+        <h5 class="m-0 fw-bold"><i class="bi bi-qr-code text-warning me-2"></i> Menu QR codes</h5>
+    </div>
+    <div class="card-body bg-light">
+        <p class="text-muted small">This code opens the online menu. In the bag, a guest picks a store and then a free table. Reserving that table adds the surcharge saved here.</p>
+        <form method="POST" class="row g-3 align-items-end mb-4">
+            <input type="hidden" name="save_reserve" value="1">
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">RESERVATION NAME</label>
+                <input type="text" name="shop_reserve_label" class="form-control" maxlength="80" value="<?= htmlspecialchars($reserveLabel ?? 'Table reservation') ?>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold small text-muted">SURCHARGE (ZMW)</label>
+                <input type="number" name="shop_reserve_amount" class="form-control" min="0" max="100000" step="0.01" value="<?= htmlspecialchars(number_format((float)($reserveAmount ?? 0), 2, '.', '')) ?>">
+            </div>
+            <div class="col-md-5">
+                <label class="form-label fw-bold small text-muted">MENU ADDRESS</label>
+                <input type="url" name="shop_menu_url" class="form-control font-monospace" value="<?= htmlspecialchars($menuUrl ?? '') ?>">
+            </div>
+            <div class="col-12 text-end">
+                <button type="submit" class="btn btn-warning fw-bold">Save preset</button>
+            </div>
+        </form>
+        <div class="row g-4 align-items-start">
+            <div class="col-lg-7">
+                <div class="small text-muted text-break" id="qrUrl"></div>
+                <div class="d-flex gap-2 mt-3">
+                    <button type="button" class="btn btn-dark fw-bold" id="qrPrint">Print</button>
+                    <button type="button" class="btn btn-outline-dark fw-bold" id="qrCopy">Copy link</button>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="bg-white border rounded p-3 text-center" id="qrSheet">
+                    <div class="small text-muted text-uppercase fw-bold">Scan to order</div>
+                    <div class="fw-bold fs-5">Online menu</div>
+                    <div id="qrBox" class="d-flex justify-content-center my-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="js/qrcode.min.js"></script>
+<script>
+(function () {
+    var current = <?= json_encode($menuUrl ?? 'https://queenbeesrestaurants.com/index.php?page=shop&view=menu', JSON_UNESCAPED_SLASHES) ?>;
+    var urlEl = document.getElementById('qrUrl');
+    var box = document.getElementById('qrBox');
+    if (urlEl) urlEl.textContent = current;
+    if (box && typeof qrcode === 'function') {
+        var qr = qrcode(0, 'M');
+        qr.addData(current, 'Byte');
+        qr.make();
+        box.innerHTML = qr.createImgTag(6, 8);
+    } else if (box) {
+        box.textContent = 'QR library did not load.';
+    }
+    var copyBtn = document.getElementById('qrCopy');
+    var printBtn = document.getElementById('qrPrint');
+    if (copyBtn) copyBtn.addEventListener('click', function () {
+        if (navigator.clipboard) navigator.clipboard.writeText(current);
+    });
+    if (printBtn) printBtn.addEventListener('click', function () {
+        var img = box && box.querySelector('img');
+        if (!img) return;
+        var w = window.open('', 'menuqr', 'width=480,height=720');
+        if (!w) return;
+        var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); };
+        w.document.write('<!DOCTYPE html><html><head><title>Menu QR</title><style>body{font-family:sans-serif;text-align:center;padding:24px}img{width:280px;height:280px}p{word-break:break-all;color:#555}</style></head><body><p>Scan to order</p><h1>Online menu</h1>' + img.outerHTML + '<p>' + esc(current) + '</p></body></html>');
+        w.document.close();
+        w.focus();
+        w.print();
+    });
+})();
+</script>

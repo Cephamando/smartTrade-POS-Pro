@@ -502,7 +502,7 @@ function getCategoryStyle($name) {
                                     <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; ?>
                                     <button class="list-group-item list-group-item-action <?= $otPaid ? 'bg-success-subtle' : 'bg-warning-subtle' ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
                                         <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">UNPAID</span>' ?></div>
-                                        <div class="small text-muted">#<?= (int)$ot['id'] ?> · <?= htmlspecialchars($ot['external_id'] ?? '') ?><?= !empty($ot['order_type']) ? ' · ' . strtoupper(htmlspecialchars($ot['order_type'])) : '' ?><?= !empty($ot['customer_phone']) ? ' · ' . htmlspecialchars($ot['customer_phone']) : '' ?></div>
+                                        <div class="small text-muted">#<?= (int)$ot['id'] ?> · <?= htmlspecialchars($ot['external_id'] ?? '') ?><?= !empty($ot['table_name']) ? ' · ' . htmlspecialchars(trim((string)($ot['zone_name'] ?? '') . ' ' . $ot['table_name'])) : '' ?><?= !empty($ot['order_type']) ? ' · ' . strtoupper(htmlspecialchars($ot['order_type'])) : '' ?><?= !empty($ot['customer_phone']) ? ' · ' . htmlspecialchars($ot['customer_phone']) : '' ?></div>
                                         <div class="small fw-bold">ZMW <?= number_format((float)($ot['final_total'] ?: $ot['total_amount']), 2) ?> <span class="text-muted fw-normal"><?= date('H:i', strtotime($ot['created_at'])) ?></span></div>
                                     </button>
                                 <?php endforeach; ?>
@@ -525,6 +525,7 @@ function getCategoryStyle($name) {
                 <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']))): ?>
                 <div class="alert <?= $tabPaid ? 'alert-success' : 'alert-warning' ?> py-2 small mb-3">
                     <?php if ($tabPaid): ?><strong><i class="bi bi-patch-check-fill"></i> Paid online</strong><?= !empty($tabRow['gateway_ref']) ? ' · ref ' . htmlspecialchars($tabRow['gateway_ref']) : '' ?> · <?php else: ?><strong>Awaiting Flutterwave</strong> · <?php endif; ?>
+                    <?= !empty($tabRow['table_name']) ? '<strong>' . htmlspecialchars(trim((string)($tabRow['zone_name'] ?? '') . ' ' . $tabRow['table_name'])) . '</strong> · ' : '' ?>
                     <?= !empty($tabRow['order_type']) ? '<strong>' . strtoupper(htmlspecialchars($tabRow['order_type'])) . '</strong>' : '' ?>
                     <?= !empty($tabRow['customer_phone']) ? ' · <i class="bi bi-telephone"></i> ' . htmlspecialchars($tabRow['customer_phone']) : '' ?>
                     <?= !empty($tabRow['order_notes']) ? '<div class="mt-1"><i class="bi bi-chat-left-text"></i> ' . htmlspecialchars($tabRow['order_notes']) . '</div>' : '' ?>

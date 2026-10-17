@@ -38,6 +38,15 @@ $currencyBar = static function () use ($fxRates): string {
     }
     return $html . '</div>';
 };
+$fxMoney = static function ($amount) use ($money): string {
+    $n = (float)$amount;
+    return '<span class="js-money" data-zmw="' . htmlspecialchars((string)$n, ENT_QUOTES) . '">' . $money($n) . '</span>';
+};
+$shopTable = $shopTable ?? null;
+$shopTables = $shopTables ?? [];
+$reserveOn = !empty($reserveOn);
+$reserveAmount = (float)($reserveAmount ?? 0);
+$reserveLabel = trim((string)($reserveLabel ?? '')) ?: 'Table reservation';
 $logoUrl = \App\Helpers\Media::url((string)($settings['logo_path'] ?? ''));
 $bannerUrl = \App\Helpers\Media::url((string)($settings['shop_banner_path'] ?? ''));
 $cartCount = $cartCount ?? 0;
@@ -276,6 +285,38 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .list-group-item { border-color: #f3edd4; }
         @media (prefers-reduced-motion: reduce) { .dish-flip { transition: none; } }
         @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .dish-strip { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .event-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .ebay-bar { flex-direction: column; } .cat-drop-btn { width: 100%; justify-content: space-between; } .cat-columns { grid-template-columns: 1fr 1fr; } .cat-menu { width: calc(100vw - 24px); } .store-tab, .avail-tab { padding: .45rem .75rem; font-size: .82rem; } .avail-tabs { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; } .avail-tabs::-webkit-scrollbar { display: none; } .dish-tile { flex-basis: 148px; } .rail-next { width: 42px; height: 42px; top: 52px; } .shop-foot { margin-bottom: -110px; } }
+        body.is-menu { background: #f4f7fa; }
+        body.is-menu .menu-top { background: transparent; color: #1c2430; text-align: left; margin: 0 0 8px; padding: 18px 0 8px; }
+        body.is-menu .menu-top h2 { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-size: 1.45rem; font-weight: 700; letter-spacing: 0; line-height: 1.2; color: #1c2430; }
+        body.is-menu .store-kicker { color: #8b95a1; text-align: left; }
+        body.is-menu .store-tabs { justify-content: flex-start; }
+        body.is-menu .menu-crumb { justify-content: flex-start; }
+        body.is-menu .rail-title { margin: 18px 2px 12px; text-align: left; font-family: "Source Sans 3", "Segoe UI", sans-serif; font-style: normal; font-weight: 700; font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: #8b95a1; }
+        body.is-menu .rail-kicker { color: #8b95a1; letter-spacing: .16em; }
+        body.is-menu .rail-track,
+        body.is-menu .rail-track.is-few,
+        body.is-menu #menuRails.is-side .rail-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 18px; overflow: visible; scroll-snap-type: none; justify-content: stretch; padding: 0 2px 8px; }
+        body.is-menu .dish-tile,
+        body.is-menu .rail-track.is-one .dish-tile,
+        body.is-menu .rail-track.is-pair .dish-tile,
+        body.is-menu .rail-track.is-trio .dish-tile,
+        body.is-menu .rail-track.is-quad .dish-tile,
+        body.is-menu #menuRails.is-side .rail-track .dish-tile { flex: none; width: auto; background: transparent; border-radius: 0; box-shadow: none; overflow: visible; text-align: left; }
+        body.is-menu .dish-photo,
+        body.is-menu .rail-track.is-one .dish-photo,
+        body.is-menu .rail-track.is-pair .dish-photo,
+        body.is-menu #menuRails.is-side .dish-photo { height: auto; aspect-ratio: 1.45 / 1; border-radius: 18px; background-color: #e7eef3; overflow: hidden; }
+        body.is-menu .dish-photo i { color: #9aa6b2; right: 14px; top: 12px; opacity: 1; }
+        body.is-menu .dish-chip { display: none; }
+        body.is-menu .dish-copy { position: relative; padding: 10px 36px 0 2px; }
+        body.is-menu .dish-tile .item-name { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-size: .98rem; font-weight: 700; line-height: 1.25; color: #1c2430; min-height: 0; }
+        body.is-menu .dish-tile .price { display: block; margin-top: 2px; color: #8b95a1; font-weight: 600; font-size: .9rem; }
+        body.is-menu .dish-add { position: absolute; right: 0; top: 8px; width: 28px; height: 28px; margin: 0; background: #fff; color: #1c2430; border: 1px solid #e3eaf0; box-shadow: 0 4px 12px rgba(28, 36, 48, .08); font-size: .85rem; }
+        body.is-menu .dish-add:hover { background: #1c2430; color: #fff; }
+        body.is-menu .dish-sold { margin-top: 6px; color: #8b95a1; }
+        body.is-menu .rail-next { display: none; }
+        body.is-menu .shop-foot { background: #eef2f6; color: #1c2430; }
+        @media (max-width: 720px) { body.is-menu .rail-track, body.is-menu .rail-track.is-few, body.is-menu #menuRails.is-side .rail-track { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; } }
     </style>
 </head>
 <body class="<?= $view === 'home' ? 'is-home' : ($view === 'menu' ? 'is-menu' : '') ?>">
@@ -524,7 +565,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             $menuGroups[$familyName] = $groups[$familyName];
         }
     ?>
-    <section class="menu-top text-center">
+    <section class="menu-top">
         <h2>Order online</h2>
         <?php if ($shopLocations): ?>
         <p class="store-kicker">Choose a store</p>
@@ -816,6 +857,51 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </ul>
             <div class="card-footer bg-white"><div class="d-flex justify-content-between fw-bold fs-5"><span>Subtotal</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div><?= $currencyBar() ?></div>
         </div>
+        <form method="POST" action="<?= $u('cart') ?>" class="card item-card mb-3">
+            <div class="card-body">
+                <input type="hidden" name="choose_seat" value="1">
+                <label class="form-label fw-bold small text-muted">LOCATION</label>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <?php foreach ($shopLocations as $locRow): ?>
+                    <label class="btn btn-outline-dark rounded-pill<?= (int)$locRow['id'] === $shopLocationId ? ' active' : '' ?>">
+                        <input type="radio" class="btn-check" name="seat_location" value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === $shopLocationId ? 'checked' : '' ?> onchange="document.querySelectorAll('[name=seat_table]').forEach(function (el) { el.disabled = true; }); document.getElementById('reserveTableCart') && (document.getElementById('reserveTableCart').disabled = true); this.form.submit();">
+                        <?= htmlspecialchars($locRow['name']) ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+                <label class="form-label fw-bold small text-muted">TABLE</label>
+                <?php if (!$shopTables): ?>
+                    <p class="text-muted small mb-0">No free tables at this store. You can still collect the order.</p>
+                    <input type="hidden" name="seat_table" value="0">
+                <?php else: ?>
+                    <div class="d-flex flex-column gap-2">
+                        <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-0">
+                            <span><input type="radio" name="seat_table" value="0" <?= $shopTable ? '' : 'checked' ?> onchange="this.form.submit()"> No table</span>
+                        </label>
+                        <?php
+                        $seatGroups = [];
+                        foreach ($shopTables as $seat) {
+                            $seatGroups[$seat['zone_name'] ?: 'Floor'][] = $seat;
+                        }
+                        foreach ($seatGroups as $zone => $seats): ?>
+                        <div class="small text-muted fw-bold text-uppercase"><?= htmlspecialchars((string)$zone) ?></div>
+                        <?php foreach ($seats as $seat): $picked = $shopTable && (int)$shopTable['id'] === (int)$seat['id']; ?>
+                        <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-0">
+                            <span><input type="radio" name="seat_table" value="<?= (int)$seat['id'] ?>" <?= $picked ? 'checked' : '' ?> onchange="this.form.submit()"> <?= htmlspecialchars($seat['table_name']) ?></span>
+                            <span class="text-muted small"><?= (int)$seat['capacity'] ?> seats</span>
+                        </label>
+                        <?php endforeach; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if ($shopTable && $reserveAmount > 0): ?>
+                    <div class="form-check mt-3">
+                        <input class="form-check-input" type="checkbox" name="reserve_table" value="1" id="reserveTableCart" <?= $reserveOn ? 'checked' : '' ?> onchange="this.form.submit()">
+                        <label class="form-check-label" for="reserveTableCart"><?= htmlspecialchars($reserveLabel) ?> · <?= $fxMoney($reserveAmount) ?></label>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </form>
         <div class="d-flex gap-2 flex-wrap">
             <a href="<?= $u('menu') ?>" class="btn btn-outline-dark rounded-pill px-4"><i class="bi bi-plus"></i> Add more</a>
             <button type="submit" class="btn btn-outline-secondary rounded-pill">Update</button>
@@ -828,6 +914,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
 
 <?php elseif ($view === 'checkout'): ?>
     <h4 class="page-title mb-3">Checkout</h4>
+    <?php if ($shopTable): ?><p class="text-muted">Table <?= htmlspecialchars((string)$shopTable['zone_name'] . ' · ' . (string)$shopTable['table_name']) ?>. <a href="<?= $u('cart') ?>">Change</a></p><?php endif; ?>
     <?php if (!$cart): ?><div class="alert alert-warning">Your basket is empty. <a href="<?= $u('menu') ?>">Back to menu</a></div>
     <?php else: ?>
     <form method="POST" action="<?= $u('checkout') ?>" class="row g-3">
@@ -839,6 +926,12 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                     <input type="radio" class="btn-check" name="order_type" id="otPickup" value="pickup" checked onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otPickup"><i class="bi bi-bag"></i> Collect in store</label>
                     <?php if ($deliveryOn): ?><input type="radio" class="btn-check" name="order_type" id="otDelivery" value="delivery" onchange="toggleDelivery()"><label class="btn btn-outline-dark rounded-pill flex-fill" for="otDelivery"><i class="bi bi-bicycle"></i> Delivery<?php if ($deliveryFee > 0): ?> (+<span class="js-money" data-zmw="<?= htmlspecialchars((string)$deliveryFee) ?>"><?= $money($deliveryFee) ?></span>)<?php endif; ?></label><?php endif; ?>
                 </div>
+                <?php if ($shopTable && $reserveAmount > 0): ?>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="reserve_table" value="1" id="reserveTable" <?= $reserveOn ? 'checked' : '' ?> onchange="paintCheckout()">
+                    <label class="form-check-label" for="reserveTable"><?= htmlspecialchars($reserveLabel) ?> · <?= $fxMoney($reserveAmount) ?></label>
+                </div>
+                <?php endif; ?>
                 <div id="deliveryBox" class="d-none mb-3">
                     <label class="form-label fw-bold small text-muted">DELIVERY ADDRESS</label>
                     <textarea name="address" class="form-control" rows="2" placeholder="Street, area, landmarks"><?= htmlspecialchars($customer['address'] ?? '') ?></textarea>
@@ -870,10 +963,12 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 <h6 class="fw-bold">Order summary</h6>
                 <?php foreach ($cart as $line): ?><div class="d-flex justify-content-between small"><span><?= (int)$line['qty'] ?> × <?= htmlspecialchars($line['name']) ?></span><span class="js-money" data-zmw="<?= htmlspecialchars((string)($line['price'] * $line['qty'])) ?>"><?= $money($line['price'] * $line['qty']) ?></span></div><?php endforeach; ?>
                 <hr>
+                <?php $dueNow = $cartTotal + (($shopTable && $reserveOn) ? $reserveAmount : 0); ?>
                 <div class="d-flex justify-content-between"><span>Subtotal</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>"><?= $money($cartTotal) ?></span></div>
                 <div class="d-flex justify-content-between text-muted d-none" id="feeRow"><span>Delivery</span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$deliveryFee) ?>"><?= $money($deliveryFee) ?></span></div>
-                <div class="d-flex justify-content-between fw-bold fs-5 mt-2"><span>Total</span><span id="grandTotal" class="js-money" data-zmw="<?= htmlspecialchars((string)$cartTotal) ?>" data-sub="<?= $cartTotal ?>" data-fee="<?= $deliveryFee ?>"><?= $money($cartTotal) ?></span></div>
-                <div class="small text-muted mt-1" id="chargeNote" hidden>Charged in <?= $money($cartTotal) ?>. The other figure is a guide at today's rate.</div>
+                <div class="d-flex justify-content-between text-muted<?= ($shopTable && $reserveOn) ? '' : ' d-none' ?>" id="reserveRow"><span><?= htmlspecialchars($reserveLabel) ?></span><span class="js-money" data-zmw="<?= htmlspecialchars((string)$reserveAmount) ?>"><?= $money($reserveAmount) ?></span></div>
+                <div class="d-flex justify-content-between fw-bold fs-5 mt-2"><span>Total</span><span id="grandTotal" class="js-money" data-zmw="<?= htmlspecialchars((string)$dueNow) ?>" data-sub="<?= $cartTotal ?>" data-fee="<?= $deliveryFee ?>" data-reserve="<?= htmlspecialchars((string)$reserveAmount) ?>"><?= $money($dueNow) ?></span></div>
+                <div class="small text-muted mt-1" id="chargeNote" hidden>Charged in <?= $money($dueNow) ?>. The other figure is a guide at today's rate.</div>
                 <?= $currencyBar() ?>
                 <button class="btn btn-accent w-100 rounded-pill py-2 mt-3" <?= $flwOn ? '' : 'disabled' ?>>Pay with Flutterwave</button>
                 <a href="<?= $u('cart') ?>" class="btn btn-link w-100 text-muted small">Back to basket</a>
@@ -881,7 +976,26 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         </div>
     </form>
     <script>
-    function toggleDelivery() { const d = document.getElementById('otDelivery'); const on = d && d.checked; document.getElementById('deliveryBox').classList.toggle('d-none', !on); document.getElementById('feeRow').classList.toggle('d-none', !on); const g = document.getElementById('grandTotal'); const t = parseFloat(g.dataset.sub) + (on ? parseFloat(g.dataset.fee) : 0); g.dataset.zmw = String(t); g.textContent = window.formatShopMoney ? formatShopMoney(t) : ('K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); var note = document.getElementById('chargeNote'); if (note) note.innerHTML = 'Charged in K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '. The other figure is a guide at today\'s rate.'; }
+    function paintCheckout() {
+        var d = document.getElementById('otDelivery');
+        var deliveryOn = d && d.checked;
+        var box = document.getElementById('deliveryBox');
+        if (box) box.classList.toggle('d-none', !deliveryOn);
+        var feeRow = document.getElementById('feeRow');
+        if (feeRow) feeRow.classList.toggle('d-none', !deliveryOn);
+        var reserve = document.getElementById('reserveTable');
+        var reserveOn = reserve && reserve.checked;
+        var reserveRow = document.getElementById('reserveRow');
+        if (reserveRow) reserveRow.classList.toggle('d-none', !reserveOn);
+        var g = document.getElementById('grandTotal');
+        if (!g) return;
+        var t = parseFloat(g.dataset.sub) + (deliveryOn ? parseFloat(g.dataset.fee || '0') : 0) + (reserveOn ? parseFloat(g.dataset.reserve || '0') : 0);
+        g.dataset.zmw = String(t);
+        g.textContent = window.formatShopMoney ? formatShopMoney(t) : ('K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        var note = document.getElementById('chargeNote');
+        if (note) note.innerHTML = 'Charged in K' + t.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '. The other figure is a guide at today\'s rate.';
+    }
+    function toggleDelivery() { paintCheckout(); }
     </script>
     <?php endif; ?>
 
@@ -1073,6 +1187,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <div class="eyebrow"><?= htmlspecialchars($when) ?></div>
             <h1><?= htmlspecialchars($event['title']) ?></h1>
             <p><?= htmlspecialchars((string)($event['summary'] ?? '')) ?></p>
+            <?= $currencyBar() ?>
         </section>
         <?php if (trim((string)($event['story'] ?? '')) !== ''): ?>
             <div class="card item-card mb-3"><div class="card-body p-4" style="white-space:pre-wrap"><?= htmlspecialchars((string)$event['story']) ?></div></div>
@@ -1084,7 +1199,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                     <div class="fw-bold small text-muted mt-2"><?= htmlspecialchars((string)$group) ?></div>
                     <ul class="mb-0">
                     <?php foreach ($rows as $opt): ?>
-                        <li><?= htmlspecialchars($opt['name']) ?><?php if ((float)$opt['price'] > 0): ?> · <?= $money($opt['price']) ?><?php endif; ?></li>
+                        <li><?= htmlspecialchars($opt['name']) ?><?php if ((float)$opt['price'] > 0): ?> · <?= $fxMoney($opt['price']) ?><?php endif; ?></li>
                     <?php endforeach; ?>
                     </ul>
                 <?php endforeach; ?>
@@ -1093,7 +1208,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <div class="card item-card"><div class="card-body p-4">
             <?php $copy = \App\Models\Event::signupCopy((string)($event['signup_mode'] ?? 'apply')); ?>
             <h5 class="fw-bold"><?= htmlspecialchars($copy['heading']) ?></h5>
-            <p class="text-muted small"><?= htmlspecialchars($copy['lead']) ?><?php if ((float)$event['deposit_amount'] > 0): ?> A deposit of <?= $money($event['deposit_amount']) ?> is collected on your private page first.<?php endif; ?><?php if (!empty($tiers)): ?> Tier prices are per person.<?php endif; ?></p>
+            <p class="text-muted small"><?= htmlspecialchars($copy['lead']) ?><?php if ((float)$event['deposit_amount'] > 0): ?> A deposit of <?= $fxMoney($event['deposit_amount']) ?> is collected on your private page first.<?php endif; ?><?php if (!empty($tiers)): ?> Tier prices are per person.<?php endif; ?></p>
             <form method="POST" action="<?= $u('event', ['slug' => $event['slug']]) ?>">
                 <input type="hidden" name="event_apply" value="1">
                 <input type="hidden" name="slug" value="<?= htmlspecialchars($event['slug']) ?>">
@@ -1112,7 +1227,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 ?>
                 <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
                     <span><input type="radio" name="tier_id" value="<?= (int)$tier['id'] ?>" required <?= $full ? 'disabled' : '' ?>> <?= htmlspecialchars($tier['name']) ?><?= $full ? ' (full)' : '' ?></span>
-                    <span><?= $money($tier['price']) ?> each</span>
+                    <span><?= $fxMoney($tier['price']) ?> each</span>
                 </label>
                 <?php endforeach; ?>
                 <?php endif; ?>
@@ -1137,15 +1252,16 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <div class="eyebrow"><?= htmlspecialchars($when) ?></div>
             <h1><?= htmlspecialchars($event['title']) ?></h1>
             <p>Hello <?= htmlspecialchars($guest['name']) ?>. This page is only yours.</p>
+            <?= $currencyBar() ?>
         </section>
         <div class="card item-card mb-3"><div class="card-body p-4">
             <div class="d-flex justify-content-between"><span>Reply</span><strong><?= htmlspecialchars((string)$guest['status']) ?></strong></div>
             <?php if (!empty($guest['tier_name'])): ?>
-            <div class="d-flex justify-content-between"><span>Tier</span><strong><?= htmlspecialchars((string)$guest['tier_name']) ?> · <?= $money($guest['tier_price'] ?? 0) ?> each</strong></div>
+            <div class="d-flex justify-content-between"><span>Tier</span><strong><?= htmlspecialchars((string)$guest['tier_name']) ?> · <?= $fxMoney($guest['tier_price'] ?? 0) ?> each</strong></div>
             <?php endif; ?>
-            <div class="d-flex justify-content-between"><span>Paid</span><strong><?= $money($paid ?? 0) ?></strong></div>
+            <div class="d-flex justify-content-between"><span>Paid</span><strong><?= $fxMoney($paid ?? 0) ?></strong></div>
             <?php if (($charge['amount'] ?? 0) > 0): ?>
-                <div class="d-flex justify-content-between"><span><?= htmlspecialchars(ucfirst((string)$charge['purpose'])) ?> due</span><strong><?= $money($charge['amount']) ?></strong></div>
+                <div class="d-flex justify-content-between"><span><?= htmlspecialchars(ucfirst((string)$charge['purpose'])) ?> due</span><strong><?= $fxMoney($charge['amount']) ?></strong></div>
             <?php endif; ?>
         </div></div>
         <?php if ($open): ?>
@@ -1179,7 +1295,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                     ?>
                         <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
                             <span><input type="radio" name="tier_id" value="<?= (int)$tier['id'] ?>" <?= $selected ? 'checked' : '' ?> <?= $full && !$selected ? 'disabled' : '' ?>> <?= htmlspecialchars($tier['name']) ?><?= $full && !$selected ? ' (full)' : '' ?></span>
-                            <span><?= $money($tier['price']) ?> each</span>
+                            <span><?= $fxMoney($tier['price']) ?> each</span>
                         </label>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -1190,7 +1306,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                     ?>
                         <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
                             <span><input type="radio" name="option_id[<?= htmlspecialchars((string)$group) ?>]" value="<?= (int)$opt['id'] ?>" <?= in_array((int)$opt['id'], $picked, true) ? 'checked' : '' ?> <?= $full && !in_array((int)$opt['id'], $picked, true) ? 'disabled' : '' ?>> <?= htmlspecialchars($opt['name']) ?><?= $full ? ' (full)' : '' ?></span>
-                            <span><?= (float)$opt['price'] > 0 ? $money($opt['price']) : '' ?></span>
+                            <span><?= (float)$opt['price'] > 0 ? $fxMoney($opt['price']) : '' ?></span>
                         </label>
                     <?php endforeach; ?>
                 <?php endforeach; ?>
@@ -1203,7 +1319,8 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <div class="card-body p-4 d-flex justify-content-between align-items-center">
                 <div>
                     <div class="fw-bold">Pay <?= htmlspecialchars((string)$charge['purpose']) ?></div>
-                    <div class="text-muted small"><?= $money($charge['amount']) ?> through Flutterwave. Cash can be taken at the restaurant.</div>
+                    <div class="text-muted small"><?= $fxMoney($charge['amount']) ?> through Flutterwave. Cash can be taken at the restaurant.</div>
+                    <div class="small text-muted" id="chargeNote" hidden>Charged in <?= $money($charge['amount']) ?>. The other figure is a guide at today's rate.</div>
                 </div>
                 <input type="hidden" name="event_pay" value="1">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($guest['token']) ?>">
@@ -1216,7 +1333,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <?php foreach ($payments as $pay): ?>
                 <li class="list-group-item d-flex justify-content-between">
                     <span><?= htmlspecialchars($pay['purpose'] . ' · ' . $pay['method']) ?></span>
-                    <span><?= $money($pay['amount']) ?> · <?= htmlspecialchars($pay['status']) ?></span>
+                    <span><?= $fxMoney($pay['amount']) ?> · <?= htmlspecialchars($pay['status']) ?></span>
                 </li>
             <?php endforeach; ?>
             </ul>
@@ -1252,6 +1369,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                         <div class="eyebrow"><?= htmlspecialchars($when) ?></div>
                         <h1><?= htmlspecialchars((string)$ev['title']) ?></h1>
                         <p><?= htmlspecialchars((string)($ev['summary'] ?? '')) ?></p>
+                        <?= $currencyBar() ?>
                     </section>
                     <?php if (trim((string)($ev['story'] ?? '')) !== ''): ?>
                         <div class="card item-card mb-3"><div class="card-body p-4" style="white-space:pre-wrap"><?= htmlspecialchars((string)$ev['story']) ?></div></div>
@@ -1263,7 +1381,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                                 <div class="fw-bold small text-muted mt-2"><?= htmlspecialchars((string)$group) ?></div>
                                 <ul class="mb-0">
                                 <?php foreach ($rows as $opt): ?>
-                                    <li><?= htmlspecialchars($opt['name']) ?><?php if ((float)$opt['price'] > 0): ?> · <?= $money($opt['price']) ?><?php endif; ?></li>
+                                    <li><?= htmlspecialchars($opt['name']) ?><?php if ((float)$opt['price'] > 0): ?> · <?= $fxMoney($opt['price']) ?><?php endif; ?></li>
                                 <?php endforeach; ?>
                                 </ul>
                             <?php endforeach; ?>
@@ -1271,7 +1389,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                     <?php endif; ?>
                     <div class="card item-card"><div class="card-body p-4">
                         <h5 class="fw-bold"><?= htmlspecialchars($copy['heading']) ?></h5>
-                        <p class="text-muted small"><?= htmlspecialchars($copy['lead']) ?><?php if ((float)$ev['deposit_amount'] > 0): ?> A deposit of <?= $money($ev['deposit_amount']) ?> is collected on your private page first.<?php endif; ?><?php if ($regTiers): ?> Tier prices are per person.<?php endif; ?></p>
+                        <p class="text-muted small"><?= htmlspecialchars($copy['lead']) ?><?php if ((float)$ev['deposit_amount'] > 0): ?> A deposit of <?= $fxMoney($ev['deposit_amount']) ?> is collected on your private page first.<?php endif; ?><?php if ($regTiers): ?> Tier prices are per person.<?php endif; ?></p>
                         <form method="POST" action="<?= $u('event', ['slug' => $ev['slug']]) ?>">
                             <input type="hidden" name="event_apply" value="1">
                             <input type="hidden" name="slug" value="<?= htmlspecialchars((string)$ev['slug']) ?>">
@@ -1290,7 +1408,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                             ?>
                             <label class="d-flex justify-content-between border rounded-3 px-3 py-2 mb-2">
                                 <span><input type="radio" name="tier_id" value="<?= (int)$tier['id'] ?>" required <?= $full ? 'disabled' : '' ?>> <?= htmlspecialchars($tier['name']) ?><?= $full ? ' (full)' : '' ?></span>
-                                <span><?= $money($tier['price']) ?> each</span>
+                                <span><?= $fxMoney($tier['price']) ?> each</span>
                             </label>
                             <?php endforeach; ?>
                             <?php endif; ?>

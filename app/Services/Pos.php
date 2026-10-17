@@ -297,9 +297,12 @@ final class Pos
         $portalOn = ($sysSettings['shop_enabled'] ?? '0') === '1';
         if ($tier === 'enterprise' || $portalOn) {
             $onlineTabs = $this->pdo->query(
-                "SELECT id, total_amount, final_total, customer_name, customer_phone, split_group_id as external_id, created_at,
-                        payment_status, order_type, order_notes, order_source, gateway_ref
-                 FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY created_at DESC"
+                "SELECT s.id, s.total_amount, s.final_total, s.customer_name, s.customer_phone, s.split_group_id as external_id, s.created_at,
+                        s.payment_status, s.order_type, s.order_notes, s.order_source, s.gateway_ref, s.table_id,
+                        rt.table_name, rt.zone_name
+                 FROM sales s
+                 LEFT JOIN restaurant_tables rt ON rt.id = s.table_id
+                 WHERE s.status = 'pending' AND s.payment_method = 'Online' ORDER BY s.created_at DESC"
             )->fetchAll();
             foreach ($onlineTabs as $ot) {
                 $stmt = $this->pdo->prepare(
