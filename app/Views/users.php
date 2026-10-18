@@ -42,11 +42,33 @@ include __DIR__ . '/partials/bulk_bar.php';
                         <?php if ($u['role'] === 'dev'): ?>
                             <?php if ($_SESSION['role'] === 'dev'): ?>
                                 <button class="btn btn-sm btn-outline-primary" onclick='editUser(<?= json_encode($u) ?>)'><i class="bi bi-pencil"></i> Edit Profile</button>
+                                <form method="POST" class="d-inline js-confirm-form"
+                                    data-swal-title="Reset the sign-in code?"
+                                    data-swal-text="The next sign-in sets a new authenticator code. Open browsers for this account are signed out."
+                                    data-swal-confirm="Reset"
+                                    data-swal-cancel="Cancel"
+                                    data-swal-icon="warning">
+                                    <input type="hidden" name="reset_sign_in" value="1">
+                                    <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                                    <button class="btn btn-sm btn-outline-secondary" type="submit">Reset code</button>
+                                </form>
                             <?php else: ?>
                                 <span class="badge bg-light text-muted border py-2"><i class="bi bi-lock-fill"></i> System Locked</span>
                             <?php endif; ?>
                         <?php else: ?>
                             <button class="btn btn-sm btn-outline-primary" onclick='editUser(<?= json_encode($u) ?>)'><i class="bi bi-pencil"></i></button>
+                            <?php if (in_array($u['role'], ['admin', 'manager', 'dev'], true)): ?>
+                            <form method="POST" class="d-inline js-confirm-form"
+                                data-swal-title="Reset the sign-in code?"
+                                data-swal-text="The next sign-in sets a new authenticator code. Open browsers for this account are signed out."
+                                data-swal-confirm="Reset"
+                                data-swal-cancel="Cancel"
+                                data-swal-icon="warning">
+                                <input type="hidden" name="reset_sign_in" value="1">
+                                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                                <button class="btn btn-sm btn-outline-secondary" type="submit">Reset code</button>
+                            </form>
+                            <?php endif; ?>
                             <?php if ($u['id'] !== $_SESSION['user_id']): ?>
                             <form method="POST" class="d-inline js-confirm-form"
                                 data-swal-title="Delete this user?"
@@ -119,8 +141,13 @@ include __DIR__ . '/partials/bulk_bar.php';
 
                     <div class="mb-2">
                         <label class="form-label small fw-bold text-muted">Password</label>
-                        <input type="password" name="password" id="userPassword" class="form-control" placeholder="Enter password (leave blank to keep current)">
-                        <div class="form-text" id="passwordHelp" style="display:none;">Leave empty if you do not want to change the password.</div>
+                        <input type="password" name="password" id="userPassword" class="form-control" minlength="6" placeholder="Enter password (leave blank to keep current)">
+                        <div class="form-text" id="passwordHelp" style="display:none;">Leave empty if you do not want to change the password. At least 6 characters.</div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold text-muted">Till approval code</label>
+                        <input type="password" name="approval_code" id="userApproval" class="form-control" minlength="4" maxlength="12" placeholder="Needed for a manager, admin, developer, or head chef" autocomplete="new-password">
+                        <div class="form-text">4 to 12 characters, and different from the login password. Leave blank when editing to keep the current code.</div>
                     </div>
                 </div>
                 <div class="modal-footer border-0 bg-white">
@@ -147,6 +174,7 @@ function resetUserForm() {
     document.getElementById('userRole').value = "cashier";
     document.getElementById('userLocation').value = "0";
     document.getElementById('userPassword').value = "";
+    document.getElementById('userApproval').value = "";
 }
 
 function editUser(user) {
@@ -164,6 +192,7 @@ function editUser(user) {
     const locId = parseInt(user.location_id, 10);
     document.getElementById('userLocation').value = (locId > 0) ? String(locId) : '0';
     document.getElementById('userPassword').value = "";
+    document.getElementById('userApproval').value = "";
     
     new bootstrap.Modal(document.getElementById('userModal')).show();
 }

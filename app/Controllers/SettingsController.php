@@ -86,7 +86,7 @@ final class SettingsController extends Controller
         $flwBanks = [];
         $flwBranches = [];
         $flwBanksError = null;
-        if ((string)($_GET['tab'] ?? '') === 'payments' && $flw->enabled()) {
+        if ($this->role() === 'dev' && (string)($_GET['tab'] ?? '') === 'payments' && $flw->enabled()) {
             try {
                 $flwBanks = $flw->zmBanks();
                 $savedId = trim((string)($settings['flw_payout_bank_id'] ?? ''));
@@ -194,6 +194,9 @@ final class SettingsController extends Controller
 
     private function savePayments(): void
     {
+        if ($this->role() !== 'dev') {
+            throw new \RuntimeException('Only a developer can change payments.');
+        }
         $existing = Setting::all();
         $secret = trim((string)($_POST['flw_secret_key'] ?? ''));
         $pairs = [

@@ -155,7 +155,7 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
 
                                 <div class="mb-4 mt-3 bg-dark p-3 rounded border border-secondary shadow-sm">
                                     <label class="form-label text-warning fw-bold small"><i class="bi bi-shield-lock-fill"></i> Manager Verification Required</label>
-                                    <input type="password" name="manager_password" class="form-control border-warning" placeholder="Enter Manager Password" required autocomplete="new-password">
+                                    <input type="password" name="manager_password" class="form-control border-warning" placeholder="Approval code" required autocomplete="new-password">
                                 </div>
 
                                 <button type="submit" class="btn btn-success w-100 btn-lg fw-bold shadow">Clock In</button>
@@ -213,7 +213,7 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
 
                                 <div class="mb-4 mt-3 bg-dark p-3 rounded border border-secondary shadow-sm">
                                     <label class="form-label text-danger fw-bold small"><i class="bi bi-shield-lock-fill"></i> Manager Verification Required</label>
-                                    <input type="password" name="manager_password" class="form-control border-danger" placeholder="Enter Manager Password" required autocomplete="new-password">
+                                    <input type="password" name="manager_password" class="form-control border-danger" placeholder="Approval code" required autocomplete="new-password">
                                 </div>
 
                                 <button type="submit" class="btn btn-danger w-100 btn-lg fw-bold shadow">Clock Out & Close Shift</button>

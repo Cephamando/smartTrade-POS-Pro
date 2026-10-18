@@ -207,7 +207,7 @@ final class Training
 
     private function courseDefinitions(): array
     {
-        $auth = 'When a manager password is required, use train_mgr and the password train. A manager, administrator, or developer can use their own password instead.';
+        $auth = 'When a till approval is required, use train_mgr and the approval code till. That code is not the login password. A manager, administrator, or developer can use their own approval code instead.';
         return [
             'cashier' => [
                 'title' => 'Cashier and bartender',
@@ -658,6 +658,7 @@ final class Training
             'full_name' => 'Training Manager',
             'password_hash' => $hash,
             'password' => $hash,
+            'approval_code_hash' => password_hash('till', PASSWORD_DEFAULT),
             'role' => 'manager',
             'location_id' => $locationId,
             'is_active' => 1,

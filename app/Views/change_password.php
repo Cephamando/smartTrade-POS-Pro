@@ -45,6 +45,25 @@
                     </div>
                 </form>
 
+                <?php if (!empty($canApprove)): ?>
+                <hr class="my-4">
+                <h5 class="fw-bold">Till approval code</h5>
+                <p class="text-muted small">Used for voids, refunds, payouts, and shift approval. It is not the login password.<?= empty($hasApproval) ? ' Set one before the till will accept an authorization.' : '' ?></p>
+                <form method="POST" action="index.php?page=change_password">
+                    <input type="hidden" name="save_approval" value="1">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Current password</label>
+                        <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Approval code</label>
+                        <input type="password" name="approval_code" class="form-control" required minlength="4" maxlength="12" autocomplete="new-password">
+                        <div class="form-text">4 to 12 characters, and different from the login password.</div>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary">Save approval code</button>
+                </form>
+                <?php endif; ?>
+
             </div>
         </div>
     </div>

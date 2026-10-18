@@ -46,7 +46,7 @@ final class Pos
                 $session['swal_msg'] = 'Shift started.';
             } else {
                 $session['swal_type'] = 'error';
-                $session['swal_msg'] = 'Manager credentials are incorrect.';
+                $session['swal_msg'] = 'That approval code was not accepted.';
             }
             return ['redirect' => true];
         }
@@ -215,7 +215,7 @@ final class Pos
                 $session['swal_msg'] = 'Waste logged.';
             } else {
                 $session['swal_type'] = 'error';
-                $session['swal_msg'] = 'Manager authorization failed.';
+                $session['swal_msg'] = 'That approval code was not accepted.';
             }
             return ['redirect' => true];
         }
@@ -406,7 +406,7 @@ final class Pos
     {
         $mgr = User::verifyManager((string)($post['mgr_user'] ?? ''), (string)($post['mgr_pass'] ?? ''));
         if (!$mgr) {
-            return ['json' => ['status' => 'error', 'msg' => 'Manager authorization failed.']];
+            return ['json' => ['status' => 'error', 'msg' => 'That approval code was not accepted.']];
         }
         try {
             $this->pdo->beginTransaction();
@@ -860,7 +860,7 @@ final class Pos
         $mgr = User::verifyManager((string)($post['mgr_username'] ?? ''), (string)($post['mgr_password'] ?? ''));
         if (!$mgr) {
             $session['swal_type'] = 'error';
-            $session['swal_msg'] = 'Manager credentials are incorrect.';
+            $session['swal_msg'] = 'That approval code was not accepted.';
             return;
         }
         try {

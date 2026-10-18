@@ -21,7 +21,7 @@ final class EndShiftActionController extends Controller
         try {
             $mgr = User::verifyManager($mgrUsername, $mgrPassword);
             if (!$mgr) {
-                throw new \Exception('Manager credentials are invalid. The shift was not closed.');
+                throw new \Exception('That approval code was not accepted. The shift was not closed.');
             }
             $shift = Shift::openForUser($this->userId(), $this->locationId());
             if (!$shift) {

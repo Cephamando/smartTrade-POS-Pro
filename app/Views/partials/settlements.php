@@ -98,7 +98,9 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
             </div>
         </div>
         <?php if (!empty($payout['balance_error'])): ?><div class="small text-danger mt-2"><?= htmlspecialchars((string)$payout['balance_error']) ?></div><?php endif; ?>
-        <?php if (empty($dest['ready'])): ?>
+        <?php if (strtolower((string)($_SESSION['role'] ?? '')) !== 'dev'): ?>
+            <div class="alert alert-light border small mb-0 mt-3">A developer sends an emergency transfer and keeps the payout account.</div>
+        <?php elseif (empty($dest['ready'])): ?>
             <div class="alert alert-warning small mb-0 mt-3">Save a bank account or a mobile-money number under <a href="index.php?page=settings&amp;tab=payments">Settings → Payments</a> before an emergency transfer can be sent.</div>
         <?php else: ?>
             <div class="small mt-3 mb-3">Pays <strong><?= htmlspecialchars((string)($dest['name'] ?? '')) ?></strong>, <?= htmlspecialchars((string)(($dest['bank_name'] ?? '') !== '' ? $dest['bank_name'] : 'saved bank')) ?> <?= htmlspecialchars((string)($dest['masked'] ?? '')) ?>.</div>
@@ -113,7 +115,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                     <input type="text" name="narration" class="form-control" maxlength="100" placeholder="Emergency settlement to bank" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small fw-bold text-muted">MANAGER</label>
+                    <label class="form-label small fw-bold text-muted">DEVELOPER</label>
                     <input type="text" name="mgr_username" class="form-control" autocomplete="off" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-2">

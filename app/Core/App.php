@@ -16,6 +16,7 @@ final class App
             (new \App\Services\Training())->releaseIfAbandoned();
         }
         $this->loadSettings();
+        $this->guardSession();
         $this->handleLocationSwitch();
         
         // If it's a global JSON polling action, handle it and stop.
@@ -55,8 +56,85 @@ final class App
     private function bootSession(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path' => '/',
+                'secure' => $https,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
             session_start();
         }
+    }
+
+    /** Office accounts idle out after 30 minutes. A till stays signed in for 8 hours. */
+    private function guardSession(): void
+    {
+        if (empty($_SESSION['user_id'])) {
+            $pendingAt = (int)($_SESSION['pending_at'] ?? 0);
+            if ($pendingAt > 0 && time() - $pendingAt > 300) {
+                unset(
+                    $_SESSION['pending_user_id'],
+                    $_SESSION['pending_username'],
+                    $_SESSION['pending_role'],
+                    $_SESSION['pending_location_id'],
+                    $_SESSION['pending_location_name'],
+                    $_SESSION['pending_force'],
+                    $_SESSION['pending_at'],
+                    $_SESSION['pending_totp_secret'],
+                    $_SESSION['recovery_plain']
+                );
+            }
+            return;
+        }
+
+        $stamp = \App\Models\User::sessionStamp((int)$_SESSION['user_id']);
+        $rev = (int)($_SESSION['session_rev'] ?? -1);
+        if (!$stamp || (int)$stamp['is_active'] !== 1 || (int)$stamp['session_rev'] !== $rev) {
+            $this->endSession();
+        }
+
+        $role = (string)($stamp['role'] ?? '');
+        $limit = \App\Models\User::officeRole($role) ? 1800 : 28800;
+        $seen = (int)($_SESSION['last_seen'] ?? 0);
+        if ($seen > 0 && time() - $seen > $limit) {
+            $this->endSession();
+        }
+        if (!$this->isBackgroundPoll()) {
+            $_SESSION['last_seen'] = time();
+        }
+    }
+
+    private function isBackgroundPoll(): bool
+    {
+        return in_array((string)($_GET['action'] ?? ''), ['check_ready_orders', 'live_status', 'get_shift_sales', 'get_stock_level'], true);
+    }
+
+    private function endSession(): void
+    {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', [
+                'expires' => time() - 42000,
+                'path' => (string)$params['path'],
+                'domain' => (string)$params['domain'],
+                'secure' => (bool)$params['secure'],
+                'httponly' => (bool)$params['httponly'],
+                'samesite' => (string)($params['samesite'] ?? 'Lax'),
+            ]);
+        }
+        session_destroy();
+        if ($this->isBackgroundPoll()) {
+            header('Content-Type: application/json');
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'msg' => 'Sign in again.']);
+            exit;
+        }
+        header('Location: index.php?page=login');
+        exit;
     }
 
     private function loadSettings(): void

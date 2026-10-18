@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 8;
+    public const VERSION = 10;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -349,6 +349,12 @@ final class Schema
                 KEY idx_guest_open (mood, handled_at, location_id, created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+
+        self::addColumn($pdo, 'users', 'session_rev', 'INT NOT NULL DEFAULT 0');
+        self::addColumn($pdo, 'users', 'approval_code_hash', 'VARCHAR(255) NULL');
+        self::addColumn($pdo, 'users', 'totp_secret', 'VARCHAR(64) NULL');
+        self::addColumn($pdo, 'users', 'totp_recovery', 'TEXT NULL');
+        self::nullableColumn($pdo, 'events', 'ends_at', 'DATETIME NULL');
     }
 
     private static function addColumn(PDO $pdo, string $table, string $column, string $definition): void
@@ -360,5 +366,18 @@ final class Schema
         if ((int)$stmt->fetchColumn() === 0) {
             $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
         }
+    }
+
+    private static function nullableColumn(PDO $pdo, string $table, string $column, string $definition): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+        $nullable = $stmt->fetchColumn();
+        if ($nullable === false || $nullable === 'YES') {
+            return;
+        }
+        $pdo->exec("ALTER TABLE `$table` MODIFY `$column` $definition");
     }
 }

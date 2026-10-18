@@ -93,7 +93,7 @@ final class Checkout
         if ($checkTotal < 0) {
             $mgr = User::verifyManager((string)($post['mgr_username'] ?? ''), (string)($post['mgr_password'] ?? ''));
             if (!$mgr) {
-                throw new \Exception("Manager Authorization required for Cash Refunds.");
+                throw new \Exception('An approval code is required for a cash refund.');
             }
             if ($settleTabId <= 0) {
                 $this->prepareOriginalInvoicesForRefund($session);

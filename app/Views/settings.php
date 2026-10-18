@@ -1,7 +1,8 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$allowedTabs = ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email', 'guide'];
+$allowedTabs = ['general', 'surcharges', 'currency', 'shop', 'branding', 'email', 'guide'];
 if ($userRole === 'dev') {
+    $allowedTabs[] = 'payments';
     $allowedTabs[] = 'developer';
 }
 $tab = in_array($tab ?? 'general', $allowedTabs, true) ? $tab : 'general';
@@ -9,7 +10,11 @@ $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['fl
 $tabs = [
     'general' => ['bi-sliders', 'General'],
     'surcharges' => ['bi-plus-slash-minus', 'POS surcharges'],
-    'payments' => ['bi-credit-card-2-front', 'Payments (Flutterwave)'],
+];
+if ($userRole === 'dev') {
+    $tabs['payments'] = ['bi-credit-card-2-front', 'Payments (Flutterwave)'];
+}
+$tabs += [
     'currency' => ['bi-currency-exchange', 'Currency'],
     'shop' => ['bi-bag-heart', 'Customer ordering'],
     'branding' => ['bi-image', 'Logo & banners'],

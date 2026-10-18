@@ -19,6 +19,21 @@ $shopIcon = function (string $cat): string {
     return 'bi-basket3';
 };
 $money = fn($v) => 'K' . number_format((float)$v, 2);
+$eventWhen = static function (array $row): string {
+    $startTs = strtotime((string)($row['starts_at'] ?? ''));
+    if ($startTs === false) {
+        return '';
+    }
+    $endRaw = trim((string)($row['ends_at'] ?? ''));
+    $endTs = $endRaw !== '' ? strtotime($endRaw) : false;
+    if ($endTs === false) {
+        return date('D j M Y, H:i', $startTs);
+    }
+    if (date('Y-m-d', $startTs) === date('Y-m-d', $endTs)) {
+        return date('D j M Y, H:i', $startTs) . '–' . date('H:i', $endTs);
+    }
+    return date('D j M Y, H:i', $startTs) . ' – ' . date('D j M Y, H:i', $endTs);
+};
 $fx = $fx ?? ['rates' => []];
 $fxRates = [];
 foreach (($fx['rates'] ?? []) as $code => $row) {
@@ -110,6 +125,18 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .land-dots button.is-on { background: #f5a623; }
         .land-menu-cta { padding-bottom: 36px; }
         .land-menu-cta .land-lead { letter-spacing: .14em; text-transform: uppercase; font-size: .82rem; font-weight: 700; color: #6b6b6b; }
+        .land-hero.has-event { padding-bottom: 78px; }
+        .land-events { position: relative; z-index: 2; overflow: hidden; max-width: 680px; margin: -126px auto 0; border: 2px solid #f5a623; border-radius: 16px; background: #fff; box-shadow: 0 16px 36px rgba(0,0,0,.28); }
+        .land-events + .land-block { padding-top: 36px; }
+        .land-event-track { display: flex; transition: transform .45s ease; }
+        .land-event { flex: 0 0 100%; min-width: 0; display: flex; align-items: stretch; min-height: 108px; color: inherit; text-decoration: none; background: #fff; }
+        .land-event img { width: 168px; height: 108px; object-fit: cover; flex: 0 0 168px; display: block; background: #f6f1e6; }
+        .land-event-copy { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 12px 16px; min-width: 0; }
+        .land-event strong { color: #1c1c1c; font-size: 1.15rem; line-height: 1.2; }
+        .land-event-when { color: #5c5c5c; font-size: .88rem; }
+        .land-event-kicker { letter-spacing: .14em; text-transform: uppercase; font-size: .68rem; font-weight: 700; color: #e09412; }
+        @media (max-width: 720px) { .land-event img { width: 112px; height: 96px; flex-basis: 112px; } .land-events { margin-top: -108px; } }
+        @media (prefers-reduced-motion: reduce) { .land-event-track { transition: none; } }
         @media (max-width: 900px) { .land-specs, .land-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .land-hero { min-height: 460px; } }
         h1, h2, h3, h4, h5, .page-title, .display-name { font-family: "Playfair Display", Georgia, serif; }
         a { color: inherit; }
@@ -491,7 +518,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         $heroPhoto = $bannerUrl !== '' ? $bannerUrl : (string)($categoryCards[0]['photo'] ?? '');
         $storeNames = array_map(static fn(array $row): string => (string)$row['name'], $shopLocations ?? []);
     ?>
-    <section class="land-hero">
+    <section class="land-hero<?= !empty($events) ? ' has-event' : '' ?>">
         <div class="land-hero-photo landing-photo">
             <?php if ($heroPhoto !== ''): ?><img id="shopBanner" src="<?= htmlspecialchars($heroPhoto) ?>" alt=""><?php endif; ?>
         </div>
@@ -504,6 +531,24 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div>
         </div>
     </section>
+    <?php if (!empty($events)): ?>
+    <div class="land-events" id="landEvents">
+        <div class="land-event-track">
+            <?php foreach ($events as $ev):
+                $eventCover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
+            ?>
+            <a class="land-event" href="<?= $u('event', ['slug' => (string)$ev['slug']]) ?>">
+                <?php if ($eventCover !== ''): ?><img src="<?= htmlspecialchars($eventCover) ?>" alt=""><?php endif; ?>
+                <span class="land-event-copy">
+                    <span class="land-event-kicker">On now</span>
+                    <strong><?= htmlspecialchars((string)$ev['title']) ?></strong>
+                    <span class="land-event-when"><?= htmlspecialchars($eventWhen($ev)) ?></span>
+                </span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
     <section class="land-block">
         <h2>Our specialities</h2>
         <span class="land-rule"></span>
@@ -556,6 +601,23 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             dots.appendChild(dot);
         }
         show(0);
+    })();
+    </script>
+    <?php endif; ?>
+    <?php if (count($events ?? []) > 1): ?>
+    <script>
+    (function () {
+        var box = document.getElementById('landEvents');
+        if (!box) return;
+        var track = box.querySelector('.land-event-track');
+        var items = track ? track.children.length : 0;
+        if (!track || items < 2) return;
+        var index = 0;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        window.setInterval(function () {
+            index = (index + 1) % items;
+            track.style.transform = 'translateX(-' + (index * 100) + '%)';
+        }, 5000);
     })();
     </script>
     <?php endif; ?>
@@ -1292,7 +1354,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <div class="row g-3">
         <?php foreach ($events as $ev):
             $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
-            $when = $ev['starts_at'] ? date('D j M Y, H:i', strtotime((string)$ev['starts_at'])) : '';
+            $when = $eventWhen($ev);
         ?>
             <div class="col-md-6">
                 <a href="<?= $u('event', ['slug' => $ev['slug']]) ?>" class="card item-card h-100 text-decoration-none text-reset">
@@ -1314,7 +1376,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <a href="<?= $u('events') ?>" class="btn btn-accent rounded-pill">All events</a>
     <?php else:
         $cover = \App\Helpers\Media::url((string)($event['cover_path'] ?? ''));
-        $when = $event['starts_at'] ? date('D j M Y, H:i', strtotime((string)$event['starts_at'])) : '';
+        $when = $eventWhen($event);
         $groups = [];
         foreach ($options as $opt) {
             $groups[$opt['group_name'] ?: 'Choice'][] = $opt;
@@ -1378,7 +1440,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <?php if (empty($guest) || empty($event)): ?>
         <section class="shop-hero"><h1>Invitation not found</h1><p>Ask the restaurant for a new link.</p></section>
     <?php else:
-        $when = $event['starts_at'] ? date('D j M Y, H:i', strtotime((string)$event['starts_at'])) : '';
+        $when = $eventWhen($event);
         $open = ($event['status'] ?? '') === 'open';
         $groups = [];
         foreach ($options as $opt) {
@@ -1562,7 +1624,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 <?php foreach ($eventSlides as $ev):
                     $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
-                    $when = !empty($ev['starts_at']) ? date('D j M Y, H:i', strtotime((string)$ev['starts_at'])) : '';
+                    $when = $eventWhen($ev);
                     $regOptions = \App\Models\Event::options((int)$ev['id']);
                     $regTiers = \App\Models\Event::tiers((int)$ev['id']);
                     $groups = [];
