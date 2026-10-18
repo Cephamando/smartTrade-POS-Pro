@@ -16,6 +16,7 @@ return [
     'categories' => [],
     'inventory' => [],
     'locations' => [],
+    'guest_notes' => [],
     'users' => [],
     'members' => [],
     'vendors' => [],

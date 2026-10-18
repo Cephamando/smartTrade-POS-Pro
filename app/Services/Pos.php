@@ -134,6 +134,7 @@ final class Pos
             $this->pdo->prepare("UPDATE sales SET status = 'completed', shift_id = COALESCE(shift_id, ?), user_id = ? WHERE id = ?")
                 ->execute([$activeShiftId ?: null, $userId, $saleId]);
             $this->pdo->prepare("UPDATE sale_items SET fulfillment_status = 'collected', status = 'ready' WHERE sale_id = ? AND status NOT IN ('voided','refunded')")->execute([$saleId]);
+            \App\Models\GuestNote::inviteCompletedSale($saleId);
             OrderWebhook::notify($this->pdo, $saleId, 'handed_over');
             $zra = fiscalizePaidSale($this->pdo, $saleId);
             $msg = 'Web order #' . $saleId . ' handed over.' . $zra;
@@ -346,6 +347,7 @@ final class Pos
             'occupiedTables' => $occupiedTables,
             'onlineTabs' => $onlineTabs,
             'onlineTabItems' => $onlineTabItems,
+            'guestNoteOpen' => \App\Models\GuestNote::openAtLocation($locationId),
             'restaurantTables' => RestaurantTable::groupedForLocation($locationId),
             'cartStock' => $this->cartStockMap($session, $locationId),
             'cartQtyByProduct' => $this->cartQtyByProduct($session),

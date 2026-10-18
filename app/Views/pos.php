@@ -311,6 +311,17 @@ function getCategoryStyle($name) {
         </div>
     </div>
 
+    <?php if (!empty($guestNoteOpen['count'])): ?>
+    <div class="px-3 py-2 bg-warning text-dark small fw-semibold d-flex justify-content-between align-items-center gap-3">
+        <span><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars((string)($guestNoteOpen['line'] ?? 'A guest wants a word.')) ?></span>
+        <?php if (in_array($userRole ?? '', ['admin', 'manager', 'dev'], true)): ?>
+            <a class="text-dark" href="index.php?page=guest_notes">Open guest notes</a>
+        <?php else: ?>
+            <span>Tell a manager</span>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
     <div class="workspace" style="<?= (!$activeShiftId) ? 'filter: blur(5px); pointer-events: none;' : '' ?>">
         <div class="product-section">
             <div class="pos-sticky-tools">

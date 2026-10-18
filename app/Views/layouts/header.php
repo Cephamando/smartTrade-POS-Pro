@@ -22,6 +22,7 @@ $allGlobalLocations = [];
 $bayWaiting = 0;
 $currentLocationCanSell = true;
 $pendingLocEdits = 0;
+$openGuestNotes = 0;
 
 if (isset($pdo)) {
     $allGlobalLocations = $pdo->query("SELECT id, name, can_sell FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -49,6 +50,13 @@ if (isset($pdo)) {
                 $pendingLocEdits = (int)$pdo->query("SELECT COUNT(*) FROM locations WHERE pending_edits IS NOT NULL")->fetchColumn();
             }
         } catch (\Throwable $e) {}
+    }
+    if (in_array($role ?? '', ['admin', 'manager', 'dev'], true)) {
+        try {
+            $openGuestNotes = \App\Models\GuestNote::openCount();
+        } catch (\Throwable $e) {
+            $openGuestNotes = 0;
+        }
     }
 }
 ?>
@@ -312,7 +320,7 @@ $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
 $navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
-$navOfficePages = ['reports', 'analysis', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings', 'members', 'activity'];
+$navOfficePages = ['reports', 'analysis', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'members', 'activity'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
         return '';
@@ -442,6 +450,9 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (!empty($pendingLocEdits)): ?>
                             <span class="badge bg-warning text-dark ms-1" title="A location edit is waiting for the developer"><i class="bi bi-exclamation-circle-fill"></i></span>
                         <?php endif; ?>
+                        <?php if (!empty($openGuestNotes)): ?>
+                            <span class="badge bg-danger ms-1" title="Open guest notes"><?= (int)$openGuestNotes ?></span>
+                        <?php endif; ?>
                     </a>
                     <ul class="dropdown-menu shadow">
                         <li><h6 class="dropdown-header">Today</h6></li>
@@ -478,6 +489,14 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (in_array($tier, ['pro+', 'enterprise'], true)): ?>
                         <li><a class="dropdown-item<?= $navItem('tables') ?>" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Tables</a></li>
                         <?php endif; ?>
+                        <li>
+                            <a class="dropdown-item<?= $navItem('guest_notes') ?>" href="index.php?page=guest_notes">
+                                <i class="bi bi-chat-left-heart"></i> Guest notes
+                                <?php if (!empty($openGuestNotes)): ?>
+                                    <span class="badge bg-danger ms-1"><?= (int)$openGuestNotes ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
                         <li><a class="dropdown-item<?= $navItem('events') ?>" href="index.php?page=events"><i class="bi bi-calendar-event"></i> Events</a></li>
                         <?php if (in_array($role, ['admin', 'dev'], true)): ?>
                         <li><h6 class="dropdown-header">Setup</h6></li>

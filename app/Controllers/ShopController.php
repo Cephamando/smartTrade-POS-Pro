@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\Customer;
 use App\Models\Event;
+use App\Models\GuestNote;
 use App\Models\Location;
 use App\Models\RestaurantTable;
 use App\Models\Setting;
@@ -26,7 +27,7 @@ final class ShopController extends Controller
     {
         $this->settings = Setting::all();
         $view = (string)($_GET['view'] ?? 'home');
-        $eventView = in_array($view, ['events', 'event', 'rsvp'], true);
+        $eventView = in_array($view, ['events', 'event', 'rsvp', 'visit', 'pay_return', 'thanks'], true);
         if (!$eventView && ($this->settings['shop_enabled'] ?? '0') !== '1' && !$this->isManager()) {
             $this->render(['view' => 'closed', 'settings' => $this->settings, 'customer' => null, 'cart' => [], 'cartTotal' => 0, 'flash' => null]);
             return;
@@ -102,17 +103,23 @@ final class ShopController extends Controller
             }
         } elseif ($view === 'orders' && $customer) {
             $data['orders'] = Customer::orders((int)$customer['id']);
+        } elseif ($view === 'thanks' && $customer) {
+            $data['order'] = Customer::order((int)$customer['id'], (int)($_GET['id'] ?? 0));
+            if (!$data['order'] || ($data['order']['payment_status'] ?? '') !== 'paid') {
+                $this->flashShop('error', 'That order is not paid yet.');
+                $this->go($data['order'] ? 'order' : 'orders', $data['order'] ? ['id' => (int)$data['order']['id']] : []);
+            }
         } elseif ($view === 'order' && $customer) {
             $data['order'] = Customer::order((int)$customer['id'], (int)($_GET['id'] ?? 0));
             if (!$data['order']) {
                 $this->go('orders');
             }
+            $data['visitAnswered'] = GuestNote::forSale((int)$data['order']['id']) !== null;
             if (($data['order']['payment_status'] ?? '') !== 'paid' && trim((string)($data['order']['gateway_ref'] ?? '')) !== '') {
                 $settled = $this->confirmShopPayment((int)$data['order']['id'], (string)$data['order']['gateway_ref']);
                 if ($settled === 'paid') {
                     $this->flashShop('success', 'Payment received. Your order #' . (int)$data['order']['id'] . ' is being prepared.');
-                    $data['flash'] = $this->takeFlash();
-                    $data['order'] = Customer::order((int)$customer['id'], (int)$data['order']['id']);
+                    $this->go('thanks', ['id' => (int)$data['order']['id']]);
                 }
             }
         } elseif ($view === 'pay' && $customer) {
@@ -136,9 +143,22 @@ final class ShopController extends Controller
                 $this->go('order', ['id' => $saleId]);
             }
             $data['order'] = $order;
-        } elseif (in_array($view, ['orders', 'order', 'account', 'checkout', 'pay'], true) && !$customer) {
+        } elseif (in_array($view, ['orders', 'order', 'account', 'checkout', 'pay', 'thanks'], true) && !$customer) {
             $_SESSION['shop_after_login'] = $view;
             $this->go('login');
+        }
+        if ($view === 'visit') {
+            $ctx = $this->visitContext($customer);
+            $data['visitLocation'] = $ctx['location'];
+            $data['visitSale'] = $ctx['sale'];
+            $data['visitTable'] = $ctx['table'];
+            $data['visitGoogle'] = $ctx['google'];
+            $data['visitAnswered'] = $ctx['answered'];
+            $data['visitMood'] = $ctx['mood'];
+            $data['visitProblem'] = $ctx['problem'];
+            $data['visitQuery'] = $ctx['query'];
+            $data['visitStores'] = $ctx['stores'];
+            $data['visitStep'] = (string)($_GET['step'] ?? '');
         }
         $this->render($data);
     }
@@ -222,6 +242,9 @@ final class ShopController extends Controller
     {
         $p = $_POST;
         try {
+            if (isset($p['visit_mood']) || isset($p['visit_save'])) {
+                $this->saveVisit($p, $customer);
+            }
             if (isset($p['event_apply']) || isset($p['event_reply']) || isset($p['event_pay'])) {
                 $this->handleEventPost($p);
             }
@@ -315,7 +338,7 @@ final class ShopController extends Controller
     {
         $this->shopLocations = Location::sellable();
         $allowed = array_map('intval', array_column($this->shopLocations, 'id'));
-        $pick = (int)($_GET['loc'] ?? 0);
+        $pick = (string)($_GET['view'] ?? '') === 'visit' ? 0 : (int)($_GET['loc'] ?? 0);
         if ($pick <= 0) {
             $pick = (int)($_SESSION['shop_location_id'] ?? 0);
         }
@@ -624,20 +647,20 @@ final class ShopController extends Controller
         if ($txRef !== '' && str_starts_with($chargeId, 'chg_')) {
             (new Flutterwave($pdo, $this->settings))->rememberCharge($txRef, $chargeId);
         }
-        if ($sale['payment_status'] !== 'paid') {
+        $paid = ($sale['payment_status'] ?? '') === 'paid';
+        if (!$paid) {
             $settled = $this->confirmShopPayment($saleId, $txRef);
-            if ($settled === 'paid') {
-                $this->flashShop('success', 'Payment received. Your order #' . $saleId . ' is being prepared.');
-            } elseif ($settled === 'pending') {
+            $paid = $settled === 'paid';
+            if ($settled === 'pending') {
                 $this->flashShop('warning', 'Payment is still pending with Flutterwave. You can try Pay now again.');
             } elseif ($settled === 'failed') {
                 $this->flashShop('error', 'Payment was not completed. Open the order and try Pay now again.');
-            } else {
+            } elseif ($settled !== 'paid') {
                 $this->flashShop('error', 'Could not confirm the payment. Open the order and try Pay now again.');
             }
         }
         if ($customer && (int)$sale['customer_id'] === (int)$customer['id']) {
-            $this->go('order', ['id' => $saleId]);
+            $this->go($paid ? 'thanks' : 'order', ['id' => $saleId]);
         }
         $this->go('menu');
     }
@@ -797,11 +820,154 @@ final class ShopController extends Controller
 
     // ------------------------------------------------------------------ helpers
 
+    private function saveVisit(array $p, ?array $customer): never
+    {
+        $ctx = $this->visitContext($customer, $p);
+        if ($ctx['problem'] !== '') {
+            $this->flashShop('error', $ctx['problem']);
+            $this->go('visit', $ctx['query']);
+        }
+        if (!$ctx['location']) {
+            $this->flashShop('error', 'Choose a store first.');
+            $this->go('visit');
+        }
+        if ($ctx['answered']) {
+            $this->go('visit', $ctx['query']);
+        }
+        if (($p['visit_mood'] ?? '') === 'off' && !isset($p['visit_save'])) {
+            $this->go('visit', $ctx['query'] + ['step' => 'off']);
+        }
+        $mood = isset($p['visit_save']) ? 'off' : 'glad';
+        try {
+            GuestNote::record(
+                (int)$ctx['location']['id'],
+                $mood,
+                (string)($p['note'] ?? ''),
+                (string)($p['phone'] ?? ''),
+                $ctx['sale'] ? 'shop' : 'table',
+                $ctx['sale'] ? (int)$ctx['sale']['id'] : null,
+                $ctx['table'] ? (int)$ctx['table']['id'] : null,
+                $customer ? (int)$customer['id'] : null
+            );
+        } catch (\RuntimeException $e) {
+            $this->flashShop('error', $e->getMessage());
+            $this->go('visit', $ctx['query'] + ($mood === 'off' ? ['step' => 'off'] : []));
+        }
+        if (!$ctx['sale']) {
+            $_SESSION['shop_visit_done'] = 1;
+        }
+        $_SESSION['shop_visit_mood'] = $mood;
+        if ($mood === 'glad' && $ctx['google'] !== '') {
+            header('Location: ' . $ctx['google']);
+            exit;
+        }
+        $this->flashShop('success', $mood === 'glad' ? 'Thank you. Glad you came.' : 'The team has your note.');
+        $this->go('visit', $ctx['query']);
+    }
+
+    /** @param array<string, mixed> $src
+     *  @return array{location: ?array, sale: ?array, table: ?array, google: string, answered: bool, mood: string, problem: string, query: array<string, int|string>, stores: array}
+     */
+    private function visitContext(?array $customer, array $src = []): array
+    {
+        $saleId = (int)($src['sale'] ?? $_GET['sale'] ?? 0);
+        $token = trim((string)($src['token'] ?? $_GET['token'] ?? ''));
+        $locId = (int)($src['loc'] ?? $_GET['loc'] ?? 0);
+        $sale = null;
+        $problem = '';
+        if ($saleId > 0) {
+            $look = $this->saleForVisit($saleId, $customer, $token);
+            $sale = $look['sale'];
+            $problem = $look['problem'];
+            if ($sale) {
+                $locId = (int)$sale['location_id'];
+            }
+        }
+        if ($locId <= 0) {
+            $locId = $this->shopLocationId();
+        }
+        $location = $locId > 0 ? Location::find($locId) : null;
+        if ($location && $problem === '' && $saleId > 0 && !$sale) {
+            $location = null;
+        }
+        $table = null;
+        if ($sale && !empty($sale['table_id'])) {
+            $found = RestaurantTable::find((int)$sale['table_id']);
+            if ($found && (int)$found['location_id'] === (int)($location['id'] ?? 0)) {
+                $table = $found;
+            }
+        } elseif ($location) {
+            $sessionTable = $this->shopTable();
+            if ($sessionTable && (int)$sessionTable['location_id'] === (int)$location['id']) {
+                $table = $sessionTable;
+            }
+        }
+        $existing = $sale ? GuestNote::forSale((int)$sale['id']) : null;
+        $answered = $existing !== null || (!$sale && $problem === '' && !empty($_SESSION['shop_visit_done']));
+        $mood = '';
+        if ($existing) {
+            $mood = (string)$existing['mood'];
+        } elseif ($answered) {
+            $mood = (string)($_SESSION['shop_visit_mood'] ?? '');
+        }
+        $google = '';
+        if ($location) {
+            try {
+                $google = GuestNote::reviewUrl((string)($location['google_review_url'] ?? ''));
+            } catch (\Throwable) {
+                $google = '';
+            }
+        }
+        $query = [];
+        if ($sale) {
+            $query['sale'] = (int)$sale['id'];
+            if ($token !== '') {
+                $query['token'] = $token;
+            }
+        } elseif ($location && $problem === '') {
+            $query['loc'] = (int)$location['id'];
+        }
+        return [
+            'location' => $problem === '' ? $location : null,
+            'sale' => $sale,
+            'table' => $table,
+            'google' => $google,
+            'answered' => $answered,
+            'mood' => $mood,
+            'problem' => $problem,
+            'query' => $query,
+            'stores' => Location::sellable(),
+        ];
+    }
+
+    /** @return array{sale: ?array, problem: string} */
+    private function saleForVisit(int $id, ?array $customer, string $token): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT id, location_id, customer_id, table_id, payment_status, status, visit_token FROM sales WHERE id = ?'
+        );
+        $stmt->execute([$id]);
+        $sale = $stmt->fetch();
+        if (!$sale) {
+            return ['sale' => null, 'problem' => 'Open this from your finished order, or from the link we emailed.'];
+        }
+        if (($sale['payment_status'] ?? '') !== 'paid' || ($sale['status'] ?? '') === 'pending') {
+            return ['sale' => null, 'problem' => 'This order is not finished yet.'];
+        }
+        $owns = $customer && (int)$customer['id'] === (int)$sale['customer_id'];
+        $stored = (string)($sale['visit_token'] ?? '');
+        $tokenOk = $token !== '' && $stored !== '' && strlen($stored) === strlen($token) && hash_equals($stored, $token);
+        if (!$owns && !$tokenOk) {
+            return ['sale' => null, 'problem' => 'Open this from your finished order, or from the link we emailed.'];
+        }
+        return ['sale' => $sale, 'problem' => ''];
+    }
+
     private function afterLogin(): string
     {
         $v = (string)($_SESSION['shop_after_login'] ?? 'menu');
         unset($_SESSION['shop_after_login']);
-        return in_array($v, ['checkout', 'orders', 'account', 'cart'], true) ? $v : 'menu';
+        return in_array($v, ['checkout', 'orders', 'account', 'cart', 'thanks'], true) ? $v : 'menu';
     }
 
     private function baseUrl(): string

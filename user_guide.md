@@ -572,6 +572,7 @@ How a slip is worked out: basic (pro-rated for days or hours when the pay type c
 The storefront runs on `index.php?page=shop` and does not need a staff login.
 
 - **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order shows up in POS under Web Orders. A QR code from **Office → Tables** opens this menu. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill and turns delivery off. They can remove the fee before paying, or clear the table if the order should be delivered.
+- **How was your visit:** The electronic menu and the bag both link to the same question. A finished, paid online order shows it once on the order page. **It was lovely** opens the Google review saved for that store on **Office → Locations**. If that store has no link, the page thanks them and stops. **Something was off** asks what happened, with an optional phone number, and saves a private note for **Office → Guest notes**. The Google link stays on that page as quiet text. Everyone is asked the same way, and nothing is offered in exchange for a review. A sale can be answered once. A table visit without an order can be answered once per browser. When email is already set up and the online customer has an email, handing over the paid web order sends one plain message with the same link. The POS shows a short line when this station’s store has an open unhappy note from the last day.
 - **Promo strip:** A scrolling bar shows promotional images. If no events are published, it cycles the promo-folder slides. If published events exist, it advertises the events instead.
 - **Events:** If the event planner (Office → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
 
@@ -598,6 +599,7 @@ Staff can set up and publish these events on the back office:
 | Recipe consumption | Yes | Yes | Yes | Yes | | |
 | ZRA | Yes | Yes | Enterprise menu | | | |
 | Users, locations | Yes | Yes | Yes | | | |
+| Guest notes | Yes | Yes | Yes | | | |
 | Payroll | Yes | Yes | Yes | | | |
 | System settings (surcharges, payments, currency, portal) | Yes | Yes | | | | |
 | License tier | Yes | | | | | |

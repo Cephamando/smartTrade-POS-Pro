@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 7;
+    public const VERSION = 8;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -325,6 +325,28 @@ final class Schema
                 KEY idx_activity_when (created_at),
                 KEY idx_activity_user (user_id, created_at),
                 KEY idx_activity_action (action, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+
+        self::addColumn($pdo, 'locations', 'google_review_url', 'VARCHAR(300) NULL');
+        self::addColumn($pdo, 'sales', 'visit_token', 'VARCHAR(32) NULL');
+        self::addColumn($pdo, 'sales', 'visit_invited_at', 'DATETIME NULL');
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS guest_notes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                location_id INT NOT NULL,
+                sale_id INT NULL,
+                table_id INT NULL,
+                customer_id INT NULL,
+                source VARCHAR(20) NOT NULL DEFAULT 'table',
+                mood VARCHAR(10) NOT NULL,
+                note VARCHAR(500) NULL,
+                contact_phone VARCHAR(30) NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                handled_at DATETIME NULL,
+                UNIQUE KEY uq_guest_sale (sale_id),
+                KEY idx_guest_open (mood, handled_at, location_id, created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
     }
