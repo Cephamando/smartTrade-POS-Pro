@@ -68,7 +68,7 @@ Roles are chosen on Users & Staff. They control the home page and which menus ex
 | **Bartender** | POS | Same screens as a cashier. Counted as a money role on the shift list (drawer expected). |
 | **Waiter** | POS | Same screens as a cashier. Can be assigned on the pickup screen. Not treated as a drawer role on the shift money list. |
 
-Till approval on payouts, refunds, voids, and shift approval accepts an **administrator, manager, or developer** username and **approval code**. A head chef can approve a shift with their own code. The code is not the login password. Set it on **Change Password**, or when the account is created under **Office → Staff**. An office account (administrator, manager, or developer) also enters a 6-digit code from an authenticator app after the password. That sign-in code is set the first time they sign in. Recovery codes are shown once. **Office → Staff → Reset code** clears it so the next sign-in starts again. An office session ends after 30 minutes with no activity. A till session ends after 8 hours. Changing a password signs out every other browser still using that account.
+Till approval on payouts, refunds, voids, and shift approval accepts an **administrator, manager, or developer** username and **approval code**. A head chef can approve a shift with their own code. The code is not the login password. Set it on **Change Password**, or when the account is created under the account menu → **Staff**. An office account (administrator, manager, or developer) also enters a 6-digit code from an authenticator app after the password. That sign-in code is set the first time they sign in. Recovery codes are shown once. The account menu → **Staff → Reset code** clears it so the next sign-in starts again. An office session ends after 30 minutes with no activity. A till session ends after 8 hours. Changing a password signs out every other browser still using that account.
 
 Deleting a user removes the account when it has no history. If the person already has sales or stock movements, the account is deactivated instead. You cannot delete the account you are signed in with. Developer profiles can be edited only by a developer.
 
@@ -499,7 +499,7 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 ### 14.1 Users & Staff
 
-**Office → Staff.**
+Open the account menu, then **Staff**.
 
 Add a person with full name, username, role, primary workstation, and password (at least 6 characters). A manager, administrator, developer, or head chef also needs a till approval code, 4 to 12 characters and different from the password. Edit the same fields later. Leave the password or the approval code blank on edit to keep the current one. **Reset code** on an office account clears the authenticator sign-in and signs that person out everywhere. Delete asks for confirmation (see section 3 for deactivate versus delete).
 
@@ -547,9 +547,9 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 
 ## 15. Payroll (administrator and manager)
 
-**Office → Payroll.** Four tabs.
+Open the account menu, then **Payroll**. Four tabs.
 
-**Employees.** Choose the person and their role from the staff list (the same people and roles as Office → Staff). The name is taken from that staff record, and tips are taken from that login. Then NRC, NAPSA and NHIMA numbers, TPIN, location, **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. PAYE, NAPSA and NHIMA are ticked by default and calculated on each pay run. Untick one when a worker is not registered for it. Switch people off instead of deleting them when they leave.
+**Employees.** Choose the person and their role from the staff list (the same people and roles as Staff). The name is taken from that staff record, and tips are taken from that login. Then NRC, NAPSA and NHIMA numbers, TPIN, location, **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. PAYE, NAPSA and NHIMA are ticked by default and calculated on each pay run. Untick one when a worker is not registered for it. Switch people off instead of deleting them when they leave.
 
 **Components.** Earnings (housing, transport, overtime, commission…) and deductions (loan, advance, uniform…). Each is a fixed amount or a percent of basic pay, taxable or not, and active or not. Active components appear on every employee form. On a percent component the number you enter is the percent: 10 means 10% of that payslip’s basic. The payslip prints the percent, the basic, and the kwacha. A fixed component is the kwacha amount you type.
 

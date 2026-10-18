@@ -225,6 +225,7 @@ if (isset($pdo)) {
             cursor: pointer;
         }
         .nav-chip:hover { background: rgba(255, 193, 7, 0.15); border-color: rgba(255,193,7,0.45); color: #fff; }
+        .nav-chip.active { color: #ffc107; background: rgba(255,193,7,0.14); box-shadow: inset 0 -2px 0 #ffc107; }
         a.nav-chip { color: #fff; text-decoration: none; }
         a.nav-chip:hover { color: #fff; }
         
@@ -320,7 +321,8 @@ $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
 $navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
-$navOfficePages = ['reports', 'analysis', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'members', 'activity'];
+$navOfficePages = ['reports', 'analysis', 'z_read', 'zra', 'shifts', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'activity'];
+$navPeoplePages = ['users', 'payroll', 'members'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
         return '';
@@ -471,12 +473,6 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                             </a>
                         </li>
                         <?php endif; ?>
-                        <li><h6 class="dropdown-header">People</h6></li>
-                        <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Staff</a></li>
-                        <li><a class="dropdown-item<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
-                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'], true)): ?>
-                        <li><a class="dropdown-item<?= $navItem('members') ?>" href="index.php?page=members"><i class="bi bi-person-vcard"></i> Members</a></li>
-                        <?php endif; ?>
                         <li><h6 class="dropdown-header">Places</h6></li>
                         <li>
                             <a class="dropdown-item<?= $navItem('locations') ?>" href="index.php?page=locations">
@@ -559,13 +555,22 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
                 </button>
                 <div class="dropdown">
-                    <button type="button" class="nav-chip btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Account">
+                    <button type="button" class="nav-chip btn dropdown-toggle<?= $navGroup($navPeoplePages) ?>" data-bs-toggle="dropdown" aria-expanded="false" title="Account">
                         <i class="bi bi-person-circle text-info"></i>
                         <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow">
                         <li><span class="dropdown-item-text small text-uppercase text-muted fw-bold"><?= htmlspecialchars(str_replace('_', ' ', $role)) ?></span></li>
                         <li><hr class="dropdown-divider"></li>
+                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
+                        <li><h6 class="dropdown-header">People</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Staff</a></li>
+                        <li><a class="dropdown-item<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
+                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'], true)): ?>
+                        <li><a class="dropdown-item<?= $navItem('members') ?>" href="index.php?page=members"><i class="bi bi-person-vcard"></i> Members</a></li>
+                        <?php endif; ?>
+                        <li><hr class="dropdown-divider"></li>
+                        <?php endif; ?>
                         <li>
                             <?php
                             $trainingButtonClass = 'dropdown-item';

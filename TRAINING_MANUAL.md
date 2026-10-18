@@ -46,7 +46,7 @@ A printable Word version with screenshots is in `TRAINING_MANUAL.docx`. Rebuild 
 
 ### 0.2 Training accounts
 
-Create these on **Office → Staff** before the session. Use simple passwords for training and delete the accounts afterwards.
+Create these from the account menu → **Staff** before the session. Use simple passwords for training and delete the accounts afterwards.
 
 | Username | Role | Primary workstation |
 |---|---|---|
@@ -566,7 +566,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 #### Scenario 5.1.1 — Create a user (Must pass)
 
-1. **Office → Staff → Add New User**. Full name, username `temp_cashier`, role **Cashier**, workstation **Restaurant**, password. Save.
+1. Account menu → **Staff → Add New User**. Full name, username `temp_cashier`, role **Cashier**, workstation **Restaurant**, password. Save.
 
 *Expected result:* the user appears in the list.
 
@@ -883,7 +883,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 #### Scenario 5.9.1 — Statutory rules
 
-1. **Office → Payroll → Statutory rules**.
+1. Account menu → **Payroll → Statutory rules**.
 
 *Expected result:* PAYE bands 0–5,100 at 0%, to 7,100 at 20%, to 9,200 at 30%, above at 37%; NAPSA 5% capped; NHIMA 1%; 26 working days; tips included in pay but not taxed (tick **Tax tips** if your accountant says otherwise).
 
