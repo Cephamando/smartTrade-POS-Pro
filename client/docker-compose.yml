@@ -1,0 +1,105 @@
+# Sealed client edge node.
+# Pulls the prebuilt application image and runs it with MySQL and the ZRA VSDC.
+# The host project is not mounted over /var/www/html.
+#
+# From the repository root, after the image exists locally or in a registry:
+#   docker compose --env-file client/client.env -f client/docker-compose.yml up -d
+#
+# Build the image on a release machine (this does not change the dev compose file):
+#   docker build -f client/Dockerfile -t smarttradepos-pro-client:sealed .
+
+name: smarttrade-client
+
+services:
+  web:
+    image: ${CLIENT_APP_IMAGE:-smarttradepos-pro-client:sealed}
+    pull_policy: if_not_present
+    container_name: smarttrade-client-app
+    restart: always
+    ports:
+      - "${CLIENT_BIND_ADDR:-127.0.0.1}:${APP_PORT:-8090}:80"
+    env_file:
+      - client.env
+    environment:
+      TZ: ${TZ:-Africa/Lusaka}
+      APP_ENV: ${APP_ENV:-production}
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-pos_db}
+      DB_USER: ${DB_USER:-posUser}
+      DB_PASS: ${DB_PASS:-change-me}
+      ZRA_TPIN: ${ZRA_TPIN:-}
+      ZRA_BHF_ID: ${ZRA_BHF_ID:-000}
+      ZRA_DVC_SRL_NO: ${ZRA_DVC_SRL_NO:-}
+      ZRA_VSDC_URL: ${ZRA_VSDC_URL:-http://vsdc:8080/sandboxvsdc}
+      ZRA_PORTAL_URL: ${ZRA_PORTAL_URL:-https://www.zra.org.zm}
+      ZRA_NON_VAT: ${ZRA_NON_VAT:-false}
+      VSIAS_URL: ${VSIAS_URL:-http://localhost:8095}
+      VSIAS_INTERNAL_URL: ${VSIAS_INTERNAL_URL:-http://host.docker.internal:8095}
+      VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-change-me}
+    volumes:
+      - client_uploads:/var/www/html/public/uploads
+      - ./client.env:/var/www/html/.env:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(is_array(require '/var/www/html/app/Config/routes.php') ? 0 : 1);"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - smarttrade-client-net
+
+  db:
+    image: mysql:8.3
+    container_name: smarttrade-client-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-pos_db}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:-change-me-root}
+      MYSQL_USER: ${DB_USER:-posUser}
+      MYSQL_PASSWORD: ${DB_PASS:-change-me}
+      MYSQL_ROOT_HOST: "%"
+      TZ: ${TZ:-Africa/Lusaka}
+    volumes:
+      - client_db_data:/var/lib/mysql
+      - ../docker/mysql/smartTradePOS_db.sql:/docker-entrypoint-initdb.d/01-smartTradePOS_db.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASS:-change-me-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - smarttrade-client-net
+
+  vsdc:
+    image: tomcat:9.0-jre8-temurin
+    container_name: smarttrade-client-vsdc
+    restart: always
+    environment:
+      JAVA_OPTS: "-Djava.net.preferIPv4Stack=true -Dhttps.protocols=TLSv1.2 -Djsse.enableSNIExtension=true"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../api:/opt/zra-api:ro
+      - ../docker/vsdc/entrypoint.sh:/usr/local/bin/vsdc-entrypoint.sh:ro
+      - client_vsdc_webapps:/usr/local/tomcat/webapps
+    command: ["bash", "/usr/local/bin/vsdc-entrypoint.sh"]
+    networks:
+      - smarttrade-client-net
+
+volumes:
+  client_uploads:
+  client_db_data:
+  client_vsdc_webapps:
+
+networks:
+  smarttrade-client-net:
+    driver: bridge
