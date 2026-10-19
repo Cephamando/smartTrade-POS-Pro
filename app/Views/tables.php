@@ -110,18 +110,26 @@
         <h5 class="m-0 fw-bold"><i class="bi bi-qr-code text-warning me-2"></i> Menu QR codes</h5>
     </div>
     <div class="card-body bg-light">
-        <p class="text-muted small">This code opens the online menu. In the bag, a guest picks a store and then a free table. Reserving that table adds the surcharge saved here.</p>
+        <p class="text-muted small">This code opens the online menu. In the bag, a guest picks a store and then a free table. Reserving that table adds the surcharge saved here. A guest can also pay this fee on its own to hold a table, with no food on the order. The hold starts when Flutterwave confirms the payment, and the table is released when the time is up. The refundable share is what the till should return if that hold is cancelled. Use 0 when the fee is non-refundable. The payment itself is refunded in Flutterwave.</p>
         <form method="POST" class="row g-3 align-items-end mb-4">
             <input type="hidden" name="save_reserve" value="1">
             <div class="col-md-4">
                 <label class="form-label fw-bold small text-muted">RESERVATION NAME</label>
                 <input type="text" name="shop_reserve_label" class="form-control" maxlength="80" value="<?= htmlspecialchars($reserveLabel ?? 'Table reservation') ?>">
             </div>
-            <div class="col-md-3">
-                <label class="form-label fw-bold small text-muted">SURCHARGE (ZMW)</label>
+            <div class="col-md-2">
+                <label class="form-label fw-bold small text-muted">FEE (ZMW)</label>
                 <input type="number" name="shop_reserve_amount" class="form-control" min="0" max="100000" step="0.01" value="<?= htmlspecialchars(number_format((float)($reserveAmount ?? 0), 2, '.', '')) ?>">
             </div>
-            <div class="col-md-5">
+            <div class="col-md-2">
+                <label class="form-label fw-bold small text-muted">HOLD (MINUTES)</label>
+                <input type="number" name="shop_reserve_minutes" class="form-control" min="15" max="10080" step="1" value="<?= (int)($reserveMinutes ?? 120) ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-bold small text-muted">REFUNDABLE %</label>
+                <input type="number" name="shop_reserve_refund_percent" class="form-control" min="0" max="100" step="1" value="<?= (int)($reserveRefundPercent ?? 100) ?>">
+            </div>
+            <div class="col-md-6">
                 <label class="form-label fw-bold small text-muted">MENU ADDRESS</label>
                 <input type="url" name="shop_menu_url" class="form-control font-monospace" value="<?= htmlspecialchars($menuUrl ?? '') ?>">
             </div>

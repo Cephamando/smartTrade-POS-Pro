@@ -214,7 +214,13 @@ final class SettingsController extends Controller
         } else {
             $pairs['flw_secret_key'] = (string)($existing['flw_secret_key'] ?? '');
         }
-        $pairs += $this->payoutAccount($pairs['flw_secret_key'], $pairs['flw_public_key'], $pairs['flw_enabled']);
+        try {
+            $pairs += $this->payoutAccount($pairs['flw_secret_key'], $pairs['flw_public_key'], $pairs['flw_enabled']);
+        } catch (\InvalidArgumentException $e) {
+            if ($pairs['flw_enabled'] === '1') {
+                throw $e;
+            }
+        }
         Setting::save($pairs);
         $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test keys" to confirm Flutterwave accepts them.' : ''));
     }

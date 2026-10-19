@@ -312,7 +312,6 @@ final class Flutterwave
     /** Verify by our reference against Flutterwave and persist the outcome. */
     public function verify(string $txRef): array
     {
-        $this->assertEnabled();
         $local = $this->transaction($txRef);
         if (!$local) {
             throw new \RuntimeException('Unknown payment reference ' . $txRef);
@@ -528,19 +527,21 @@ final class Flutterwave
         if ($saleId <= 0) {
             return;
         }
-        $stmt = $this->pdo->prepare('SELECT id, final_total, payment_status FROM sales WHERE id = ?');
+        $stmt = $this->pdo->prepare('SELECT id, final_total, payment_status, status FROM sales WHERE id = ?');
         $stmt->execute([$saleId]);
         $sale = $stmt->fetch();
-        if (!$sale || ($sale['payment_status'] ?? '') === 'paid') {
+        if (!$sale || ($sale['status'] ?? '') !== 'pending') {
+            return;
+        }
+        if (($sale['payment_status'] ?? '') === 'paid') {
+            \App\Models\Sale::ensureOnlineReleased($this->pdo, $saleId);
             return;
         }
         if ((float)$tx['amount'] + 0.005 < (float)$sale['final_total']) {
             return;
         }
         $this->claimForSale($txRef, (float)$sale['final_total'], $saleId);
-        $this->pdo->prepare(
-            "UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ? WHERE id = ? AND payment_status <> 'paid'"
-        )->execute([$txRef, $saleId]);
+        \App\Models\Sale::markOnlinePaid($this->pdo, $saleId, $txRef);
     }
 
     public function webhookHashMatches(string $rawBody, string $signature): bool

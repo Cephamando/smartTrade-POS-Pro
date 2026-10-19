@@ -114,16 +114,67 @@ final class Pos
             return ['redirect' => true];
         }
 
+        if (isset($post['credit_web_order'])) {
+            $saleId = (int)$post['credit_web_order'];
+            try {
+                $note = \App\Models\Sale::issueWebCreditNote($this->pdo, $saleId, $userId);
+                $session['swal_type'] = str_contains($note, 'was not filed') ? 'error' : 'success';
+                $session['swal_msg'] = $note !== '' ? $note : 'That order has no credit note to file.';
+            } catch (\Throwable $e) {
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = $e->getMessage();
+            }
+            return ['redirect' => true];
+        }
+
+        if (isset($post['cancel_web_order'])) {
+            $saleId = (int)$post['cancel_web_order'];
+            try {
+                $peek = $this->pdo->prepare("SELECT payment_status, status FROM sales WHERE id = ? AND payment_method = 'Online'");
+                $peek->execute([$saleId]);
+                $row = $peek->fetch();
+                if (!$row || ($row['status'] ?? '') !== 'pending') {
+                    throw new \RuntimeException('This order can no longer be cancelled.');
+                }
+                $allowPaid = ($row['payment_status'] ?? '') !== 'paid';
+                if (!$allowPaid) {
+                    if (!\App\Models\User::verifyManager((string)($post['mgr_username'] ?? ''), (string)($post['mgr_password'] ?? ''))) {
+                        throw new \RuntimeException('That approval code was not accepted.');
+                    }
+                    $allowPaid = true;
+                }
+                $result = \App\Models\Sale::cancelWebOrder($saleId, null, $allowPaid, $userId);
+                $session['swal_type'] = 'success';
+                $who = ($result['source'] ?? '') === 'customer' ? 'customer' : 'till';
+                $session['swal_msg'] = $result['paid']
+                    ? 'Cancelled by ' . $who . '. Order #' . $saleId . ' stays on Web Orders until Flutterwave pays the funds out. ' . ($result['note'] ?? '')
+                    : 'Order #' . $saleId . ' is cancelled. Nothing was charged.';
+            } catch (\Throwable $e) {
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = $e->getMessage();
+            }
+            return ['redirect' => true];
+        }
+
         // Web order already paid online: mark it collected and print ZRA without leaving the POS.
         if (isset($post['complete_prepaid_order'])) {
             $saleId = (int)$post['complete_prepaid_order'];
             $ajax = !empty($post['ajax'])
                 || strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
-            $stmt = $this->pdo->prepare("SELECT id, payment_status, status FROM sales WHERE id = ? AND payment_method = 'Online'");
+            $stmt = $this->pdo->prepare("SELECT id, payment_status, status, order_type FROM sales WHERE id = ? AND payment_method = 'Online'");
             $stmt->execute([$saleId]);
             $sale = $stmt->fetch();
             if (!$sale || $sale['payment_status'] !== 'paid' || $sale['status'] !== 'pending') {
                 $msg = 'That order is not a prepaid web order.';
+                if ($ajax) {
+                    return ['json' => ['status' => 'error', 'msg' => $msg]];
+                }
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = $msg;
+                return ['redirect' => true];
+            }
+            if (($sale['order_type'] ?? '') === 'reservation') {
+                $msg = 'A table reservation is released when its time is up. It is not handed over.';
                 if ($ajax) {
                     return ['json' => ['status' => 'error', 'msg' => $msg]];
                 }
@@ -284,7 +335,7 @@ final class Pos
         $stmt = $this->pdo->prepare(
             "SELECT s.table_id, s.id as sale_id, s.final_total, s.user_id, u.username
              FROM sales s LEFT JOIN users u ON s.user_id = u.id
-             WHERE s.location_id = ? AND s.payment_status = 'pending' AND s.table_id IS NOT NULL"
+             WHERE s.location_id = ? AND s.status = 'pending' AND s.payment_status = 'paid' AND s.table_id IS NOT NULL"
         );
         $stmt->execute([$locationId]);
         $occupiedTables = [];
@@ -297,13 +348,14 @@ final class Pos
         $sysSettings = Setting::all();
         $portalOn = ($sysSettings['shop_enabled'] ?? '0') === '1';
         if ($tier === 'enterprise' || $portalOn) {
+            \App\Models\RestaurantTable::releaseExpired();
             $onlineTabs = $this->pdo->query(
                 "SELECT s.id, s.total_amount, s.final_total, s.customer_name, s.customer_phone, s.split_group_id as external_id, s.created_at,
-                        s.payment_status, s.order_type, s.order_notes, s.order_source, s.gateway_ref, s.table_id,
+                        s.status, s.payment_status, s.cancel_source, s.credit_note_id, s.order_type, s.order_notes, s.order_source, s.gateway_ref, s.table_id, s.reserve_until,
                         rt.table_name, rt.zone_name
                  FROM sales s
                  LEFT JOIN restaurant_tables rt ON rt.id = s.table_id
-                 WHERE s.status = 'pending' AND s.payment_method = 'Online' ORDER BY s.created_at DESC"
+                 WHERE " . \App\Models\Sale::openWebOrderWhere('s') . " ORDER BY s.created_at DESC"
             )->fetchAll();
             foreach ($onlineTabs as $ot) {
                 $stmt = $this->pdo->prepare(
@@ -311,7 +363,7 @@ final class Pos
                      FROM sale_items si
                      LEFT JOIN products p ON si.product_id = p.id
                      LEFT JOIN categories c ON p.category_id = c.id
-                     WHERE si.sale_id = ? AND si.status NOT IN ('voided', 'refunded')"
+                     WHERE si.sale_id = ? AND si.status NOT IN ('voided')"
                 );
                 $stmt->execute([$ot['id']]);
                 $onlineTabItems[$ot['id']] = $stmt->fetchAll();

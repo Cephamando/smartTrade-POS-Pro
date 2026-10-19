@@ -510,9 +510,9 @@ function getCategoryStyle($name) {
                                 <p class="text-muted text-center mt-4 fw-bold">No pending web orders.</p>
                             <?php else: ?>
                                 <?php foreach($onlineTabs as $ot): ?>
-                                    <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; ?>
-                                    <button class="list-group-item list-group-item-action <?= $otPaid ? 'bg-success-subtle' : 'bg-warning-subtle' ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
-                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">UNPAID</span>' ?></div>
+                                    <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; $otWho = (string)($ot['cancel_source'] ?? ''); $otCancelled = ($ot['status'] ?? '') === 'cancelled'; ?>
+                                    <button class="list-group-item list-group-item-action <?= $otCancelled ? 'bg-danger-subtle' : ($otPaid ? 'bg-success-subtle' : 'bg-warning-subtle') ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
+                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otCancelled ? '<span class="badge bg-danger">' . ($otWho === 'customer' ? 'CANCELLED BY CUSTOMER' : 'CANCELLED BY TILL') . '</span>' : ($otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">UNPAID</span>') ?></div>
                                         <div class="small text-muted">#<?= (int)$ot['id'] ?> · <?= htmlspecialchars($ot['external_id'] ?? '') ?><?= !empty($ot['table_name']) ? ' · ' . htmlspecialchars(trim((string)($ot['zone_name'] ?? '') . ' ' . $ot['table_name'])) : '' ?><?= !empty($ot['order_type']) ? ' · ' . strtoupper(htmlspecialchars($ot['order_type'])) : '' ?><?= !empty($ot['customer_phone']) ? ' · ' . htmlspecialchars($ot['customer_phone']) : '' ?></div>
                                         <div class="small fw-bold">ZMW <?= number_format((float)($ot['final_total'] ?: $ot['total_amount']), 2) ?> <span class="text-muted fw-normal"><?= date('H:i', strtotime($ot['created_at'])) ?></span></div>
                                     </button>
@@ -531,15 +531,23 @@ function getCategoryStyle($name) {
     
     <div id="hiddenOnlineTabTemplates" style="display:none;">
         <?php foreach($onlineTabItems as $tid => $items): ?>
-            <?php $tabCustomerName = ''; $tabTotal = 0; $tabRow = null; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; $tabRow = $t; break; } } $tabPaid = $tabRow && ($tabRow['payment_status'] ?? '') === 'paid'; ?>
+            <?php $tabCustomerName = ''; $tabTotal = 0; $tabRow = null; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; $tabRow = $t; break; } } $tabPaid = $tabRow && ($tabRow['payment_status'] ?? '') === 'paid'; $tabReservation = $tabRow && ($tabRow['order_type'] ?? '') === 'reservation'; $tabCancelled = $tabRow && ($tabRow['status'] ?? '') === 'cancelled'; $tabWho = (string)($tabRow['cancel_source'] ?? ''); ?>
             <div id="online-tab-data-<?= $tid ?>">
-                <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']))): ?>
-                <div class="alert <?= $tabPaid ? 'alert-success' : 'alert-warning' ?> py-2 small mb-3">
+                <?php if ($tabCancelled): ?>
+                <div class="alert alert-danger py-2 small mb-3">
+                    <strong><?= $tabWho === 'customer' ? 'Cancelled by customer' : 'Cancelled by till' ?></strong>.
+                    Stays on Web Orders until Flutterwave pays the funds out.
+                    <?php if (!empty($tabRow['credit_note_id'])): ?> Credit note #<?= (int)$tabRow['credit_note_id'] ?> is on file.<?php endif; ?>
+                </div>
+                <?php endif; ?>
+                <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']) || !empty($tabRow['gateway_ref']))): ?>
+                <div class="alert <?= $tabCancelled ? 'alert-light border' : ($tabPaid ? 'alert-success' : 'alert-warning') ?> py-2 small mb-3">
                     <?php if ($tabPaid): ?><strong><i class="bi bi-patch-check-fill"></i> Paid online</strong><?= !empty($tabRow['gateway_ref']) ? ' · ref ' . htmlspecialchars($tabRow['gateway_ref']) : '' ?> · <?php else: ?><strong>Awaiting Flutterwave</strong> · <?php endif; ?>
                     <?= !empty($tabRow['table_name']) ? '<strong>' . htmlspecialchars(trim((string)($tabRow['zone_name'] ?? '') . ' ' . $tabRow['table_name'])) . '</strong> · ' : '' ?>
                     <?= !empty($tabRow['order_type']) ? '<strong>' . strtoupper(htmlspecialchars($tabRow['order_type'])) . '</strong>' : '' ?>
                     <?= !empty($tabRow['customer_phone']) ? ' · <i class="bi bi-telephone"></i> ' . htmlspecialchars($tabRow['customer_phone']) : '' ?>
                     <?= !empty($tabRow['order_notes']) ? '<div class="mt-1"><i class="bi bi-chat-left-text"></i> ' . htmlspecialchars($tabRow['order_notes']) . '</div>' : '' ?>
+                    <?php if ($tabReservation && !empty($tabRow['reserve_until'])): ?><div class="mt-1"><i class="bi bi-clock"></i> Held until <?= htmlspecialchars(date('d M Y H:i', strtotime((string)$tabRow['reserve_until']))) ?></div><?php endif; ?>
                 </div>
                 <?php endif; ?>
                 <table class="table align-middle mb-4">
@@ -549,18 +557,29 @@ function getCategoryStyle($name) {
                     $statusBadge = ''; 
                     if($i['status']=='pending') { $statusBadge = '<span class="badge bg-danger">KITCHEN</span>'; $allReady = false; } 
                     elseif($i['status']=='cooking') { $statusBadge = '<span class="badge bg-warning text-dark">COOKING</span>'; $allReady = false; } 
-                    elseif($i['status']=='ready') { $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; } 
+                    elseif($i['status']=='ready') { $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; }
+                    elseif($i['status']=='cancelled') { $statusBadge = '<span class="badge bg-danger">CANCELLED</span>'; }
+                    elseif($i['status']=='refunded') { $statusBadge = '<span class="badge bg-secondary">CREDIT NOTE</span>'; } 
                 ?>
                 <tr id="online-item-row-<?= $i['id'] ?>">
                     <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
                     <td class="text-end fw-bold">ZMW <?= number_format($i['price'] * $i['quantity'], 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
+                <?php if ($tabReservation && $items === []): ?><tr><td class="text-muted">No food on this reservation.</td><td></td></tr><?php endif; ?>
                 </table>
                 <div class="row g-2 mt-3">
                     <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
                     <div class="col-6">
-                        <?php if ($allReady && $tabPaid): ?>
+                        <?php if ($tabCancelled): ?>
+                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
+                                <i class="bi bi-x-circle"></i> <?= $tabWho === 'customer' ? 'Cancelled by customer' : 'Cancelled by till' ?>
+                            </button>
+                        <?php elseif ($tabReservation): ?>
+                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
+                                <i class="bi bi-clock"></i> Held until time is up
+                            </button>
+                        <?php elseif ($allReady && $tabPaid): ?>
                             <form method="POST" class="js-confirm-form js-handover" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="Payment is already taken. This marks the order collected and prints to ZRA." data-swal-confirm="Hand over" data-swal-icon="question">
                                 <input type="hidden" name="complete_prepaid_order" value="<?= $tid ?>">
                                 <button class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-bag-check"></i> Hand Over</button>
@@ -573,6 +592,18 @@ function getCategoryStyle($name) {
                             <button type="button" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-uppercase text-dark" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
                                 <i class="bi bi-cash-coin"></i> Take payment
                             </button>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-12">
+                        <?php if ($tabCancelled && empty($tabRow['credit_note_id'])): ?>
+                            <form method="POST">
+                                <input type="hidden" name="credit_web_order" value="<?= (int)$tid ?>">
+                                <button class="btn btn-outline-danger w-100 fw-bold py-3 text-uppercase"><i class="bi bi-receipt"></i> Post ZRA credit note</button>
+                            </form>
+                        <?php elseif ($tabCancelled): ?>
+                            <div class="small text-muted text-center">Credit note #<?= (int)$tabRow['credit_note_id'] ?> is on file.</div>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-outline-danger w-100 fw-bold py-3 text-uppercase" onclick="cancelWebOrder(<?= (int)$tid ?>, <?= $tabPaid ? 'true' : 'false' ?>)"><i class="bi bi-x-circle"></i> Cancel order</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1350,6 +1381,67 @@ function getCategoryStyle($name) {
             });
         });
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
+        function cancelWebOrder(id, paid) {
+            function post(user, pass) {
+                const f = document.createElement('form');
+                f.method = 'POST';
+                f.action = 'index.php?page=pos';
+                function add(name, value) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    f.appendChild(input);
+                }
+                add('cancel_web_order', String(id));
+                if (paid) {
+                    add('mgr_username', user);
+                    add('mgr_password', pass);
+                }
+                document.body.appendChild(f);
+                f.submit();
+            }
+            if (!paid) {
+                Swal.fire({
+                    title: 'Cancel order #' + id + '?',
+                    text: 'The kitchen stops and the table is freed. Nothing was charged.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    reverseButtons: true,
+                    focusCancel: true,
+                    confirmButtonText: 'Cancel order',
+                    cancelButtonText: 'Keep',
+                    confirmButtonColor: '#dc3545',
+                    zIndex: 20000
+                }).then(function (result) { if (result.isConfirmed) post('', ''); });
+                return;
+            }
+            Swal.fire({
+                title: 'Cancel paid order #' + id + '?',
+                html: '<p class="text-muted small mb-0">This files a ZRA credit note. The order stays on Web Orders, marked cancelled by the till, until Flutterwave pays the funds out.</p><input id="swal-cancel-user" class="swal2-input" placeholder="Manager username" autocomplete="off"><input id="swal-cancel-pass" type="password" class="swal2-input" placeholder="Approval code" autocomplete="off">',
+                icon: 'warning',
+                showCancelButton: true,
+                reverseButtons: true,
+                focusCancel: true,
+                confirmButtonText: 'Cancel order',
+                cancelButtonText: 'Keep',
+                confirmButtonColor: '#dc3545',
+                zIndex: 20000,
+                preConfirm: function () {
+                    const userEl = document.getElementById('swal-cancel-user');
+                    const passEl = document.getElementById('swal-cancel-pass');
+                    const user = userEl ? userEl.value.trim() : '';
+                    const pass = passEl ? passEl.value : '';
+                    if (!user || !pass) {
+                        Swal.showValidationMessage('Enter the manager username and approval code.');
+                        return false;
+                    }
+                    return { user: user, pass: pass };
+                }
+            }).then(function (result) {
+                if (result.isConfirmed && result.value) post(result.value.user, result.value.pass);
+            });
+        }
         function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let preferred = Array.from(pmSelect.options).find(opt => opt.value === 'Flutterwave') || Array.from(pmSelect.options).find(opt => opt.value === 'Cash'); if(preferred) { preferred.selected = true; if (pmSelect.tomselect) pmSelect.tomselect.setValue(preferred.value, true); onPaymentMethodChange(); } } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
         let currentCat = 'all';

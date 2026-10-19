@@ -59,6 +59,7 @@ final class ShopController extends Controller
             'cartTotal' => $cartTotal,
             'cartCount' => array_sum(array_column($cart, 'qty')),
             'flash' => $this->takeFlash(),
+            'flwGateway' => (new Flutterwave($this->pdo(), $this->settings))->enabled(),
             'flwOn' => ($this->settings['shop_pay_online'] ?? '1') === '1' && (new Flutterwave($this->pdo(), $this->settings))->enabled(),
             'deliveryOn' => ($this->settings['shop_delivery'] ?? '1') === '1',
             'deliveryFee' => (float)($this->settings['shop_delivery_fee'] ?? 0),
@@ -70,7 +71,7 @@ final class ShopController extends Controller
         $shopTable = $this->shopTable();
         $reserve = $this->reservePreset();
         $data['shopTable'] = $shopTable;
-        $data['shopTables'] = RestaurantTable::freeForLocation($this->shopLocationId(), (int)($shopTable['id'] ?? 0));
+        $data['shopTables'] = RestaurantTable::freeForLocation($this->shopLocationId(), $view === 'reserve' ? 0 : (int)($shopTable['id'] ?? 0));
         $data['reserveOn'] = $shopTable && !empty($_SESSION['shop_table_reserve']);
         $data['reserveAmount'] = $reserve['amount'];
         $data['reserveLabel'] = $reserve['label'];
@@ -309,6 +310,25 @@ final class ShopController extends Controller
                 }
                 $this->placeOrder($customer, $p);
             }
+            if (isset($p['reserve_table'])) {
+                if (!$customer) {
+                    $_SESSION['shop_after_login'] = 'reserve';
+                    $this->go('login');
+                }
+                $this->placeReservation($customer, $p);
+            }
+            if (isset($p['cancel_order'])) {
+                if (!$customer) {
+                    $_SESSION['shop_after_login'] = 'orders';
+                    $this->go('login');
+                }
+                $saleId = (int)($p['sale_id'] ?? 0);
+                $result = \App\Models\Sale::cancelWebOrder($saleId, (int)$customer['id'], true);
+                $this->flashShop('success', $result['paid']
+                    ? 'Order #' . $saleId . ' is cancelled. It stays with the store until Flutterwave pays the funds out.'
+                    : 'Order #' . $saleId . ' is cancelled. Nothing was charged.');
+                $this->go('order', ['id' => $saleId]);
+            }
             if (isset($p['pay_order'])) {
                 if (!$customer) {
                     $_SESSION['shop_after_login'] = 'orders';
@@ -327,6 +347,8 @@ final class ShopController extends Controller
                 $extra['slug'] = (string)($_GET['slug'] ?? $p['slug'] ?? '');
             } elseif ($view === 'rsvp') {
                 $extra['token'] = (string)($_GET['token'] ?? $p['token'] ?? '');
+            } elseif ($view === 'order') {
+                $extra['id'] = (int)($p['sale_id'] ?? $_GET['id'] ?? 0);
             }
             $this->go($view === 'pay_return' ? 'orders' : $view, $extra);
         }
@@ -461,6 +483,69 @@ final class ShopController extends Controller
 
     // ------------------------------------------------------------------ ordering
 
+    /** @param array<string, mixed> $customer
+     *  @param array<string, mixed> $p */
+    private function placeReservation(array $customer, array $p): void
+    {
+        $preset = $this->reservePreset();
+        if ($preset['amount'] <= 0) {
+            throw new \RuntimeException('This store has not set a reservation fee.');
+        }
+        if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($this->pdo(), $this->settings))->enabled()) {
+            throw new \RuntimeException('Online payment is not available at the moment.');
+        }
+        $allowed = array_map('intval', array_column($this->shopLocations, 'id'));
+        $loc = (int)($p['seat_location'] ?? 0);
+        if (!in_array($loc, $allowed, true)) {
+            throw new \RuntimeException('Choose a store.');
+        }
+        $tableId = (int)($p['seat_table'] ?? 0);
+        $table = RestaurantTable::find($tableId);
+        if (!$table || (int)$table['location_id'] !== $loc) {
+            throw new \RuntimeException('Choose a free table.');
+        }
+        $freeIds = array_map(static fn(array $row): int => (int)$row['id'], RestaurantTable::freeForLocation($loc, 0));
+        if (!in_array($tableId, $freeIds, true)) {
+            throw new \RuntimeException('That table is already reserved.');
+        }
+        $minutes = TablesController::reserveMinutes($this->settings);
+        $percent = TablesController::reserveRefundPercent($this->settings);
+        $notes = $preset['label'] . '. Held for ' . $minutes . ' minutes after payment. ' . TablesController::reserveRefundText($preset['amount'], $percent);
+        $fee = $preset['amount'];
+        $pdo = $this->pdo();
+        $pdo->beginTransaction();
+        try {
+            $shift = $pdo->prepare("SELECT id FROM shifts WHERE location_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1");
+            $shift->execute([$loc]);
+            $shiftId = $shift->fetchColumn() ?: null;
+            $sysUser = (int)($pdo->query("SELECT id FROM users WHERE role IN ('admin','dev') ORDER BY id LIMIT 1")->fetchColumn() ?: 1);
+            $extId = 'RSV-' . date('ymd') . '-' . strtoupper(bin2hex(random_bytes(2)));
+            $pdo->prepare(
+                "INSERT INTO sales (location_id, table_id, user_id, shift_id, subtotal, total_amount, final_total, surcharge_amount, surcharge_reason, status, payment_status, payment_method,
+                                    split_group_id, customer_name, customer_id, customer_phone, order_source, order_type, order_notes, member_id, created_at)
+                 VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 'pending', 'pending', 'Online', ?, ?, ?, ?, 'portal', 'reservation', ?, ?, NOW())"
+            )->execute([
+                $loc, $tableId, $sysUser, $shiftId, $fee, $fee, $fee, $preset['label'],
+                $extId, 'ONLINE: ' . $customer['name'], (int)$customer['id'], $customer['phone'], substr($notes, 0, 500),
+                $customer['member_id'] ?: null,
+            ]);
+            $saleId = (int)$pdo->lastInsertId();
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+        try {
+            $this->startOrderPayment($customer, $saleId, $fee, $loc);
+        } catch (\Throwable $e) {
+            $this->flashShop('error', 'The payment window did not open. Reservation #' . $saleId . ' is saved. Open it and try Pay now.');
+            $this->go('order', ['id' => $saleId]);
+        }
+        $this->go('pay', ['id' => $saleId]);
+    }
+
     private function placeOrder(array $customer, array $p): void
     {
         $cart = $this->cart();
@@ -548,16 +633,9 @@ final class ShopController extends Controller
                 $customer['member_id'] ?: null,
             ]);
             $saleId = (int)$pdo->lastInsertId();
-            $needsKitchen = false;
-            $ins = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, ?, ?, 'uncollected')");
+            $ins = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, price_at_sale, status, fulfillment_status) VALUES (?, ?, ?, ?, ?, 'held', 'uncollected')");
             foreach ($lines as $l) {
-                $ct = strtolower($l['cat_type']);
-                $kds = (str_contains($ct, 'food') || str_contains($ct, 'meal') || str_contains($ct, 'kitchen')) ? 'pending' : 'ready';
-                if ($kds !== 'ready') {
-                    $needsKitchen = true;
-                }
-                $ins->execute([$saleId, $l['id'], $l['qty'], $l['price'], $l['price'], $kds]);
-                deductStock($pdo, $l['id'], $l['qty'], $loc, $sysUser, 'online_sale');
+                $ins->execute([$saleId, $l['id'], $l['qty'], $l['price'], $l['price']]);
             }
             $pdo->commit();
         } catch (\Throwable $e) {
@@ -565,9 +643,6 @@ final class ShopController extends Controller
                 $pdo->rollBack();
             }
             throw $e;
-        }
-        if (!$needsKitchen) {
-            \App\Services\OrderWebhook::notify($pdo, $saleId, 'ready');
         }
         $_SESSION['shop_cart'] = [];
         try {
@@ -597,6 +672,9 @@ final class ShopController extends Controller
     private function startOrderPayment(array $customer, int $saleId, float $total, int $loc): array
     {
         $flw = new Flutterwave($this->pdo(), $this->settings);
+        if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !$flw->enabled()) {
+            throw new \RuntimeException('Online payment is not available at the moment.');
+        }
         $title = (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order'));
         $args = [
             'amount' => $total,
@@ -696,17 +774,26 @@ final class ShopController extends Controller
             $tx = $flw->verify($txRef);
             $status = (string)($tx['status'] ?? '');
             if ($status === 'successful') {
-                $stmt = $this->pdo()->prepare('SELECT final_total, payment_status FROM sales WHERE id = ?');
+                $stmt = $this->pdo()->prepare('SELECT final_total, payment_status, status FROM sales WHERE id = ?');
                 $stmt->execute([$saleId]);
                 $sale = $stmt->fetch();
-                if (!$sale || ($sale['payment_status'] ?? '') === 'paid') {
+                if (!$sale) {
+                    return 'pending';
+                }
+                if (($sale['status'] ?? '') !== 'pending') {
+                    return (string)($sale['payment_status'] ?? 'pending');
+                }
+                if (($sale['payment_status'] ?? '') === 'paid') {
+                    \App\Models\Sale::ensureOnlineReleased($this->pdo(), $saleId);
                     return 'paid';
                 }
                 if ((float)$tx['amount'] + 0.005 < (float)$sale['final_total']) {
                     return 'pending';
                 }
                 $flw->claimForSale($txRef, (float)$sale['final_total'], $saleId);
-                $this->pdo()->prepare("UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ? WHERE id = ? AND payment_status <> 'paid'")->execute([$txRef, $saleId]);
+                if (!\App\Models\Sale::markOnlinePaid($this->pdo(), $saleId, $txRef)) {
+                    \App\Models\Sale::ensureOnlineReleased($this->pdo(), $saleId);
+                }
                 return 'paid';
             }
             return $status === 'failed' ? 'failed' : 'pending';
@@ -780,6 +867,9 @@ final class ShopController extends Controller
             throw new \RuntimeException('Nothing is due on this invitation.');
         }
         $flw = new Flutterwave($this->pdo(), $this->settings);
+        if (!$flw->enabled()) {
+            throw new \RuntimeException('Online payment is not available at the moment.');
+        }
         $made = $flw->createPaymentLink([
             'amount' => $charge['amount'],
             'email' => (string)($guest['email'] ?? ''),
@@ -967,7 +1057,7 @@ final class ShopController extends Controller
     {
         $v = (string)($_SESSION['shop_after_login'] ?? 'menu');
         unset($_SESSION['shop_after_login']);
-        return in_array($v, ['checkout', 'orders', 'account', 'cart', 'thanks'], true) ? $v : 'menu';
+        return in_array($v, ['checkout', 'orders', 'account', 'cart', 'thanks', 'reserve'], true) ? $v : 'menu';
     }
 
     private function baseUrl(): string

@@ -268,7 +268,8 @@ final class App
                 $out['tabs_open'] = count($tabIds);
                 $out['tab_ids'] = implode(',', $tabIds);
 
-                $webIds = $pdo->query("SELECT id FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY id DESC")->fetchAll(\PDO::FETCH_COLUMN);
+                \App\Models\RestaurantTable::releaseExpired();
+                $webIds = $pdo->query("SELECT id FROM sales s WHERE " . \App\Models\Sale::openWebOrderWhere('s') . " ORDER BY s.id DESC")->fetchAll(\PDO::FETCH_COLUMN);
                 $out['web_orders'] = count($webIds);
                 $out['web_ids'] = implode(',', array_map('intval', $webIds));
 

@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 10;
+    public const VERSION = 14;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -355,6 +355,25 @@ final class Schema
         self::addColumn($pdo, 'users', 'totp_secret', 'VARCHAR(64) NULL');
         self::addColumn($pdo, 'users', 'totp_recovery', 'TEXT NULL');
         self::nullableColumn($pdo, 'events', 'ends_at', 'DATETIME NULL');
+        self::addColumn($pdo, 'sales', 'reserve_until', 'DATETIME NULL');
+        self::addColumn($pdo, 'sales', 'cancel_source', 'VARCHAR(20) NULL');
+        self::addColumn($pdo, 'sales', 'credit_note_id', 'INT NULL');
+        self::allowSaleStatus($pdo, 'cancelled');
+    }
+
+    private static function allowSaleStatus(PDO $pdo, string $value): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['sales', 'status']);
+        $type = (string)$stmt->fetchColumn();
+        if ($type === '' || str_contains($type, "'" . $value . "'")) {
+            return;
+        }
+        $pdo->exec(
+            "ALTER TABLE sales MODIFY status ENUM('pending','completed','refund_requested','refunded','partially_refunded','cancelled') DEFAULT 'completed'"
+        );
     }
 
     private static function addColumn(PDO $pdo, string $table, string $column, string $definition): void

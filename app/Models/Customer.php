@@ -92,9 +92,9 @@ final class Customer extends Model
     public static function orders(int $customerId, int $limit = 30): array
     {
         $stmt = self::db()->prepare(
-            'SELECT s.id, s.created_at, s.final_total, s.status, s.payment_status, s.payment_method, s.order_type, s.order_notes, s.gateway_ref, s.zra_rcpt_no, s.surcharge_amount,
+            'SELECT s.id, s.created_at, s.final_total, s.status, s.payment_status, s.payment_method, s.order_type, s.order_notes, s.gateway_ref, s.zra_rcpt_no, s.surcharge_amount, s.cancel_source,
                     (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id AND si.status NOT IN ("voided","refunded")) AS item_count,
-                    (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id AND si.status NOT IN ("voided","refunded","ready")) AS items_cooking
+                    (SELECT COUNT(*) FROM sale_items si WHERE si.sale_id = s.id AND si.status NOT IN ("voided","refunded","ready","held")) AS items_cooking
              FROM sales s WHERE s.customer_id = ? ORDER BY s.id DESC LIMIT ' . (int)$limit
         );
         $stmt->execute([$customerId]);
@@ -112,7 +112,7 @@ final class Customer extends Model
         $items = self::db()->prepare(
             'SELECT si.quantity, si.price, si.status, COALESCE(p.name, "Item") AS name
              FROM sale_items si LEFT JOIN products p ON p.id = si.product_id
-             WHERE si.sale_id = ? AND si.status NOT IN ("voided","refunded")'
+             WHERE si.sale_id = ?'
         );
         $items->execute([$saleId]);
         $sale['items'] = $items->fetchAll();

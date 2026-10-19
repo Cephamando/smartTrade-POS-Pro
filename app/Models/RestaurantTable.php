@@ -25,9 +25,23 @@ final class RestaurantTable extends Model
         self::db()->prepare('DELETE FROM restaurant_tables WHERE id = ?')->execute([$id]);
     }
 
-    /** Tables at this store that are not held by an unpaid bill. The current choice stays listed. */
+    /** Drop reservation holds whose time is up. The paid sale stays on the books. */
+    public static function releaseExpired(): void
+    {
+        try {
+            self::db()->exec(
+                "UPDATE sales SET status = 'completed'
+                 WHERE order_type = 'reservation' AND status = 'pending' AND payment_status = 'paid'
+                   AND reserve_until IS NOT NULL AND reserve_until <= NOW()"
+            );
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /** Tables at this store that are not held by a paid order or a live reservation. The current choice stays listed. */
     public static function freeForLocation(int $locationId, int $keepId = 0): array
     {
+        self::releaseExpired();
         $stmt = self::db()->prepare(
             'SELECT rt.* FROM restaurant_tables rt
              WHERE rt.location_id = ?
@@ -35,7 +49,7 @@ final class RestaurantTable extends Model
                  rt.id = ?
                  OR NOT EXISTS (
                    SELECT 1 FROM sales s
-                   WHERE s.table_id = rt.id AND s.location_id = ? AND s.payment_status = "pending"
+                   WHERE s.table_id = rt.id AND s.location_id = ? AND s.status = "pending" AND s.payment_status IN ("paid", "pending")
                  )
                )
              ORDER BY rt.zone_name ASC, rt.table_name ASC'

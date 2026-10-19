@@ -564,7 +564,7 @@ CREATE TABLE `sales` (
   `tip` decimal(10,2) DEFAULT '0.00',
   `final_total` decimal(10,2) DEFAULT '0.00',
   `payment_method` varchar(50) NOT NULL DEFAULT 'cash',
-  `status` enum('pending','completed','refund_requested','refunded','partially_refunded') DEFAULT 'completed',
+  `status` enum('pending','completed','refund_requested','refunded','partially_refunded','cancelled') DEFAULT 'completed',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `collected_by` varchar(100) DEFAULT NULL,
   `payment_status` varchar(20) NOT NULL DEFAULT 'paid',

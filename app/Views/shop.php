@@ -555,7 +555,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <div class="land-specs">
             <a class="land-spec" href="<?= $u('menu') ?>"><i class="bi bi-bag"></i><strong>Order online</strong><span>Browse the menu and pay from your phone.</span></a>
             <a class="land-spec" href="<?= $u('events') ?>"><i class="bi bi-calendar-event"></i><strong>Events</strong><span>See what is on and sign up.</span></a>
-            <a class="land-spec" href="<?= $u('menu') ?>"><i class="bi bi-grid-3x3-gap"></i><strong>Reserve a table</strong><span>Choose a free table from the bag.</span></a>
+            <a class="land-spec" href="<?= $u('reserve') ?>"><i class="bi bi-grid-3x3-gap"></i><strong>Reserve a table</strong><span>Pay the hold fee. No food required.</span></a>
             <a class="land-spec" href="<?= $u('menu') ?>"><i class="bi bi-geo-alt"></i><strong>Choose a store</strong><span><?= $storeNames ? htmlspecialchars(implode(', ', $storeNames)) : 'More than one store on the same menu.' ?></span></a>
         </div>
     </section>
@@ -1181,21 +1181,60 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </script>
     <?php endif; ?>
 
+<?php elseif ($view === 'reserve'): ?>
+    <?php
+    $holdMinutes = \App\Controllers\TablesController::reserveMinutes($settings);
+    $refundPercent = \App\Controllers\TablesController::reserveRefundPercent($settings);
+    $refundText = \App\Controllers\TablesController::reserveRefundText((float)$reserveAmount, $refundPercent);
+    $holdLabel = $holdMinutes >= 60
+        ? (intdiv($holdMinutes, 60) . ' hour' . (intdiv($holdMinutes, 60) === 1 ? '' : 's') . ($holdMinutes % 60 ? ' ' . ($holdMinutes % 60) . ' min' : ''))
+        : ($holdMinutes . ' minutes');
+    ?>
+    <h4 class="page-title mb-1">Reserve a table</h4>
+    <p class="text-muted small mb-3">Pay the hold fee. You do not have to order food. The table stays reserved for <?= htmlspecialchars($holdLabel) ?> after payment, then it is released. <?= htmlspecialchars($refundText) ?></p>
+    <?php if ((float)$reserveAmount <= 0): ?>
+        <div class="alert alert-warning">This store has not set a reservation fee yet.</div>
+    <?php elseif (empty($shopLocations)): ?>
+        <div class="alert alert-warning">No store is open for reservations.</div>
+    <?php else: ?>
+        <form method="POST" action="<?= $u('reserve') ?>" class="card item-card"><div class="card-body">
+            <input type="hidden" name="reserve_table" value="1">
+            <label class="form-label fw-bold small text-muted">STORE</label>
+            <select name="seat_location" class="form-select mb-3" onchange="location.href=this.options[this.selectedIndex].dataset.href">
+                <?php foreach ($shopLocations as $locRow): ?>
+                <option data-href="<?= $u('reserve', ['loc' => (int)$locRow['id']]) ?>" value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === (int)$shopLocationId ? 'selected' : '' ?>><?= htmlspecialchars($locRow['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <label class="form-label fw-bold small text-muted">FREE TABLE</label>
+            <?php if (empty($shopTables)): ?>
+                <div class="alert alert-secondary">Every table at this store is already held.</div>
+            <?php else: ?>
+                <select name="seat_table" class="form-select mb-3" required>
+                    <?php foreach ($shopTables as $tbl): ?>
+                    <option value="<?= (int)$tbl['id'] ?>"><?= htmlspecialchars(trim((string)($tbl['zone_name'] ?? '') . ' ' . ($tbl['table_name'] ?? ''))) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="d-flex justify-content-between fw-bold fs-5 mb-3"><span><?= htmlspecialchars($reserveLabel) ?></span><span><?= $money($reserveAmount) ?></span></div>
+                <button class="btn btn-accent rounded-pill px-4"><?= $customer ? 'Pay and hold the table' : 'Sign in to pay' ?></button>
+            <?php endif; ?>
+        </div></form>
+    <?php endif; ?>
+
 <?php elseif ($view === 'orders'): ?>
     <h4 class="page-title mb-3">My orders</h4>
     <?php if (empty($orders)): ?><div class="text-center text-muted py-5">No orders yet. <a href="<?= $u('menu') ?>">Order something tasty</a>.</div><?php endif; ?>
     <div class="list-group shadow-sm">
-    <?php foreach ($orders ?? [] as $o): $live = $o['status'] === 'pending'; ?>
+    <?php foreach ($orders ?? [] as $o): $live = $o['status'] === 'pending'; $waitingPay = $live && ($o['payment_status'] ?? '') !== 'paid'; ?>
         <a href="<?= $u('order', ['id' => $o['id']]) ?>" class="list-group-item list-group-item-action py-3">
-            <div class="d-flex justify-content-between"><strong>Order #<?= (int)$o['id'] ?></strong><span class="price"><?= $money($o['final_total']) ?></span></div>
+            <div class="d-flex justify-content-between"><strong><?= ($o['order_type'] ?? '') === 'reservation' ? 'Reservation' : 'Order' ?> #<?= (int)$o['id'] ?></strong><span class="price"><?= $money($o['final_total']) ?></span></div>
             <div class="small text-muted"><?= date('d M Y H:i', strtotime($o['created_at'])) ?> · <?= (int)$o['item_count'] ?> item(s) · <?= strtoupper(htmlspecialchars($o['order_type'] ?? 'pickup')) ?></div>
-            <div class="mt-1"><span class="badge <?= $live ? ((int)$o['items_cooking'] > 0 ? 'bg-warning text-dark' : 'bg-info text-dark') : ($o['status'] === 'completed' ? 'bg-success' : 'bg-secondary') ?>"><?= $live ? ((int)$o['items_cooking'] > 0 ? 'Being prepared' : 'Ready for collection') : ucfirst($o['status']) ?></span> <span class="badge <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-light text-dark border' ?>"><?= $o['payment_status'] === 'paid' ? 'Paid' : 'Unpaid' ?></span></div>
+            <div class="mt-1"><span class="badge <?= $o['status'] === 'cancelled' ? 'bg-secondary' : ($waitingPay ? 'bg-warning text-dark' : ($live ? ((int)$o['items_cooking'] > 0 ? 'bg-warning text-dark' : 'bg-info text-dark') : ($o['status'] === 'completed' ? 'bg-success' : 'bg-secondary'))) ?>"><?= $o['status'] === 'cancelled' ? (($o['cancel_source'] ?? '') === 'till' ? 'Cancelled by the store' : (($o['cancel_source'] ?? '') === 'customer' ? 'Cancelled by you' : 'Cancelled')) : ($waitingPay ? 'Waiting for payment' : ($live ? ((($o['order_type'] ?? '') === 'reservation' ? 'Table held' : ((int)$o['items_cooking'] > 0 ? 'Being prepared' : 'Ready for collection'))) : ucfirst($o['status']))) ?></span> <span class="badge <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-light text-dark border' ?>"><?= $o['payment_status'] === 'paid' ? 'Paid' : ($o['payment_status'] === 'voided' ? 'Not charged' : 'Unpaid') ?></span></div>
         </a>
     <?php endforeach; ?>
     </div>
 
 <?php elseif ($view === 'order' && !empty($order)): ?>
-    <?php $o = $order; $cooking = count(array_filter($o['items'], fn($i) => $i['status'] !== 'ready')); $done = $o['status'] !== 'pending'; ?>
+    <?php $o = $order; $cancelled = ($o['status'] ?? '') === 'cancelled'; $waitingPay = ($o['status'] ?? '') === 'pending' && ($o['payment_status'] ?? '') !== 'paid'; $cooking = count(array_filter($o['items'], fn($i) => !in_array($i['status'], ['ready', 'voided', 'refunded', 'held'], true))); $done = $o['status'] !== 'pending'; $isReservation = ($o['order_type'] ?? '') === 'reservation'; ?>
     <a href="<?= $u('orders') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> All orders</a>
     <div class="card item-card mt-2 mb-3"><div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
@@ -1207,20 +1246,35 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <span class="step <?= $cooking === 0 || $done ? 'done' : '' ?>">2</span><div class="flex-grow-1 border-top <?= $done ? 'border-warning border-2' : '' ?>"></div>
             <span class="step <?= $done ? 'done' : '' ?>">3</span>
         </div>
-        <div class="d-flex justify-content-between small text-muted mb-3"><span>Received</span><span><?= $cooking === 0 || $done ? 'Ready' : 'Being prepared' ?></span><span><?= $done ? ucfirst($o['status']) : 'Collected' ?></span></div>
+        <div class="d-flex justify-content-between small text-muted mb-3"><span>Received</span><span><?= $cancelled ? 'Cancelled' : ($waitingPay ? 'Waiting for payment' : ($isReservation ? 'Table held' : ($cooking === 0 || $done ? 'Ready' : 'Being prepared'))) ?></span><span><?= $cancelled ? 'Cancelled' : ($isReservation && !$done ? 'Held' : ($done ? ucfirst($o['status']) : 'Collected')) ?></span></div>
         <table class="table table-sm mb-0">
-            <?php foreach ($o['items'] as $i): ?><tr><td><?= (int)$i['quantity'] ?> × <?= htmlspecialchars($i['name']) ?> <?php if (!$done): ?><span class="status-dot <?= $i['status'] === 'ready' ? 'bg-success' : 'bg-warning' ?>" title="<?= htmlspecialchars($i['status']) ?>"></span><?php endif; ?></td><td class="text-end"><?= $money($i['price'] * $i['quantity']) ?></td></tr><?php endforeach; ?>
+            <?php foreach ($o['items'] as $i): if (!$cancelled && in_array($i['status'], ['voided', 'refunded'], true)) { continue; } ?><tr><td><?= (int)$i['quantity'] ?> × <?= htmlspecialchars($i['name']) ?> <?php if (!$done && !$cancelled): ?><span class="status-dot <?= $i['status'] === 'ready' ? 'bg-success' : 'bg-warning' ?>" title="<?= htmlspecialchars($i['status']) ?>"></span><?php endif; ?></td><td class="text-end"><?= $money($i['price'] * $i['quantity']) ?></td></tr><?php endforeach; ?>
             <?php if ((float)$o['surcharge_amount'] > 0): ?><tr><td class="text-muted"><?= htmlspecialchars($o['surcharge_reason'] ?: 'Fee') ?></td><td class="text-end"><?= $money($o['surcharge_amount']) ?></td></tr><?php endif; ?>
             <tr class="fw-bold fs-5"><td>Total</td><td class="text-end"><?= $money($o['final_total']) ?></td></tr>
         </table>
         <?php if ($o['order_notes']): ?><div class="small text-muted mt-2"><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars($o['order_notes']) ?></div><?php endif; ?>
-        <?php if ($flwOn && ($o['payment_status'] ?? '') !== 'paid' && ($o['status'] ?? '') === 'pending'): ?>
+        <?php if (($o['status'] ?? '') === 'cancelled'): ?>
+            <div class="alert alert-secondary mt-3 mb-0"><?php if (($o['cancel_source'] ?? '') === 'till'): ?>The store cancelled this order.<?php elseif (($o['cancel_source'] ?? '') === 'customer'): ?>You cancelled this order.<?php else: ?>This order was cancelled.<?php endif; ?><?php if (($o['payment_status'] ?? '') === 'paid'): ?> It stays with the store until Flutterwave pays the funds out.<?php else: ?> Nothing was charged.<?php endif; ?></div>
+        <?php elseif ($flwOn && ($o['payment_status'] ?? '') !== 'paid' && ($o['status'] ?? '') === 'pending'): ?>
             <a href="<?= $u('pay', ['id' => (int)$o['id']]) ?>" class="btn btn-accent rounded-pill px-4 mt-3">Pay with Flutterwave</a>
+        <?php endif; ?>
+        <?php if (($o['status'] ?? '') === 'pending'): ?>
+            <form method="POST" action="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="mt-3" id="cancelOrderForm">
+                <input type="hidden" name="cancel_order" value="1">
+                <input type="hidden" name="sale_id" value="<?= (int)$o['id'] ?>">
+                <button type="submit" class="btn btn-outline-danger rounded-pill">Cancel this order</button>
+            </form>
+            <script>
+            document.getElementById('cancelOrderForm').addEventListener('submit', function (e) {
+                var msg = <?= json_encode(($o['payment_status'] ?? '') === 'paid' ? 'Cancel this order? It stays with the store until Flutterwave pays the funds out, and the store files a ZRA credit note.' : 'Cancel this order? Nothing has been charged.') ?>;
+                if (!window.confirm(msg)) e.preventDefault();
+            });
+            </script>
         <?php endif; ?>
         <?php if ($o['gateway_ref']): ?><div class="small text-muted">Payment ref <?= htmlspecialchars($o['gateway_ref']) ?></div><?php endif; ?>
         <?php if ($o['zra_rcpt_no']): ?><div class="small text-muted">ZRA receipt no <?= htmlspecialchars($o['zra_rcpt_no']) ?></div><?php endif; ?>
     </div></div>
-    <?php if ($done && ($o['payment_status'] ?? '') === 'paid' && empty($visitAnswered)): ?>
+    <?php if ($done && !$cancelled && ($o['payment_status'] ?? '') === 'paid' && empty($visitAnswered)): ?>
     <div class="card item-card mb-3"><div class="card-body text-center">
         <h4 class="fw-bold mb-1">How was your visit?</h4>
         <p class="text-muted small mb-3">Same question for every guest.</p>
@@ -1235,7 +1289,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <div class="card item-card mt-2 mb-3" id="purchase-complete" data-order="<?= (int)$o['id'] ?>" data-value="<?= htmlspecialchars(number_format((float)$o['final_total'], 2, '.', '')) ?>" data-currency="ZMW">
         <div class="card-body text-center">
             <h4 class="fw-bold mb-1">Payment received</h4>
-            <p class="text-muted mb-2">Order #<?= (int)$o['id'] ?> is being prepared.</p>
+            <p class="text-muted mb-2"><?php if (($o['order_type'] ?? '') === 'reservation'): ?>The table is held<?= !empty($o['reserve_until']) ? ' until ' . htmlspecialchars(date('d M Y H:i', strtotime((string)$o['reserve_until']))) : '' ?>.<?php else: ?>Order #<?= (int)$o['id'] ?> is being prepared.<?php endif; ?></p>
             <div class="fw-bold fs-4 mb-3"><?= $money($o['final_total']) ?></div>
             <a href="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="btn btn-accent rounded-pill px-4">Follow this order</a>
         </div>
@@ -1514,7 +1568,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div>
         </form>
         <?php endif; ?>
-        <?php if (($charge['amount'] ?? 0) > 0 && !in_array($guest['status'], ['declined', 'cancelled'], true)): ?>
+        <?php if (!empty($flwGateway) && ($charge['amount'] ?? 0) > 0 && !in_array($guest['status'], ['declined', 'cancelled'], true)): ?>
         <form method="POST" action="<?= $u('rsvp', ['token' => $guest['token']]) ?>" class="card item-card">
             <div class="card-body p-4 d-flex justify-content-between align-items-center">
                 <div>
@@ -1833,8 +1887,24 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         items.forEach(function (row) { byId[String(row.id)] = row; });
         document.querySelectorAll('.menu-item[data-id]').forEach(function (card) {
             var row = byId[card.dataset.id];
+            if (!row) return;
+            var photo = card.querySelector('.dish-photo');
+            if (photo) {
+                if (row.src) {
+                    photo.style.backgroundImage = "url('" + withVersion(row.src, row.v).replace(/'/g, '%27') + "')";
+                    var mark = photo.querySelector('i');
+                    if (mark) mark.remove();
+                } else if (photo.style.backgroundImage) {
+                    photo.style.backgroundImage = '';
+                    if (!photo.querySelector('i')) {
+                        var placeholder = document.createElement('i');
+                        placeholder.className = 'bi bi-basket3';
+                        photo.insertBefore(placeholder, photo.firstChild);
+                    }
+                }
+            }
             var face = card.querySelector('.item-face');
-            if (!row || !face) return;
+            if (!face) return;
             if (row.src) {
                 face.classList.add('item-photo');
                 var url = withVersion(row.src, row.v).replace(/'/g, '%27');

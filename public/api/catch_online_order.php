@@ -91,7 +91,7 @@ try {
     $insertSale = $pdo->prepare("
         INSERT INTO sales 
         (location_id, user_id, shift_id, subtotal, total_amount, final_total, status, payment_status, payment_method, split_group_id, customer_name) 
-        VALUES (?, 1, ?, ?, ?, ?, 'pending', 'pending', 'Online', ?, ?)
+        VALUES (?, 1, ?, ?, ?, ?, 'pending', 'paid', 'Online', ?, ?)
     ");
     
     $displayLabel = "ONLINE: " . ($orderData['customer_name'] ?? 'Guest');
