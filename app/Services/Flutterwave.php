@@ -954,23 +954,7 @@ final class Flutterwave
         if (!$this->enabled()) {
             return null;
         }
-        try {
-            $res = $this->request('GET', '/subaccounts/' . rawurlencode($id));
-        } catch (\Throwable $e) {
-            return null;
-        }
-        $data = $res['data'] ?? null;
-        $row = null;
-        if (is_array($data) && isset($data['subaccount_id'])) {
-            $row = $data;
-        } elseif (is_array($data)) {
-            foreach ($data as $item) {
-                if (is_array($item) && strtoupper((string)($item['subaccount_id'] ?? '')) === $id) {
-                    $row = $item;
-                    break;
-                }
-            }
-        }
+        $row = $this->findSubaccount($id);
         if ($row === null) {
             return [
                 'id' => $id,
@@ -1357,6 +1341,10 @@ final class Flutterwave
     public function sendEmergencyTransfer(float $amount, string $narration, int $userId): array
     {
         $this->assertEnabled();
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            throw new \RuntimeException('Add the Flutterwave subaccount ID under Settings → Payments. The emergency transfer sends from that subaccount.');
+        }
         $dest = $this->payoutDestination();
         if (empty($dest['ready'])) {
             throw new \RuntimeException('Save the emergency payout account under Settings → Payments first.');
@@ -1371,7 +1359,7 @@ final class Flutterwave
         }
         $balance = $this->availableBalance();
         if ($amount - $balance > 0.001) {
-            throw new \RuntimeException('The Flutterwave balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
+            throw new \RuntimeException('The subaccount payout balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
         }
         $dupe = $this->pdo->prepare(
             "SELECT id FROM flutterwave_transfers
@@ -1411,6 +1399,7 @@ final class Flutterwave
             'beneficiary_name' => $dest['name'],
             'reference' => $reference,
             'callback_url' => $this->webhookUrl(),
+            'debit_subaccount' => $subId,
         ];
         if (($dest['method'] ?? 'bank') === 'momo') {
             $payload['account_bank'] = 'MPS';
@@ -1439,7 +1428,7 @@ final class Flutterwave
         $where = $dest['bank_name'] !== '' ? $dest['bank_name'] : 'the saved account';
         return [
             'status' => 'ok',
-            'msg' => 'Emergency transfer of ZMW ' . number_format($amount, 2) . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
+            'msg' => 'Emergency transfer of ZMW ' . number_format($amount, 2) . ' from subaccount ' . $subId . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
         ];
     }
 
@@ -1512,34 +1501,101 @@ final class Flutterwave
         return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir . '/api/flutterwave_webhook.php';
     }
 
+    /** @return array<string, mixed>|null */
+    private function findSubaccount(string $id): ?array
+    {
+        try {
+            $direct = $this->request('GET', '/subaccounts/' . rawurlencode($id));
+            $data = $direct['data'] ?? null;
+            if (is_array($data) && strtoupper((string)($data['subaccount_id'] ?? '')) === $id) {
+                return $data;
+            }
+        } catch (\Throwable $e) {
+        }
+        $page = 1;
+        $pages = 1;
+        do {
+            try {
+                $res = $this->request('GET', '/subaccounts?page=' . $page);
+            } catch (\Throwable $e) {
+                return null;
+            }
+            if (($res['status'] ?? '') !== 'success' || !is_array($res['data'] ?? null)) {
+                return null;
+            }
+            $items = isset($res['data']['subaccount_id']) ? [$res['data']] : $res['data'];
+            foreach ($items as $item) {
+                if (is_array($item) && strtoupper((string)($item['subaccount_id'] ?? '')) === $id) {
+                    return $item;
+                }
+            }
+            $pages = max(1, (int)($res['meta']['page_info']['total_pages'] ?? 1));
+            $page++;
+        } while ($page <= $pages && $page <= 8);
+        return null;
+    }
+
     /** @return array{payout: float, collection: float} */
     private function walletBalances(): array
     {
         $this->assertEnabled();
-        $currency = $this->currency();
-        $res = $this->request('GET', '/balances/' . rawurlencode($currency));
-        if (($res['status'] ?? '') !== 'success') {
-            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not return the wallet balance.'));
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            throw new \RuntimeException('Add the Flutterwave subaccount ID under Settings → Payments.');
         }
-        $data = $res['data'] ?? null;
-        $row = null;
-        if (is_array($data) && isset($data['available_balance'])) {
-            $row = $data;
-        } elseif (is_array($data)) {
-            foreach ($data as $item) {
-                if (is_array($item) && strtoupper((string)($item['currency'] ?? '')) === $currency) {
-                    $row = $item;
-                    break;
+        $currency = $this->currency();
+        $paths = [
+            '/payout-subaccounts/' . rawurlencode($subId) . '/balances?currency=' . rawurlencode($currency),
+        ];
+        $last = 'Flutterwave did not return a balance for subaccount ' . $subId . '.';
+        foreach ($paths as $path) {
+            try {
+                $res = $this->request('GET', $path);
+            } catch (\Throwable $e) {
+                $last = $e->getMessage();
+                continue;
+            }
+            if (($res['status'] ?? '') !== 'success') {
+                $message = trim((string)($res['message'] ?? ''));
+                if ($message !== '') {
+                    $last = $message;
                 }
+                continue;
+            }
+            $parsed = $this->balancePair($res['data'] ?? null, $currency);
+            if ($parsed !== null) {
+                return $parsed;
             }
         }
-        if ($row === null) {
-            throw new \RuntimeException('Flutterwave did not return a ' . $currency . ' balance.');
+        throw new \RuntimeException($last);
+    }
+
+    /** @return array{payout: float, collection: float}|null */
+    private function balancePair(mixed $data, string $currency): ?array
+    {
+        $items = [];
+        if (is_array($data) && (isset($data['available_balance']) || isset($data['ledger_balance']))) {
+            $items = [$data];
+        } elseif (is_array($data)) {
+            $items = $data;
         }
-        return [
-            'payout' => round((float)($row['available_balance'] ?? 0), 2),
-            'collection' => round((float)($row['ledger_balance'] ?? 0), 2),
-        ];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (!isset($item['available_balance']) && !isset($item['ledger_balance'])) {
+                continue;
+            }
+            $code = strtoupper(trim((string)($item['currency'] ?? $currency)));
+            if ($code !== '' && $code !== $currency) {
+                continue;
+            }
+            return [
+                'payout' => round((float)($item['available_balance'] ?? 0), 2),
+                'collection' => round((float)($item['ledger_balance'] ?? 0), 2),
+            ];
+        }
+        return null;
     }
 
     private function availableBalance(): float

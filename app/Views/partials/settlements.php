@@ -145,18 +145,18 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
     <div class="card-body">
         <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
             <div>
-                <h5 class="fw-bold mb-1"><i class="bi bi-send text-danger"></i> Main wallet transfer</h5>
-                <p class="text-muted small mb-2">This sends from the main Flutterwave wallet that owns the API keys. It is not the subaccount balance above. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance.</p>
+                <h5 class="fw-bold mb-1"><i class="bi bi-send text-danger"></i> Subaccount transfer</h5>
+                <p class="text-muted small mb-2">Sends from subaccount <span class="font-monospace"><?= htmlspecialchars($subId !== '' ? $subId : 'RS_…') ?></span> to the saved bank account or mobile-money number. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance.</p>
                 <?php if (!empty($payout['test_mode'])): ?><span class="badge bg-warning text-dark">Sandbox keys — this will not pay a real bank</span><?php endif; ?>
             </div>
             <div class="d-flex gap-4 text-md-end">
                 <div>
-                    <div class="text-muted small text-uppercase fw-bold">Main collection balance</div>
+                    <div class="text-muted small text-uppercase fw-bold">Collection balance</div>
                     <div class="h4 fw-bold mb-0"><?= $payout['collection'] === null ? '—' : $money((float)$payout['collection']) ?></div>
                     <div class="small text-muted">Held until Flutterwave settles it</div>
                 </div>
                 <div>
-                    <div class="text-muted small text-uppercase fw-bold">Main payout balance</div>
+                    <div class="text-muted small text-uppercase fw-bold">Payout balance</div>
                     <div class="h4 fw-bold mb-0"><?= $payout['balance'] === null ? '—' : $money((float)$payout['balance']) ?></div>
                     <div class="small text-muted">Available to transfer</div>
                 </div>

@@ -251,7 +251,7 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                     </div>
                     <hr class="my-4">
                     <h6 class="fw-bold mb-1"><i class="bi bi-bank"></i> Emergency payout account</h6>
-                    <p class="text-muted small">A developer can send from the main Flutterwave wallet to this account. That wallet is not the subaccount. Flutterwave must have this server's IP on the transfer whitelist. A company name may include &amp; and commas.</p>
+                    <p class="text-muted small">A developer can send from the subaccount payout balance to this account. Flutterwave must have this server's IP on the transfer whitelist. A company name may include &amp; and commas.</p>
                     <?php if (!empty($flwBanksError)): ?>
                         <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?> You can type the bank code and name instead, or use mobile money.</div>
                     <?php endif; ?>
