@@ -375,7 +375,7 @@ Z-Read is the shop’s end-of-day record. It is not the ZRA VAT return.
 
 **Office → Books of account.**
 
-Pick a book, the dates, and a store (or all stores). The figures update as soon as you change any of those. The seven books are the daily sales register, the three-column cash book, the petty cash book, the recipe and yield book, the stock register, the wastage log, and the purchases day book. Each one is built from sales, payouts, stock movements, recipes, and goods received already on file. **Print** prints the book on screen.
+Pick a book from the cards or the list, then the dates and a store (or all stores). The figures update on the page as soon as you change any of those. Books that have entries for those dates are listed first. The seven books are the daily sales register, the three-column cash book, the petty cash book, the recipe and yield book, the stock register, the wastage log, and the purchases day book. Each one is built from sales, payouts, stock movements, recipes, and goods received already on file. **Print** prints the book on screen.
 
 The cash book puts cash in the cash columns and card, mobile money, and online payments in the bank columns. A discount is shown on its own. Flutterwave payouts stay on the sales register as “Paid out” and are not added a second time in the bank column.
 
@@ -488,18 +488,17 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 ### Settlements & Payouts
 
-**Dashboard → Settlements & Payouts.** These figures are for the whole business. The workstation pin does not filter them.
+**Dashboard → Settlements & Payouts.** These figures are for the Flutterwave subaccount saved under Settings → Payments, not the main wallet that owns the API keys. The workstation pin does not filter them. Paste the subaccount ID (`RS_…`) before the totals can be read.
 
-- **Total processed** is what customers paid on confirmed Flutterwave charges.
-- **Service fee deducted** is Flutterwave’s fee on those charges.
-- **Pending settlement to bank** is what Flutterwave still owes this account.
-- **Settled to bank** is what a completed settlement batch has already matched.
-- The table lists each confirmed charge: when, reference, receipt, method, what the customer paid, the fee, the amount due to this account, and **Pending** or **Settled**.
-- **Update from Flutterwave** checks completed settlement batches from the last 90 days and marks the matching charges settled. A pending or flagged batch stays pending. If Flutterwave has no completed batch, the message says so and the charges stay pending.
+- **Due to the subaccount** is that subaccount’s share of confirmed charges, using the split saved on the subaccount.
+- **Fees on subaccount payouts** come from the subaccount’s own settlement batches.
+- **Waiting on Flutterwave** is the share not yet in a completed payout to the subaccount.
+- **Paid to the subaccount** is the share Flutterwave has already matched to a completed subaccount batch.
+- **Subaccount payout account** names the bank Flutterwave pays for that subaccount, and lists its batches.
+- The charge table shows when, reference, receipt, method, what the customer paid, and the amount due to the subaccount. **Pending** or **Settled** means that subaccount payout.
+- **Update from Flutterwave** reads the subaccount’s settlement batches from the last 90 days and marks matching charges settled. A pending or flagged batch stays pending.
 
-**Collection balance** is the ledger Flutterwave is still holding. **Payout balance** is the only money an emergency transfer can send. Flutterwave releases collection into the payout balance on its own settlement schedule, and only when Flutterwave → Settings → Business preferences is set to **Settle to my payout balance**. This app cannot move a chosen amount from collection into payout.
-
-**Emergency transfer** pays the bank account or mobile-money number saved under Settings → Payments. Only a developer can send it, and only a developer can open that Payments tab or change the payout account. Zambia mobile money is sent as an MTN, Airtel, or Zamtel payout. Enter the amount (not more than the payout balance), a short reason, and the developer username and password. The row stays **Pending** until Flutterwave reports it successful; opening this tab checks transfers that are still waiting. The button stays off when the payout balance is under ZMW 1.00, or when no payout account is saved. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
+A developer can still send an emergency transfer from the **main** Flutterwave wallet to the account saved under Settings → Payments. That balance is not the subaccount. Only a developer sees it. Enter the amount (not more than the main payout balance), a short reason, and the developer username and password. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 ---
 
@@ -529,9 +528,9 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **POS surcharges** — the list the POS offers. Add a name, a default amount and/or percent, a sort order, and whether it is active. Edit, switch off, or delete from the table. Deleting does not change past sales.
 
-**Payments (Flutterwave)** — developer login only. Switch the gateway off to stop new card and mobile-money charges on the till, the shop, and event pages. A charge that was already sent can still be recorded. Switch it on and paste the **public key**, **secret key**, and **webhook secret hash** from Flutterwave → Settings → API. Keys that start with `FLWPUBK_TEST` or `FLWSECK_TEST` are sandbox; the other keys are live. **Test keys** checks that Flutterwave accepts them. Paste the **subaccount ID** (`RS_…`) when card and mobile-money payments should follow the percentage or flat split already saved on that subaccount. Leave it blank to settle the full amount here. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook. The same webhook also updates an emergency transfer when Flutterwave finishes it.
+**Payments (Flutterwave)** — developer login only. Switch the gateway off to stop new card and mobile-money charges on the till, the shop, and event pages. A charge that was already sent can still be recorded. Switch it on and paste the **public key**, **secret key**, and **webhook secret hash** from Flutterwave → Settings → API. Keys that start with `FLWPUBK_TEST` or `FLWSECK_TEST` are sandbox; the other keys are live. **Test keys** checks that Flutterwave accepts them. Paste the **subaccount ID** (`RS_…`). Card and mobile-money payments use the split saved on that subaccount, and Settlements & Payouts follows that subaccount rather than the main Flutterwave wallet. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook. The same webhook also updates an emergency transfer when Flutterwave finishes it.
 
-**Emergency payout account** — where Dashboard → Settlements & Payouts → Emergency transfer sends money. Choose **Bank account** or **Mobile money**. For a bank, pick it from the Flutterwave list, then the account number and the name on the account. A company name may include & and commas. If that bank has branches and Flutterwave returns them, choose the branch. For mobile money, choose **MTN**, **Airtel**, or **Zamtel** and the number (for example 0971234567). The transfer always pays this saved account; it is not typed again at send time. Leave the bank or the mobile number blank and save to remove it. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
+**Emergency payout account** — where a developer’s main-wallet transfer sends money. It is not the subaccount. Choose **Bank account** or **Mobile money**. For a bank, pick it from the Flutterwave list, then the account number and the name on the account. A company name may include & and commas. If that bank has branches and Flutterwave returns them, choose the branch. For mobile money, choose **MTN**, **Airtel**, or **Zamtel** and the number (for example 0971234567). The transfer always pays this saved account; it is not typed again at send time. Leave the bank or the mobile number blank and save to remove it. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 **Currency** — switch the converter on, choose which currencies the POS shows (USD, ZAR, EUR, GBP, and others), and how often rates refresh. Live rates are pulled against the kwacha and cached. You may fix a **house rate** for any currency; it overrides the live rate. **Refresh live rates now** fetches immediately. The quick converter on the tab converts any amount between enabled currencies.
 

@@ -89,7 +89,7 @@ final class DashboardController extends Controller
         }
         $flw = new Flutterwave($this->pdo());
         $settlement = $tab === 'settlements' ? $flw->settlementBoard() : null;
-        $payout = $tab === 'settlements' ? $flw->transferBoard() : null;
+        $payout = ($tab === 'settlements' && strtolower((string)($_SESSION['role'] ?? '')) === 'dev') ? $flw->transferBoard() : null;
         $this->render(array_merge($kpis, [
             'dashLocId' => $dashLocId,
             'dashLocName' => $dashLocName,

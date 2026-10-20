@@ -724,6 +724,16 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         foreach ($products as $p) {
             $rails[(string)($p['family'] ?? 'More')][] = $p;
         }
+        foreach ($rails as $familyName => $items) {
+            usort($items, static function (array $a, array $b): int {
+                $rank = ((int)empty($a['available'])) <=> ((int)empty($b['available']));
+                if ($rank !== 0) {
+                    return $rank;
+                }
+                return strcasecmp((string)$a['name'], (string)$b['name']);
+            });
+            $rails[$familyName] = $items;
+        }
         foreach ($menuGroups as $familyName => $kids):
             if (empty($rails[$familyName])) continue;
         ?>
@@ -869,7 +879,47 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         var avail = ((document.querySelector('.avail-tab.is-on') || {}).dataset || {}).avail || '';
         var href = link.getAttribute('href');
         if (avail === '1' || avail === '0') href += '&avail=' + avail;
-        window.setTimeout(function () { window.location = href; }, 180);
+        var board = document.querySelector('.shop-board');
+        if (board) board.style.opacity = '0.45';
+        fetch(href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.text(); })
+            .then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var next = doc.querySelector('.shop-board');
+                var current = document.querySelector('.shop-board');
+                if (!next || !current) {
+                    window.location = href;
+                    return;
+                }
+                current.replaceWith(document.importNode(next, true));
+                var nextCart = doc.getElementById('cartBar');
+                var cart = document.getElementById('cartBar');
+                if (nextCart && cart) cart.replaceWith(document.importNode(nextCart, true));
+                var wrap = document.querySelector('.shop-wrap');
+                var note = doc.querySelector('.shop-wrap > .alert');
+                if (wrap) {
+                    var old = wrap.querySelector(':scope > .alert');
+                    if (old) old.remove();
+                    if (note) wrap.insertBefore(document.importNode(note, true), wrap.firstChild);
+                }
+                if (window.history && window.history.replaceState) window.history.replaceState(null, '', href);
+                if (window.setShopCurrency) window.setShopCurrency(window.shopCur || 'ZMW');
+                if (avail === '1' || avail === '0') {
+                    var availBtn = document.querySelector('.avail-tab[data-avail="' + avail + '"]');
+                    if (availBtn) setAvail(availBtn);
+                    else filterMenu();
+                } else {
+                    filterMenu();
+                }
+                var storeRail = document.querySelector('.store-tabs');
+                var currentStore = document.querySelector('.store-tab.is-on');
+                if (storeRail && currentStore) storeRail.scrollLeft = Math.max(0, currentStore.offsetLeft - (storeRail.clientWidth - currentStore.offsetWidth) / 2);
+            })
+            .catch(function () { window.location = href; })
+            .finally(function () {
+                var shown = document.querySelector('.shop-board');
+                if (shown) shown.style.opacity = '1';
+            });
         return false;
     }
     function setAvail(btn) {

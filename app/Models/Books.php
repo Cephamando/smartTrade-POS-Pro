@@ -67,6 +67,114 @@ final class Books extends Model
         ];
     }
 
+    /**
+     * Catalog keys that have at least one line for this period, in catalog order.
+     *
+     * @return list<string>
+     */
+    public static function filled(string $start, string $end, int $locationId): array
+    {
+        $from = $start . ' 00:00:00';
+        $to = $end . ' 23:59:59';
+        $has = [];
+        if (self::probe(
+            "SELECT 1 FROM sales s WHERE s.created_at >= ? AND s.created_at <= ? AND s.payment_status = 'paid' AND s.final_total >= 0",
+            's',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['sales'] = true;
+        }
+        if (self::probe(
+            "SELECT 1 FROM sales s WHERE s.created_at >= ? AND s.created_at <= ? AND s.payment_status = 'paid' AND s.final_total <> 0",
+            's',
+            $from,
+            $to,
+            $locationId
+        ) || self::probe(
+            'SELECT 1 FROM expenses e WHERE e.created_at >= ? AND e.created_at <= ?',
+            'e',
+            $from,
+            $to,
+            $locationId
+        ) || self::probe(
+            "SELECT 1 FROM shifts sh WHERE sh.status = 'closed' AND sh.end_time >= ? AND sh.end_time <= ? AND ABS(sh.variance) >= 0.004",
+            'sh',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['cash'] = true;
+        }
+        if (self::probe(
+            'SELECT 1 FROM expenses e WHERE e.created_at >= ? AND e.created_at <= ?',
+            'e',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['petty'] = true;
+        }
+        if (self::probe(
+            "SELECT 1 FROM sale_items si JOIN sales s ON s.id = si.sale_id JOIN product_recipes r ON r.parent_product_id = si.product_id WHERE s.created_at >= ? AND s.created_at <= ? AND s.payment_status = 'paid' AND si.status NOT IN ('voided', 'refunded')",
+            's',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['yield'] = true;
+        }
+        if (self::probe(
+            'SELECT 1 FROM inventory_logs il WHERE il.created_at >= ? AND il.created_at <= ?',
+            'il',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['stock'] = true;
+        }
+        if (self::probe(
+            "SELECT 1 FROM inventory_logs il WHERE il.created_at >= ? AND il.created_at <= ? AND (il.action_type IN ('waste', 'void_return') OR (il.action_type IN ('adjustment', 'stock_take') AND il.change_qty < 0))",
+            'il',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['wastage'] = true;
+        }
+        if (self::probe(
+            'SELECT 1 FROM purchase_orders o WHERE o.created_at >= ? AND o.created_at <= ?',
+            'o',
+            $from,
+            $to,
+            $locationId
+        ) || self::probe(
+            'SELECT 1 FROM grvs g WHERE g.created_at >= ? AND g.created_at <= ? AND (g.purchase_order_id IS NULL OR g.purchase_order_id = 0)',
+            'g',
+            $from,
+            $to,
+            $locationId
+        )) {
+            $has['purchases'] = true;
+        }
+
+        $filled = [];
+        foreach (array_keys(self::catalog()) as $key) {
+            if (!empty($has[$key])) {
+                $filled[] = $key;
+            }
+        }
+        return $filled;
+    }
+
+    private static function probe(string $sql, string $alias, string $from, string $to, int $locationId): bool
+    {
+        $params = [$from, $to];
+        $loc = self::loc($alias, $locationId, $params);
+        return self::fetch($sql . $loc . ' LIMIT 1', $params) !== [];
+    }
+
     /** @return list<array<string, mixed>> */
     private static function salesBook(string $from, string $to, int $locationId): array
     {

@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 14;
+    public const VERSION = 15;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -139,6 +139,29 @@ final class Schema
         self::addColumn($pdo, 'payment_transactions', 'settlement_status', 'VARCHAR(20) NULL');
         self::addColumn($pdo, 'payment_transactions', 'settlement_id', 'VARCHAR(40) NULL');
         self::addColumn($pdo, 'payment_transactions', 'settled_at', 'DATETIME NULL');
+        self::addColumn($pdo, 'payment_transactions', 'subaccount_amount', 'DECIMAL(12,2) NULL');
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS flutterwave_settlements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                subaccount_id VARCHAR(80) NOT NULL,
+                settlement_id VARCHAR(40) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                currency VARCHAR(3) NOT NULL DEFAULT 'ZMW',
+                gross_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+                app_fee DECIMAL(12,2) NOT NULL DEFAULT 0,
+                net_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+                transaction_count INT NOT NULL DEFAULT 0,
+                transaction_date DATETIME NULL,
+                due_date DATETIME NULL,
+                processed_date DATETIME NULL,
+                destination VARCHAR(40) NULL,
+                settlement_account VARCHAR(40) NULL,
+                bank_code VARCHAR(20) NULL,
+                updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_sub_settlement (subaccount_id, settlement_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS flutterwave_transfers (
