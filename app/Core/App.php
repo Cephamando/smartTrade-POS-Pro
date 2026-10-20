@@ -396,7 +396,7 @@ final class App
                     die("<div style='text-align:center; padding-top:150px; font-family:sans-serif; background:#111; color:#fff; height:100vh; margin:0;'><h1 style='color:#ff4d4d; font-size: 3rem;'>License expired</h1><p style='font-size: 1.2rem; color: #ccc;'>Notify management to restore access.</p><br><br><a href='index.php?action=logout' style='color:#fff; background: #dc3545; border-radius: 5px; padding:15px 30px; text-decoration:none; font-weight: bold;'>Sign out</a></div>");
                 }
             } else {
-                $allowedWhenLocked = ['reports', 'z_read', 'logout', 'receipt', 'print_shift', 'guide', 'training'];
+                $allowedWhenLocked = ['reports', 'z_read', 'books', 'logout', 'receipt', 'print_shift', 'guide', 'training'];
                 if (!in_array($page, $allowedWhenLocked, true)) {
                     $page = 'reports';
                 }

@@ -321,7 +321,7 @@ $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
 $navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
-$navOfficePages = ['reports', 'analysis', 'z_read', 'zra', 'shifts', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'activity'];
+$navOfficePages = ['reports', 'analysis', 'z_read', 'books', 'zra', 'shifts', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'activity'];
 $navPeoplePages = ['users', 'payroll', 'members'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
@@ -461,6 +461,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <li><a class="dropdown-item<?= $navItem('reports') ?>" href="index.php?page=reports"><i class="bi bi-bar-chart"></i> Reports</a></li>
                         <li><a class="dropdown-item<?= $navItem('analysis') ?>" href="index.php?page=analysis"><i class="bi bi-graph-up-arrow"></i> Business analysis</a></li>
                         <li><a class="dropdown-item<?= $navItem('z_read') ?>" href="index.php?page=z_read"><i class="bi bi-journal-check"></i> End of day</a></li>
+                        <li><a class="dropdown-item<?= $navItem('books') ?>" href="index.php?page=books"><i class="bi bi-journal-bookmark"></i> Books of account</a></li>
                         <li><a class="dropdown-item<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts</a></li>
                         <?php if (in_array($tier, ['enterprise'], true) || in_array($role, ['admin', 'dev'], true)): ?>
                         <li><a class="dropdown-item<?= $navItem('zra') ?>" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA invoices</a></li>

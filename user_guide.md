@@ -371,6 +371,14 @@ Pick the date, time from, time to, and one workstation, then **Filter**. The rep
 
 Z-Read is the shop’s end-of-day record. It is not the ZRA VAT return.
 
+### 10.3 Books of account
+
+**Office → Books of account.**
+
+Pick a book, the dates, and a store (or all stores). The figures update as soon as you change any of those. The seven books are the daily sales register, the three-column cash book, the petty cash book, the recipe and yield book, the stock register, the wastage log, and the purchases day book. Each one is built from sales, payouts, stock movements, recipes, and goods received already on file. **Print** prints the book on screen.
+
+The cash book puts cash in the cash columns and card, mobile money, and online payments in the bank columns. A discount is shown on its own. Flutterwave payouts stay on the sales register as “Paid out” and are not added a second time in the bank column.
+
 ---
 
 ## 11. ZRA Smart Invoice (Enterprise)
@@ -695,6 +703,7 @@ The Guide button on the back-office shared pages (Dashboard, Management, Setting
 | Reports | `index.php?page=reports` |
 | Business analysis | `index.php?page=analysis` |
 | End of day | `index.php?page=z_read` |
+| Books of account | `index.php?page=books` |
 | Shifts | `index.php?page=shifts` |
 | Users | `index.php?page=users` |
 | Payroll | `index.php?page=payroll` |

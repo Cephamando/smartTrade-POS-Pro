@@ -26,6 +26,7 @@ return [
     'report_consumption' => [],
     'shifts' => [],
     'z_read' => [],
+    'books' => [],
     'print_shift' => ['standalone' => true],
     'end_shift_action' => ['action_only' => true],
     'receipt' => ['standalone' => true],
