@@ -2,10 +2,15 @@
 # Pulls the prebuilt application image and runs it with MySQL and the ZRA VSDC.
 # The host project is not mounted over /var/www/html.
 #
-# From the repository root, after the image exists locally or in a registry:
+# On the shop PC, from the repository root in WSL Ubuntu:
+#   ./client/local-up.sh
+# That builds the sealed image, keeps the current database and VSDC volumes,
+# and opens the POS on APP_PORT (8090 unless .env says otherwise).
+#
+# A machine that only pulls a published image, from the repository root:
 #   docker compose --env-file client/client.env -f client/docker-compose.yml up -d
 #
-# Build the image on a release machine (this does not change the dev compose file):
+# Build the image without starting it:
 #   docker build -f client/Dockerfile -t smarttradepos-pro-client:sealed .
 
 name: smarttrade-client

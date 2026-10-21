@@ -1,0 +1,20 @@
+# Local PC override. client/local-up.sh adds this file only when this
+# machine already has the shop database and VSDC volumes. Those volumes stay
+# in place; the sealed image replaces the source-mounted PHP container.
+
+services:
+  db:
+    volumes:
+      - local_db:/var/lib/mysql
+
+  vsdc:
+    volumes:
+      - local_vsdc:/usr/local/tomcat/webapps
+
+volumes:
+  local_db:
+    external: true
+    name: ${LOCAL_DB_VOLUME}
+  local_vsdc:
+    external: true
+    name: ${LOCAL_VSDC_VOLUME}
