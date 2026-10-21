@@ -85,6 +85,25 @@ final class Product extends Model
         return (bool)$stmt->fetchColumn();
     }
 
+    /** HQ (location 0) stocks the new product at every location. A store stocks only itself. */
+    private static function seedStock(\PDO $pdo, int $productId, int $locationId): void
+    {
+        if ($locationId > 0) {
+            $ids = [$locationId];
+        } else {
+            $ids = array_map('intval', $pdo->query('SELECT id FROM locations ORDER BY id')->fetchAll(\PDO::FETCH_COLUMN) ?: []);
+        }
+        $stock = $pdo->prepare('INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, 0)');
+        $inv = $pdo->prepare('INSERT IGNORE INTO inventory (product_id, location_id, quantity) VALUES (?, ?, 0)');
+        foreach ($ids as $id) {
+            if ($id < 1) {
+                continue;
+            }
+            $stock->execute([$id, $productId]);
+            $inv->execute([$productId, $id]);
+        }
+    }
+
     public static function create(
         string $name,
         $categoryId,
@@ -107,10 +126,7 @@ final class Product extends Model
             );
             $stmt->execute([$name, $categoryId, $price, $cost, $unit, $sku, $taxClass, $unspscCode, $type, $isSellable]);
             $id = (int)$pdo->lastInsertId();
-            $pdo->prepare('INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, 0)')
-                ->execute([$locationId, $id]);
-            $pdo->prepare('INSERT IGNORE INTO inventory (product_id, location_id, quantity) VALUES (?, ?, 0)')
-                ->execute([$id, $locationId]);
+            self::seedStock($pdo, $id, $locationId);
             $pdo->commit();
             return $id;
         } catch (\Throwable $e) {
@@ -243,10 +259,7 @@ final class Product extends Model
                     $pdo->prepare('INSERT INTO products (name, category_id, cost_price, price, unit, sku, tax_class, unspsc_code, type, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                         ->execute([$name, $catId, $costPrice, $price, $unit, $sku, $taxClass, $unspscCode, $type, $isActive]);
                     $newProdId = (int)$pdo->lastInsertId();
-                    $pdo->prepare('INSERT INTO location_stock (location_id, product_id, quantity) VALUES (?, ?, 0)')
-                        ->execute([$locationId, $newProdId]);
-                    $pdo->prepare('INSERT IGNORE INTO inventory (product_id, location_id, quantity) VALUES (?, ?, 0)')
-                        ->execute([$newProdId, $locationId]);
+                    self::seedStock($pdo, $newProdId, $locationId);
                     $added++;
                 }
             }

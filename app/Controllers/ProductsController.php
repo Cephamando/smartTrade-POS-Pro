@@ -11,11 +11,8 @@ final class ProductsController extends Controller
     public function index(): void
     {
         $this->requireRole(['admin', 'manager', 'dev']);
+        // 0 is the HQ workstation: the catalog is shared, and a new product is stocked at every location.
         $userLocId = (int)($_SESSION['location_id'] ?? 0);
-        if (!$userLocId) {
-            $this->flash('error', 'No location is assigned to this account.');
-            $this->redirect('dashboard');
-        }
 
         // Ensure database is ready to handle the is_sellable column
         Product::ensureSchema();
