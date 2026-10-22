@@ -16,6 +16,7 @@ final class App
             (new \App\Services\Training())->releaseIfAbandoned();
         }
         $this->loadSettings();
+        $this->guardSession();
         $this->handleLocationSwitch();
         
         // If it's a global JSON polling action, handle it and stop.
@@ -55,8 +56,85 @@ final class App
     private function bootSession(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path' => '/',
+                'secure' => $https,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
             session_start();
         }
+    }
+
+    /** Office accounts idle out after 30 minutes. A till stays signed in for 8 hours. */
+    private function guardSession(): void
+    {
+        if (empty($_SESSION['user_id'])) {
+            $pendingAt = (int)($_SESSION['pending_at'] ?? 0);
+            if ($pendingAt > 0 && time() - $pendingAt > 300) {
+                unset(
+                    $_SESSION['pending_user_id'],
+                    $_SESSION['pending_username'],
+                    $_SESSION['pending_role'],
+                    $_SESSION['pending_location_id'],
+                    $_SESSION['pending_location_name'],
+                    $_SESSION['pending_force'],
+                    $_SESSION['pending_at'],
+                    $_SESSION['pending_totp_secret'],
+                    $_SESSION['recovery_plain']
+                );
+            }
+            return;
+        }
+
+        $stamp = \App\Models\User::sessionStamp((int)$_SESSION['user_id']);
+        $rev = (int)($_SESSION['session_rev'] ?? -1);
+        if (!$stamp || (int)$stamp['is_active'] !== 1 || (int)$stamp['session_rev'] !== $rev) {
+            $this->endSession();
+        }
+
+        $role = (string)($stamp['role'] ?? '');
+        $limit = \App\Models\User::officeRole($role) ? 1800 : 28800;
+        $seen = (int)($_SESSION['last_seen'] ?? 0);
+        if ($seen > 0 && time() - $seen > $limit) {
+            $this->endSession();
+        }
+        if (!$this->isBackgroundPoll()) {
+            $_SESSION['last_seen'] = time();
+        }
+    }
+
+    private function isBackgroundPoll(): bool
+    {
+        return in_array((string)($_GET['action'] ?? ''), ['check_ready_orders', 'live_status', 'get_shift_sales', 'get_stock_level'], true);
+    }
+
+    private function endSession(): void
+    {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', [
+                'expires' => time() - 42000,
+                'path' => (string)$params['path'],
+                'domain' => (string)$params['domain'],
+                'secure' => (bool)$params['secure'],
+                'httponly' => (bool)$params['httponly'],
+                'samesite' => (string)($params['samesite'] ?? 'Lax'),
+            ]);
+        }
+        session_destroy();
+        if ($this->isBackgroundPoll()) {
+            header('Content-Type: application/json');
+            http_response_code(401);
+            echo json_encode(['status' => 'error', 'msg' => 'Sign in again.']);
+            exit;
+        }
+        header('Location: index.php?page=login');
+        exit;
     }
 
     private function loadSettings(): void
@@ -190,7 +268,8 @@ final class App
                 $out['tabs_open'] = count($tabIds);
                 $out['tab_ids'] = implode(',', $tabIds);
 
-                $webIds = $pdo->query("SELECT id FROM sales WHERE status = 'pending' AND payment_method = 'Online' ORDER BY id DESC")->fetchAll(\PDO::FETCH_COLUMN);
+                \App\Models\RestaurantTable::releaseExpired();
+                $webIds = $pdo->query("SELECT id FROM sales s WHERE " . \App\Models\Sale::openWebOrderWhere('s') . " ORDER BY s.id DESC")->fetchAll(\PDO::FETCH_COLUMN);
                 $out['web_orders'] = count($webIds);
                 $out['web_ids'] = implode(',', array_map('intval', $webIds));
 
@@ -317,7 +396,7 @@ final class App
                     die("<div style='text-align:center; padding-top:150px; font-family:sans-serif; background:#111; color:#fff; height:100vh; margin:0;'><h1 style='color:#ff4d4d; font-size: 3rem;'>License expired</h1><p style='font-size: 1.2rem; color: #ccc;'>Notify management to restore access.</p><br><br><a href='index.php?action=logout' style='color:#fff; background: #dc3545; border-radius: 5px; padding:15px 30px; text-decoration:none; font-weight: bold;'>Sign out</a></div>");
                 }
             } else {
-                $allowedWhenLocked = ['reports', 'z_read', 'logout', 'receipt', 'print_shift', 'guide', 'training'];
+                $allowedWhenLocked = ['reports', 'z_read', 'books', 'logout', 'receipt', 'print_shift', 'guide', 'training'];
                 if (!in_array($page, $allowedWhenLocked, true)) {
                     $page = 'reports';
                 }

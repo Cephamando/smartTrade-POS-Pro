@@ -46,7 +46,7 @@ A printable Word version with screenshots is in `TRAINING_MANUAL.docx`. Rebuild 
 
 ### 0.2 Training accounts
 
-Create these on **Office → Staff** before the session. Use simple passwords for training and delete the accounts afterwards.
+Create these from the account menu → **Staff** before the session. Use simple passwords for training and delete the accounts afterwards.
 
 | Username | Role | Primary workstation |
 |---|---|---|
@@ -566,7 +566,7 @@ Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Mana
 
 #### Scenario 5.1.1 — Create a user (Must pass)
 
-1. **Office → Staff → Add New User**. Full name, username `temp_cashier`, role **Cashier**, workstation **Restaurant**, password. Save.
+1. Account menu → **Staff → Add New User**. Full name, username `temp_cashier`, role **Cashier**, workstation **Restaurant**, password. Save.
 
 *Expected result:* the user appears in the list.
 
@@ -883,7 +883,7 @@ Sign in as `train_manager` (or admin). Needs the training staff from 0.2.
 
 #### Scenario 5.9.1 — Statutory rules
 
-1. **Office → Payroll → Statutory rules**.
+1. Account menu → **Payroll → Statutory rules**.
 
 *Expected result:* PAYE bands 0–5,100 at 0%, to 7,100 at 20%, to 9,200 at 30%, above at 37%; NAPSA 5% capped; NHIMA 1%; 26 working days; tips included in pay but not taxed (tick **Tax tips** if your accountant says otherwise).
 
@@ -1101,23 +1101,15 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 
 1. Open **Dashboard → Settlements & Payouts**.
 
-*Expected result:* four totals for the whole business: **Total processed**, **Service fee deducted**, **Pending settlement to bank**, and **Settled to bank**. Changing the workstation does not change them. The table lists each confirmed charge with its reference, receipt, fee, and **Pending** or **Settled**.
+*Expected result:* the tab names the Flutterwave subaccount (`RS_…`), not the main wallet. Four totals: **Due to the subaccount**, **Fees on subaccount payouts**, **Waiting on Flutterwave**, and **Paid to the subaccount**. Changing the workstation does not change them. The table lists each confirmed charge with the amount due to that subaccount, and **Pending** or **Settled**.
 
 2. Click **Update from Flutterwave**.
 
-*Expected result:* a message. If Flutterwave has no completed settlement batch in the last 90 days, every charge stays pending. A completed batch that includes a charge marks that charge **Settled**.
+*Expected result:* a message about that subaccount. If Flutterwave has no completed subaccount batch in the last 90 days, every charge stays pending. A completed batch that includes a charge marks that charge **Settled** and lists the batch under **Subaccount payout account**.
 
-3. Read **Collection balance** and **Payout balance**.
+3. Read **Subaccount payout account**.
 
-*Expected result:* collection is what Flutterwave is still holding. Payout is the only money an emergency transfer can send. This screen cannot move a chosen amount from collection into payout. That release happens when Flutterwave settles, and only if Flutterwave → Settings → Business preferences is **Settle to my payout balance**.
-
-4. **Office → Settings → Payments**. Under **Emergency payout account**, choose **Bank account** or **Mobile money**. For a bank, pick the bank, account number, and name. For mobile money, choose **MTN**, **Airtel**, or **Zamtel** and a number such as 0971234567. Save. If the bank asks for a branch, choose it.
-
-*Expected result:* Settlements & Payouts names that account and shows only the last digits. A company name with & or a comma is accepted.
-
-5. Enter an amount no higher than the payout balance, a short reason, and a manager username and password. **Send emergency transfer**.
-
-*Expected result:* the button is off when the payout balance is under ZMW 1.00, or when no account is saved. A wrong password is refused and nothing is sent. Sandbox keys say the transfer will not pay a real bank. A queued transfer stays **Pending** until Flutterwave marks it successful.
+*Expected result:* the bank Flutterwave pays for the subaccount, with only the last digits of the account. This is not the main collection or payout balance.
 
 ### Assessment — manager
 
@@ -1140,7 +1132,7 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 | M15 | Creates an employee, runs payroll, checks PAYE/NAPSA/NHIMA, prints payslips | |
 | M16 | Receives a web order on the POS and hands over a prepaid one | |
 | M17 | Publishes an event with tiers and a framed cover, takes a registration, records the deposit then the balance, and removes the training event | |
-| M18 | Reads Settlements & Payouts, explains collection versus payout balance, and knows the emergency transfer pays only the saved account | |
+| M18 | Reads Settlements & Payouts as the Flutterwave subaccount, and can tell that share from the main wallet | |
 
 ---
 
@@ -1374,8 +1366,8 @@ Give the trainee the symptom only. They must find the cause and the right action
 | "already a tier" | That name is already on this event | Remove it, or type a different custom name |
 | Tier "does not have enough places left" | The party would pass that tier's limit | Lower the party or raise the limit. A limit of 0 means no limit |
 | Pay now says Flutterwave is not enabled | Payment keys are missing | Record cash on the event, or add test keys under Payments |
-| Emergency transfer button is off | Payout balance is under ZMW 1, or no payout account is saved | Read the two balances. Save the account under Settings → Payments. Wait until Flutterwave settles into the payout balance |
-| Collection balance is large and payout balance is zero | Flutterwave has not released the collection yet | Set Flutterwave business preferences to settle into the payout balance. Do not transfer the collection amount |
+| Settlements tab asks for a subaccount | The RS_ ID is blank | Settings → Payments. Paste the subaccount ID. Update from Flutterwave |
+| Subaccount totals stay at zero | Flutterwave has no completed batch for that subaccount yet, or the split is not saved on it | Update from Flutterwave. Check the split on the subaccount in the Flutterwave dashboard |
 | Update from Flutterwave says there are no settlement batches | No completed batch in the last 90 days | Charges stay pending until Flutterwave pays a batch |
 | The Guide says it is not set up | Gemini key is missing | Add it in System Settings → Guide |
 

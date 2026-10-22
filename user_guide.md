@@ -68,7 +68,7 @@ Roles are chosen on Users & Staff. They control the home page and which menus ex
 | **Bartender** | POS | Same screens as a cashier. Counted as a money role on the shift list (drawer expected). |
 | **Waiter** | POS | Same screens as a cashier. Can be assigned on the pickup screen. Not treated as a drawer role on the shift money list. |
 
-“Manager authorization” on payouts, refunds, and shift approval accepts an **administrator, manager, or developer** username and password. The person at the till types those credentials; they do not have to leave the screen.
+Till approval on payouts, refunds, voids, and shift approval accepts an **administrator, manager, or developer** username and **approval code**. A head chef can approve a shift with their own code. The code is not the login password. Set it on **Change Password**, or when the account is created under the account menu → **Staff**. An office account (administrator, manager, or developer) also enters a 6-digit code from an authenticator app after the password. That sign-in code is set the first time they sign in. Recovery codes are shown once. The account menu → **Staff → Reset code** clears it so the next sign-in starts again. An office session ends after 30 minutes with no activity. A till session ends after 8 hours. Changing a password signs out every other browser still using that account.
 
 Deleting a user removes the account when it has no history. If the person already has sales or stock movements, the account is deactivated instead. You cannot delete the account you are signed in with. Developer profiles can be edited only by a developer.
 
@@ -166,7 +166,7 @@ On the POS, attaching a member fills the customer name and offers a **10% off** 
 
 **Tabs** holds an unpaid order. From the cart, add the order to an existing tab or a new one. You can name it and, on Pro+ and Enterprise, assign a table. **Transfer / merge** moves selected lines from one tab to another.
 
-**Tables** (Pro+ and Enterprise) opens the floor plan. Tables are green when free and red when occupied. A waiter can open their own table; a manager can open any occupied table. Define tables first under **Office → Tables**: location, zone (Patio, Inside), table name, and seat count. The same page prints one QR code for the online menu, `https://queenbeesrestaurants.com/index.php?page=shop&view=menu`. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill and turns delivery off. They can remove the fee before paying, or clear the table if the order should be delivered. The web order is filed against that table.
+**Tables** (Pro+ and Enterprise) opens the floor plan. Tables are green when free and red when occupied. A waiter can open their own table; a manager can open any occupied table. Define tables first under **Office → Tables**: location, zone (Patio, Inside), table name, and seat count. The same page sets the reservation fee, how many minutes a paid table hold lasts, and what percentage of that fee is refundable (0 means non-refundable). It also prints one QR code for the online menu, `https://queenbeesrestaurants.com/index.php?page=shop&view=menu`. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill and turns delivery off. They can remove the fee before paying, or clear the table if the order should be delivered. The web order is filed against that table.
 
 **Got it / Later** appears on food and meal lines when the tier is Pro+. **Got it** means the guest has the item. **Later** sends it toward the kitchen and the pickup queue. On Lite, those lines are simply marked collected.
 
@@ -176,7 +176,7 @@ When the kitchen presses **Done**, every open POS and back-office screen at that
 
 ### 5.6 Web orders (Enterprise)
 
-**Web Orders** lists online tabs waiting at this till. Open one to pull it into the sale flow. The badge counts how many are waiting.
+**Web Orders** lists online orders only after Flutterwave has confirmed the payment. An order that is still waiting for payment stays on the customer’s phone and does not reach the kitchen. **Cancel order** stops a pending web order. A paid order needs an approval code. The list then shows **Cancelled by customer** or **Cancelled by till**, and that order stays until Flutterwave pays the funds out. Cancelling a paid order also files a ZRA credit note. If that posting does not go through, **Post ZRA credit note** tries again. A table reservation has no **Hand Over** button. It leaves the list when the hold time saved under **Office → Tables** runs out, unless it was cancelled and the funds are not paid out yet. The badge counts how many are waiting.
 
 ### 5.7 Returns
 
@@ -371,6 +371,14 @@ Pick the date, time from, time to, and one workstation, then **Filter**. The rep
 
 Z-Read is the shop’s end-of-day record. It is not the ZRA VAT return.
 
+### 10.3 Books of account
+
+**Office → Books of account.**
+
+Pick a book from the cards or the list, then the dates and a store (or all stores). The figures update on the page as soon as you change any of those. Books that have entries for those dates are listed first. The seven books are the daily sales register, the three-column cash book, the petty cash book, the recipe and yield book, the stock register, the wastage log, and the purchases day book. Each one is built from sales, payouts, stock movements, recipes, and goods received already on file. **Print** prints the book on screen.
+
+The cash book puts cash in the cash columns and card, mobile money, and online payments in the bank columns. A discount is shown on its own. Flutterwave payouts stay on the sales register as “Paid out” and are not added a second time in the bank column.
+
 ---
 
 ## 11. ZRA Smart Invoice (Enterprise)
@@ -480,18 +488,17 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 ### Settlements & Payouts
 
-**Dashboard → Settlements & Payouts.** These figures are for the whole business. The workstation pin does not filter them.
+**Dashboard → Settlements & Payouts.** These figures are for the Flutterwave subaccount saved under Settings → Payments, not the main wallet that owns the API keys. The workstation pin does not filter them. Paste the subaccount ID (`RS_…`) before the totals can be read.
 
-- **Total processed** is what customers paid on confirmed Flutterwave charges.
-- **Service fee deducted** is Flutterwave’s fee on those charges.
-- **Pending settlement to bank** is what Flutterwave still owes this account.
-- **Settled to bank** is what a completed settlement batch has already matched.
-- The table lists each confirmed charge: when, reference, receipt, method, what the customer paid, the fee, the amount due to this account, and **Pending** or **Settled**.
-- **Update from Flutterwave** checks completed settlement batches from the last 90 days and marks the matching charges settled. A pending or flagged batch stays pending. If Flutterwave has no completed batch, the message says so and the charges stay pending.
+- **Due to the subaccount** is that subaccount’s share of confirmed charges, using the split saved on the subaccount.
+- **Fees on subaccount payouts** come from the subaccount’s own settlement batches.
+- **Waiting on Flutterwave** is the share not yet in a completed payout to the subaccount.
+- **Paid to the subaccount** is the share Flutterwave has already matched to a completed subaccount batch.
+- **Subaccount payout account** names the bank Flutterwave pays for that subaccount, and lists its batches.
+- The charge table shows when, reference, receipt, method, what the customer paid, and the amount due to the subaccount. **Pending** or **Settled** means that subaccount payout.
+- **Update from Flutterwave** reads the subaccount’s settlement batches from the last 90 days and marks matching charges settled. A pending or flagged batch stays pending.
 
-**Collection balance** is the ledger Flutterwave is still holding. **Payout balance** is the only money an emergency transfer can send. Flutterwave releases collection into the payout balance on its own settlement schedule, and only when Flutterwave → Settings → Business preferences is set to **Settle to my payout balance**. This app cannot move a chosen amount from collection into payout.
-
-**Emergency transfer** pays the bank account or mobile-money number saved under Settings → Payments. Zambia mobile money is sent as an MTN, Airtel, or Zamtel payout. Enter the amount (not more than the payout balance), a short reason, and a manager username and password. The row stays **Pending** until Flutterwave reports it successful; opening this tab checks transfers that are still waiting. The button stays off when the payout balance is under ZMW 1.00, or when no payout account is saved. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
+A developer can send an emergency transfer from that subaccount’s payout balance to the account saved under Settings → Payments. Only a developer sees it. Enter the amount (not more than the subaccount payout balance), a short reason, and the developer username and password. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 ---
 
@@ -499,13 +506,13 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 ### 14.1 Users & Staff
 
-**Office → Staff.**
+Open the account menu, then **Staff**.
 
-Add a person with full name, username, role, primary workstation, and password. Edit the same fields later. Leave the password blank on edit to keep the current one. Delete asks for confirmation (see section 3 for deactivate versus delete).
+Add a person with full name, username, role, primary workstation, and password (at least 6 characters). A manager, administrator, developer, or head chef also needs a till approval code, 4 to 12 characters and different from the password. Edit the same fields later. Leave the password or the approval code blank on edit to keep the current one. **Reset code** on an office account clears the authenticator sign-in and signs that person out everywhere. Delete asks for confirmation (see section 3 for deactivate versus delete).
 
 ### 14.2 Change password
 
-Any signed-in user can open Change Password. Enter the current password, the new one, and a confirmation. When the system forced the change, Cancel is hidden until it is updated.
+Any signed-in user can open Change Password. Enter the current password, the new one, and a confirmation. The new password must be at least 6 characters and must not be the till approval code. Saving it signs out every other browser still using that account. When the system forced the change, Cancel is hidden until it is updated. A manager, administrator, developer, or head chef can save a till approval code on the same page. It asks for the current password, and it must not be the login password.
 
 ### 14.3 System Settings (administrator and developer)
 
@@ -521,9 +528,9 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **POS surcharges** — the list the POS offers. Add a name, a default amount and/or percent, a sort order, and whether it is active. Edit, switch off, or delete from the table. Deleting does not change past sales.
 
-**Payments (Flutterwave)** — switch the gateway on and paste the **public key**, **secret key**, and **webhook secret hash** from Flutterwave → Settings → API. Keys that start with `FLWPUBK_TEST` or `FLWSECK_TEST` are sandbox; the other keys are live. **Test keys** checks that Flutterwave accepts them. Paste the **subaccount ID** (`RS_…`) when card and mobile-money payments should follow the percentage or flat split already saved on that subaccount. Leave it blank to settle the full amount here. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook. The same webhook also updates an emergency transfer when Flutterwave finishes it.
+**Payments (Flutterwave)** — developer login only. Switch the gateway off to stop new card and mobile-money charges on the till, the shop, and event pages. A charge that was already sent can still be recorded. Switch it on and paste the **public key**, **secret key**, and **webhook secret hash** from Flutterwave → Settings → API. Keys that start with `FLWPUBK_TEST` or `FLWSECK_TEST` are sandbox; the other keys are live. **Test keys** checks that Flutterwave accepts them. Paste the **subaccount ID** (`RS_…`). Card and mobile-money payments use the split saved on that subaccount, and Settlements & Payouts follows that subaccount rather than the main Flutterwave wallet. Copy the **webhook URL** and the same secret hash into Flutterwave → Settings → Webhooks. A confirmed charge marks the shop order paid even when the guest closes the browser before the return page loads. The order stays on Web Orders until Hand Over, and it is not filed with ZRA from the webhook. The same webhook also updates an emergency transfer when Flutterwave finishes it.
 
-**Emergency payout account** — where Dashboard → Settlements & Payouts → Emergency transfer sends money. Choose **Bank account** or **Mobile money**. For a bank, pick it from the Flutterwave list, then the account number and the name on the account. A company name may include & and commas. If that bank has branches and Flutterwave returns them, choose the branch. For mobile money, choose **MTN**, **Airtel**, or **Zamtel** and the number (for example 0971234567). The transfer always pays this saved account; it is not typed again at send time. Leave the bank or the mobile number blank and save to remove it. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
+**Emergency payout account** — where a developer’s transfer from the subaccount payout balance sends money. Choose **Bank account** or **Mobile money**. For a bank, pick it from the Flutterwave list, then the account number and the name on the account. A company name may include & and commas. If that bank has branches and Flutterwave returns them, choose the branch. For mobile money, choose **MTN**, **Airtel**, or **Zamtel** and the number (for example 0971234567). The transfer always pays this saved account; it is not typed again at send time. Leave the bank or the mobile number blank and save to remove it. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 **Currency** — switch the converter on, choose which currencies the POS shows (USD, ZAR, EUR, GBP, and others), and how often rates refresh. Live rates are pulled against the kwacha and cached. You may fix a **house rate** for any currency; it overrides the live rate. **Refresh live rates now** fetches immediately. The quick converter on the tab converts any amount between enabled currencies.
 
@@ -547,9 +554,9 @@ Every drop-down in the system can be searched. Click or tap it and type: the lis
 
 ## 15. Payroll (administrator and manager)
 
-**Office → Payroll.** Four tabs.
+Open the account menu, then **Payroll**. Four tabs.
 
-**Employees.** Choose the person and their role from the staff list (the same people and roles as Office → Staff). The name is taken from that staff record, and tips are taken from that login. Then NRC, NAPSA and NHIMA numbers, TPIN, location, **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. PAYE, NAPSA and NHIMA are ticked by default and calculated on each pay run. Untick one when a worker is not registered for it. Switch people off instead of deleting them when they leave.
+**Employees.** Choose the person and their role from the staff list (the same people and roles as Staff). The name is taken from that staff record, and tips are taken from that login. Then NRC, NAPSA and NHIMA numbers, TPIN, location, **pay type** (monthly, daily rate, or hourly rate) and the rate, bank account or mobile money number, start date, and any standing allowances or deductions with their amounts. PAYE, NAPSA and NHIMA are ticked by default and calculated on each pay run. Untick one when a worker is not registered for it. Switch people off instead of deleting them when they leave.
 
 **Components.** Earnings (housing, transport, overtime, commission…) and deductions (loan, advance, uniform…). Each is a fixed amount or a percent of basic pay, taxable or not, and active or not. Active components appear on every employee form. On a percent component the number you enter is the percent: 10 means 10% of that payslip’s basic. The payslip prints the percent, the basic, and the kwacha. A fixed component is the kwacha amount you type.
 
@@ -571,13 +578,14 @@ How a slip is worked out: basic (pro-rated for days or hours when the pay type c
 
 The storefront runs on `index.php?page=shop` and does not need a staff login.
 
-- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order shows up in POS under Web Orders. A QR code from **Office → Tables** opens this menu. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill and turns delivery off. They can remove the fee before paying, or clear the table if the order should be delivered.
+- **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order reaches POS **Web Orders** and the kitchen only after that payment succeeds. Until then the order page says **Waiting for payment**. On the order page, **Cancel this order** stops it while it is still pending. If it was already paid, the store refunds that payment separately. **Reserve a table** on the shop home holds a free table for the fee saved under **Office → Tables**, with no food on the order. The hold starts when payment succeeds and lasts for the minutes saved there. The refundable percentage on that same screen is what the till should return if the hold is cancelled; **0** means the fee is non-refundable. The money is refunded in Flutterwave. A QR code from **Office → Tables** opens this menu. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill and turns delivery off. They can remove the fee before paying, or clear the table if the order should be delivered.
+- **How was your visit:** The electronic menu and the bag both link to the same question. A finished, paid online order shows it once on the order page. **It was lovely** opens the Google review saved for that store on **Office → Locations**. If that store has no link, the page thanks them and stops. **Something was off** asks what happened, with an optional phone number, and saves a private note for **Office → Guest notes**. The Google link stays on that page as quiet text. Everyone is asked the same way, and nothing is offered in exchange for a review. A sale can be answered once. A table visit without an order can be answered once per browser. When email is already set up and the online customer has an email, handing over the paid web order sends one plain message with the same link. The POS shows a short line when this station’s store has an open unhappy note from the last day.
 - **Promo strip:** A scrolling bar shows promotional images. If no events are published, it cycles the promo-folder slides. If published events exist, it advertises the events instead.
-- **Events:** If the event planner (Office → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic.
+- **Events:** If the event planner (Office → Events) has published an open event, customers can view its page, read the agenda, and sign up or buy a ticket. Tiers can have limits and custom waitlist logic. The shop home keeps its banner. Each open event floats on that photo as a card, using the picture set on the event. When more than one is open, the card slides to the next. Leave the end date blank when the event does not finish at a set time.
 
 Staff can set up and publish these events on the back office:
 
-- **Office → Events:** Create, edit, publish, and close events. Define meal/seat packages and payment tiers.
+- **Office → Events:** Create, edit, publish, and close events. The end date can be left blank when there is no finish time. Define meal/seat packages and payment tiers.
 - **Invitations:** Upload lists of guests, accept/waitlist/decline them, or send a mass email with secret RSVP links. (SMTP must be configured in System Settings → Email).
 - **Check-in:** A day-of staff board tracks arrived guests.
 
@@ -598,6 +606,7 @@ Staff can set up and publish these events on the back office:
 | Recipe consumption | Yes | Yes | Yes | Yes | | |
 | ZRA | Yes | Yes | Enterprise menu | | | |
 | Users, locations | Yes | Yes | Yes | | | |
+| Guest notes | Yes | Yes | Yes | | | |
 | Payroll | Yes | Yes | Yes | | | |
 | System settings (surcharges, payments, currency, portal) | Yes | Yes | | | | |
 | License tier | Yes | | | | | |
@@ -624,7 +633,7 @@ Empty cells mean that role is sent back to their home page if they open the addr
 
 **Online order, paid online**
 
-1. Customer orders and pays on their phone. The POS Web Orders badge goes up; the order shows **PAID ONLINE**.
+1. Customer orders and pays on their phone. The POS Web Orders badge goes up only after Flutterwave confirms the payment; the order shows **PAID ONLINE**.
 2. Kitchen prepares; items are marked ready.
 3. Cashier opens the order and taps **Hand Over (Paid)**.
 
@@ -693,6 +702,7 @@ The Guide button on the back-office shared pages (Dashboard, Management, Setting
 | Reports | `index.php?page=reports` |
 | Business analysis | `index.php?page=analysis` |
 | End of day | `index.php?page=z_read` |
+| Books of account | `index.php?page=books` |
 | Shifts | `index.php?page=shifts` |
 | Users | `index.php?page=users` |
 | Payroll | `index.php?page=payroll` |

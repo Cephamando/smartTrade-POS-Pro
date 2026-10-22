@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 7;
+    public const VERSION = 15;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -139,6 +139,29 @@ final class Schema
         self::addColumn($pdo, 'payment_transactions', 'settlement_status', 'VARCHAR(20) NULL');
         self::addColumn($pdo, 'payment_transactions', 'settlement_id', 'VARCHAR(40) NULL');
         self::addColumn($pdo, 'payment_transactions', 'settled_at', 'DATETIME NULL');
+        self::addColumn($pdo, 'payment_transactions', 'subaccount_amount', 'DECIMAL(12,2) NULL');
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS flutterwave_settlements (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                subaccount_id VARCHAR(80) NOT NULL,
+                settlement_id VARCHAR(40) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                currency VARCHAR(3) NOT NULL DEFAULT 'ZMW',
+                gross_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+                app_fee DECIMAL(12,2) NOT NULL DEFAULT 0,
+                net_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+                transaction_count INT NOT NULL DEFAULT 0,
+                transaction_date DATETIME NULL,
+                due_date DATETIME NULL,
+                processed_date DATETIME NULL,
+                destination VARCHAR(40) NULL,
+                settlement_account VARCHAR(40) NULL,
+                bank_code VARCHAR(20) NULL,
+                updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_sub_settlement (subaccount_id, settlement_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS flutterwave_transfers (
@@ -327,6 +350,53 @@ final class Schema
                 KEY idx_activity_action (action, created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+
+        self::addColumn($pdo, 'locations', 'google_review_url', 'VARCHAR(300) NULL');
+        self::addColumn($pdo, 'sales', 'visit_token', 'VARCHAR(32) NULL');
+        self::addColumn($pdo, 'sales', 'visit_invited_at', 'DATETIME NULL');
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS guest_notes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                location_id INT NOT NULL,
+                sale_id INT NULL,
+                table_id INT NULL,
+                customer_id INT NULL,
+                source VARCHAR(20) NOT NULL DEFAULT 'table',
+                mood VARCHAR(10) NOT NULL,
+                note VARCHAR(500) NULL,
+                contact_phone VARCHAR(30) NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                handled_at DATETIME NULL,
+                UNIQUE KEY uq_guest_sale (sale_id),
+                KEY idx_guest_open (mood, handled_at, location_id, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+
+        self::addColumn($pdo, 'users', 'session_rev', 'INT NOT NULL DEFAULT 0');
+        self::addColumn($pdo, 'users', 'approval_code_hash', 'VARCHAR(255) NULL');
+        self::addColumn($pdo, 'users', 'totp_secret', 'VARCHAR(64) NULL');
+        self::addColumn($pdo, 'users', 'totp_recovery', 'TEXT NULL');
+        self::nullableColumn($pdo, 'events', 'ends_at', 'DATETIME NULL');
+        self::addColumn($pdo, 'sales', 'reserve_until', 'DATETIME NULL');
+        self::addColumn($pdo, 'sales', 'cancel_source', 'VARCHAR(20) NULL');
+        self::addColumn($pdo, 'sales', 'credit_note_id', 'INT NULL');
+        self::allowSaleStatus($pdo, 'cancelled');
+    }
+
+    private static function allowSaleStatus(PDO $pdo, string $value): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['sales', 'status']);
+        $type = (string)$stmt->fetchColumn();
+        if ($type === '' || str_contains($type, "'" . $value . "'")) {
+            return;
+        }
+        $pdo->exec(
+            "ALTER TABLE sales MODIFY status ENUM('pending','completed','refund_requested','refunded','partially_refunded','cancelled') DEFAULT 'completed'"
+        );
     }
 
     private static function addColumn(PDO $pdo, string $table, string $column, string $definition): void
@@ -338,5 +408,18 @@ final class Schema
         if ((int)$stmt->fetchColumn() === 0) {
             $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
         }
+    }
+
+    private static function nullableColumn(PDO $pdo, string $table, string $column, string $definition): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+        $nullable = $stmt->fetchColumn();
+        if ($nullable === false || $nullable === 'YES') {
+            return;
+        }
+        $pdo->exec("ALTER TABLE `$table` MODIFY `$column` $definition");
     }
 }

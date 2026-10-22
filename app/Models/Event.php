@@ -25,7 +25,7 @@ final class Event extends Model
                 story MEDIUMTEXT NULL,
                 cover_path VARCHAR(255) NULL,
                 starts_at DATETIME NOT NULL,
-                ends_at DATETIME NOT NULL,
+                ends_at DATETIME NULL,
                 venue_note VARCHAR(255) NOT NULL DEFAULT '',
                 visibility ENUM('private','published') NOT NULL DEFAULT 'private',
                 status ENUM('draft','open','closed','cancelled') NOT NULL DEFAULT 'draft',
@@ -139,6 +139,10 @@ final class Event extends Model
         );
         self::ensureColumn('events', 'signup_mode', "VARCHAR(20) NOT NULL DEFAULT 'apply'");
         self::ensureColumn('event_guests', 'tier_id', 'INT NULL');
+        $nullEnd = $pdo->query("SHOW COLUMNS FROM events LIKE 'ends_at'")->fetch();
+        if ($nullEnd && strtoupper((string)($nullEnd['Null'] ?? '')) === 'NO') {
+            $pdo->exec('ALTER TABLE events MODIFY ends_at DATETIME NULL');
+        }
         self::$ready = true;
     }
 
@@ -159,8 +163,8 @@ final class Event extends Model
             throw new \RuntimeException('Give the event a name.');
         }
         $starts = self::dateTime((string)($data['starts_at'] ?? ''));
-        $ends = self::dateTime((string)($data['ends_at'] ?? ''));
-        if ($ends < $starts) {
+        $ends = self::dateTime((string)($data['ends_at'] ?? ''), false);
+        if ($ends !== null && $ends < $starts) {
             throw new \RuntimeException('The event must end after it starts.');
         }
         $visibility = ($data['visibility'] ?? '') === 'published' ? 'published' : 'private';
@@ -256,7 +260,7 @@ final class Event extends Model
         $start = $month . '-01 00:00:00';
         $end = date('Y-m-t 23:59:59', strtotime($start));
         $stmt = self::db()->prepare(
-            'SELECT * FROM events WHERE starts_at <= ? AND ends_at >= ? ORDER BY starts_at ASC'
+            'SELECT * FROM events WHERE starts_at <= ? AND (ends_at IS NULL OR ends_at >= ?) ORDER BY starts_at ASC'
         );
         $stmt->execute([$end, $start]);
         return $stmt->fetchAll();
@@ -787,9 +791,15 @@ final class Event extends Model
         self::db()->prepare('DELETE FROM event_agenda WHERE id = ? AND event_id = ?')->execute([$id, $eventId]);
     }
 
-    private static function dateTime(string $value): string
+    private static function dateTime(string $value, bool $required = true): ?string
     {
         $value = str_replace('T', ' ', trim($value));
+        if ($value === '') {
+            if ($required) {
+                throw new \RuntimeException('Enter a valid date and time.');
+            }
+            return null;
+        }
         $ts = strtotime($value);
         if ($ts === false) {
             throw new \RuntimeException('Enter a valid date and time.');

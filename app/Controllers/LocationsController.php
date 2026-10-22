@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\GuestNote;
 use App\Models\Location;
 
 final class LocationsController extends Controller
@@ -25,7 +26,8 @@ final class LocationsController extends Controller
                             (string)$_POST['type'], 
                             trim((string)$_POST['address']),
                             isset($_POST['can_sell']) ? 1 : 0,
-                            isset($_POST['can_receive']) ? 1 : 0
+                            isset($_POST['can_receive']) ? 1 : 0,
+                            $this->postedReviewUrl()
                         );
                         $this->flash('success', "Location '$name' created.");
                     }
@@ -42,7 +44,8 @@ final class LocationsController extends Controller
                                 (string)$_POST['type'], 
                                 trim((string)$_POST['address']),
                                 isset($_POST['can_sell']) ? 1 : 0,
-                                isset($_POST['can_receive']) ? 1 : 0
+                                isset($_POST['can_receive']) ? 1 : 0,
+                                $this->postedReviewUrl()
                             );
                             // Clear any stale pending requests
                             $this->pdo()->prepare("UPDATE locations SET pending_edits = NULL WHERE id = ?")->execute([$id]);
@@ -56,6 +59,7 @@ final class LocationsController extends Controller
                             'address' => trim((string)$_POST['address']),
                             'can_sell' => isset($_POST['can_sell']) ? 1 : 0,
                             'can_receive' => isset($_POST['can_receive']) ? 1 : 0,
+                            'google_review_url' => $this->postedReviewUrl(),
                             'requested_by' => $_SESSION['username'] ?? 'Admin',
                             'requested_at' => date('Y-m-d H:i')
                         ];
@@ -78,7 +82,8 @@ final class LocationsController extends Controller
                                 $pending['type'],
                                 $pending['address'],
                                 $pending['can_sell'],
-                                $pending['can_receive']
+                                $pending['can_receive'],
+                                GuestNote::reviewUrl((string)($pending['google_review_url'] ?? ''))
                             );
                             $this->pdo()->prepare("UPDATE locations SET pending_edits = NULL WHERE id = ?")->execute([$id]);
                             $this->flash('success', "Pending edits applied to '{$pending['name']}'.");
@@ -140,6 +145,11 @@ final class LocationsController extends Controller
             'userRole' => $userRole,
             'pendingCount' => $pendingCount
         ]);
+    }
+
+    private function postedReviewUrl(): string
+    {
+        return GuestNote::reviewUrl((string)($_POST['google_review_url'] ?? ''));
     }
 
     private function ensurePendingColumn(): void

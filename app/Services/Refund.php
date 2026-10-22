@@ -18,7 +18,7 @@ final class Refund
      * @param array<int,float> $qtyByItemId original sale_item id => qty to return
      * @return array{credit_sale_id:int, amount:float, zra_msg:string}
      */
-    public function process(int $originalSaleId, array $qtyByItemId, int $userId, string $reason = 'Refund', string $rfdRsnCd = '07'): array
+    public function process(int $originalSaleId, array $qtyByItemId, int $userId, string $reason = 'Refund', string $rfdRsnCd = '07', bool $withSurcharge = false): array
     {
         new \ZraVsdcClient($this->pdo);
         $rfdRsnCd = \ZraVsdcClient::normalizeRefundReasonCode($rfdRsnCd);
@@ -62,7 +62,8 @@ final class Refund
             ];
             $amount += $price * $qty;
         }
-        if ($lines === []) {
+        $fee = $withSurcharge ? round(abs((float)($sale['surcharge_amount'] ?? 0)), 2) : 0.0;
+        if ($lines === [] && $fee < 0.01) {
             throw new \Exception('Select a quantity to refund.');
         }
 
@@ -88,7 +89,7 @@ final class Refund
         $creditSaleId = 0;
         $this->pdo->beginTransaction();
         try {
-            $creditSaleId = $this->insertCreditSale($sale, $userId, $amount);
+            $creditSaleId = $this->insertCreditSale($sale, $userId, $amount, $withSurcharge);
             foreach ($lines as $line) {
                 $orig = $line['item'];
                 $qty = $line['qty'];
@@ -161,13 +162,13 @@ final class Refund
         ];
     }
 
-    public function refundAll(int $originalSaleId, int $userId, string $reason = 'Full refund', string $rfdRsnCd = '07'): array
+    public function refundAll(int $originalSaleId, int $userId, string $reason = 'Full refund', string $rfdRsnCd = '07', bool $withSurcharge = false): array
     {
         $qty = [];
         foreach ($this->remainingByItem($originalSaleId) as $itemId => $row) {
             $qty[$itemId] = (float)$row['remaining'];
         }
-        return $this->process($originalSaleId, $qty, $userId, $reason, $rfdRsnCd);
+        return $this->process($originalSaleId, $qty, $userId, $reason, $rfdRsnCd, $withSurcharge);
     }
 
     /**
@@ -246,9 +247,10 @@ final class Refund
         return (float)$stmt->fetchColumn();
     }
 
-    private function insertCreditSale(array $sale, int $userId, float $amount): int
+    private function insertCreditSale(array $sale, int $userId, float $amount, bool $withSurcharge = false): int
     {
-        $neg = -abs($amount);
+        $fee = $withSurcharge ? round(abs((float)($sale['surcharge_amount'] ?? 0)), 2) : 0.0;
+        $neg = -abs($amount + $fee);
         $customer = trim((string)($sale['customer_name'] ?? 'Walk-in'));
         if ($customer === '') {
             $customer = 'Walk-in';
@@ -256,8 +258,8 @@ final class Refund
         $stmt = $this->pdo->prepare(
             "INSERT INTO sales
                 (location_id, user_id, shift_id, subtotal, tip_amount, final_total, payment_method,
-                 payment_status, customer_name, amount_tendered, change_due)
-             VALUES (?, ?, ?, ?, 0, ?, ?, 'paid', ?, ?, 0)"
+                 payment_status, customer_name, amount_tendered, change_due, surcharge_amount, surcharge_reason)
+             VALUES (?, ?, ?, ?, 0, ?, ?, 'paid', ?, ?, 0, ?, ?)"
         );
         $stmt->execute([
             (int)$sale['location_id'],
@@ -267,7 +269,9 @@ final class Refund
             $neg,
             $sale['payment_method'] ?: 'Cash',
             'Refund of sale #' . (int)$sale['id'] . ' · ' . $customer,
-            abs($amount),
+            abs($amount + $fee),
+            $fee > 0 ? -$fee : 0,
+            $fee > 0 ? (string)($sale['surcharge_reason'] ?? 'Fee') : null,
         ]);
         return (int)$this->pdo->lastInsertId();
     }

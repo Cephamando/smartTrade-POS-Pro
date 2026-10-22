@@ -305,8 +305,19 @@
     <div class="form-panel">
         <div class="glass-form-card">
             <div class="form-header">
-                <h2>Welcome Back</h2>
-                <p>Please sign in to access your dashboard.</p>
+                <?php if (($step ?? 'password') === 'enroll'): ?>
+                    <h2>Set up the sign-in code</h2>
+                    <p>Scan this with an authenticator app, then enter the 6-digit code.</p>
+                <?php elseif (($step ?? 'password') === 'code'): ?>
+                    <h2>Enter the sign-in code</h2>
+                    <p>Use the 6-digit code from the authenticator app, or a recovery code.</p>
+                <?php elseif (($step ?? 'password') === 'recovery'): ?>
+                    <h2>Save these recovery codes</h2>
+                    <p>Each code works once if the phone is not available. They are not shown again.</p>
+                <?php else: ?>
+                    <h2>Welcome Back</h2>
+                    <p>Please sign in to access your dashboard.</p>
+                <?php endif; ?>
             </div>
 
             <?php if (!empty($error)): ?>
@@ -322,6 +333,38 @@
             </script>
             <?php endif; ?>
 
+            <?php if (($step ?? 'password') === 'recovery'): ?>
+            <ul class="list-unstyled mb-4" style="font-family: ui-monospace, monospace; letter-spacing: .04em;">
+                <?php foreach ($recoveryCodes ?? [] as $recoveryCode): ?>
+                    <li class="mb-1"><?= htmlspecialchars((string)$recoveryCode) ?></li>
+                <?php endforeach; ?>
+            </ul>
+            <form method="POST" action="index.php?page=login">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                <input type="hidden" name="acknowledge_recovery" value="1">
+                <button type="submit" class="btn btn-login w-100">I saved these codes</button>
+            </form>
+            <?php elseif (in_array(($step ?? 'password'), ['enroll', 'code'], true)): ?>
+            <?php if (($step ?? '') === 'enroll'): ?>
+                <div id="totpQr" class="text-center mb-3"></div>
+                <p class="small text-muted text-center mb-3">Or enter this key: <strong><?= htmlspecialchars((string)($totpSecret ?? '')) ?></strong></p>
+            <?php endif; ?>
+            <form method="POST" action="index.php?page=login">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                <div class="input-group mb-4">
+                    <span class="input-group-text"><i class="bi bi-shield-lock-fill"></i></span>
+                    <div class="form-floating flex-grow-1">
+                        <input type="text" name="totp_code" id="totp_code" class="form-control" required autofocus inputmode="numeric" autocomplete="one-time-code" placeholder="Code">
+                        <label for="totp_code">Code</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-login w-100 d-flex justify-content-center align-items-center gap-2">
+                    <span>Continue</span>
+                    <i class="bi bi-arrow-right"></i>
+                </button>
+            </form>
+            <p class="text-center mt-3 mb-0"><a href="index.php?page=login&amp;restart=1">Start over</a></p>
+            <?php else: ?>
             <form method="POST" action="index.php?page=login">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
 
@@ -349,6 +392,7 @@
                     <i class="bi bi-arrow-right"></i>
                 </button>
             </form>
+            <?php endif; ?>
 
             <div class="footer-text">
                 Powered by <a href="https://odeliazm.com" target="_blank" rel="noopener noreferrer" class="odelia-link">Odelia Enterprise <i class="bi bi-box-arrow-up-right" style="font-size: 0.8rem; margin-left: 2px;"></i></a>
@@ -358,9 +402,22 @@
 </div>
 
 <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<?php if (($step ?? '') === 'enroll' && !empty($totpUri)): ?>
+<script src="js/qrcode.min.js"></script>
 <script>
-    // Password visibility toggle
-    document.getElementById('togglePassword').addEventListener('click', function () {
+    (function () {
+        var box = document.getElementById('totpQr');
+        if (!box || typeof qrcode !== 'function') return;
+        var qr = qrcode(0, 'M');
+        qr.addData(<?= json_encode($totpUri) ?>, 'Byte');
+        qr.make();
+        box.innerHTML = qr.createImgTag(4, 8);
+    })();
+</script>
+<?php endif; ?>
+<script>
+    var togglePassword = document.getElementById('togglePassword');
+    if (togglePassword) togglePassword.addEventListener('click', function () {
         const passwordInput = document.getElementById('password');
         const icon = this.querySelector('i');
         

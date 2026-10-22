@@ -9,8 +9,17 @@ $days = (int)date('t', $monthTs);
 $pad = (int)date('N', $monthTs) - 1;
 $byDay = [];
 foreach ($monthEvents as $row) {
-    $from = max(strtotime(date('Y-m-d', strtotime($row['starts_at']))), $monthTs);
-    $to = min(strtotime(date('Y-m-d', strtotime($row['ends_at']))), strtotime(date('Y-m-t', $monthTs)));
+    $startDay = strtotime(date('Y-m-d', strtotime((string)$row['starts_at'])));
+    $monthEnd = strtotime(date('Y-m-t', $monthTs));
+    $endRaw = trim((string)($row['ends_at'] ?? ''));
+    if ($endRaw === '') {
+        if ($startDay >= $monthTs && $startDay <= $monthEnd) {
+            $byDay[(int)date('j', $startDay)][] = $row;
+        }
+        continue;
+    }
+    $from = max($startDay, $monthTs);
+    $to = min(strtotime(date('Y-m-d', strtotime($endRaw))), $monthEnd);
     for ($t = $from; $t <= $to; $t += 86400) {
         $byDay[(int)date('j', $t)][] = $row;
     }
@@ -87,7 +96,7 @@ $link = static fn(array $guest) => 'index.php?page=shop&view=rsvp&token=' . $gue
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
     <div>
         <h4 class="fw-bold mb-1"><?= htmlspecialchars($event['title']) ?></h4>
-        <div class="text-muted"><?= $when($event['starts_at']) ?> – <?= $when($event['ends_at']) ?>
+        <div class="text-muted"><?= $when($event['starts_at']) ?><?= !empty($event['ends_at']) ? ' – ' . $when($event['ends_at']) : '' ?>
             <?php if ($event['location_name']): ?> · <?= htmlspecialchars($event['location_name']) ?><?php endif; ?>
         </div>
     </div>

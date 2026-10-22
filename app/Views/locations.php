@@ -157,6 +157,12 @@ include __DIR__ . '/partials/bulk_bar.php';
                         <textarea name="address" id="locAddress" class="form-control" rows="2"></textarea>
                     </div>
 
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">GOOGLE REVIEW LINK</label>
+                        <input type="url" name="google_review_url" id="locReview" class="form-control" maxlength="300" placeholder="https://">
+                        <div class="form-text">This store’s Google review page. Leave blank if it has none. https only.</div>
+                    </div>
+
                     <?php if ($userRole !== 'dev'): ?>
                     <div class="p-3 bg-dark rounded shadow-sm border border-danger mt-4" id="devAuthSection">
                         <label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2">
@@ -204,9 +210,13 @@ include __DIR__ . '/partials/bulk_bar.php';
                     <div class="col-6 border-end">POS: <span id="currPos"></span><br>Receiver: <span id="currRec"></span></div>
                     <div class="col-6 fw-bold text-primary">POS: <span id="reqPos"></span><br>Receiver: <span id="reqRec"></span></div>
                 </div>
-                <div class="row g-2 bg-white p-2 rounded border shadow-sm">
+                <div class="row g-2 bg-white p-2 rounded border shadow-sm mb-3">
                     <div class="col-6 small text-muted border-end" id="currAddr"></div>
                     <div class="col-6 small fw-bold text-primary" id="reqAddr"></div>
+                </div>
+                <div class="row g-2 bg-white p-2 rounded border shadow-sm">
+                    <div class="col-6 small text-muted border-end text-break" id="currReview"></div>
+                    <div class="col-6 small fw-bold text-primary text-break" id="reqReview"></div>
                 </div>
             </div>
             <div class="modal-footer border-0 bg-light">
@@ -253,6 +263,7 @@ include __DIR__ . '/partials/bulk_bar.php';
         document.getElementById('locName').value = loc.name;
         document.getElementById('locType').value = loc.type;
         document.getElementById('locAddress').value = loc.address || '';
+        document.getElementById('locReview').value = loc.google_review_url || '';
         document.getElementById('locCanSell').checked = parseInt(loc.can_sell || 0) === 1;
         document.getElementById('locCanReceive').checked = parseInt(loc.can_receive || 0) === 1;
 
@@ -287,6 +298,8 @@ include __DIR__ . '/partials/bulk_bar.php';
         
         document.getElementById('currAddr').innerText = loc.address || 'None';
         document.getElementById('reqAddr').innerText = loc.pending.address || 'None';
+        document.getElementById('currReview').innerText = loc.google_review_url || 'None';
+        document.getElementById('reqReview').innerText = loc.pending.google_review_url || 'None';
         
         new bootstrap.Modal(document.getElementById('reviewModal')).show();
     }

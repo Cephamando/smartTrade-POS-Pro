@@ -46,19 +46,51 @@ final class UsersController extends Controller
                 $this->flash('success', $parts ? implode(', ', $parts) . '.' : 'Nothing was selected.');
                 $this->redirect('users');
             }
+            if (isset($_POST['reset_sign_in'])) {
+                $userId = (int)$_POST['user_id'];
+                $target = User::findById($userId);
+                $targetRole = (string)($target['role'] ?? '');
+                if (!$target || !User::officeRole($targetRole)) {
+                    $this->flash('error', 'That account does not use a sign-in code.');
+                } elseif ($targetRole === 'dev' && $this->role() !== 'dev') {
+                    $this->flash('error', 'The developer account cannot be modified.');
+                } else {
+                    User::clearSignInCode($userId);
+                    $this->flash('success', 'Sign-in code reset. The next sign-in will set a new one.');
+                }
+                $this->redirect('users');
+            }
+
             if (isset($_POST['add_user'])) {
                 $role = (string)$_POST['role'];
                 if ($role === 'dev' && $this->role() !== 'dev') {
                     $role = 'admin';
                 }
+                $password = (string)$_POST['password'];
+                $code = trim((string)($_POST['approval_code'] ?? ''));
+                if (!User::passwordOk($password)) {
+                    $this->flash('error', 'The password must be at least 6 characters.');
+                    $this->redirect('users');
+                }
+                $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+                if (User::approverRole($role)) {
+                    $problem = $code === '' ? 'This role needs an approval code for the till.' : User::approvalCodeError($code, $passwordHash);
+                    if ($problem !== null) {
+                        $this->flash('error', $problem);
+                        $this->redirect('users');
+                    }
+                }
                 try {
-                    User::create(
+                    $newId = User::create(
                         trim((string)$_POST['username']),
                         trim((string)$_POST['full_name']),
-                        password_hash((string)$_POST['password'], PASSWORD_DEFAULT),
+                        $passwordHash,
                         $role,
                         (int)$_POST['location_id']
                     );
+                    if ($code !== '' && User::approverRole($role)) {
+                        User::setApprovalCode($newId, $code);
+                    }
                     $this->flash('success', 'User created.');
                 } catch (\Throwable $e) {
                     $this->flash('error', 'That username is already in use.');
@@ -78,9 +110,35 @@ final class UsersController extends Controller
                 if ($targetRole === 'dev' && $role !== 'dev') {
                     $role = 'dev';
                 }
+                $password = (string)($_POST['password'] ?? '');
+                $code = trim((string)($_POST['approval_code'] ?? ''));
+                if ($password !== '' && !User::passwordOk($password)) {
+                    $this->flash('error', 'The password must be at least 6 characters.');
+                    $this->redirect('users');
+                }
+                $newHash = $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null;
+                $checkHash = $newHash ?? (string)($target['password_hash'] ?? '');
+                $hasApproval = trim((string)($target['approval_code_hash'] ?? '')) !== '';
+                if (User::approverRole($role) && $code === '' && !$hasApproval) {
+                    $this->flash('error', 'This role needs an approval code for the till.');
+                    $this->redirect('users');
+                }
+                if ($code !== '') {
+                    $problem = User::approvalCodeError($code, $checkHash);
+                    if ($problem !== null) {
+                        $this->flash('error', $problem);
+                        $this->redirect('users');
+                    }
+                }
                 try {
-                    $hash = !empty($_POST['password']) ? password_hash((string)$_POST['password'], PASSWORD_DEFAULT) : null;
-                    User::update($userId, trim((string)$_POST['username']), trim((string)$_POST['full_name']), $role, (int)$_POST['location_id'], $hash);
+                    User::update($userId, trim((string)$_POST['username']), trim((string)$_POST['full_name']), $role, (int)$_POST['location_id'], $newHash);
+                    if ($code !== '') {
+                        User::setApprovalCode($userId, $code);
+                    }
+                    if ($newHash && $userId === $this->userId()) {
+                        $_SESSION['session_rev'] = User::sessionRev($userId);
+                        $_SESSION['last_seen'] = time();
+                    }
                     $this->flash('success', 'User updated.');
                 } catch (\Throwable $e) {
                     $this->flash('error', 'Unable to update this user.');

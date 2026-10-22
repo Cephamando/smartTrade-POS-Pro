@@ -210,6 +210,16 @@ final class Flutterwave
     }
 
     /**
+     * The client's Flutterwave subaccount. This dashboard reports that account,
+     * not the main wallet that owns the API keys.
+     */
+    public function subaccountId(): string
+    {
+        $id = strtoupper(trim((string)($this->settings['flw_subaccount_id'] ?? '')));
+        return preg_match('/^RS_[A-Z0-9]+$/', $id) === 1 ? $id : '';
+    }
+
+    /**
      * The subaccount's own percentage or flat split is used.
      * Passing only the id avoids overriding the split saved in the Flutterwave dashboard.
      *
@@ -217,11 +227,8 @@ final class Flutterwave
      */
     private function subaccounts(): array
     {
-        $id = strtoupper(trim((string)($this->settings['flw_subaccount_id'] ?? '')));
-        if ($id === '' || !preg_match('/^RS_[A-Z0-9]+$/', $id)) {
-            return [];
-        }
-        return [['id' => $id]];
+        $id = $this->subaccountId();
+        return $id === '' ? [] : [['id' => $id]];
     }
 
     /**
@@ -312,7 +319,6 @@ final class Flutterwave
     /** Verify by our reference against Flutterwave and persist the outcome. */
     public function verify(string $txRef): array
     {
-        $this->assertEnabled();
         $local = $this->transaction($txRef);
         if (!$local) {
             throw new \RuntimeException('Unknown payment reference ' . $txRef);
@@ -528,19 +534,21 @@ final class Flutterwave
         if ($saleId <= 0) {
             return;
         }
-        $stmt = $this->pdo->prepare('SELECT id, final_total, payment_status FROM sales WHERE id = ?');
+        $stmt = $this->pdo->prepare('SELECT id, final_total, payment_status, status FROM sales WHERE id = ?');
         $stmt->execute([$saleId]);
         $sale = $stmt->fetch();
-        if (!$sale || ($sale['payment_status'] ?? '') === 'paid') {
+        if (!$sale || ($sale['status'] ?? '') !== 'pending') {
+            return;
+        }
+        if (($sale['payment_status'] ?? '') === 'paid') {
+            \App\Models\Sale::ensureOnlineReleased($this->pdo, $saleId);
             return;
         }
         if ((float)$tx['amount'] + 0.005 < (float)$sale['final_total']) {
             return;
         }
         $this->claimForSale($txRef, (float)$sale['final_total'], $saleId);
-        $this->pdo->prepare(
-            "UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ? WHERE id = ? AND payment_status <> 'paid'"
-        )->execute([$txRef, $saleId]);
+        \App\Models\Sale::markOnlinePaid($this->pdo, $saleId, $txRef);
     }
 
     public function webhookHashMatches(string $rawBody, string $signature): bool
@@ -623,10 +631,12 @@ final class Flutterwave
         }
         $networkTx = self::networkTxOf($data);
         $figures = self::figuresFromData($data, (float)($local['amount'] ?? 0));
+        $share = self::subaccountShare($data, $this->subaccountId());
         $this->pdo->prepare(
             'UPDATE payment_transactions SET status = ?, provider_tx_id = COALESCE(?, provider_tx_id), flw_ref = COALESCE(?, flw_ref),
                     charged_amount = COALESCE(?, charged_amount), app_fee = COALESCE(?, app_fee), merchant_fee = COALESCE(?, merchant_fee),
                     net_amount = COALESCE(?, net_amount),
+                    subaccount_amount = COALESCE(?, subaccount_amount),
                     settlement_status = CASE WHEN ? = "successful" THEN COALESCE(settlement_status, "pending") ELSE settlement_status END,
                     payment_type = COALESCE(?, payment_type),
                     network = COALESCE(?, network), network_tx_id = COALESCE(?, network_tx_id),
@@ -641,6 +651,7 @@ final class Flutterwave
             $figures['fee'],
             $figures['merchant_fee'],
             $figures['net'],
+            $share,
             $status,
             $remoteType,
             $network !== null ? $network : null,
@@ -653,86 +664,149 @@ final class Flutterwave
     }
 
     /**
-     * Totals for the dashboard Settlements tab, from confirmed Flutterwave charges.
+     * Totals for the dashboard Settlements tab. Figures are the client's subaccount,
+     * not the main Flutterwave wallet that owns the API keys.
      *
-     * @return array{processed: float, fees: float, pending: float, settled: float, count: int, pending_count: int, settled_count: int, rows: list<array<string, mixed>>, enabled: bool}
+     * @return array<string, mixed>
      */
     public function settlementBoard(): array
     {
         $this->backfillSettlementFigures();
-        $sum = $this->pdo->query(
-            "SELECT COUNT(*) AS tx_count,
-                    COALESCE(SUM(CASE WHEN charged_amount > 0 THEN charged_amount ELSE amount END), 0) AS processed,
-                    COALESCE(SUM(app_fee), 0) AS fees,
-                    COALESCE(SUM(CASE WHEN settlement_status = 'settled' THEN 0 ELSE COALESCE(net_amount, amount) END), 0) AS pending_net,
-                    COALESCE(SUM(CASE WHEN settlement_status = 'settled' THEN COALESCE(net_amount, 0) ELSE 0 END), 0) AS settled_net,
-                    COALESCE(SUM(CASE WHEN settlement_status = 'settled' THEN 1 ELSE 0 END), 0) AS settled_count
-             FROM payment_transactions
-             WHERE provider = 'flutterwave' AND status = 'successful'"
-        )->fetch() ?: [];
-        $count = (int)($sum['tx_count'] ?? 0);
-        $settledCount = (int)($sum['settled_count'] ?? 0);
+        $subId = $this->subaccountId();
+        $profile = $subId !== '' ? $this->subaccountProfile($subId) : null;
         $rows = $this->pdo->query(
-            "SELECT id, tx_ref, sale_id, amount, charged_amount, app_fee, net_amount, currency, payment_type, network,
+            "SELECT id, tx_ref, sale_id, amount, charged_amount, app_fee, net_amount, subaccount_amount, currency, payment_type, network,
                     settlement_status, settlement_id, settled_at, created_at
              FROM payment_transactions
              WHERE provider = 'flutterwave' AND status = 'successful'
              ORDER BY id DESC
              LIMIT 40"
         )->fetchAll();
+        foreach ($rows as &$listed) {
+            if ($listed['subaccount_amount'] !== null && $listed['subaccount_amount'] !== '') {
+                continue;
+            }
+            $charged = (float)($listed['charged_amount'] ?? 0) > 0 ? (float)$listed['charged_amount'] : (float)$listed['amount'];
+            $est = $this->expectedShare($charged, $profile);
+            if ($est !== null) {
+                $listed['subaccount_amount'] = $est;
+                $listed['share_estimated'] = true;
+            }
+        }
+        unset($listed);
+        $due = 0.0;
+        $pending = 0.0;
+        $settled = 0.0;
+        $pendingCount = 0;
+        $settledCount = 0;
+        $count = 0;
+        $all = $this->pdo->query(
+            "SELECT charged_amount, amount, subaccount_amount, settlement_status
+             FROM payment_transactions
+             WHERE provider = 'flutterwave' AND status = 'successful'"
+        )->fetchAll();
+        foreach ($all as $row) {
+            $count++;
+            $charged = (float)($row['charged_amount'] ?? 0) > 0 ? (float)$row['charged_amount'] : (float)$row['amount'];
+            $share = $row['subaccount_amount'] !== null && $row['subaccount_amount'] !== ''
+                ? (float)$row['subaccount_amount']
+                : $this->expectedShare($charged, $profile);
+            if ($share === null) {
+                continue;
+            }
+            $due += $share;
+            if (($row['settlement_status'] ?? '') === 'settled') {
+                $settled += $share;
+                $settledCount++;
+            } else {
+                $pending += $share;
+                $pendingCount++;
+            }
+        }
+        $fees = 0.0;
+        $batches = [];
+        if ($subId !== '') {
+            $feeRow = $this->pdo->prepare('SELECT COALESCE(SUM(app_fee), 0) FROM flutterwave_settlements WHERE subaccount_id = ?');
+            $feeRow->execute([$subId]);
+            $fees = (float)$feeRow->fetchColumn();
+            $batchStmt = $this->pdo->prepare(
+                'SELECT settlement_id, status, gross_amount, app_fee, net_amount, transaction_count, transaction_date, processed_date, destination, settlement_account
+                 FROM flutterwave_settlements
+                 WHERE subaccount_id = ?
+                 ORDER BY COALESCE(processed_date, transaction_date, updated_at) DESC
+                 LIMIT 40'
+            );
+            $batchStmt->execute([$subId]);
+            $batches = $batchStmt->fetchAll() ?: [];
+        }
         return [
-            'processed' => round((float)($sum['processed'] ?? 0), 2),
-            'fees' => round((float)($sum['fees'] ?? 0), 2),
-            'pending' => round((float)($sum['pending_net'] ?? 0), 2),
-            'settled' => round((float)($sum['settled_net'] ?? 0), 2),
+            'processed' => round($due, 2),
+            'fees' => round($fees, 2),
+            'pending' => round($pending, 2),
+            'settled' => round($settled, 2),
             'count' => $count,
-            'pending_count' => max(0, $count - $settledCount),
+            'pending_count' => $pendingCount,
             'settled_count' => $settledCount,
             'rows' => $rows,
+            'batches' => $batches,
             'enabled' => $this->enabled(),
+            'subaccount_id' => $subId,
+            'profile' => $profile,
         ];
     }
 
     /**
-     * Ask Flutterwave which settlement batches have been paid out, and mark the
-     * matching local charges settled. A completed batch is the payout to the bank
-     * or Flutterwave wallet. Pending and flagged batches are left pending.
+     * Ask Flutterwave which settlement batches belong to the client's subaccount,
+     * and mark the matching local charges paid out to that subaccount.
      *
      * @return array{status: string, msg: string, marked: int}
      */
     public function syncSettlements(): array
     {
         $this->assertEnabled();
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            return ['status' => 'error', 'msg' => 'Add the Flutterwave subaccount ID under Settings → Payments. This dashboard follows that subaccount, not the main Flutterwave wallet.', 'marked' => 0];
+        }
         $from = date('Y-m-d', strtotime('-90 days'));
         $to = date('Y-m-d', strtotime('+1 day'));
         $page = 1;
         $pages = 1;
         $marked = 0;
         $completed = 0;
+        $seen = 0;
         do {
-            $res = $this->request('GET', '/settlements?page=' . $page . '&from=' . rawurlencode($from) . '&to=' . rawurlencode($to));
+            $res = $this->request('GET', '/settlements?page=' . $page . '&from=' . rawurlencode($from) . '&to=' . rawurlencode($to) . '&subaccount_id=' . rawurlencode($subId));
             if (($res['status'] ?? '') !== 'success') {
                 $msg = (string)($res['message'] ?? 'Flutterwave did not return settlements.');
                 if (stripos($msg, 'no settlement') !== false) {
-                    return ['status' => 'ok', 'msg' => 'Flutterwave has no settlement batches yet. Successful charges stay pending until a batch is paid out.', 'marked' => 0];
+                    return ['status' => 'ok', 'msg' => 'Flutterwave has no settlement batches for subaccount ' . $subId . ' yet.', 'marked' => 0];
                 }
                 return ['status' => 'error', 'msg' => $msg, 'marked' => 0];
             }
             $batches = is_array($res['data'] ?? null) ? $res['data'] : [];
             if ($batches === [] && $page === 1) {
-                return ['status' => 'ok', 'msg' => 'Flutterwave has no settlement batches in the last 90 days. Successful charges stay pending until a batch is paid to the bank.', 'marked' => 0];
+                return ['status' => 'ok', 'msg' => 'Flutterwave has no settlement batches for subaccount ' . $subId . ' in the last 90 days.', 'marked' => 0];
             }
             foreach ($batches as $batch) {
-                if (!is_array($batch) || strtolower((string)($batch['status'] ?? '')) !== 'completed') {
+                if (!is_array($batch)) {
                     continue;
                 }
                 $id = trim((string)($batch['id'] ?? ''));
                 if ($id === '') {
                     continue;
                 }
+                $seen++;
+                $this->saveSettlementBatch($subId, $batch);
+                if (strtolower((string)($batch['status'] ?? '')) !== 'completed') {
+                    continue;
+                }
                 $completed++;
-                $detail = $this->request('GET', '/settlements/' . rawurlencode($id));
+                $detail = $this->request('GET', '/settlements/' . rawurlencode($id) . '?subaccount_id=' . rawurlencode($subId));
                 $body = is_array($detail['data'] ?? null) ? $detail['data'] : [];
+                if ($body !== []) {
+                    $this->saveSettlementBatch($subId, array_merge($batch, $body));
+                }
                 $txs = is_array($body['transactions'] ?? null) ? $body['transactions'] : [];
                 $when = $body['processed_date'] ?? $batch['processed_date'] ?? null;
                 $marked += $this->markSettledTransactions($id, $txs, is_string($when) ? $when : null);
@@ -742,11 +816,13 @@ final class Flutterwave
         } while ($page <= $pages && $page <= 8);
 
         if ($marked > 0) {
-            $msg = $marked . ' payment' . ($marked === 1 ? '' : 's') . ' marked settled from Flutterwave.';
+            $msg = $marked . ' payment' . ($marked === 1 ? '' : 's') . ' marked paid to subaccount ' . $subId . '.';
+        } elseif ($seen === 0) {
+            $msg = 'Flutterwave has no settlement batches for subaccount ' . $subId . ' in the last 90 days.';
         } elseif ($completed === 0) {
-            $msg = 'Flutterwave has settlement batches, but none are completed yet. These charges stay pending.';
+            $msg = 'Subaccount ' . $subId . ' has settlement batches, but none are completed yet.';
         } else {
-            $msg = 'Checked Flutterwave. No completed payout matched these charges yet.';
+            $msg = 'Checked subaccount ' . $subId . '. No completed payout matched these charges yet.';
         }
         return ['status' => 'ok', 'msg' => $msg, 'marked' => $marked];
     }
@@ -758,7 +834,7 @@ final class Flutterwave
         $stmt = $this->pdo->prepare(
             'UPDATE payment_transactions
              SET settlement_status = "settled", settlement_id = ?, settled_at = COALESCE(settled_at, ?),
-                 net_amount = COALESCE(?, net_amount), app_fee = COALESCE(?, app_fee)
+                 subaccount_amount = COALESCE(?, subaccount_amount)
              WHERE provider = "flutterwave" AND status = "successful"
                AND (settlement_status IS NULL OR settlement_status <> "settled")
                AND (
@@ -778,9 +854,11 @@ final class Flutterwave
             if ($txRef === '' && $flwRef === '' && $id === '') {
                 continue;
             }
-            $net = isset($tx['settlement_amount']) ? round((float)$tx['settlement_amount'], 2) : null;
-            $fee = isset($tx['app_fee']) ? round((float)$tx['app_fee'], 2) : null;
-            $stmt->execute([$settlementId, $at, $net, $fee, $txRef, $txRef, $flwRef, $flwRef, $id, $id]);
+            $share = isset($tx['settlement_amount']) ? round((float)$tx['settlement_amount'], 2) : null;
+            if ($share === null && isset($tx['subaccount_settlement']) && is_numeric($tx['subaccount_settlement'])) {
+                $share = round((float)$tx['subaccount_settlement'], 2);
+            }
+            $stmt->execute([$settlementId, $at, $share, $txRef, $txRef, $flwRef, $flwRef, $id, $id]);
             $n += $stmt->rowCount();
         }
         return $n;
@@ -798,16 +876,25 @@ final class Flutterwave
             'UPDATE payment_transactions
              SET charged_amount = COALESCE(charged_amount, ?), app_fee = COALESCE(app_fee, ?),
                  merchant_fee = COALESCE(merchant_fee, ?), net_amount = COALESCE(net_amount, ?),
+                 subaccount_amount = COALESCE(subaccount_amount, ?),
                  settlement_status = COALESCE(NULLIF(settlement_status, ""), "pending")
              WHERE id = ?'
         );
+        $subId = $this->subaccountId();
         foreach ($rows as $row) {
-            $figures = self::figuresFromRaw((string)($row['raw_response'] ?? ''), (float)$row['amount']);
+            $raw = (string)($row['raw_response'] ?? '');
+            $figures = self::figuresFromRaw($raw, (float)$row['amount']);
+            $json = json_decode($raw, true);
+            $data = [];
+            if (is_array($json)) {
+                $data = is_array($json['data'] ?? null) ? $json['data'] : $json;
+            }
             $upd->execute([
                 $figures['charged'],
                 $figures['fee'],
                 $figures['merchant_fee'],
                 $figures['net'],
+                self::subaccountShare($data, $subId),
                 (int)$row['id'],
             ]);
         }
@@ -816,6 +903,137 @@ final class Flutterwave
              SET settlement_status = 'pending'
              WHERE provider = 'flutterwave' AND status = 'successful' AND (settlement_status IS NULL OR settlement_status = '')"
         );
+    }
+
+    /** @param array<string, mixed> $batch */
+    private function saveSettlementBatch(string $subId, array $batch): void
+    {
+        $id = trim((string)($batch['id'] ?? ''));
+        if ($id === '') {
+            return;
+        }
+        $when = static function (mixed $value): ?string {
+            if (!is_string($value) || strtotime($value) === false) {
+                return null;
+            }
+            return date('Y-m-d H:i:s', strtotime($value));
+        };
+        $account = trim((string)($batch['settlement_account'] ?? ''));
+        $this->pdo->prepare(
+            'INSERT INTO flutterwave_settlements
+                (subaccount_id, settlement_id, status, currency, gross_amount, app_fee, net_amount, transaction_count,
+                 transaction_date, due_date, processed_date, destination, settlement_account, bank_code)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                status = VALUES(status), gross_amount = VALUES(gross_amount), app_fee = VALUES(app_fee),
+                net_amount = VALUES(net_amount), transaction_count = VALUES(transaction_count),
+                transaction_date = VALUES(transaction_date), due_date = VALUES(due_date),
+                processed_date = VALUES(processed_date), destination = VALUES(destination),
+                settlement_account = VALUES(settlement_account), bank_code = VALUES(bank_code)'
+        )->execute([
+            $subId,
+            $id,
+            strtolower(trim((string)($batch['status'] ?? 'pending'))) ?: 'pending',
+            strtoupper(trim((string)($batch['currency'] ?? 'ZMW'))) ?: 'ZMW',
+            round((float)($batch['gross_amount'] ?? 0), 2),
+            round((float)($batch['app_fee'] ?? 0), 2),
+            round((float)($batch['net_amount'] ?? 0), 2),
+            (int)($batch['transaction_count'] ?? 0),
+            $when($batch['transaction_date'] ?? null),
+            $when($batch['due_date'] ?? null),
+            $when($batch['processed_date'] ?? null),
+            trim((string)($batch['destination'] ?? '')) ?: null,
+            $account !== '' ? $account : null,
+            trim((string)($batch['bank_code'] ?? '')) ?: null,
+        ]);
+    }
+
+    /** @return array{id: string, name: string, bank: string, account: string, masked: string, split: string, split_type: string, split_value: float}|null */
+    private function subaccountProfile(string $id): ?array
+    {
+        if (!$this->enabled()) {
+            return null;
+        }
+        $row = $this->findSubaccount($id);
+        if ($row === null) {
+            return [
+                'id' => $id,
+                'name' => '',
+                'bank' => '',
+                'account' => '',
+                'masked' => '',
+                'split' => '',
+                'split_type' => '',
+                'split_value' => 0.0,
+            ];
+        }
+        $account = trim((string)($row['account_number'] ?? ''));
+        $type = strtolower(trim((string)($row['split_type'] ?? '')));
+        $value = (float)($row['split_value'] ?? 0);
+        $split = '';
+        if ($type === 'percentage' && $value > 0) {
+            $split = rtrim(rtrim(number_format($value * 100, 2, '.', ''), '0'), '.') . '% of each payment';
+        } elseif ($type === 'flat' && $value > 0) {
+            $split = 'ZMW ' . number_format($value, 2) . ' of each payment';
+        }
+        return [
+            'id' => strtoupper(trim((string)($row['subaccount_id'] ?? $id))),
+            'name' => trim((string)($row['business_name'] ?? $row['full_name'] ?? '')),
+            'bank' => trim((string)($row['bank_name'] ?? '')),
+            'account' => $account,
+            'masked' => $account === '' ? '' : (strlen($account) <= 4 ? $account : str_repeat('•', strlen($account) - 4) . substr($account, -4)),
+            'split' => $split,
+            'split_type' => $type,
+            'split_value' => $value,
+        ];
+    }
+
+    /** @param array{split_type?: string, split_value?: float}|null $profile */
+    private function expectedShare(float $charged, ?array $profile): ?float
+    {
+        if ($profile === null || $charged <= 0) {
+            return null;
+        }
+        $type = (string)($profile['split_type'] ?? '');
+        $value = (float)($profile['split_value'] ?? 0);
+        if ($type === 'percentage' && $value > 0) {
+            return round($charged * $value, 2);
+        }
+        if ($type === 'flat' && $value > 0) {
+            return round(min($value, $charged), 2);
+        }
+        return null;
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function subaccountShare(array $data, string $subaccountId): ?float
+    {
+        $rows = $data['subaccount_settlement'] ?? null;
+        if (is_numeric($rows)) {
+            return round((float)$rows, 2);
+        }
+        if (!is_array($rows)) {
+            return null;
+        }
+        if (isset($rows['id']) || isset($rows['subaccount_id']) || isset($rows['amount'])) {
+            $rows = [$rows];
+        }
+        $fallback = null;
+        foreach ($rows as $row) {
+            if (!is_array($row) || !isset($row['amount'])) {
+                continue;
+            }
+            $amount = round((float)$row['amount'], 2);
+            $id = strtoupper(trim((string)($row['id'] ?? $row['subaccount_id'] ?? '')));
+            if ($subaccountId !== '' && $id !== '' && $id !== $subaccountId) {
+                continue;
+            }
+            if ($id === $subaccountId) {
+                return $amount;
+            }
+            $fallback = $amount;
+        }
+        return $subaccountId === '' ? null : $fallback;
     }
 
     /** @return array{charged: ?float, fee: ?float, merchant_fee: ?float, net: ?float} */
@@ -1123,6 +1341,10 @@ final class Flutterwave
     public function sendEmergencyTransfer(float $amount, string $narration, int $userId): array
     {
         $this->assertEnabled();
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            throw new \RuntimeException('Add the Flutterwave subaccount ID under Settings → Payments. The emergency transfer sends from that subaccount.');
+        }
         $dest = $this->payoutDestination();
         if (empty($dest['ready'])) {
             throw new \RuntimeException('Save the emergency payout account under Settings → Payments first.');
@@ -1137,7 +1359,7 @@ final class Flutterwave
         }
         $balance = $this->availableBalance();
         if ($amount - $balance > 0.001) {
-            throw new \RuntimeException('The Flutterwave balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
+            throw new \RuntimeException('The subaccount payout balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
         }
         $dupe = $this->pdo->prepare(
             "SELECT id FROM flutterwave_transfers
@@ -1177,6 +1399,7 @@ final class Flutterwave
             'beneficiary_name' => $dest['name'],
             'reference' => $reference,
             'callback_url' => $this->webhookUrl(),
+            'debit_subaccount' => $subId,
         ];
         if (($dest['method'] ?? 'bank') === 'momo') {
             $payload['account_bank'] = 'MPS';
@@ -1205,7 +1428,7 @@ final class Flutterwave
         $where = $dest['bank_name'] !== '' ? $dest['bank_name'] : 'the saved account';
         return [
             'status' => 'ok',
-            'msg' => 'Emergency transfer of ZMW ' . number_format($amount, 2) . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
+            'msg' => 'Emergency transfer of ZMW ' . number_format($amount, 2) . ' from subaccount ' . $subId . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
         ];
     }
 
@@ -1278,34 +1501,101 @@ final class Flutterwave
         return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir . '/api/flutterwave_webhook.php';
     }
 
+    /** @return array<string, mixed>|null */
+    private function findSubaccount(string $id): ?array
+    {
+        try {
+            $direct = $this->request('GET', '/subaccounts/' . rawurlencode($id));
+            $data = $direct['data'] ?? null;
+            if (is_array($data) && strtoupper((string)($data['subaccount_id'] ?? '')) === $id) {
+                return $data;
+            }
+        } catch (\Throwable $e) {
+        }
+        $page = 1;
+        $pages = 1;
+        do {
+            try {
+                $res = $this->request('GET', '/subaccounts?page=' . $page);
+            } catch (\Throwable $e) {
+                return null;
+            }
+            if (($res['status'] ?? '') !== 'success' || !is_array($res['data'] ?? null)) {
+                return null;
+            }
+            $items = isset($res['data']['subaccount_id']) ? [$res['data']] : $res['data'];
+            foreach ($items as $item) {
+                if (is_array($item) && strtoupper((string)($item['subaccount_id'] ?? '')) === $id) {
+                    return $item;
+                }
+            }
+            $pages = max(1, (int)($res['meta']['page_info']['total_pages'] ?? 1));
+            $page++;
+        } while ($page <= $pages && $page <= 8);
+        return null;
+    }
+
     /** @return array{payout: float, collection: float} */
     private function walletBalances(): array
     {
         $this->assertEnabled();
-        $currency = $this->currency();
-        $res = $this->request('GET', '/balances/' . rawurlencode($currency));
-        if (($res['status'] ?? '') !== 'success') {
-            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not return the wallet balance.'));
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            throw new \RuntimeException('Add the Flutterwave subaccount ID under Settings → Payments.');
         }
-        $data = $res['data'] ?? null;
-        $row = null;
-        if (is_array($data) && isset($data['available_balance'])) {
-            $row = $data;
-        } elseif (is_array($data)) {
-            foreach ($data as $item) {
-                if (is_array($item) && strtoupper((string)($item['currency'] ?? '')) === $currency) {
-                    $row = $item;
-                    break;
+        $currency = $this->currency();
+        $paths = [
+            '/payout-subaccounts/' . rawurlencode($subId) . '/balances?currency=' . rawurlencode($currency),
+        ];
+        $last = 'Flutterwave did not return a balance for subaccount ' . $subId . '.';
+        foreach ($paths as $path) {
+            try {
+                $res = $this->request('GET', $path);
+            } catch (\Throwable $e) {
+                $last = $e->getMessage();
+                continue;
+            }
+            if (($res['status'] ?? '') !== 'success') {
+                $message = trim((string)($res['message'] ?? ''));
+                if ($message !== '') {
+                    $last = $message;
                 }
+                continue;
+            }
+            $parsed = $this->balancePair($res['data'] ?? null, $currency);
+            if ($parsed !== null) {
+                return $parsed;
             }
         }
-        if ($row === null) {
-            throw new \RuntimeException('Flutterwave did not return a ' . $currency . ' balance.');
+        throw new \RuntimeException($last);
+    }
+
+    /** @return array{payout: float, collection: float}|null */
+    private function balancePair(mixed $data, string $currency): ?array
+    {
+        $items = [];
+        if (is_array($data) && (isset($data['available_balance']) || isset($data['ledger_balance']))) {
+            $items = [$data];
+        } elseif (is_array($data)) {
+            $items = $data;
         }
-        return [
-            'payout' => round((float)($row['available_balance'] ?? 0), 2),
-            'collection' => round((float)($row['ledger_balance'] ?? 0), 2),
-        ];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (!isset($item['available_balance']) && !isset($item['ledger_balance'])) {
+                continue;
+            }
+            $code = strtoupper(trim((string)($item['currency'] ?? $currency)));
+            if ($code !== '' && $code !== $currency) {
+                continue;
+            }
+            return [
+                'payout' => round((float)($item['available_balance'] ?? 0), 2),
+                'collection' => round((float)($item['ledger_balance'] ?? 0), 2),
+            ];
+        }
+        return null;
     }
 
     private function availableBalance(): float

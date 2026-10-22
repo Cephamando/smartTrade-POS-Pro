@@ -46,6 +46,8 @@ final class TablesController extends Controller
             'tables' => RestaurantTable::allWithLocation(),
             'reserveLabel' => self::reserveLabel($settings),
             'reserveAmount' => round(max(0, (float)($settings['shop_reserve_amount'] ?? 0)), 2),
+            'reserveMinutes' => self::reserveMinutes($settings),
+            'reserveRefundPercent' => self::reserveRefundPercent($settings),
             'menuUrl' => self::menuUrl($settings),
         ]);
     }
@@ -73,9 +75,21 @@ final class TablesController extends Controller
             $this->flash('error', 'The menu address must be an https link to the shop menu.');
             $this->redirect('tables');
         }
+        $minutes = (int)($_POST['shop_reserve_minutes'] ?? 120);
+        if ($minutes < 15 || $minutes > 10080) {
+            $this->flash('error', 'A reservation can stay held from 15 minutes up to 7 days.');
+            $this->redirect('tables');
+        }
+        $refund = (int)($_POST['shop_reserve_refund_percent'] ?? 0);
+        if ($refund < 0 || $refund > 100) {
+            $this->flash('error', 'The refundable share is a percentage from 0 to 100. Use 0 when the fee is non-refundable.');
+            $this->redirect('tables');
+        }
         Setting::save([
             'shop_reserve_label' => $label,
             'shop_reserve_amount' => number_format($amount, 2, '.', ''),
+            'shop_reserve_minutes' => (string)$minutes,
+            'shop_reserve_refund_percent' => (string)$refund,
             'shop_menu_url' => $url,
         ]);
         $this->flash('success', 'Reservation surcharge saved.');
@@ -87,6 +101,35 @@ final class TablesController extends Controller
     {
         $label = trim((string)($settings['shop_reserve_label'] ?? ''));
         return $label !== '' ? $label : 'Table reservation';
+    }
+
+    /** @param array<string, mixed> $settings */
+    public static function reserveMinutes(array $settings): int
+    {
+        $minutes = (int)($settings['shop_reserve_minutes'] ?? 120);
+        if ($minutes < 15 || $minutes > 10080) {
+            return 120;
+        }
+        return $minutes;
+    }
+
+    /** @param array<string, mixed> $settings */
+    public static function reserveRefundPercent(array $settings): int
+    {
+        $percent = (int)($settings['shop_reserve_refund_percent'] ?? 100);
+        return max(0, min(100, $percent));
+    }
+
+    public static function reserveRefundText(float $amount, int $percent): string
+    {
+        if ($percent <= 0) {
+            return 'This fee is non-refundable.';
+        }
+        if ($percent >= 100) {
+            return 'The full fee is refundable if the reservation is cancelled.';
+        }
+        $back = round($amount * $percent / 100, 2);
+        return $percent . '% is refundable (K' . number_format($back, 2) . '). The rest is kept.';
     }
 
     /** @param array<string, mixed> $settings */

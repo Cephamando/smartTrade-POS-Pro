@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use PDO;
+
 final class Sale extends Model
 {
     public static function dashboardKpis(int $locationId): array
@@ -453,5 +455,169 @@ final class Sale extends Model
             return 'DATE(DATE_SUB(s.created_at, INTERVAL WEEKDAY(s.created_at) DAY))';
         }
         return 'DATE(s.created_at)';
+    }
+
+    /** Paid online orders still on Web Orders: open tickets, and cancellations waiting for the Flutterwave payout. */
+    public static function openWebOrderWhere(string $alias = 's'): string
+    {
+        return $alias . ".payment_method = 'Online' AND " . $alias . ".payment_status = 'paid' AND (
+            " . $alias . ".status = 'pending'
+            OR (
+                " . $alias . ".status = 'cancelled'
+                AND " . $alias . ".cancel_source IN ('customer', 'till')
+                AND NOT EXISTS (
+                    SELECT 1 FROM payment_transactions pt
+                    WHERE pt.sale_id = " . $alias . ".id AND pt.settlement_status = 'settled'
+                )
+            )
+        )";
+    }
+
+    /**
+     * Stop a pending online order.
+     * A paid order stays on Web Orders, labelled by who cancelled it, until Flutterwave pays the funds out.
+     *
+     * @return array{paid: bool, source: string, note: string}
+     */
+    public static function cancelWebOrder(int $saleId, ?int $customerId, bool $allowPaid, int $staffUserId = 0): array
+    {
+        if ($saleId <= 0) {
+            throw new \RuntimeException('That order was not found.');
+        }
+        $pdo = self::db();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("SELECT id, customer_id, location_id, user_id, status, payment_status, payment_method FROM sales WHERE id = ? FOR UPDATE");
+            $stmt->execute([$saleId]);
+            $sale = $stmt->fetch();
+            if (!$sale || ($sale['payment_method'] ?? '') !== 'Online') {
+                throw new \RuntimeException('That order was not found.');
+            }
+            if ($customerId !== null && (int)$sale['customer_id'] !== $customerId) {
+                throw new \RuntimeException('That order was not found.');
+            }
+            if (($sale['status'] ?? '') !== 'pending') {
+                throw new \RuntimeException('This order can no longer be cancelled.');
+            }
+            $paid = ($sale['payment_status'] ?? '') === 'paid';
+            if ($paid && !$allowPaid) {
+                throw new \RuntimeException('This order is already paid. An approval code is required to cancel it.');
+            }
+            if (!in_array((string)($sale['payment_status'] ?? ''), ['pending', 'paid'], true)) {
+                throw new \RuntimeException('This order can no longer be cancelled.');
+            }
+            $source = $customerId !== null ? 'customer' : 'till';
+            if ($paid) {
+                $pdo->prepare("UPDATE sale_items SET status = 'cancelled', fulfillment_status = 'voided' WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')")->execute([$saleId]);
+                $pdo->prepare("UPDATE sales SET status = 'cancelled', cancel_source = ? WHERE id = ? AND status = 'pending'")->execute([$source, $saleId]);
+            } else {
+                $items = $pdo->prepare("SELECT product_id, quantity, status FROM sale_items WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')");
+                $items->execute([$saleId]);
+                $actor = (int)($sale['user_id'] ?? 0) ?: 1;
+                foreach ($items->fetchAll() as $line) {
+                    if (($line['status'] ?? '') === 'held') {
+                        continue;
+                    }
+                    deductStock($pdo, (int)$line['product_id'], -1 * (float)$line['quantity'], (int)$sale['location_id'], $actor, 'void_return');
+                }
+                $pdo->prepare("UPDATE sale_items SET status = 'voided', fulfillment_status = 'voided' WHERE sale_id = ? AND status NOT IN ('voided', 'refunded')")->execute([$saleId]);
+                $pdo->prepare("UPDATE sales SET status = 'cancelled', cancel_source = ?, payment_status = 'voided' WHERE id = ? AND status = 'pending'")->execute([$source, $saleId]);
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+        $note = '';
+        if ($paid) {
+            $actor = $staffUserId > 0 ? $staffUserId : ((int)($sale['user_id'] ?? 0) ?: 1);
+            $note = self::issueWebCreditNote($pdo, $saleId, $actor, $source);
+        }
+        return ['paid' => $paid, 'source' => $source, 'note' => $note];
+    }
+
+    /** File the ZRA credit note for a paid web order that has already been cancelled. */
+    public static function issueWebCreditNote(PDO $pdo, int $saleId, int $userId, string $source = ''): string
+    {
+        $stmt = $pdo->prepare('SELECT id, status, payment_status, cancel_source, credit_note_id, final_total FROM sales WHERE id = ?');
+        $stmt->execute([$saleId]);
+        $sale = $stmt->fetch();
+        if (!$sale || ($sale['payment_status'] ?? '') !== 'paid' || ($sale['status'] ?? '') !== 'cancelled') {
+            return '';
+        }
+        if ((int)($sale['credit_note_id'] ?? 0) > 0) {
+            return 'Credit note #' . (int)$sale['credit_note_id'] . ' is already on file.';
+        }
+        $who = $source !== '' ? $source : (string)($sale['cancel_source'] ?? 'till');
+        $reason = $who === 'customer' ? 'Cancelled by customer' : 'Cancelled by till';
+        try {
+            $refund = new \App\Services\Refund($pdo);
+            $result = $refund->refundAll($saleId, $userId > 0 ? $userId : 1, $reason, '07', true);
+            $creditId = (int)($result['credit_sale_id'] ?? 0);
+            if ($creditId > 0) {
+                $pdo->prepare('UPDATE sales SET credit_note_id = ? WHERE id = ? AND credit_note_id IS NULL')->execute([$creditId, $saleId]);
+            }
+            $posted = trim((string)($result['zra_msg'] ?? ''));
+            return 'Credit note #' . $creditId . ' filed.' . ($posted !== '' ? ' ' . $posted : '');
+        } catch (\Throwable $e) {
+            return 'The ZRA credit note was not filed: ' . $e->getMessage();
+        }
+    }
+
+    /** Record a successful online payment once, then release the kitchen ticket or the table hold. */
+    public static function markOnlinePaid(PDO $pdo, int $saleId, string $txRef): bool
+    {
+        $upd = $pdo->prepare(
+            "UPDATE sales SET payment_status = 'paid', amount_tendered = final_total, change_due = 0, gateway_ref = ?
+             WHERE id = ? AND status = 'pending' AND payment_status <> 'paid'"
+        );
+        $upd->execute([$txRef, $saleId]);
+        if ($upd->rowCount() !== 1) {
+            return false;
+        }
+        self::ensureOnlineReleased($pdo, $saleId);
+        return true;
+    }
+
+    /** Send a paid online order to the kitchen, or start a reservation hold. Safe to call again. */
+    public static function ensureOnlineReleased(PDO $pdo, int $saleId): void
+    {
+        $saleStmt = $pdo->prepare('SELECT id, location_id, user_id, order_type, status, payment_status FROM sales WHERE id = ?');
+        $saleStmt->execute([$saleId]);
+        $sale = $saleStmt->fetch();
+        if (!$sale || ($sale['status'] ?? '') !== 'pending' || ($sale['payment_status'] ?? '') !== 'paid') {
+            return;
+        }
+        $actor = (int)($sale['user_id'] ?? 0) ?: 1;
+        $lines = $pdo->prepare(
+            "SELECT si.id, si.product_id, si.quantity, c.type AS cat_type
+             FROM sale_items si
+             LEFT JOIN products p ON p.id = si.product_id
+             LEFT JOIN categories c ON c.id = p.category_id
+             WHERE si.sale_id = ? AND si.status = 'held'"
+        );
+        $lines->execute([$saleId]);
+        $kitchen = false;
+        $released = 0;
+        foreach ($lines->fetchAll() as $line) {
+            deductStock($pdo, (int)$line['product_id'], (float)$line['quantity'], (int)$sale['location_id'], $actor, 'online_sale');
+            $cat = strtolower((string)($line['cat_type'] ?? ''));
+            $next = (str_contains($cat, 'food') || str_contains($cat, 'meal') || str_contains($cat, 'kitchen')) ? 'pending' : 'ready';
+            if ($next === 'pending') {
+                $kitchen = true;
+            }
+            $pdo->prepare("UPDATE sale_items SET status = ? WHERE id = ? AND status = 'held'")->execute([$next, (int)$line['id']]);
+            $released++;
+        }
+        if (($sale['order_type'] ?? '') === 'reservation') {
+            $minutes = \App\Controllers\TablesController::reserveMinutes(Setting::all());
+            $pdo->prepare('UPDATE sales SET reserve_until = DATE_ADD(NOW(), INTERVAL ' . $minutes . ' MINUTE) WHERE id = ? AND reserve_until IS NULL')->execute([$saleId]);
+            return;
+        }
+        if ($released > 0 && !$kitchen) {
+            \App\Services\OrderWebhook::notify($pdo, $saleId, 'ready');
+        }
     }
 }

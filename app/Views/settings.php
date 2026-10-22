@@ -1,7 +1,8 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$allowedTabs = ['general', 'surcharges', 'payments', 'currency', 'shop', 'branding', 'email', 'guide'];
+$allowedTabs = ['general', 'surcharges', 'currency', 'shop', 'branding', 'email', 'guide'];
 if ($userRole === 'dev') {
+    $allowedTabs[] = 'payments';
     $allowedTabs[] = 'developer';
 }
 $tab = in_array($tab ?? 'general', $allowedTabs, true) ? $tab : 'general';
@@ -9,7 +10,11 @@ $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['fl
 $tabs = [
     'general' => ['bi-sliders', 'General'],
     'surcharges' => ['bi-plus-slash-minus', 'POS surcharges'],
-    'payments' => ['bi-credit-card-2-front', 'Payments (Flutterwave)'],
+];
+if ($userRole === 'dev') {
+    $tabs['payments'] = ['bi-credit-card-2-front', 'Payments (Flutterwave)'];
+}
+$tabs += [
     'currency' => ['bi-currency-exchange', 'Currency'],
     'shop' => ['bi-bag-heart', 'Customer ordering'],
     'branding' => ['bi-image', 'Logo & banners'],
@@ -242,11 +247,11 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">SUBACCOUNT ID</label>
                         <input type="text" name="flw_subaccount_id" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_subaccount_id'] ?? '') ?>" placeholder="RS_..." autocomplete="off">
-                        <div class="form-text">Paste the ID from Flutterwave → Subaccounts. It starts with <code>RS_</code>. Card and mobile-money payments then use the percentage or flat split already saved on that subaccount. Leave this blank to settle the full amount to this account.</div>
+                        <div class="form-text">Paste the ID from Flutterwave → Subaccounts. It starts with <code>RS_</code>. Card and mobile-money payments use the split saved on that subaccount, and Dashboard → Settlements &amp; Payouts follows this subaccount rather than the main Flutterwave wallet.</div>
                     </div>
                     <hr class="my-4">
                     <h6 class="fw-bold mb-1"><i class="bi bi-bank"></i> Emergency payout account</h6>
-                    <p class="text-muted small">Used only by Settlements &amp; Payouts → Emergency transfer. The transfer always pays this account. Flutterwave must have this server's IP on the transfer whitelist. A company name may include &amp; and commas.</p>
+                    <p class="text-muted small">A developer can send from the subaccount payout balance to this account. Flutterwave must have this server's IP on the transfer whitelist. A company name may include &amp; and commas.</p>
                     <?php if (!empty($flwBanksError)): ?>
                         <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?> You can type the bank code and name instead, or use mobile money.</div>
                     <?php endif; ?>

@@ -22,6 +22,7 @@ $allGlobalLocations = [];
 $bayWaiting = 0;
 $currentLocationCanSell = true;
 $pendingLocEdits = 0;
+$openGuestNotes = 0;
 
 if (isset($pdo)) {
     $allGlobalLocations = $pdo->query("SELECT id, name, can_sell FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -49,6 +50,13 @@ if (isset($pdo)) {
                 $pendingLocEdits = (int)$pdo->query("SELECT COUNT(*) FROM locations WHERE pending_edits IS NOT NULL")->fetchColumn();
             }
         } catch (\Throwable $e) {}
+    }
+    if (in_array($role ?? '', ['admin', 'manager', 'dev'], true)) {
+        try {
+            $openGuestNotes = \App\Models\GuestNote::openCount();
+        } catch (\Throwable $e) {
+            $openGuestNotes = 0;
+        }
     }
 }
 ?>
@@ -217,6 +225,7 @@ if (isset($pdo)) {
             cursor: pointer;
         }
         .nav-chip:hover { background: rgba(255, 193, 7, 0.15); border-color: rgba(255,193,7,0.45); color: #fff; }
+        .nav-chip.active { color: #ffc107; background: rgba(255,193,7,0.14); box-shadow: inset 0 -2px 0 #ffc107; }
         a.nav-chip { color: #fff; text-decoration: none; }
         a.nav-chip:hover { color: #fff; }
         
@@ -312,7 +321,8 @@ $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
 $navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
-$navOfficePages = ['reports', 'analysis', 'z_read', 'zra', 'shifts', 'users', 'payroll', 'locations', 'tables', 'events', 'settings', 'members', 'activity'];
+$navOfficePages = ['reports', 'analysis', 'z_read', 'books', 'zra', 'shifts', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'activity'];
+$navPeoplePages = ['users', 'payroll', 'members'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
         return '';
@@ -442,12 +452,16 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (!empty($pendingLocEdits)): ?>
                             <span class="badge bg-warning text-dark ms-1" title="A location edit is waiting for the developer"><i class="bi bi-exclamation-circle-fill"></i></span>
                         <?php endif; ?>
+                        <?php if (!empty($openGuestNotes)): ?>
+                            <span class="badge bg-danger ms-1" title="Open guest notes"><?= (int)$openGuestNotes ?></span>
+                        <?php endif; ?>
                     </a>
                     <ul class="dropdown-menu shadow">
                         <li><h6 class="dropdown-header">Today</h6></li>
                         <li><a class="dropdown-item<?= $navItem('reports') ?>" href="index.php?page=reports"><i class="bi bi-bar-chart"></i> Reports</a></li>
                         <li><a class="dropdown-item<?= $navItem('analysis') ?>" href="index.php?page=analysis"><i class="bi bi-graph-up-arrow"></i> Business analysis</a></li>
                         <li><a class="dropdown-item<?= $navItem('z_read') ?>" href="index.php?page=z_read"><i class="bi bi-journal-check"></i> End of day</a></li>
+                        <li><a class="dropdown-item<?= $navItem('books') ?>" href="index.php?page=books"><i class="bi bi-journal-bookmark"></i> Books of account</a></li>
                         <li><a class="dropdown-item<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts</a></li>
                         <?php if (in_array($tier, ['enterprise'], true) || in_array($role, ['admin', 'dev'], true)): ?>
                         <li><a class="dropdown-item<?= $navItem('zra') ?>" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA invoices</a></li>
@@ -459,12 +473,6 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                                 <span class="badge bg-danger ms-1" data-live-count="approvals" style="<?= ($canSeeVsiasApprovals && $vsiasPending > 0) ? '' : 'display:none' ?>"><?= (int)$vsiasPending ?></span>
                             </a>
                         </li>
-                        <?php endif; ?>
-                        <li><h6 class="dropdown-header">People</h6></li>
-                        <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Staff</a></li>
-                        <li><a class="dropdown-item<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
-                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'], true)): ?>
-                        <li><a class="dropdown-item<?= $navItem('members') ?>" href="index.php?page=members"><i class="bi bi-person-vcard"></i> Members</a></li>
                         <?php endif; ?>
                         <li><h6 class="dropdown-header">Places</h6></li>
                         <li>
@@ -478,6 +486,14 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <?php if (in_array($tier, ['pro+', 'enterprise'], true)): ?>
                         <li><a class="dropdown-item<?= $navItem('tables') ?>" href="index.php?page=tables"><i class="bi bi-grid-3x3-gap"></i> Tables</a></li>
                         <?php endif; ?>
+                        <li>
+                            <a class="dropdown-item<?= $navItem('guest_notes') ?>" href="index.php?page=guest_notes">
+                                <i class="bi bi-chat-left-heart"></i> Guest notes
+                                <?php if (!empty($openGuestNotes)): ?>
+                                    <span class="badge bg-danger ms-1"><?= (int)$openGuestNotes ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
                         <li><a class="dropdown-item<?= $navItem('events') ?>" href="index.php?page=events"><i class="bi bi-calendar-event"></i> Events</a></li>
                         <?php if (in_array($role, ['admin', 'dev'], true)): ?>
                         <li><h6 class="dropdown-header">Setup</h6></li>
@@ -540,13 +556,22 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <?= htmlspecialchars($_SESSION['location_name'] ?? 'HQ') ?>
                 </button>
                 <div class="dropdown">
-                    <button type="button" class="nav-chip btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Account">
+                    <button type="button" class="nav-chip btn dropdown-toggle<?= $navGroup($navPeoplePages) ?>" data-bs-toggle="dropdown" aria-expanded="false" title="Account">
                         <i class="bi bi-person-circle text-info"></i>
                         <?= htmlspecialchars($_SESSION['username'] ?? '') ?>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow">
                         <li><span class="dropdown-item-text small text-uppercase text-muted fw-bold"><?= htmlspecialchars(str_replace('_', ' ', $role)) ?></span></li>
                         <li><hr class="dropdown-divider"></li>
+                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
+                        <li><h6 class="dropdown-header">People</h6></li>
+                        <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Staff</a></li>
+                        <li><a class="dropdown-item<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
+                        <?php if (in_array($tier, ['pro', 'pro+', 'enterprise'], true)): ?>
+                        <li><a class="dropdown-item<?= $navItem('members') ?>" href="index.php?page=members"><i class="bi bi-person-vcard"></i> Members</a></li>
+                        <?php endif; ?>
+                        <li><hr class="dropdown-divider"></li>
+                        <?php endif; ?>
                         <li>
                             <?php
                             $trainingButtonClass = 'dropdown-item';

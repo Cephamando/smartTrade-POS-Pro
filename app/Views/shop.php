@@ -19,6 +19,21 @@ $shopIcon = function (string $cat): string {
     return 'bi-basket3';
 };
 $money = fn($v) => 'K' . number_format((float)$v, 2);
+$eventWhen = static function (array $row): string {
+    $startTs = strtotime((string)($row['starts_at'] ?? ''));
+    if ($startTs === false) {
+        return '';
+    }
+    $endRaw = trim((string)($row['ends_at'] ?? ''));
+    $endTs = $endRaw !== '' ? strtotime($endRaw) : false;
+    if ($endTs === false) {
+        return date('D j M Y, H:i', $startTs);
+    }
+    if (date('Y-m-d', $startTs) === date('Y-m-d', $endTs)) {
+        return date('D j M Y, H:i', $startTs) . '–' . date('H:i', $endTs);
+    }
+    return date('D j M Y, H:i', $startTs) . ' – ' . date('D j M Y, H:i', $endTs);
+};
 $fx = $fx ?? ['rates' => []];
 $fxRates = [];
 foreach (($fx['rates'] ?? []) as $code => $row) {
@@ -65,7 +80,64 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         :root { --accent: #111111; --dark: #0c0c0e; --on-accent: #ffffff; --sun: #e2b04a; --gold: #c9a24a; --ink: #141414; --paper: #ffffff; --card: #ffffff; }
         * { -webkit-tap-highlight-color: transparent; }
         body { margin: 0; background: #fff8e4; color: var(--ink); font-family: "Source Sans 3", "Segoe UI", sans-serif; padding-bottom: 110px; }
-        body.is-home { padding-bottom: 0; background: #0b0b0d; color: #f6ead0; }
+        body.is-home { padding-bottom: 0; background: #fff; color: #2c2c2c; }
+        body.is-home .shop-foot { background: #f6f6f6; color: #2c2c2c; }
+        body.is-home .shop-foot a,
+        body.is-home .shop-foot strong { color: #2c2c2c; }
+        body.is-home .shop-nav { background: #fff; color: #2c2c2c; border-bottom: 1px solid #eee; }
+        body.is-home .shop-nav a,
+        body.is-home .nav-link-soft,
+        body.is-home .account-toggle { color: #2c2c2c; }
+        body.is-home .nav-link-soft:hover,
+        body.is-home .nav-link-soft.active,
+        body.is-home .account-toggle:hover { color: #111; }
+        body.is-home .brand-mark { background: #fff; color: #2c2c2c; border-color: #e4e4e4; }
+        body.is-home .shop-nav a.nav-join { background: #f5a623; color: #fff; border-color: #f5a623; }
+        body.is-home .shop-nav a.nav-join:hover { background: #e09412; color: #fff; }
+        .land-hero { position: relative; min-height: 560px; margin: -.5rem calc(50% - 50vw) 0; display: flex; align-items: center; justify-content: center; color: #fff; overflow: hidden; background: #1c1c1c; }
+        .land-hero-photo { position: absolute; inset: 0; }
+        .land-hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .land-hero-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.28), rgba(0,0,0,.45)); }
+        .land-hero-copy { position: relative; z-index: 1; text-align: center; padding: 72px 20px; max-width: 760px; }
+        .land-hero h1 { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #fff; font-size: clamp(2rem, 4.6vw, 3.4rem); line-height: 1.15; margin: 0 0 14px; }
+        .land-hero .land-lead { margin: 0 auto 22px; max-width: 34rem; color: rgba(255,255,255,.92); }
+        .land-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+        .land-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 148px; background: #f5a623; color: #fff; border: 2px solid #f5a623; border-radius: 4px; padding: .7rem 1.2rem; font-weight: 700; text-decoration: none; }
+        .land-btn:hover { background: #e09412; border-color: #e09412; color: #fff; }
+        .land-btn-ghost { background: transparent; color: #fff; }
+        .land-btn-ghost:hover { background: #fff; color: #1c1c1c; }
+        .land-block { text-align: center; padding: 64px 8px 20px; }
+        .land-block h2 { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-size: 1.35rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 12px; color: #2c2c2c; }
+        .land-rule { display: block; width: 42px; height: 3px; margin: 0 auto 28px; background: #f5a623; border-radius: 2px; }
+        .land-specs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; }
+        .land-spec { color: #4a4a4a; text-decoration: none; }
+        .land-spec i { display: block; font-size: 1.7rem; color: #8d8d8d; margin-bottom: 8px; }
+        .land-spec strong { display: block; color: #2c2c2c; margin-bottom: 4px; }
+        .land-spec span { display: block; font-size: .92rem; }
+        .land-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; text-align: center; }
+        .land-cat { color: inherit; text-decoration: none; }
+        .land-cat img { width: 100%; aspect-ratio: 1.15 / 1; object-fit: cover; border-radius: 8px; display: block; background: #f3f3f3; }
+        .land-cat strong { display: block; margin-top: 12px; letter-spacing: .08em; text-transform: uppercase; font-size: .92rem; }
+        .land-cat p { margin: 6px 0 8px; color: #6b6b6b; font-size: .92rem; }
+        .land-more { color: #f5a623; font-weight: 700; font-size: .92rem; }
+        .land-dots { display: flex; justify-content: center; gap: 8px; margin-top: 22px; }
+        .land-dots button { width: 9px; height: 9px; border-radius: 50%; border: 0; background: #d9d9d9; padding: 0; }
+        .land-dots button.is-on { background: #f5a623; }
+        .land-menu-cta { padding-bottom: 36px; }
+        .land-menu-cta .land-lead { letter-spacing: .14em; text-transform: uppercase; font-size: .82rem; font-weight: 700; color: #6b6b6b; }
+        .land-hero.has-event { padding-bottom: 78px; }
+        .land-events { position: relative; z-index: 2; overflow: hidden; max-width: 680px; margin: -126px auto 0; border: 2px solid #f5a623; border-radius: 16px; background: #fff; box-shadow: 0 16px 36px rgba(0,0,0,.28); }
+        .land-events + .land-block { padding-top: 36px; }
+        .land-event-track { display: flex; transition: transform .45s ease; }
+        .land-event { flex: 0 0 100%; min-width: 0; display: flex; align-items: stretch; min-height: 108px; color: inherit; text-decoration: none; background: #fff; }
+        .land-event img { width: 168px; height: 108px; object-fit: cover; flex: 0 0 168px; display: block; background: #f6f1e6; }
+        .land-event-copy { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 12px 16px; min-width: 0; }
+        .land-event strong { color: #1c1c1c; font-size: 1.15rem; line-height: 1.2; }
+        .land-event-when { color: #5c5c5c; font-size: .88rem; }
+        .land-event-kicker { letter-spacing: .14em; text-transform: uppercase; font-size: .68rem; font-weight: 700; color: #e09412; }
+        @media (max-width: 720px) { .land-event img { width: 112px; height: 96px; flex-basis: 112px; } .land-events { margin-top: -108px; } }
+        @media (prefers-reduced-motion: reduce) { .land-event-track { transition: none; } }
+        @media (max-width: 900px) { .land-specs, .land-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .land-hero { min-height: 460px; } }
         h1, h2, h3, h4, h5, .page-title, .display-name { font-family: "Playfair Display", Georgia, serif; }
         a { color: inherit; }
         .shop-nav { position: sticky; top: 0; z-index: 1040; background: #0b0b0d; color: #e8c56b; box-shadow: none; }
@@ -98,6 +170,9 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .dish-card div { padding: 14px 16px 18px; text-align: center; }
         .dish-card strong { display: block; font-family: "Playfair Display", Georgia, serif; font-size: 1.25rem; }
         .dish-card.alt { background: var(--sun); }
+        a.land-cat.dish-card { background: transparent; border-radius: 0; box-shadow: none; overflow: visible; height: auto; color: inherit; }
+        a.land-cat.dish-card img { width: 100%; height: auto; aspect-ratio: 1.15 / 1; border-radius: 8px; }
+        a.land-cat.dish-card strong { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-size: .92rem; letter-spacing: .08em; }
         .dish-strip { position: relative; z-index: 3; isolation: isolate; flex: 0 0 168px; height: 168px; min-height: 168px; margin: 0; overflow: visible; background: transparent; perspective: 1400px; }
         .dish-flip { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.45, .05, .2, 1); }
         .dish-flip.is-spot { transform: rotateX(180deg); }
@@ -276,8 +351,8 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         .form-control, .form-select { border-radius: 14px; border-color: #eadfb0; background: #fff; }
         .form-control:focus, .form-select:focus { border-color: var(--sun); box-shadow: 0 0 0 .2rem rgba(246, 201, 14, .35); }
         .page-title { font-weight: 700; letter-spacing: -.03em; }
-        body.is-home .shop-foot { background: #0b0b0d; color: #f6ead0; }
-        body.is-home .shop-foot a { color: #e8c56b; }
+        body.is-home .shop-foot { background: #f6f6f6; color: #2c2c2c; }
+        body.is-home .shop-foot a { color: #2c2c2c; }
         .shop-foot { background: var(--sun); color: #141414; text-align: center; padding: 56px 16px 72px; margin: 36px calc(50% - 50vw) -110px; }
         .shop-foot h2 { font-size: clamp(2.4rem, 6vw, 4rem); font-weight: 700; margin: 0 0 18px; }
         .shop-foot p { margin: 0 0 14px; }
@@ -286,10 +361,31 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         @media (prefers-reduced-motion: reduce) { .dish-flip { transition: none; } }
         @media (max-width: 576px) { .landing-screen { height: auto; min-height: calc(100vh - 54px); overflow: visible; } .landing-screen h1 { font-size: 2.3rem; } .landing-stage-copy { padding-top: 126px; } .dish-strip { flex-basis: 118px; height: 118px; min-height: 118px; } .menu-slide, .spot-card { width: 168px; height: 96px; flex-basis: 168px; } .event-chip { font-size: .62rem; padding: 4px 8px; } .club-hero { padding-top: 8px; } .club-hero h1 { font-size: 2.6rem; } .club-hero-photo { height: 220px; border-radius: 24px; } .shop-hero { padding: 22px 18px; border-radius: 22px; } .shop-hero h1 { font-size: 2rem; } .ebay-bar { flex-direction: column; } .cat-drop-btn { width: 100%; justify-content: space-between; } .cat-columns { grid-template-columns: 1fr 1fr; } .cat-menu { width: calc(100vw - 24px); } .store-tab, .avail-tab { padding: .45rem .75rem; font-size: .82rem; } .avail-tabs { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; } .avail-tabs::-webkit-scrollbar { display: none; } .dish-tile { flex-basis: 148px; } .rail-next { width: 42px; height: 42px; top: 52px; } .shop-foot { margin-bottom: -110px; } }
         body.is-menu { background: #f4f7fa; }
-        body.is-menu .menu-top { background: transparent; color: #1c2430; text-align: left; margin: 0 0 8px; padding: 18px 0 8px; }
-        body.is-menu .menu-top h2 { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-size: 1.45rem; font-weight: 700; letter-spacing: 0; line-height: 1.2; color: #1c2430; }
-        body.is-menu .store-kicker { color: #8b95a1; text-align: left; }
-        body.is-menu .store-tabs { justify-content: flex-start; }
+        body.is-menu .menu-top { background: transparent; color: #1c2430; text-align: left; margin: 0 0 8px; padding: 18px 0 4px; }
+        body.is-menu .menu-head { display: flex; align-items: baseline; justify-content: flex-start; gap: 18px; }
+        body.is-menu .menu-top h2 { font-family: "Source Sans 3", "Segoe UI", sans-serif; font-size: 1.45rem; font-weight: 700; letter-spacing: 0; line-height: 1.2; color: #1c2430; margin: 0; }
+        body.is-menu .menu-visit { color: #6b7684; font-size: .9rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+        body.is-menu .menu-visit:hover { color: #1c2430; }
+        body.is-menu .store-kicker { color: #8b95a1; text-align: left; margin: 14px 0 8px; }
+        body.is-menu .store-tabs { justify-content: flex-start; position: relative; }
+        body.is-menu .avail-tabs,
+        body.is-menu .cur-tabs { position: relative; }
+        body.is-menu .pill-shift { position: absolute; left: 0; top: 0; border-radius: 999px; background: #111; z-index: 0; pointer-events: none; }
+        body.is-menu .store-tab,
+        body.is-menu .avail-tab,
+        body.is-menu .cur-tab { position: relative; z-index: 1; }
+        body.is-menu .store-tab.is-on,
+        body.is-menu .avail-tab.is-on,
+        body.is-menu .cur-tab.is-on { background: transparent; border-color: transparent; box-shadow: none; }
+        @media (prefers-reduced-motion: no-preference) {
+            body.is-menu .pill-shift { transition: transform .22s ease, width .22s ease, height .22s ease; }
+        }
+        body.is-menu .menu-tools { gap: 10px; }
+        body.is-menu .ebay-bar { align-items: center; }
+        body.is-menu .menu-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        body.is-menu .menu-filters .avail-tabs,
+        body.is-menu .menu-filters .cur-tabs { justify-content: flex-start; margin: 0; }
+        @media (max-width: 720px) { body.is-menu .menu-head { flex-wrap: wrap; } body.is-menu .menu-visit { white-space: normal; } }
         body.is-menu .menu-crumb { justify-content: flex-start; }
         body.is-menu .rail-title { margin: 18px 2px 12px; text-align: left; font-family: "Source Sans 3", "Segoe UI", sans-serif; font-style: normal; font-weight: 700; font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: #8b95a1; }
         body.is-menu .rail-kicker { color: #8b95a1; letter-spacing: .16em; }
@@ -319,7 +415,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         @media (max-width: 720px) { body.is-menu .rail-track, body.is-menu .rail-track.is-few, body.is-menu #menuRails.is-side .rail-track { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; } }
     </style>
 </head>
-<body class="<?= $view === 'home' ? 'is-home' : ($view === 'menu' ? 'is-menu' : '') ?>">
+<body class="<?= $view === 'home' ? 'is-home' : (in_array($view, ['menu', 'visit'], true) ? 'is-menu' : '') ?>">
 <nav class="shop-nav py-2">
     <div class="container shop-wrap d-flex justify-content-between align-items-center gap-2">
         <a href="<?= $u('home') ?>" class="d-flex align-items-center gap-2 text-truncate">
@@ -419,110 +515,111 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             ];
         }
         $scrollSlides = $promoSlides ?: $menuSlides;
-        $spotSlides = [];
-        foreach ($eventSlides as $ev) {
-            $spotSlides[] = ['kind' => 'event', 'event' => $ev];
-        }
-        $fillStrip = function (array $rows): array {
-            if (!$rows) {
-                return [];
-            }
-            $filled = $rows;
-            $pool = $rows;
-            while (count($filled) < 6) {
-                $filled = array_merge($filled, $pool);
-            }
-            return $filled;
-        };
-        $scrollLoop = $fillStrip($scrollSlides);
-        $spotScroll = count($spotSlides) > 2;
-        $spotLoop = $spotScroll ? $fillStrip($spotSlides) : $spotSlides;
+        $heroPhoto = $bannerUrl !== '' ? $bannerUrl : (string)($categoryCards[0]['photo'] ?? '');
+        $storeNames = array_map(static fn(array $row): string => (string)$row['name'], $shopLocations ?? []);
     ?>
-    <section class="landing-screen text-center">
-        <?php if ($scrollLoop || $spotLoop): ?>
-        <div class="dish-strip<?= empty($spotLoop) ? ' is-flat' : '' ?>" id="dishStrip" aria-label="Menu pictures">
-            <div class="dish-flip" id="dishFlip">
-                <?php if ($scrollLoop): ?>
-                <div class="dish-face dish-face-menu">
-                    <div class="dish-track">
-                        <?php for ($copy = 0; $copy < 2; $copy++): foreach ($scrollLoop as $slide): ?>
-                            <a class="menu-slide" href="<?= htmlspecialchars($slide['href']) ?>">
-                                <img src="<?= htmlspecialchars($slide['src']) ?>" alt="<?= htmlspecialchars($slide['name']) ?>">
-                            </a>
-                        <?php endforeach; endfor; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-                <?php if ($spotLoop): ?>
-                <div class="dish-face dish-face-spot">
-                    <div class="dish-track<?= $spotScroll ? '' : ' is-still' ?>">
-                        <?php for ($copy = 0; $copy < ($spotScroll ? 2 : 1); $copy++): foreach ($spotLoop as $slide): ?>
-                            <?php if ($slide['kind'] === 'event'):
-                                $ev = $slide['event'];
-                                $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
-                            ?>
-                            <button type="button" class="spot-card" data-event-slug="<?= htmlspecialchars((string)$ev['slug']) ?>" aria-label="Promo | click here for details">
-                                <?php if ($cover !== ''): ?><img src="<?= htmlspecialchars($cover) ?>" alt="<?= htmlspecialchars((string)$ev['title']) ?>"><?php endif; ?>
-                                <span class="event-chip"><i class="bi bi-stars"></i> Promo | click here for details</span>
-                            </button>
-                            <?php endif; ?>
-                        <?php endforeach; endfor; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
+    <section class="land-hero<?= !empty($events) ? ' has-event' : '' ?>">
+        <div class="land-hero-photo landing-photo">
+            <?php if ($heroPhoto !== ''): ?><img id="shopBanner" src="<?= htmlspecialchars($heroPhoto) ?>" alt=""><?php endif; ?>
         </div>
-        <?php endif; ?>
-        <div class="landing-stage">
-            <div class="landing-photo">
-                <?php if ($bannerUrl !== ''): ?><img id="shopBanner" src="<?= htmlspecialchars($bannerUrl) ?>" alt=""><?php endif; ?>
-            </div>
-            <div class="landing-stage-copy">
-                <div>
-                    <h1><?= htmlspecialchars($storeName) ?></h1>
-                    <p class="tagline"><?= htmlspecialchars($intro) ?></p>
-                </div>
-                <div class="hero-pills">
-                    <a class="hero-pill" href="<?= $u('menu') ?>">View our menu</a>
-                    <a class="hero-pill" href="<?= $u('events') ?>">Events</a>
-                    <a class="hero-pill" href="#about">About us</a>
-                </div>
+        <div class="land-hero-copy">
+            <h1><?= htmlspecialchars($intro) ?></h1>
+            <p class="land-lead"><?= htmlspecialchars($storeName) ?>. Order for pickup, or reserve a table.</p>
+            <div class="land-actions">
+                <a class="land-btn" href="<?= $u('menu') ?>">Order now</a>
+                <a class="land-btn land-btn-ghost" href="<?= $u('events') ?>">Events</a>
             </div>
         </div>
     </section>
-    <section class="landing-about" id="about">
-        <h2>About us</h2>
-        <p><?= htmlspecialchars($intro) ?></p>
+    <?php if (!empty($events)): ?>
+    <div class="land-events" id="landEvents">
+        <div class="land-event-track">
+            <?php foreach ($events as $ev):
+                $eventCover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
+            ?>
+            <a class="land-event" href="<?= $u('event', ['slug' => (string)$ev['slug']]) ?>">
+                <?php if ($eventCover !== ''): ?><img src="<?= htmlspecialchars($eventCover) ?>" alt=""><?php endif; ?>
+                <span class="land-event-copy">
+                    <span class="land-event-kicker">On now</span>
+                    <strong><?= htmlspecialchars((string)$ev['title']) ?></strong>
+                    <span class="land-event-when"><?= htmlspecialchars($eventWhen($ev)) ?></span>
+                </span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+    <section class="land-block">
+        <h2>Our specialities</h2>
+        <span class="land-rule"></span>
+        <div class="land-specs">
+            <a class="land-spec" href="<?= $u('menu') ?>"><i class="bi bi-bag"></i><strong>Order online</strong><span>Browse the menu and pay from your phone.</span></a>
+            <a class="land-spec" href="<?= $u('events') ?>"><i class="bi bi-calendar-event"></i><strong>Events</strong><span>See what is on and sign up.</span></a>
+            <a class="land-spec" href="<?= $u('reserve') ?>"><i class="bi bi-grid-3x3-gap"></i><strong>Reserve a table</strong><span>Pay the hold fee. No food required.</span></a>
+            <a class="land-spec" href="<?= $u('menu') ?>"><i class="bi bi-geo-alt"></i><strong>Choose a store</strong><span><?= $storeNames ? htmlspecialchars(implode(', ', $storeNames)) : 'More than one store on the same menu.' ?></span></a>
+        </div>
     </section>
     <?php if ($categoryCards): ?>
-    <section class="menu-showcase">
-        <div class="row g-4 align-items-center">
-            <div class="col-lg-3">
-                <h2>Order online</h2>
-                <a class="btn btn-accent rounded-0 px-4 mt-2" href="<?= $u('menu') ?>">View full menu</a>
-            </div>
-            <?php foreach (array_slice($categoryCards, 0, 3) as $card): ?>
-            <div class="col-6 col-lg-3">
-                <a class="dish-card" data-id="<?= (int)$card['id'] ?>" href="<?= $u('menu', ['cat' => $card['cat']]) ?>">
-                    <img src="<?= htmlspecialchars($card['photo']) ?>" alt="">
-                    <div><strong><?= htmlspecialchars($card['name']) ?></strong></div>
-                </a>
-            </div>
+    <section class="land-block">
+        <h2>Popular categories</h2>
+        <span class="land-rule"></span>
+        <div class="land-cats" id="landCats">
+            <?php foreach ($categoryCards as $i => $card): ?>
+            <a class="land-cat dish-card" data-id="<?= (int)$card['id'] ?>" href="<?= $u('menu', ['cat' => $card['cat']]) ?>"<?= $i >= 4 ? ' hidden' : '' ?>>
+                <img src="<?= htmlspecialchars($card['photo']) ?>" alt="">
+                <strong><?= htmlspecialchars($card['name']) ?></strong>
+                <p>From this part of the menu.</p>
+                <span class="land-more">Learn more</span>
+            </a>
             <?php endforeach; ?>
         </div>
-        <?php if (count($categoryCards) > 3): ?>
-        <div class="row g-3 mt-1">
-            <?php foreach (array_slice($categoryCards, 3) as $i => $card): ?>
-            <div class="col-6 col-md-3">
-                <a class="dish-card<?= $i % 2 === 0 ? ' alt' : '' ?>" data-id="<?= (int)$card['id'] ?>" href="<?= $u('menu', ['cat' => $card['cat']]) ?>">
-                    <img src="<?= htmlspecialchars($card['photo']) ?>" alt="">
-                    <div><strong><?= htmlspecialchars($card['name']) ?></strong></div>
-                </a>
-            </div>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
+        <?php if (count($categoryCards) > 4): ?><div class="land-dots" id="landDots"></div><?php endif; ?>
     </section>
+    <?php endif; ?>
+    <section class="land-block land-menu-cta">
+        <h2>Our menu</h2>
+        <span class="land-rule"></span>
+        <p class="land-lead">Order for pickup, or reserve a table</p>
+        <a class="land-btn" href="<?= $u('menu') ?>">View the menu</a>
+    </section>
+    <?php if (count($categoryCards) > 4): ?>
+    <script>
+    (function () {
+        var cards = Array.prototype.slice.call(document.querySelectorAll('#landCats .land-cat'));
+        var dots = document.getElementById('landDots');
+        if (!dots || cards.length <= 4) return;
+        var pages = Math.ceil(cards.length / 4);
+        function show(n) {
+            cards.forEach(function (card, i) { card.hidden = Math.floor(i / 4) !== n; });
+            Array.prototype.forEach.call(dots.children, function (dot, i) { dot.classList.toggle('is-on', i === n); });
+        }
+        for (var i = 0; i < pages; i++) {
+            var dot = document.createElement('button');
+            dot.type = 'button';
+            dot.dataset.page = String(i);
+            dot.addEventListener('click', function () { show(Number(this.dataset.page)); });
+            dots.appendChild(dot);
+        }
+        show(0);
+    })();
+    </script>
+    <?php endif; ?>
+    <?php if (count($events ?? []) > 1): ?>
+    <script>
+    (function () {
+        var box = document.getElementById('landEvents');
+        if (!box) return;
+        var track = box.querySelector('.land-event-track');
+        var items = track ? track.children.length : 0;
+        if (!track || items < 2) return;
+        var index = 0;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        window.setInterval(function () {
+            index = (index + 1) % items;
+            track.style.transform = 'translateX(-' + (index * 100) + '%)';
+        }, 5000);
+    })();
+    </script>
     <?php endif; ?>
 
 <?php elseif ($view === 'menu'): ?>
@@ -566,7 +663,10 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         }
     ?>
     <section class="menu-top">
-        <h2>Order online</h2>
+        <div class="menu-head">
+            <h2>Order online</h2>
+            <a class="menu-visit" href="<?= $u('visit', $shopLocationId ? ['loc' => $shopLocationId] : []) ?>">How was your visit?</a>
+        </div>
         <?php if ($shopLocations): ?>
         <p class="store-kicker">Choose a store</p>
         <div class="store-tabs" role="tablist" aria-label="Store">
@@ -607,12 +707,14 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 <input type="search" id="menuSearch" class="form-control" placeholder="Search the menu…" oninput="filterMenu()">
             </div>
         </div>
-        <div class="avail-tabs" role="tablist" aria-label="Availability">
-            <button type="button" class="avail-tab is-on" data-avail="" role="tab" aria-selected="true" onclick="setAvail(this)">All <span><?= count($products) ?></span></button>
-            <button type="button" class="avail-tab" data-avail="1" role="tab" aria-selected="false" onclick="setAvail(this)">In stock <span><?= (int)$inStockCount ?></span></button>
-            <button type="button" class="avail-tab" data-avail="0" role="tab" aria-selected="false" onclick="setAvail(this)">Sold out <span><?= (int)$soldOutCount ?></span></button>
+        <div class="menu-filters">
+            <div class="avail-tabs" role="tablist" aria-label="Availability">
+                <button type="button" class="avail-tab is-on" data-avail="" role="tab" aria-selected="true" onclick="setAvail(this)">All <span><?= count($products) ?></span></button>
+                <button type="button" class="avail-tab" data-avail="1" role="tab" aria-selected="false" onclick="setAvail(this)">In stock <span><?= (int)$inStockCount ?></span></button>
+                <button type="button" class="avail-tab" data-avail="0" role="tab" aria-selected="false" onclick="setAvail(this)">Sold out <span><?= (int)$soldOutCount ?></span></button>
+            </div>
+            <?= $currencyBar() ?>
         </div>
-        <?= $currencyBar() ?>
     </div>
     <nav class="menu-crumb" id="menuCrumb" aria-label="Breadcrumb" hidden></nav>
     <div id="menuRails">
@@ -621,6 +723,16 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         $rails = [];
         foreach ($products as $p) {
             $rails[(string)($p['family'] ?? 'More')][] = $p;
+        }
+        foreach ($rails as $familyName => $items) {
+            usort($items, static function (array $a, array $b): int {
+                $rank = ((int)empty($a['available'])) <=> ((int)empty($b['available']));
+                if ($rank !== 0) {
+                    return $rank;
+                }
+                return strcasecmp((string)$a['name'], (string)$b['name']);
+            });
+            $rails[$familyName] = $items;
         }
         foreach ($menuGroups as $familyName => $kids):
             if (empty($rails[$familyName])) continue;
@@ -734,11 +846,80 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     document.addEventListener('click', function (e) {
         if (!e.target.closest('.cat-drop')) closeCatMenu();
     });
+    function moveMenuPill(rail, animate) {
+        if (!rail) return;
+        var tab = rail.querySelector('.is-on');
+        var mark = rail.querySelector('.pill-shift');
+        if (!mark) {
+            mark = document.createElement('span');
+            mark.className = 'pill-shift';
+            mark.setAttribute('aria-hidden', 'true');
+            rail.insertBefore(mark, rail.firstChild);
+        }
+        if (!tab) return;
+        if (!animate) mark.style.transition = 'none';
+        mark.style.width = tab.offsetWidth + 'px';
+        mark.style.height = tab.offsetHeight + 'px';
+        mark.style.transform = 'translate(' + tab.offsetLeft + 'px,' + tab.offsetTop + 'px)';
+        if (!animate) {
+            mark.getBoundingClientRect();
+            mark.style.transition = '';
+        }
+    }
+    window.moveMenuPill = moveMenuPill;
     function goStore(e, link) {
-        var avail = ((document.querySelector('.avail-tab.is-on') || {}).dataset || {}).avail || '';
-        if (avail !== '1' && avail !== '0') return true;
         e.preventDefault();
-        window.location = link.getAttribute('href') + '&avail=' + avail;
+        var rail = link.parentElement;
+        rail.querySelectorAll('.store-tab').forEach(function (tab) {
+            var on = tab === link;
+            tab.classList.toggle('is-on', on);
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        moveMenuPill(rail, true);
+        var avail = ((document.querySelector('.avail-tab.is-on') || {}).dataset || {}).avail || '';
+        var href = link.getAttribute('href');
+        if (avail === '1' || avail === '0') href += '&avail=' + avail;
+        var board = document.querySelector('.shop-board');
+        if (board) board.style.opacity = '0.45';
+        fetch(href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.text(); })
+            .then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var next = doc.querySelector('.shop-board');
+                var current = document.querySelector('.shop-board');
+                if (!next || !current) {
+                    window.location = href;
+                    return;
+                }
+                current.replaceWith(document.importNode(next, true));
+                var nextCart = doc.getElementById('cartBar');
+                var cart = document.getElementById('cartBar');
+                if (nextCart && cart) cart.replaceWith(document.importNode(nextCart, true));
+                var wrap = document.querySelector('.shop-wrap');
+                var note = doc.querySelector('.shop-wrap > .alert');
+                if (wrap) {
+                    var old = wrap.querySelector(':scope > .alert');
+                    if (old) old.remove();
+                    if (note) wrap.insertBefore(document.importNode(note, true), wrap.firstChild);
+                }
+                if (window.history && window.history.replaceState) window.history.replaceState(null, '', href);
+                if (window.setShopCurrency) window.setShopCurrency(window.shopCur || 'ZMW');
+                if (avail === '1' || avail === '0') {
+                    var availBtn = document.querySelector('.avail-tab[data-avail="' + avail + '"]');
+                    if (availBtn) setAvail(availBtn);
+                    else filterMenu();
+                } else {
+                    filterMenu();
+                }
+                var storeRail = document.querySelector('.store-tabs');
+                var currentStore = document.querySelector('.store-tab.is-on');
+                if (storeRail && currentStore) storeRail.scrollLeft = Math.max(0, currentStore.offsetLeft - (storeRail.clientWidth - currentStore.offsetWidth) / 2);
+            })
+            .catch(function () { window.location = href; })
+            .finally(function () {
+                var shown = document.querySelector('.shop-board');
+                if (shown) shown.style.opacity = '1';
+            });
         return false;
     }
     function setAvail(btn) {
@@ -754,6 +935,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             window.history.replaceState(null, '', url);
         }
         filterMenu();
+        moveMenuPill(btn.parentElement, true);
     }
     function scrollRail(btn) {
         var track = btn.parentElement.querySelector('.rail-track');
@@ -826,6 +1008,12 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             const availBtn = document.querySelector('.avail-tab[data-avail="' + avail + '"]');
             if (availBtn) setAvail(availBtn);
         }
+        function placePills() {
+            document.querySelectorAll('.store-tabs, .avail-tabs, .cur-tabs').forEach(function (rail) { moveMenuPill(rail, false); });
+        }
+        placePills();
+        window.addEventListener('resize', placePills);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(placePills);
         const rail = document.querySelector('.store-tabs');
         const currentStore = document.querySelector('.store-tab.is-on');
         if (rail && currentStore) rail.scrollLeft = Math.max(0, currentStore.offsetLeft - (rail.clientWidth - currentStore.offsetWidth) / 2);
@@ -840,6 +1028,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
 
 <?php elseif ($view === 'cart'): ?>
     <h4 class="page-title mb-3">Your bag</h4>
+    <p class="mb-3"><a href="<?= $u('visit', !empty($shopLocationId) ? ['loc' => (int)$shopLocationId] : []) ?>">How was your visit?</a></p>
     <?php if (!$cart): ?>
         <div class="text-center py-5 text-muted"><i class="bi bi-basket fs-1"></i><p class="mt-2">Nothing here yet.</p><a href="<?= $u('menu') ?>" class="btn btn-accent rounded-pill px-4">Browse the menu</a></div>
     <?php else: ?>
@@ -1042,21 +1231,60 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </script>
     <?php endif; ?>
 
+<?php elseif ($view === 'reserve'): ?>
+    <?php
+    $holdMinutes = \App\Controllers\TablesController::reserveMinutes($settings);
+    $refundPercent = \App\Controllers\TablesController::reserveRefundPercent($settings);
+    $refundText = \App\Controllers\TablesController::reserveRefundText((float)$reserveAmount, $refundPercent);
+    $holdLabel = $holdMinutes >= 60
+        ? (intdiv($holdMinutes, 60) . ' hour' . (intdiv($holdMinutes, 60) === 1 ? '' : 's') . ($holdMinutes % 60 ? ' ' . ($holdMinutes % 60) . ' min' : ''))
+        : ($holdMinutes . ' minutes');
+    ?>
+    <h4 class="page-title mb-1">Reserve a table</h4>
+    <p class="text-muted small mb-3">Pay the hold fee. You do not have to order food. The table stays reserved for <?= htmlspecialchars($holdLabel) ?> after payment, then it is released. <?= htmlspecialchars($refundText) ?></p>
+    <?php if ((float)$reserveAmount <= 0): ?>
+        <div class="alert alert-warning">This store has not set a reservation fee yet.</div>
+    <?php elseif (empty($shopLocations)): ?>
+        <div class="alert alert-warning">No store is open for reservations.</div>
+    <?php else: ?>
+        <form method="POST" action="<?= $u('reserve') ?>" class="card item-card"><div class="card-body">
+            <input type="hidden" name="reserve_table" value="1">
+            <label class="form-label fw-bold small text-muted">STORE</label>
+            <select name="seat_location" class="form-select mb-3" onchange="location.href=this.options[this.selectedIndex].dataset.href">
+                <?php foreach ($shopLocations as $locRow): ?>
+                <option data-href="<?= $u('reserve', ['loc' => (int)$locRow['id']]) ?>" value="<?= (int)$locRow['id'] ?>" <?= (int)$locRow['id'] === (int)$shopLocationId ? 'selected' : '' ?>><?= htmlspecialchars($locRow['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <label class="form-label fw-bold small text-muted">FREE TABLE</label>
+            <?php if (empty($shopTables)): ?>
+                <div class="alert alert-secondary">Every table at this store is already held.</div>
+            <?php else: ?>
+                <select name="seat_table" class="form-select mb-3" required>
+                    <?php foreach ($shopTables as $tbl): ?>
+                    <option value="<?= (int)$tbl['id'] ?>"><?= htmlspecialchars(trim((string)($tbl['zone_name'] ?? '') . ' ' . ($tbl['table_name'] ?? ''))) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="d-flex justify-content-between fw-bold fs-5 mb-3"><span><?= htmlspecialchars($reserveLabel) ?></span><span><?= $money($reserveAmount) ?></span></div>
+                <button class="btn btn-accent rounded-pill px-4"><?= $customer ? 'Pay and hold the table' : 'Sign in to pay' ?></button>
+            <?php endif; ?>
+        </div></form>
+    <?php endif; ?>
+
 <?php elseif ($view === 'orders'): ?>
     <h4 class="page-title mb-3">My orders</h4>
     <?php if (empty($orders)): ?><div class="text-center text-muted py-5">No orders yet. <a href="<?= $u('menu') ?>">Order something tasty</a>.</div><?php endif; ?>
     <div class="list-group shadow-sm">
-    <?php foreach ($orders ?? [] as $o): $live = $o['status'] === 'pending'; ?>
+    <?php foreach ($orders ?? [] as $o): $live = $o['status'] === 'pending'; $waitingPay = $live && ($o['payment_status'] ?? '') !== 'paid'; ?>
         <a href="<?= $u('order', ['id' => $o['id']]) ?>" class="list-group-item list-group-item-action py-3">
-            <div class="d-flex justify-content-between"><strong>Order #<?= (int)$o['id'] ?></strong><span class="price"><?= $money($o['final_total']) ?></span></div>
+            <div class="d-flex justify-content-between"><strong><?= ($o['order_type'] ?? '') === 'reservation' ? 'Reservation' : 'Order' ?> #<?= (int)$o['id'] ?></strong><span class="price"><?= $money($o['final_total']) ?></span></div>
             <div class="small text-muted"><?= date('d M Y H:i', strtotime($o['created_at'])) ?> · <?= (int)$o['item_count'] ?> item(s) · <?= strtoupper(htmlspecialchars($o['order_type'] ?? 'pickup')) ?></div>
-            <div class="mt-1"><span class="badge <?= $live ? ((int)$o['items_cooking'] > 0 ? 'bg-warning text-dark' : 'bg-info text-dark') : ($o['status'] === 'completed' ? 'bg-success' : 'bg-secondary') ?>"><?= $live ? ((int)$o['items_cooking'] > 0 ? 'Being prepared' : 'Ready for collection') : ucfirst($o['status']) ?></span> <span class="badge <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-light text-dark border' ?>"><?= $o['payment_status'] === 'paid' ? 'Paid' : 'Unpaid' ?></span></div>
+            <div class="mt-1"><span class="badge <?= $o['status'] === 'cancelled' ? 'bg-secondary' : ($waitingPay ? 'bg-warning text-dark' : ($live ? ((int)$o['items_cooking'] > 0 ? 'bg-warning text-dark' : 'bg-info text-dark') : ($o['status'] === 'completed' ? 'bg-success' : 'bg-secondary'))) ?>"><?= $o['status'] === 'cancelled' ? (($o['cancel_source'] ?? '') === 'till' ? 'Cancelled by the store' : (($o['cancel_source'] ?? '') === 'customer' ? 'Cancelled by you' : 'Cancelled')) : ($waitingPay ? 'Waiting for payment' : ($live ? ((($o['order_type'] ?? '') === 'reservation' ? 'Table held' : ((int)$o['items_cooking'] > 0 ? 'Being prepared' : 'Ready for collection'))) : ucfirst($o['status']))) ?></span> <span class="badge <?= $o['payment_status'] === 'paid' ? 'bg-success' : 'bg-light text-dark border' ?>"><?= $o['payment_status'] === 'paid' ? 'Paid' : ($o['payment_status'] === 'voided' ? 'Not charged' : 'Unpaid') ?></span></div>
         </a>
     <?php endforeach; ?>
     </div>
 
 <?php elseif ($view === 'order' && !empty($order)): ?>
-    <?php $o = $order; $cooking = count(array_filter($o['items'], fn($i) => $i['status'] !== 'ready')); $done = $o['status'] !== 'pending'; ?>
+    <?php $o = $order; $cancelled = ($o['status'] ?? '') === 'cancelled'; $waitingPay = ($o['status'] ?? '') === 'pending' && ($o['payment_status'] ?? '') !== 'paid'; $cooking = count(array_filter($o['items'], fn($i) => !in_array($i['status'], ['ready', 'voided', 'refunded', 'held'], true))); $done = $o['status'] !== 'pending'; $isReservation = ($o['order_type'] ?? '') === 'reservation'; ?>
     <a href="<?= $u('orders') ?>" class="small text-muted"><i class="bi bi-arrow-left"></i> All orders</a>
     <div class="card item-card mt-2 mb-3"><div class="card-body">
         <div class="d-flex justify-content-between align-items-start">
@@ -1068,21 +1296,54 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             <span class="step <?= $cooking === 0 || $done ? 'done' : '' ?>">2</span><div class="flex-grow-1 border-top <?= $done ? 'border-warning border-2' : '' ?>"></div>
             <span class="step <?= $done ? 'done' : '' ?>">3</span>
         </div>
-        <div class="d-flex justify-content-between small text-muted mb-3"><span>Received</span><span><?= $cooking === 0 || $done ? 'Ready' : 'Being prepared' ?></span><span><?= $done ? ucfirst($o['status']) : 'Collected' ?></span></div>
+        <div class="d-flex justify-content-between small text-muted mb-3"><span>Received</span><span><?= $cancelled ? 'Cancelled' : ($waitingPay ? 'Waiting for payment' : ($isReservation ? 'Table held' : ($cooking === 0 || $done ? 'Ready' : 'Being prepared'))) ?></span><span><?= $cancelled ? 'Cancelled' : ($isReservation && !$done ? 'Held' : ($done ? ucfirst($o['status']) : 'Collected')) ?></span></div>
         <table class="table table-sm mb-0">
-            <?php foreach ($o['items'] as $i): ?><tr><td><?= (int)$i['quantity'] ?> × <?= htmlspecialchars($i['name']) ?> <?php if (!$done): ?><span class="status-dot <?= $i['status'] === 'ready' ? 'bg-success' : 'bg-warning' ?>" title="<?= htmlspecialchars($i['status']) ?>"></span><?php endif; ?></td><td class="text-end"><?= $money($i['price'] * $i['quantity']) ?></td></tr><?php endforeach; ?>
+            <?php foreach ($o['items'] as $i): if (!$cancelled && in_array($i['status'], ['voided', 'refunded'], true)) { continue; } ?><tr><td><?= (int)$i['quantity'] ?> × <?= htmlspecialchars($i['name']) ?> <?php if (!$done && !$cancelled): ?><span class="status-dot <?= $i['status'] === 'ready' ? 'bg-success' : 'bg-warning' ?>" title="<?= htmlspecialchars($i['status']) ?>"></span><?php endif; ?></td><td class="text-end"><?= $money($i['price'] * $i['quantity']) ?></td></tr><?php endforeach; ?>
             <?php if ((float)$o['surcharge_amount'] > 0): ?><tr><td class="text-muted"><?= htmlspecialchars($o['surcharge_reason'] ?: 'Fee') ?></td><td class="text-end"><?= $money($o['surcharge_amount']) ?></td></tr><?php endif; ?>
             <tr class="fw-bold fs-5"><td>Total</td><td class="text-end"><?= $money($o['final_total']) ?></td></tr>
         </table>
         <?php if ($o['order_notes']): ?><div class="small text-muted mt-2"><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars($o['order_notes']) ?></div><?php endif; ?>
-        <?php if ($flwOn && ($o['payment_status'] ?? '') !== 'paid' && ($o['status'] ?? '') === 'pending'): ?>
+        <?php if (($o['status'] ?? '') === 'cancelled'): ?>
+            <div class="alert alert-secondary mt-3 mb-0"><?php if (($o['cancel_source'] ?? '') === 'till'): ?>The store cancelled this order.<?php elseif (($o['cancel_source'] ?? '') === 'customer'): ?>You cancelled this order.<?php else: ?>This order was cancelled.<?php endif; ?><?php if (($o['payment_status'] ?? '') === 'paid'): ?> It stays with the store until Flutterwave pays the funds out.<?php else: ?> Nothing was charged.<?php endif; ?></div>
+        <?php elseif ($flwOn && ($o['payment_status'] ?? '') !== 'paid' && ($o['status'] ?? '') === 'pending'): ?>
             <a href="<?= $u('pay', ['id' => (int)$o['id']]) ?>" class="btn btn-accent rounded-pill px-4 mt-3">Pay with Flutterwave</a>
+        <?php endif; ?>
+        <?php if (($o['status'] ?? '') === 'pending'): ?>
+            <form method="POST" action="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="mt-3" id="cancelOrderForm">
+                <input type="hidden" name="cancel_order" value="1">
+                <input type="hidden" name="sale_id" value="<?= (int)$o['id'] ?>">
+                <button type="submit" class="btn btn-outline-danger rounded-pill">Cancel this order</button>
+            </form>
+            <script>
+            document.getElementById('cancelOrderForm').addEventListener('submit', function (e) {
+                var msg = <?= json_encode(($o['payment_status'] ?? '') === 'paid' ? 'Cancel this order? It stays with the store until Flutterwave pays the funds out, and the store files a ZRA credit note.' : 'Cancel this order? Nothing has been charged.') ?>;
+                if (!window.confirm(msg)) e.preventDefault();
+            });
+            </script>
         <?php endif; ?>
         <?php if ($o['gateway_ref']): ?><div class="small text-muted">Payment ref <?= htmlspecialchars($o['gateway_ref']) ?></div><?php endif; ?>
         <?php if ($o['zra_rcpt_no']): ?><div class="small text-muted">ZRA receipt no <?= htmlspecialchars($o['zra_rcpt_no']) ?></div><?php endif; ?>
     </div></div>
+    <?php if ($done && !$cancelled && ($o['payment_status'] ?? '') === 'paid' && empty($visitAnswered)): ?>
+    <div class="card item-card mb-3"><div class="card-body text-center">
+        <h4 class="fw-bold mb-1">How was your visit?</h4>
+        <p class="text-muted small mb-3">Same question for every guest.</p>
+        <a href="<?= $u('visit', ['sale' => (int)$o['id']]) ?>" class="btn btn-accent rounded-pill px-4">Tell us</a>
+    </div></div>
+    <?php endif; ?>
     <?php if (!$done): ?><p class="text-center small text-muted">This page refreshes automatically.</p><script>setTimeout(function () { location.reload(); }, 30000);</script><?php endif; ?>
     <?php if (!empty($settings['shop_phone'])): ?><p class="text-center small">Questions? Call <a href="tel:<?= htmlspecialchars($settings['shop_phone']) ?>"><?= htmlspecialchars($settings['shop_phone']) ?></a></p><?php endif; ?>
+
+<?php elseif ($view === 'thanks' && !empty($order)): ?>
+    <?php $o = $order; ?>
+    <div class="card item-card mt-2 mb-3" id="purchase-complete" data-order="<?= (int)$o['id'] ?>" data-value="<?= htmlspecialchars(number_format((float)$o['final_total'], 2, '.', '')) ?>" data-currency="ZMW">
+        <div class="card-body text-center">
+            <h4 class="fw-bold mb-1">Payment received</h4>
+            <p class="text-muted mb-2"><?php if (($o['order_type'] ?? '') === 'reservation'): ?>The table is held<?= !empty($o['reserve_until']) ? ' until ' . htmlspecialchars(date('d M Y H:i', strtotime((string)$o['reserve_until']))) : '' ?>.<?php else: ?>Order #<?= (int)$o['id'] ?> is being prepared.<?php endif; ?></p>
+            <div class="fw-bold fs-4 mb-3"><?= $money($o['final_total']) ?></div>
+            <a href="<?= $u('order', ['id' => (int)$o['id']]) ?>" class="btn btn-accent rounded-pill px-4">Follow this order</a>
+        </div>
+    </div>
 
 <?php elseif ($view === 'pay' && !empty($order) && !empty($checkout)): ?>
     <?php $o = $order; ?>
@@ -1099,7 +1360,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     (function () {
         var checkout = <?= json_encode($checkout, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         var statusUrl = <?= json_encode($u('pay_status', ['id' => (int)$o['id']])) ?>;
-        var orderUrl = <?= json_encode($u('order', ['id' => (int)$o['id']])) ?>;
+        var orderUrl = <?= json_encode($u('thanks', ['id' => (int)$o['id']])) ?>;
         var status = document.getElementById('payStatus');
         var ticks = 0;
         function openShopPay() {
@@ -1197,7 +1458,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <div class="row g-3">
         <?php foreach ($events as $ev):
             $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
-            $when = $ev['starts_at'] ? date('D j M Y, H:i', strtotime((string)$ev['starts_at'])) : '';
+            $when = $eventWhen($ev);
         ?>
             <div class="col-md-6">
                 <a href="<?= $u('event', ['slug' => $ev['slug']]) ?>" class="card item-card h-100 text-decoration-none text-reset">
@@ -1219,7 +1480,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         <a href="<?= $u('events') ?>" class="btn btn-accent rounded-pill">All events</a>
     <?php else:
         $cover = \App\Helpers\Media::url((string)($event['cover_path'] ?? ''));
-        $when = $event['starts_at'] ? date('D j M Y, H:i', strtotime((string)$event['starts_at'])) : '';
+        $when = $eventWhen($event);
         $groups = [];
         foreach ($options as $opt) {
             $groups[$opt['group_name'] ?: 'Choice'][] = $opt;
@@ -1283,7 +1544,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     <?php if (empty($guest) || empty($event)): ?>
         <section class="shop-hero"><h1>Invitation not found</h1><p>Ask the restaurant for a new link.</p></section>
     <?php else:
-        $when = $event['starts_at'] ? date('D j M Y, H:i', strtotime((string)$event['starts_at'])) : '';
+        $when = $eventWhen($event);
         $open = ($event['status'] ?? '') === 'open';
         $groups = [];
         foreach ($options as $opt) {
@@ -1357,7 +1618,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </div>
         </form>
         <?php endif; ?>
-        <?php if (($charge['amount'] ?? 0) > 0 && !in_array($guest['status'], ['declined', 'cancelled'], true)): ?>
+        <?php if (!empty($flwGateway) && ($charge['amount'] ?? 0) > 0 && !in_array($guest['status'], ['declined', 'cancelled'], true)): ?>
         <form method="POST" action="<?= $u('rsvp', ['token' => $guest['token']]) ?>" class="card item-card">
             <div class="card-body p-4 d-flex justify-content-between align-items-center">
                 <div>
@@ -1382,6 +1643,76 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
             </ul>
         <?php endif; ?>
     <?php endif; ?>
+
+<?php elseif ($view === 'visit'): ?>
+    <?php
+        $visitLocation = $visitLocation ?? null;
+        $visitTable = $visitTable ?? null;
+        $visitGoogle = (string)($visitGoogle ?? '');
+        $visitAnswered = !empty($visitAnswered);
+        $visitStep = (string)($visitStep ?? '');
+        $visitQuery = is_array($visitQuery ?? null) ? $visitQuery : [];
+        $visitStores = $visitStores ?? [];
+        $visitMood = (string)($visitMood ?? '');
+        $visitProblem = (string)($visitProblem ?? '');
+        $visitPlace = '';
+        if ($visitTable) {
+            $visitPlace = trim((string)($visitTable['zone_name'] ?? '') . ' · ' . (string)($visitTable['table_name'] ?? ''), ' ·');
+        }
+    ?>
+    <section class="menu-top">
+        <h2>How was your visit?</h2>
+        <?php if ($visitLocation): ?><p class="store-kicker"><?= htmlspecialchars((string)$visitLocation['name']) ?><?= $visitPlace !== '' ? ' · ' . htmlspecialchars($visitPlace) : '' ?></p><?php endif; ?>
+    </section>
+    <?php if ($visitProblem !== ''): ?>
+        <div class="card item-card"><div class="card-body text-center">
+            <p class="mb-0"><?= htmlspecialchars($visitProblem) ?></p>
+        </div></div>
+    <?php elseif (!$visitLocation): ?>
+        <p class="text-muted">Which store did you visit?</p>
+        <div class="d-grid gap-2">
+            <?php foreach ($visitStores as $store): ?>
+                <a class="btn btn-outline-dark rounded-pill py-3" href="<?= $u('visit', ['loc' => (int)$store['id']]) ?>"><?= htmlspecialchars((string)$store['name']) ?></a>
+            <?php endforeach; ?>
+        </div>
+    <?php elseif ($visitAnswered): ?>
+        <div class="card item-card"><div class="card-body text-center">
+            <h4 class="fw-bold"><?= $visitMood === 'off' ? 'The team has your note.' : 'Thank you. Glad you came.' ?></h4>
+            <?php if ($visitMood === 'glad' && $visitGoogle !== ''): ?>
+                <a class="btn btn-accent rounded-pill px-4 mt-2" href="<?= htmlspecialchars($visitGoogle) ?>" target="_blank" rel="noopener">Open this store’s Google review</a>
+            <?php endif; ?>
+            <?php if ($visitMood !== 'glad' && $visitGoogle !== ''): ?>
+                <p class="small text-muted mt-3 mb-0"><a href="<?= htmlspecialchars($visitGoogle) ?>" target="_blank" rel="noopener">Google review for this store</a></p>
+            <?php endif; ?>
+        </div></div>
+    <?php elseif ($visitStep === 'off'): ?>
+        <div class="card item-card"><div class="card-body">
+            <h4 class="fw-bold mb-1">Something was off</h4>
+            <p class="text-muted small">Tell us what happened. The team sees this privately.</p>
+            <form method="POST" action="<?= $u('visit', $visitQuery) ?>">
+                <?php foreach ($visitQuery as $qk => $qv): ?>
+                    <input type="hidden" name="<?= htmlspecialchars((string)$qk) ?>" value="<?= htmlspecialchars((string)$qv) ?>">
+                <?php endforeach; ?>
+                <input type="hidden" name="visit_save" value="1">
+                <label class="form-label small" for="visitNote">What happened?</label>
+                <textarea class="form-control mb-3" id="visitNote" name="note" rows="4" maxlength="500" required></textarea>
+                <label class="form-label small" for="visitPhone">Phone number, if you want a call back</label>
+                <input class="form-control mb-3" id="visitPhone" name="phone" type="tel" maxlength="30" inputmode="tel">
+                <button class="btn btn-accent rounded-pill px-4 w-100" type="submit">Send to the team</button>
+            </form>
+            <?php if ($visitGoogle !== ''): ?>
+                <p class="small text-muted text-center mt-3 mb-0"><a href="<?= htmlspecialchars($visitGoogle) ?>" target="_blank" rel="noopener">Google review for this store</a></p>
+            <?php endif; ?>
+        </div></div>
+    <?php else: ?>
+        <form method="POST" action="<?= $u('visit', $visitQuery) ?>" class="d-grid gap-2">
+            <?php foreach ($visitQuery as $qk => $qv): ?>
+                <input type="hidden" name="<?= htmlspecialchars((string)$qk) ?>" value="<?= htmlspecialchars((string)$qv) ?>">
+            <?php endforeach; ?>
+            <button class="btn btn-accent rounded-pill py-3" type="submit" name="visit_mood" value="glad">It was lovely</button>
+            <button class="btn btn-outline-dark rounded-pill py-3" type="submit" name="visit_mood" value="off">Something was off</button>
+        </form>
+    <?php endif; ?>
 <?php endif; ?>
 </div>
 <footer class="shop-foot">
@@ -1397,7 +1728,7 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 <?php foreach ($eventSlides as $ev):
                     $cover = \App\Helpers\Media::url((string)($ev['cover_path'] ?? ''));
-                    $when = !empty($ev['starts_at']) ? date('D j M Y, H:i', strtotime((string)$ev['starts_at'])) : '';
+                    $when = $eventWhen($ev);
                     $regOptions = \App\Models\Event::options((int)$ev['id']);
                     $regTiers = \App\Models\Event::tiers((int)$ev['id']);
                     $groups = [];
@@ -1606,8 +1937,24 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
         items.forEach(function (row) { byId[String(row.id)] = row; });
         document.querySelectorAll('.menu-item[data-id]').forEach(function (card) {
             var row = byId[card.dataset.id];
+            if (!row) return;
+            var photo = card.querySelector('.dish-photo');
+            if (photo) {
+                if (row.src) {
+                    photo.style.backgroundImage = "url('" + withVersion(row.src, row.v).replace(/'/g, '%27') + "')";
+                    var mark = photo.querySelector('i');
+                    if (mark) mark.remove();
+                } else if (photo.style.backgroundImage) {
+                    photo.style.backgroundImage = '';
+                    if (!photo.querySelector('i')) {
+                        var placeholder = document.createElement('i');
+                        placeholder.className = 'bi bi-basket3';
+                        photo.insertBefore(placeholder, photo.firstChild);
+                    }
+                }
+            }
             var face = card.querySelector('.item-face');
-            if (!row || !face) return;
+            if (!face) return;
             if (row.src) {
                 face.classList.add('item-photo');
                 var url = withVersion(row.src, row.v).replace(/'/g, '%27');
@@ -1670,6 +2017,10 @@ window.setShopCurrency = function (code) {
         var on = btn.dataset.cur === code;
         btn.classList.toggle('is-on', on);
         btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('.cur-tabs').forEach(function (rail) {
+        if (window.moveMenuPill) window.moveMenuPill(rail, rail.dataset.pillReady === '1');
+        rail.dataset.pillReady = '1';
     });
     var note = document.getElementById('chargeNote');
     if (note) note.hidden = code === 'ZMW';

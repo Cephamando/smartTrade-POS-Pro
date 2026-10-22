@@ -43,7 +43,7 @@ final class ShiftsController extends Controller
                         throw new \Exception('You cannot authorize your own shift.');
                     }
                     if (!$mgrId) {
-                        throw new \Exception('Manager password is incorrect.');
+                        throw new \Exception('That approval code was not accepted.');
                     }
                     if (Shift::userHasOpen($userId)) {
                         throw new \Exception('You already have an open shift.');
@@ -58,7 +58,7 @@ final class ShiftsController extends Controller
                         throw new \Exception('You cannot authorize your own shift close.');
                     }
                     if (!$mgrId) {
-                        throw new \Exception('Manager password is incorrect.');
+                        throw new \Exception('That approval code was not accepted.');
                     }
                     $closingCash = 0;
                     $notes = null;

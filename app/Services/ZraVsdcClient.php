@@ -606,12 +606,12 @@ class ZraVsdcClient
         );
         $itemsStmt->execute([$saleId]);
         $saleItems = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
+        $saleItems = $this->appendTipLine($saleData, $saleItems);
+        $saleItems = $this->appendSurchargeLine($saleData, $saleItems);
         if (!$saleItems) {
             $this->markSaleSkipped($saleId, 'No line items to send to ZRA');
             return ['resultCd' => 'skipped', 'resultMsg' => 'No fiscalizable line items'];
         }
-        $saleItems = $this->appendTipLine($saleData, $saleItems);
-        $saleItems = $this->appendSurchargeLine($saleData, $saleItems);
         if (abs((float)$saleData['final_total']) < 0.005 && !$this->linesAreRefund($saleItems)) {
             $this->markSaleSkipped($saleId, 'Zero-value sale is not sent to ZRA');
             return ['resultCd' => 'skipped', 'resultMsg' => 'Zero-value sale is not sent to ZRA'];
@@ -1516,7 +1516,8 @@ class ZraVsdcClient
         $thisAmt = [];
         $names = [];
         foreach ($items as $line) {
-            if (strtoupper((string)($line['sku'] ?? '')) === 'ZRA-TIP') {
+            $sku = strtoupper((string)($line['sku'] ?? ''));
+            if ($sku === 'ZRA-TIP' || $sku === 'ZRA-SURCHARGE') {
                 continue;
             }
             $pid = (int)($line['product_id'] ?? 0);
@@ -1557,7 +1558,8 @@ class ZraVsdcClient
         $uid = (int)($sale['user_id'] ?? 0);
         $saleId = (int)($sale['id'] ?? 0);
         foreach ($items as $line) {
-            if (strtoupper((string)($line['sku'] ?? '')) === 'ZRA-TIP') {
+            $sku = strtoupper((string)($line['sku'] ?? ''));
+            if ($sku === 'ZRA-TIP' || $sku === 'ZRA-SURCHARGE') {
                 continue;
             }
             $pid = (int)($line['product_id'] ?? 0);

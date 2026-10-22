@@ -12,7 +12,7 @@ $dtLocal = static fn($v) => $v ? date('Y-m-d\TH:i', strtotime((string)$v)) : '';
             <input type="hidden" name="cover_framed" id="eventCoverFramed" value="0">
             <div class="col-12"><label class="form-label small fw-bold text-muted">NAME</label><input name="title" class="form-control" value="<?= htmlspecialchars((string)$event['title']) ?>" required></div>
             <div class="col-md-6"><label class="form-label small fw-bold text-muted">STARTS</label><input type="datetime-local" name="starts_at" class="form-control" value="<?= htmlspecialchars($dtLocal($event['starts_at'] ?? '')) ?>" required></div>
-            <div class="col-md-6"><label class="form-label small fw-bold text-muted">ENDS</label><input type="datetime-local" name="ends_at" class="form-control" value="<?= htmlspecialchars($dtLocal($event['ends_at'] ?? '')) ?>" required></div>
+            <div class="col-md-6"><label class="form-label small fw-bold text-muted">ENDS</label><input type="datetime-local" name="ends_at" class="form-control" value="<?= htmlspecialchars($dtLocal($event['ends_at'] ?? '')) ?>"><div class="form-text">Leave blank if it does not end.</div></div>
             <div class="col-md-6">
                 <label class="form-label small fw-bold text-muted">STORE</label>
                 <select name="location_id" class="form-select">

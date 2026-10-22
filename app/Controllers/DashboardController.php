@@ -63,11 +63,11 @@ final class DashboardController extends Controller
             $this->redirect('dashboard', ['tab' => 'settlements']);
         }
         if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['emergency_transfer'])) {
-            $this->requireRole(['admin', 'manager', 'dev']);
+            $this->requireRole(['dev']);
             try {
-                $mgr = User::verifyManager((string)($_POST['mgr_username'] ?? ''), (string)($_POST['mgr_password'] ?? ''));
+                $mgr = User::verifyDeveloper((string)($_POST['mgr_username'] ?? ''), (string)($_POST['mgr_password'] ?? ''));
                 if ($mgr === null) {
-                    throw new \RuntimeException('Manager authorization failed.');
+                    throw new \RuntimeException('Developer authorization failed.');
                 }
                 $result = (new Flutterwave($this->pdo()))->sendEmergencyTransfer(
                     (float)($_POST['amount'] ?? 0),
@@ -89,7 +89,7 @@ final class DashboardController extends Controller
         }
         $flw = new Flutterwave($this->pdo());
         $settlement = $tab === 'settlements' ? $flw->settlementBoard() : null;
-        $payout = $tab === 'settlements' ? $flw->transferBoard() : null;
+        $payout = ($tab === 'settlements' && strtolower((string)($_SESSION['role'] ?? '')) === 'dev') ? $flw->transferBoard() : null;
         $this->render(array_merge($kpis, [
             'dashLocId' => $dashLocId,
             'dashLocName' => $dashLocName,

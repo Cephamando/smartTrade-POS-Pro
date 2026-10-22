@@ -81,16 +81,16 @@ final class Location extends Model
         return (string)($stmt->fetchColumn() ?: 'Unknown');
     }
 
-    public static function create(string $name, string $type, string $address, int $canSell, int $canReceive): void
+    public static function create(string $name, string $type, string $address, int $canSell, int $canReceive, string $reviewUrl = ''): void
     {
-        self::db()->prepare('INSERT INTO locations (name, type, address, can_sell, can_receive) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$name, $type, $address, $canSell, $canReceive]);
+        self::db()->prepare('INSERT INTO locations (name, type, address, can_sell, can_receive, google_review_url) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$name, $type, $address, $canSell, $canReceive, $reviewUrl !== '' ? $reviewUrl : null]);
     }
 
-    public static function update(int $id, string $name, string $type, string $address, int $canSell, int $canReceive): void
+    public static function update(int $id, string $name, string $type, string $address, int $canSell, int $canReceive, string $reviewUrl = ''): void
     {
-        self::db()->prepare('UPDATE locations SET name=?, type=?, address=?, can_sell=?, can_receive=? WHERE id=?')
-            ->execute([$name, $type, $address, $canSell, $canReceive, $id]);
+        self::db()->prepare('UPDATE locations SET name=?, type=?, address=?, can_sell=?, can_receive=?, google_review_url=? WHERE id=?')
+            ->execute([$name, $type, $address, $canSell, $canReceive, $reviewUrl !== '' ? $reviewUrl : null, $id]);
     }
 
     public static function delete(int $id): string

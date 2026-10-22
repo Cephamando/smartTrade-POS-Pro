@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <title>X-Read Shift #<?= $shift['id'] ?></title>
     <style>
-        body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; padding: 10px; color: #000; font-size: 13px; }
+        body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; padding: 10px; color: #000; background: #fff; font-size: 13px; }
+        html { background: #fff; color-scheme: light; }
         h2, h3, h4, h5 { text-align: center; margin: 5px 0; }
         .line { border-top: 1px dashed #000; margin: 10px 0; }
         .flex { display: flex; justify-content: space-between; margin-bottom: 2px; }
@@ -16,6 +17,7 @@
             font-family: "Courier New", Courier, monospace !important; 
             font-weight: 900 !important; 
             color: #000 !important; 
+            background-color: #fff !important;
         }
         .border-bottom { border-bottom: 2px dashed #000 !important; }
         .border-top { border-top: 2px dashed #000 !important; }

@@ -223,7 +223,7 @@ function getCategoryStyle($name) {
 <body>
     <?php require APP_PATH . '/Views/partials/training_bar.php'; ?>
     <?php if ($locationId == 0): ?><div class="modal fade show" id="compulsoryLocationModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.9); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Select Workstation</h5></div><div class="modal-body bg-light p-4"><form method="POST"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div><?php endif; ?>
-    <?php if ($locationId > 0 && $pendingShift): ?><div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST" class="js-confirm-form" data-swal-title="Approve and start this shift?" data-swal-text="The station will open for sales after manager authorization." data-swal-confirm="Approve" data-swal-cancel="Cancel" data-swal-icon="question" data-swal-confirm-color="#fd7e14"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Manager Password" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div></div><?php endif; ?>
+    <?php if ($locationId > 0 && $pendingShift): ?><div class="modal fade show" id="pendingShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-warning text-dark"><h5 class="modal-title fw-bold">Awaiting Manager Approval</h5></div><div class="modal-body text-center p-4"><p>Shift #<?= $pendingShift['id'] ?> is pending approval.</p><form method="POST" class="js-confirm-form" data-swal-title="Approve and start this shift?" data-swal-text="The station will open for sales after manager authorization." data-swal-confirm="Approve" data-swal-cancel="Cancel" data-swal-icon="question" data-swal-confirm-color="#fd7e14"><input type="hidden" name="approve_shift_start" value="1"><input type="hidden" name="pending_shift_id" value="<?= $pendingShift['id'] ?>"><input type="text" name="mgr_username" class="form-control mb-2" placeholder="Manager Username" required><input type="password" name="mgr_password" class="form-control mb-3" placeholder="Approval code" required><button type="submit" class="btn btn-warning w-100 fw-bold">APPROVE & START</button></form></div></div></div></div><?php endif; ?>
     <?php if ($locationId > 0 && !$activeShiftId && !$pendingShift): ?><div class="modal fade show" id="startShiftModal" data-bs-backdrop="static" style="display: block; background: rgba(0,0,0,0.8); z-index: 1060; position: fixed; top: 0; left: 0; width: 100%; height: 100%;"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-primary"><div class="modal-header bg-primary text-white"><h5 class="modal-title fw-bold">Start New Shift</h5><button type="button" class="btn btn-sm btn-warning text-dark fw-bold ms-auto" data-pos-vk-toggle="1" title="On-screen keyboard"><i class="bi bi-keyboard-fill"></i> Keyboard</button></div><form method="POST" class="js-confirm-form" data-swal-title="Request shift approval?" data-swal-text="The opening float will be sent to a manager to start this station." data-swal-confirm="Request" data-swal-cancel="Cancel" data-swal-icon="question" data-swal-confirm-color="#0d6efd"><div class="modal-body p-4"><input type="hidden" name="request_start_shift" value="1"><label class="fw-bold small text-muted">OPENING FLOAT</label><div class="input-group input-group-lg mb-3"><span class="input-group-text fw-bold">ZMW</span><input type="number" step="0.01" name="starting_cash" class="form-control fw-bold" required placeholder="0.00" inputmode="decimal"></div><button type="submit" class="btn btn-primary w-100 fw-bold py-3 mb-2">REQUEST APPROVAL</button><a href="index.php?page=dashboard" class="btn btn-outline-secondary w-100 fw-bold">GO TO DASHBOARD</a></div></form></div></div></div><?php endif; ?>
 
     <div class="header-custom p-2 d-flex justify-content-between align-items-center" id="mainHeader">
@@ -310,6 +310,17 @@ function getCategoryStyle($name) {
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if (!empty($guestNoteOpen['count'])): ?>
+    <div class="px-3 py-2 bg-warning text-dark small fw-semibold d-flex justify-content-between align-items-center gap-3">
+        <span><i class="bi bi-chat-left-text"></i> <?= htmlspecialchars((string)($guestNoteOpen['line'] ?? 'A guest wants a word.')) ?></span>
+        <?php if (in_array($userRole ?? '', ['admin', 'manager', 'dev'], true)): ?>
+            <a class="text-dark" href="index.php?page=guest_notes">Open guest notes</a>
+        <?php else: ?>
+            <span>Tell a manager</span>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <div class="workspace" style="<?= (!$activeShiftId) ? 'filter: blur(5px); pointer-events: none;' : '' ?>">
         <div class="product-section">
@@ -499,9 +510,9 @@ function getCategoryStyle($name) {
                                 <p class="text-muted text-center mt-4 fw-bold">No pending web orders.</p>
                             <?php else: ?>
                                 <?php foreach($onlineTabs as $ot): ?>
-                                    <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; ?>
-                                    <button class="list-group-item list-group-item-action <?= $otPaid ? 'bg-success-subtle' : 'bg-warning-subtle' ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
-                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">UNPAID</span>' ?></div>
+                                    <?php $otPaid = ($ot['payment_status'] ?? '') === 'paid'; $otWho = (string)($ot['cancel_source'] ?? ''); $otCancelled = ($ot['status'] ?? '') === 'cancelled'; ?>
+                                    <button class="list-group-item list-group-item-action <?= $otCancelled ? 'bg-danger-subtle' : ($otPaid ? 'bg-success-subtle' : 'bg-warning-subtle') ?>" onclick="showOnlineTabDetails(<?= $ot['id'] ?>)">
+                                        <div class="d-flex justify-content-between"><strong><?= htmlspecialchars($ot['customer_name']) ?></strong> <?= $otCancelled ? '<span class="badge bg-danger">' . ($otWho === 'customer' ? 'CANCELLED BY CUSTOMER' : 'CANCELLED BY TILL') . '</span>' : ($otPaid ? '<span class="badge bg-success">PAID ONLINE</span>' : '<span class="badge bg-danger">UNPAID</span>') ?></div>
                                         <div class="small text-muted">#<?= (int)$ot['id'] ?> · <?= htmlspecialchars($ot['external_id'] ?? '') ?><?= !empty($ot['table_name']) ? ' · ' . htmlspecialchars(trim((string)($ot['zone_name'] ?? '') . ' ' . $ot['table_name'])) : '' ?><?= !empty($ot['order_type']) ? ' · ' . strtoupper(htmlspecialchars($ot['order_type'])) : '' ?><?= !empty($ot['customer_phone']) ? ' · ' . htmlspecialchars($ot['customer_phone']) : '' ?></div>
                                         <div class="small fw-bold">ZMW <?= number_format((float)($ot['final_total'] ?: $ot['total_amount']), 2) ?> <span class="text-muted fw-normal"><?= date('H:i', strtotime($ot['created_at'])) ?></span></div>
                                     </button>
@@ -520,15 +531,23 @@ function getCategoryStyle($name) {
     
     <div id="hiddenOnlineTabTemplates" style="display:none;">
         <?php foreach($onlineTabItems as $tid => $items): ?>
-            <?php $tabCustomerName = ''; $tabTotal = 0; $tabRow = null; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; $tabRow = $t; break; } } $tabPaid = $tabRow && ($tabRow['payment_status'] ?? '') === 'paid'; ?>
+            <?php $tabCustomerName = ''; $tabTotal = 0; $tabRow = null; foreach($onlineTabs as $t) { if($t['id'] == $tid) { $tabCustomerName = $t['customer_name']; $tabTotal = $t['total_amount']; $tabRow = $t; break; } } $tabPaid = $tabRow && ($tabRow['payment_status'] ?? '') === 'paid'; $tabReservation = $tabRow && ($tabRow['order_type'] ?? '') === 'reservation'; $tabCancelled = $tabRow && ($tabRow['status'] ?? '') === 'cancelled'; $tabWho = (string)($tabRow['cancel_source'] ?? ''); ?>
             <div id="online-tab-data-<?= $tid ?>">
-                <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']))): ?>
-                <div class="alert <?= $tabPaid ? 'alert-success' : 'alert-warning' ?> py-2 small mb-3">
+                <?php if ($tabCancelled): ?>
+                <div class="alert alert-danger py-2 small mb-3">
+                    <strong><?= $tabWho === 'customer' ? 'Cancelled by customer' : 'Cancelled by till' ?></strong>.
+                    Stays on Web Orders until Flutterwave pays the funds out.
+                    <?php if (!empty($tabRow['credit_note_id'])): ?> Credit note #<?= (int)$tabRow['credit_note_id'] ?> is on file.<?php endif; ?>
+                </div>
+                <?php endif; ?>
+                <?php if ($tabRow && (!empty($tabRow['order_type']) || !empty($tabRow['order_notes']) || !empty($tabRow['customer_phone']) || !empty($tabRow['gateway_ref']))): ?>
+                <div class="alert <?= $tabCancelled ? 'alert-light border' : ($tabPaid ? 'alert-success' : 'alert-warning') ?> py-2 small mb-3">
                     <?php if ($tabPaid): ?><strong><i class="bi bi-patch-check-fill"></i> Paid online</strong><?= !empty($tabRow['gateway_ref']) ? ' · ref ' . htmlspecialchars($tabRow['gateway_ref']) : '' ?> · <?php else: ?><strong>Awaiting Flutterwave</strong> · <?php endif; ?>
                     <?= !empty($tabRow['table_name']) ? '<strong>' . htmlspecialchars(trim((string)($tabRow['zone_name'] ?? '') . ' ' . $tabRow['table_name'])) . '</strong> · ' : '' ?>
                     <?= !empty($tabRow['order_type']) ? '<strong>' . strtoupper(htmlspecialchars($tabRow['order_type'])) . '</strong>' : '' ?>
                     <?= !empty($tabRow['customer_phone']) ? ' · <i class="bi bi-telephone"></i> ' . htmlspecialchars($tabRow['customer_phone']) : '' ?>
                     <?= !empty($tabRow['order_notes']) ? '<div class="mt-1"><i class="bi bi-chat-left-text"></i> ' . htmlspecialchars($tabRow['order_notes']) . '</div>' : '' ?>
+                    <?php if ($tabReservation && !empty($tabRow['reserve_until'])): ?><div class="mt-1"><i class="bi bi-clock"></i> Held until <?= htmlspecialchars(date('d M Y H:i', strtotime((string)$tabRow['reserve_until']))) ?></div><?php endif; ?>
                 </div>
                 <?php endif; ?>
                 <table class="table align-middle mb-4">
@@ -538,18 +557,29 @@ function getCategoryStyle($name) {
                     $statusBadge = ''; 
                     if($i['status']=='pending') { $statusBadge = '<span class="badge bg-danger">KITCHEN</span>'; $allReady = false; } 
                     elseif($i['status']=='cooking') { $statusBadge = '<span class="badge bg-warning text-dark">COOKING</span>'; $allReady = false; } 
-                    elseif($i['status']=='ready') { $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; } 
+                    elseif($i['status']=='ready') { $statusBadge = '<span class="badge bg-info text-dark">READY</span>'; }
+                    elseif($i['status']=='cancelled') { $statusBadge = '<span class="badge bg-danger">CANCELLED</span>'; }
+                    elseif($i['status']=='refunded') { $statusBadge = '<span class="badge bg-secondary">CREDIT NOTE</span>'; } 
                 ?>
                 <tr id="online-item-row-<?= $i['id'] ?>">
                     <td><?= $i['quantity'] ?>x <?= htmlspecialchars($i['name']) ?> <?= $statusBadge ?></td>
                     <td class="text-end fw-bold">ZMW <?= number_format($i['price'] * $i['quantity'], 2) ?></td>
                 </tr>
                 <?php endforeach; ?>
+                <?php if ($tabReservation && $items === []): ?><tr><td class="text-muted">No food on this reservation.</td><td></td></tr><?php endif; ?>
                 </table>
                 <div class="row g-2 mt-3">
                     <div class="col-6"><button type="button" class="btn btn-outline-dark w-100 fw-bold py-3 shadow-sm text-uppercase" onclick="printTabBill(<?= $tid ?>)"><i class="bi bi-printer"></i> Print Receipt</button></div>
                     <div class="col-6">
-                        <?php if ($allReady && $tabPaid): ?>
+                        <?php if ($tabCancelled): ?>
+                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
+                                <i class="bi bi-x-circle"></i> <?= $tabWho === 'customer' ? 'Cancelled by customer' : 'Cancelled by till' ?>
+                            </button>
+                        <?php elseif ($tabReservation): ?>
+                            <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
+                                <i class="bi bi-clock"></i> Held until time is up
+                            </button>
+                        <?php elseif ($allReady && $tabPaid): ?>
                             <form method="POST" class="js-confirm-form js-handover" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="Payment is already taken. This marks the order collected and prints to ZRA." data-swal-confirm="Hand over" data-swal-icon="question">
                                 <input type="hidden" name="complete_prepaid_order" value="<?= $tid ?>">
                                 <button class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-bag-check"></i> Hand Over</button>
@@ -562,6 +592,18 @@ function getCategoryStyle($name) {
                             <button type="button" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-uppercase text-dark" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
                                 <i class="bi bi-cash-coin"></i> Take payment
                             </button>
+                        <?php endif; ?>
+                    </div>
+                    <div class="col-12">
+                        <?php if ($tabCancelled && empty($tabRow['credit_note_id'])): ?>
+                            <form method="POST">
+                                <input type="hidden" name="credit_web_order" value="<?= (int)$tid ?>">
+                                <button class="btn btn-outline-danger w-100 fw-bold py-3 text-uppercase"><i class="bi bi-receipt"></i> Post ZRA credit note</button>
+                            </form>
+                        <?php elseif ($tabCancelled): ?>
+                            <div class="small text-muted text-center">Credit note #<?= (int)$tabRow['credit_note_id'] ?> is on file.</div>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-outline-danger w-100 fw-bold py-3 text-uppercase" onclick="cancelWebOrder(<?= (int)$tid ?>, <?= $tabPaid ? 'true' : 'false' ?>)"><i class="bi bi-x-circle"></i> Cancel order</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -739,7 +781,7 @@ function getCategoryStyle($name) {
                 <?php endforeach; ?>
             </select>
             <input type="text" name="mgr_username" id="mgrUserRefund" class="form-control mb-2" placeholder="Manager Username">
-            <input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Manager Password">
+            <input type="password" name="mgr_password" id="mgrPassRefund" class="form-control" placeholder="Approval code">
         </div>
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" min="0" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" oninput="onTipChange()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
@@ -807,7 +849,7 @@ function getCategoryStyle($name) {
         </div>
     </div>
 
-    <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" class="js-confirm-form" data-swal-title="Authorize this payout?" data-swal-text="This amount is deducted from the expected drawer total immediately." data-swal-confirm="Authorize" data-swal-cancel="Cancel" data-swal-icon="warning" data-swal-confirm-color="#fd7e14"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This amount is deducted from the expected drawer total immediately.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Manager Password"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
+    <div class="modal fade" id="expenseModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow-lg border-top border-warning border-4"><div class="modal-header bg-light"><h5 class="modal-title fw-bold text-dark"><i class="bi bi-cash-stack text-warning"></i> Log Payout</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form method="POST" class="js-confirm-form" data-swal-title="Authorize this payout?" data-swal-text="This amount is deducted from the expected drawer total immediately." data-swal-confirm="Authorize" data-swal-cancel="Cancel" data-swal-icon="warning" data-swal-confirm-color="#fd7e14"><div class="modal-body p-4"><input type="hidden" name="log_expense" value="1"><div class="alert alert-warning small border-warning"><strong><i class="bi bi-info-circle"></i> Note:</strong> This amount is deducted from the expected drawer total immediately.</div><div class="mb-3"><label class="form-label small fw-bold text-muted">Amount Taken</label><div class="input-group input-group-lg"><span class="input-group-text bg-white fw-bold">ZMW</span><input type="number" step="0.01" name="expense_amount" class="form-control fw-bold text-danger" required placeholder="0.00"></div></div><div class="mb-4"><label class="form-label small fw-bold text-muted">Reason</label><input type="text" name="expense_reason" class="form-control" required placeholder="Paid driver..."></div><div class="p-3 bg-dark rounded shadow-sm border border-secondary"><label class="form-label small fw-bold text-warning mb-3 d-block border-bottom border-secondary pb-2"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label><input type="text" name="mgr_username" class="form-control mb-2" required placeholder="Manager Username"><input type="password" name="mgr_password" class="form-control" required placeholder="Approval code"></div></div><div class="modal-footer border-0"><button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Authorize Payout</button></div></form></div></div></div>
     
     <div class="modal fade" id="tipModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
@@ -902,7 +944,7 @@ function getCategoryStyle($name) {
                         <div class="p-3 bg-dark rounded shadow-sm border border-secondary mt-2">
                             <label class="fw-bold small text-danger d-block border-bottom border-secondary pb-2 mb-3"><i class="bi bi-shield-lock-fill"></i> MANAGER AUTHORIZATION</label>
                             <input type="text" name="manager_username" class="form-control mb-2" required placeholder="Manager Username">
-                            <input type="password" name="manager_password" class="form-control" required placeholder="Manager Password">
+                            <input type="password" name="manager_password" class="form-control" required placeholder="Approval code">
                         </div>
                     </div>
                     <div class="modal-footer border-0">
@@ -1339,6 +1381,67 @@ function getCategoryStyle($name) {
             });
         });
         function showOnlineTabDetails(id) { let template = document.getElementById('online-tab-data-' + id); let container = document.getElementById('onlineTabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
+        function cancelWebOrder(id, paid) {
+            function post(user, pass) {
+                const f = document.createElement('form');
+                f.method = 'POST';
+                f.action = 'index.php?page=pos';
+                function add(name, value) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    f.appendChild(input);
+                }
+                add('cancel_web_order', String(id));
+                if (paid) {
+                    add('mgr_username', user);
+                    add('mgr_password', pass);
+                }
+                document.body.appendChild(f);
+                f.submit();
+            }
+            if (!paid) {
+                Swal.fire({
+                    title: 'Cancel order #' + id + '?',
+                    text: 'The kitchen stops and the table is freed. Nothing was charged.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    reverseButtons: true,
+                    focusCancel: true,
+                    confirmButtonText: 'Cancel order',
+                    cancelButtonText: 'Keep',
+                    confirmButtonColor: '#dc3545',
+                    zIndex: 20000
+                }).then(function (result) { if (result.isConfirmed) post('', ''); });
+                return;
+            }
+            Swal.fire({
+                title: 'Cancel paid order #' + id + '?',
+                html: '<p class="text-muted small mb-0">This files a ZRA credit note. The order stays on Web Orders, marked cancelled by the till, until Flutterwave pays the funds out.</p><input id="swal-cancel-user" class="swal2-input" placeholder="Manager username" autocomplete="off"><input id="swal-cancel-pass" type="password" class="swal2-input" placeholder="Approval code" autocomplete="off">',
+                icon: 'warning',
+                showCancelButton: true,
+                reverseButtons: true,
+                focusCancel: true,
+                confirmButtonText: 'Cancel order',
+                cancelButtonText: 'Keep',
+                confirmButtonColor: '#dc3545',
+                zIndex: 20000,
+                preConfirm: function () {
+                    const userEl = document.getElementById('swal-cancel-user');
+                    const passEl = document.getElementById('swal-cancel-pass');
+                    const user = userEl ? userEl.value.trim() : '';
+                    const pass = passEl ? passEl.value : '';
+                    if (!user || !pass) {
+                        Swal.showValidationMessage('Enter the manager username and approval code.');
+                        return false;
+                    }
+                    return { user: user, pass: pass };
+                }
+            }).then(function (result) {
+                if (result.isConfirmed && result.value) post(result.value.user, result.value.pass);
+            });
+        }
         function openOnlineSettleModal(tabId, total, customerName) { document.getElementById('settle_tab_id_input').value = tabId; switchModal('onlineTabsModal', '', function() { initCheckout(true, total, customerName, 0, tabId); let pmSelect = document.querySelector('select[name="payment_method"]'); if(pmSelect) { let preferred = Array.from(pmSelect.options).find(opt => opt.value === 'Flutterwave') || Array.from(pmSelect.options).find(opt => opt.value === 'Cash'); if(preferred) { preferred.selected = true; if (pmSelect.tomselect) pmSelect.tomselect.setValue(preferred.value, true); onPaymentMethodChange(); } } }); }
         function escapeJS(str) { if(!str) return ''; return str.toString().replace(/'/g, "\\'").replace(/"/g, '\\"'); }
         let currentCat = 'all';
@@ -1413,7 +1516,7 @@ function getCategoryStyle($name) {
         function highlightTabSelection(selectedLabel) { document.querySelectorAll('.tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio.value === 'new') { document.getElementById('newTabNameInput').style.display = 'block'; } else { document.getElementById('newTabNameInput').style.display = 'none'; } }
         function toggleRefundMode() { let isRefund = document.getElementById('refundToggle').checked; document.querySelectorAll('.refund-input').forEach(el => el.value = isRefund ? '1' : '0'); let header = document.getElementById('mainHeader'); if (isRefund) { header.classList.remove('bg-dark', 'border-warning'); header.classList.add('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'REFUND MODE'; document.getElementById('headerPosLabel').classList.replace('text-warning', 'text-white'); document.getElementById('headerLocIcon').classList.replace('text-warning', 'text-white'); document.getElementById('cartHeader').classList.replace('bg-dark', 'bg-danger'); AppAlert.notify({ icon: 'info', title: 'Refund mode', text: 'Tap a product, then choose the original invoice. Do not refund from the grid alone.' }); } else { header.classList.add('bg-dark', 'border-warning'); header.classList.remove('bg-danger', 'border-dark'); document.getElementById('headerPosLabel').innerText = 'POS'; document.getElementById('headerPosLabel').classList.replace('text-white', 'text-warning'); document.getElementById('headerLocIcon').classList.replace('text-white', 'text-warning'); document.getElementById('cartHeader').classList.replace('bg-danger', 'bg-dark'); } }
         function pushToCart(productId, price, saleItemId = 0, tabStatus = 'paid') { let isRefund = isPosRefundMode(); if (isRefund && tabStatus === 'pending') { AppAlert.notify({ icon: 'error', title: 'Payment required', text: 'This table has not been paid. Use Void to remove items.' }); return; } if (isRefund && !(parseInt(saleItemId, 10) > 0)) { openRefundInvoicePicker(productId, ''); return; } posCartAdd({ add_item: '1', product_id: productId, custom_price: price, is_refund: isRefund ? '1' : '0', refund_sale_item_id: saleItemId }); }
-        function logWasteAuth() { Swal.fire({ title: 'Log waste', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a manager username and password.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
+        function logWasteAuth() { Swal.fire({ title: 'Log waste', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-w-user" class="swal2-input" placeholder="Username"><input id="swal-w-pass" type="password" class="swal2-input" placeholder="Approval code">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-w-user').value, pass: document.getElementById('swal-w-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a username and approval code.'}); return; } let f = document.createElement('form'); f.method = 'POST'; f.innerHTML = `<input type="hidden" name="log_waste" value="1"><input type="hidden" name="mgr_user" value="${result.value.user}"><input type="hidden" name="mgr_pass" value="${result.value.pass}">`; document.body.appendChild(f); f.submit(); } }); }
         function safeModalShow(id) { let el = document.getElementById(id); if (!el) return; try { let m = bootstrap.Modal.getInstance(el); if (!m) { m = new bootstrap.Modal(el); } m.show(); } catch(e) { el.classList.add('show'); el.style.display = 'block'; } }
         function switchModal(closeId, openId, callback = null) { let closeEl = document.getElementById(closeId); let mClose = bootstrap.Modal.getInstance(closeEl); if (mClose) mClose.hide(); else if (closeEl) { closeEl.classList.remove('show'); closeEl.style.display = 'none'; } setTimeout(() => { document.querySelectorAll('.modal-backdrop').forEach(el => el.remove()); document.body.classList.remove('modal-open'); document.body.style = ''; if (callback) callback(); if(openId !== '') { safeModalShow(openId); } }, 350); }
         function showPickupModal() { document.getElementById('pickupFrame').src = "index.php?page=pickup&embedded=1"; safeModalShow('pickupModal'); }
@@ -1421,7 +1524,7 @@ function getCategoryStyle($name) {
         function highlightTransferSelection(selectedLabel) { document.querySelectorAll('#transferTargetContainer .tab-radio-label').forEach(el => el.classList.remove('active')); selectedLabel.classList.add('active'); let radio = selectedLabel.querySelector('input[type="radio"]'); if (radio && radio.value === 'new') { document.getElementById('transferNewTabInput').style.display = 'block'; } else { document.getElementById('transferNewTabInput').style.display = 'none'; } }
         function toggleTransferSelectAll() { let checkboxes = document.querySelectorAll('.transfer-checkbox'); let allChecked = Array.from(checkboxes).every(c => c.checked); checkboxes.forEach(c => c.checked = !allChecked); }
         function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
-        function voidItem(itemId) { Swal.fire({ title: 'Void item', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Password">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a manager username and password.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { AppAlert.notify({ icon: 'success', title: 'Item voided', text: '', confirmText: 'OK' }).then(() => location.reload()); } else { AppAlert.notify({ icon: 'error', title: 'Unable to void', text: data.msg || 'The item could not be voided.' }); } }); } }); }
+        function voidItem(itemId) { Swal.fire({ title: 'Void item', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Approval code">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a username and approval code.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { AppAlert.notify({ icon: 'success', title: 'Item voided', text: '', confirmText: 'OK' }).then(() => location.reload()); } else { AppAlert.notify({ icon: 'error', title: 'Unable to void', text: data.msg || 'The item could not be voided.' }); } }); } }); }
 
         let baseTotal = 0; let currentTotal = 0; let tenderedTouched = false;
         

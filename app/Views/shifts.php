@@ -155,7 +155,7 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
 
                                 <div class="mb-4 mt-3 bg-dark p-3 rounded border border-secondary shadow-sm">
                                     <label class="form-label text-warning fw-bold small"><i class="bi bi-shield-lock-fill"></i> Manager Verification Required</label>
-                                    <input type="password" name="manager_password" class="form-control border-warning" placeholder="Enter Manager Password" required autocomplete="new-password">
+                                    <input type="password" name="manager_password" class="form-control border-warning" placeholder="Approval code" required autocomplete="new-password">
                                 </div>
 
                                 <button type="submit" class="btn btn-success w-100 btn-lg fw-bold shadow">Clock In</button>
@@ -213,7 +213,7 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
 
                                 <div class="mb-4 mt-3 bg-dark p-3 rounded border border-secondary shadow-sm">
                                     <label class="form-label text-danger fw-bold small"><i class="bi bi-shield-lock-fill"></i> Manager Verification Required</label>
-                                    <input type="password" name="manager_password" class="form-control border-danger" placeholder="Enter Manager Password" required autocomplete="new-password">
+                                    <input type="password" name="manager_password" class="form-control border-danger" placeholder="Approval code" required autocomplete="new-password">
                                 </div>
 
                                 <button type="submit" class="btn btn-danger w-100 btn-lg fw-bold shadow">Clock Out & Close Shift</button>
@@ -276,8 +276,8 @@ $tmplIsMoneyRole = in_array($tmplUserRole, ['cashier', 'manager', 'admin', 'dev'
                 <h5 class="modal-title fw-bold" id="reportTitle"><i class="bi bi-receipt text-info"></i> Shift X-Read</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0 bg-secondary" style="height: 65vh;">
-                <iframe id="reportFrame" src="" style="width:100%; height:100%; border:none; background: #525659;"></iframe>
+            <div class="modal-body p-0 bg-white" style="height: 65vh;">
+                <iframe id="reportFrame" src="" style="width:100%; height:100%; border:none; background:#fff;"></iframe>
             </div>
             <div class="modal-footer bg-light border-0">
                 <button type="button" class="btn btn-secondary fw-bold px-4" data-bs-dismiss="modal">Close</button>

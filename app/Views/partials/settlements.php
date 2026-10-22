@@ -14,9 +14,22 @@ $settlement = $settlement ?? [
 $money = static function (float $amount): string {
     return 'ZMW ' . number_format($amount, 2);
 };
+$subId = (string)($settlement['subaccount_id'] ?? '');
+$profile = is_array($settlement['profile'] ?? null) ? $settlement['profile'] : null;
+$subName = trim((string)($profile['name'] ?? ''));
 ?>
+<?php if ($subId === ''): ?>
+<div class="alert alert-warning">Add the Flutterwave subaccount ID under <a href="index.php?page=settings&amp;tab=payments">Settings → Payments</a>. This tab follows that subaccount, not the main Flutterwave wallet.</div>
+<?php endif; ?>
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
-    <p class="text-muted small mb-0">Confirmed Flutterwave charges for the whole business. A charge stays pending until Flutterwave reports a completed settlement batch that includes it.</p>
+    <p class="text-muted small mb-0">
+        <?php if ($subId !== ''): ?>
+            Subaccount <span class="font-monospace"><?= htmlspecialchars($subId) ?></span><?= $subName !== '' ? ' · ' . htmlspecialchars($subName) : '' ?><?= !empty($profile['split']) ? ' · ' . htmlspecialchars((string)$profile['split']) : '' ?>.
+            Flutterwave pays this subaccount’s bank. These figures are not the main wallet that owns the API keys.
+        <?php else: ?>
+            Settlements on this dashboard are for the client’s Flutterwave subaccount.
+        <?php endif; ?>
+    </p>
     <form method="POST" action="index.php?page=dashboard&amp;tab=settlements" class="flex-shrink-0">
         <input type="hidden" name="sync_settlements" value="1">
         <button type="submit" class="btn btn-primary fw-bold" <?= empty($settlement['enabled']) ? 'disabled title="Add the Flutterwave keys under Settings, Payments"' : '' ?>>
@@ -29,7 +42,7 @@ $money = static function (float $amount): string {
     <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
             <div class="card-body">
-                <div class="text-muted small text-uppercase fw-bold">Total Processed</div>
+                <div class="text-muted small text-uppercase fw-bold">Due to the subaccount</div>
                 <div class="h4 fw-bold text-primary mb-1"><?= $money((float)$settlement['processed']) ?></div>
                 <div class="small text-muted"><?= (int)$settlement['count'] ?> confirmed charge<?= (int)$settlement['count'] === 1 ? '' : 's' ?></div>
             </div>
@@ -38,27 +51,27 @@ $money = static function (float $amount): string {
     <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
             <div class="card-body">
-                <div class="text-muted small text-uppercase fw-bold">Service Fee Deducted</div>
+                <div class="text-muted small text-uppercase fw-bold">Fees on subaccount payouts</div>
                 <div class="h4 fw-bold text-danger mb-1"><?= $money((float)$settlement['fees']) ?></div>
-                <div class="small text-muted">Flutterwave fee on those charges</div>
+                <div class="small text-muted">From the subaccount’s settlement batches</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
             <div class="card-body">
-                <div class="text-muted small text-uppercase fw-bold">Pending Settlement to Bank</div>
+                <div class="text-muted small text-uppercase fw-bold">Waiting on Flutterwave</div>
                 <div class="h4 fw-bold text-warning mb-1"><?= $money((float)$settlement['pending']) ?></div>
-                <div class="small text-muted"><?= (int)$settlement['pending_count'] ?> not yet in a completed payout</div>
+                <div class="small text-muted"><?= (int)$settlement['pending_count'] ?> not yet paid to the subaccount</div>
             </div>
         </div>
     </div>
     <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
             <div class="card-body">
-                <div class="text-muted small text-uppercase fw-bold">Settled to Bank</div>
+                <div class="text-muted small text-uppercase fw-bold">Paid to the subaccount</div>
                 <div class="h4 fw-bold text-success mb-1"><?= $money((float)$settlement['settled']) ?></div>
-                <div class="small text-muted"><?= (int)$settlement['settled_count'] ?> matched to a completed batch</div>
+                <div class="small text-muted"><?= (int)$settlement['settled_count'] ?> matched to a completed subaccount payout</div>
             </div>
         </div>
     </div>
@@ -76,12 +89,64 @@ $payout = $payout ?? [
 ];
 $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
 ?>
+<?php if ($subId !== ''): ?>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+            <div>
+                <h5 class="fw-bold mb-1"><i class="bi bi-bank text-success"></i> Subaccount payout account</h5>
+                <p class="text-muted small mb-0">Flutterwave settles this subaccount to the bank saved on it. Update from Flutterwave loads that subaccount’s batches from the last 90 days.</p>
+            </div>
+            <div class="text-md-end">
+                <div class="fw-bold"><?= htmlspecialchars($subName !== '' ? $subName : $subId) ?></div>
+                <div class="small text-muted">
+                    <?= htmlspecialchars(trim((string)($profile['bank'] ?? '') . ' ' . (string)($profile['masked'] ?? ''))) ?: 'Bank details appear after Flutterwave returns the subaccount.' ?>
+                </div>
+            </div>
+        </div>
+        <?php if (!empty($settlement['batches'])): ?>
+        <div class="table-responsive mt-3">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="small text-muted text-uppercase">Batch</th>
+                        <th class="small text-muted text-uppercase">When</th>
+                        <th class="text-end small text-muted text-uppercase">Gross</th>
+                        <th class="text-end small text-muted text-uppercase d-none d-sm-table-cell">Fee</th>
+                        <th class="text-end small text-muted text-uppercase">Net</th>
+                        <th class="text-end small text-muted text-uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($settlement['batches'] as $batch):
+                    $state = strtolower((string)($batch['status'] ?? 'pending'));
+                    $badge = $state === 'completed' ? 'bg-success' : ($state === 'flagged' ? 'bg-danger' : 'bg-warning text-dark');
+                    $when = (string)($batch['processed_date'] ?: $batch['transaction_date'] ?: '');
+                ?>
+                    <tr>
+                        <td class="font-monospace small"><?= htmlspecialchars((string)$batch['settlement_id']) ?></td>
+                        <td class="small"><?= $when !== '' ? htmlspecialchars(date('d M Y', strtotime($when))) : '—' ?></td>
+                        <td class="text-end"><?= $money((float)$batch['gross_amount']) ?></td>
+                        <td class="text-end d-none d-sm-table-cell"><?= $money((float)$batch['app_fee']) ?></td>
+                        <td class="text-end fw-bold"><?= $money((float)$batch['net_amount']) ?></td>
+                        <td class="text-end"><span class="badge <?= $badge ?>"><?= htmlspecialchars(ucfirst($state)) ?></span></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (strtolower((string)($_SESSION['role'] ?? '')) === 'dev'): ?>
 <div class="card shadow-sm border-0 mb-4 border-start border-4 border-danger">
     <div class="card-body">
         <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
             <div>
-                <h5 class="fw-bold mb-1"><i class="bi bi-send text-danger"></i> Emergency transfer</h5>
-                <p class="text-muted small mb-2">Sends from the payout balance to the saved bank account or mobile-money number. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance. That release happens when Flutterwave settles, and only if the Flutterwave business preference is set to settle into the payout balance.</p>
+                <h5 class="fw-bold mb-1"><i class="bi bi-send text-danger"></i> Subaccount transfer</h5>
+                <p class="text-muted small mb-2">Sends from subaccount <span class="font-monospace"><?= htmlspecialchars($subId !== '' ? $subId : 'RS_…') ?></span> to the saved bank account or mobile-money number. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance.</p>
                 <?php if (!empty($payout['test_mode'])): ?><span class="badge bg-warning text-dark">Sandbox keys — this will not pay a real bank</span><?php endif; ?>
             </div>
             <div class="d-flex gap-4 text-md-end">
@@ -98,7 +163,9 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
             </div>
         </div>
         <?php if (!empty($payout['balance_error'])): ?><div class="small text-danger mt-2"><?= htmlspecialchars((string)$payout['balance_error']) ?></div><?php endif; ?>
-        <?php if (empty($dest['ready'])): ?>
+        <?php if (strtolower((string)($_SESSION['role'] ?? '')) !== 'dev'): ?>
+            <div class="alert alert-light border small mb-0 mt-3">A developer sends an emergency transfer and keeps the payout account.</div>
+        <?php elseif (empty($dest['ready'])): ?>
             <div class="alert alert-warning small mb-0 mt-3">Save a bank account or a mobile-money number under <a href="index.php?page=settings&amp;tab=payments">Settings → Payments</a> before an emergency transfer can be sent.</div>
         <?php else: ?>
             <div class="small mt-3 mb-3">Pays <strong><?= htmlspecialchars((string)($dest['name'] ?? '')) ?></strong>, <?= htmlspecialchars((string)(($dest['bank_name'] ?? '') !== '' ? $dest['bank_name'] : 'saved bank')) ?> <?= htmlspecialchars((string)($dest['masked'] ?? '')) ?>.</div>
@@ -113,7 +180,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                     <input type="text" name="narration" class="form-control" maxlength="100" placeholder="Emergency settlement to bank" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small fw-bold text-muted">MANAGER</label>
+                    <label class="form-label small fw-bold text-muted">DEVELOPER</label>
                     <input type="text" name="mgr_username" class="form-control" autocomplete="off" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-2">
@@ -163,6 +230,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
         <?php endif; ?>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-dark text-white fw-bold py-3">Recent confirmed charges</div>
@@ -175,7 +243,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                     <th class="small text-muted text-uppercase d-none d-md-table-cell">Method</th>
                     <th class="text-end small text-muted text-uppercase">Processed</th>
                     <th class="text-end small text-muted text-uppercase d-none d-sm-table-cell">Fee</th>
-                    <th class="text-end small text-muted text-uppercase">To bank</th>
+                    <th class="text-end small text-muted text-uppercase">To subaccount</th>
                     <th class="text-end pe-4 small text-muted text-uppercase">Settlement</th>
                 </tr>
             </thead>
@@ -184,7 +252,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                 <tr><td colspan="7" class="text-center text-muted py-4">No confirmed Flutterwave charges yet. Totals appear after a card or mobile-money payment is verified.</td></tr>
             <?php else: foreach ($settlement['rows'] as $row):
                 $processed = (float)($row['charged_amount'] ?? 0) > 0 ? (float)$row['charged_amount'] : (float)$row['amount'];
-                $net = $row['net_amount'] !== null && $row['net_amount'] !== '' ? (float)$row['net_amount'] : (float)$row['amount'];
+                $net = $row['subaccount_amount'] !== null && $row['subaccount_amount'] !== '' ? (float)$row['subaccount_amount'] : null;
                 $settled = ($row['settlement_status'] ?? '') === 'settled';
                 $method = trim((string)($row['network'] ?? ''));
                 if ($method === '') {
@@ -202,7 +270,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                     <td class="d-none d-md-table-cell small"><?= htmlspecialchars($method !== '' ? $method : 'Flutterwave') ?></td>
                     <td class="text-end"><?= $money($processed) ?></td>
                     <td class="text-end d-none d-sm-table-cell"><?= $row['app_fee'] === null || $row['app_fee'] === '' ? '—' : $money((float)$row['app_fee']) ?></td>
-                    <td class="text-end fw-bold"><?= $money($net) ?></td>
+                    <td class="text-end fw-bold"><?= $net === null ? '—' : $money($net) ?><?php if (!empty($row['share_estimated'])): ?><div class="small text-muted">From the split</div><?php endif; ?></td>
                     <td class="text-end pe-4">
                         <?php if ($settled): ?>
                             <span class="badge bg-success">Settled</span>
