@@ -426,9 +426,11 @@ Recent fiscal receipts show sale number, ZRA receipt number, SDC ID, total, a re
 
 Credit notes must point at the original fiscalized receipt. The QR on a fiscal receipt opens the ZRA portal page for that invoice.
 
-### 11.3 One device
+### 11.3 One device per branch (Online HQ + Offline Shop Edge)
 
 One serial is one keystore and one receipt sequence. Keep a single live till PC on that serial. A second machine restored from the same backup is the same device and will collide with the first on receipt numbers.
+
+When a client runs both an **Online HQ** server and one or more **Offline Shop Edge** PCs, register a separate ZRA branch ID (`000`, `001`, `002`…) and device serial for each machine. Each branch PC runs its own local `smarttrade-client-vsdc` container (`ZRA_VSDC_MODE=local`), so it signs receipts and prints the official ZRA Smart Invoice QR code immediately—even during multi-day internet outages. When the internet returns, the branch VSDC uploads its signed ledger to ZRA while **Edge Sync** sends the already-signed receipt details (`SDC ID`, `MRC`, receipt number, signature, and QR link) to Online HQ without re-fiscalizing them.
 
 ---
 
@@ -543,6 +545,15 @@ Any signed-in user can open Change Password. Enter the current password, the new
 **Email** — SMTP host, port, user, password, and sender address for system emails (like event invitations).
 
 **Guide** — The Gemini API key and model for the AI staff guide. To speed up answers and save tokens, tap **Sync Documentation** after saving the key to upload the manuals into Gemini's context cache. Sync again if the manuals change.
+
+**Edge Sync** — pairs a live **Online HQ (Master)** server with an **Offline Shop Edge** PC running the sealed OPcache container:
+
+- **This node role** — set to **Online HQ (Master Server & ZRA VSDC)** on the cloud server, or **Offline Shop Edge (Local Sealed POS)** on the shop PC.
+- **Primary store location** — the location this shop PC serves (or **All Locations** on HQ).
+- **Online HQ base URL** — the HTTPS address of the Online HQ server (for example `https://smartrade.odeliazm.com`).
+- **Shared Edge Sync token** — click **Generate New Token** on Online HQ, save, and paste that same 64-character token on the Offline Shop Edge PC.
+- **Sync with Online HQ Now** (shown on an Edge node) — immediately pushes any queued local shifts, sales, tips, expenses, and stock deductions to Online HQ, then pulls the latest products, categories, recipes, surcharges, tables, staff logins, settings, product photos, and paid web orders.
+- **Top-bar badge** — on an Offline Shop Edge PC, the POS and back-office navbar show **Synced** (green), **Syncing (N)** (blue), or **Offline · N queued** (amber) while the shop continues operating locally.
 
 **Developer** (the developer login only) — **Activity log** lists each staff sign-in (successful or failed), sign-out, workstation change, and sale or refund, with the location. Stock movements stay on stock history. **Clear sales and stock** removes transactions and quantities and leaves the products and UNSPSC classes. **Wipe products and UNSPSC** does that and then deletes the catalogue. Both ask you to type a confirmation. On **ZRA invoices**, the same login can set the TPIN, branch, device serial, the local VSDC address, whether the taxpayer is on turnover tax, and the receipt portal. Saving those does not initialize the device again.
 

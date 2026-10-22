@@ -458,6 +458,7 @@ final class Guide
             ['name' => 'Tables', 'href' => 'index.php?page=tables', 'blank' => false, 'keys' => ['tables', 'table settings']],
             ['name' => 'Events', 'href' => 'index.php?page=events', 'blank' => false, 'keys' => ['events']],
             ['name' => 'Settings', 'href' => 'index.php?page=settings', 'blank' => false, 'keys' => ['system settings', 'settings']],
+            ['name' => 'Edge Sync', 'href' => 'index.php?page=settings&tab=edge_sync', 'blank' => false, 'keys' => ['edge sync', 'offline sync', 'live sync']],
             ['name' => 'Kitchen', 'href' => 'index.php?page=kitchen', 'blank' => false, 'keys' => ['kitchen']],
             ['name' => 'Menu', 'href' => 'index.php?page=menu', 'blank' => false, 'keys' => ['menu builder']],
             ['name' => 'Members', 'href' => 'index.php?page=members', 'blank' => false, 'keys' => ['members']],
@@ -483,6 +484,7 @@ final class Guide
             $page === 'analysis' => 'Business analysis',
             $page === 'kds' => 'Kitchen display',
             $page === 'audit' => 'Stock history',
+            $page === 'settings' && $tab === 'edge_sync' => 'Edge Sync',
             default => ucfirst(str_replace('_', ' ', $page)),
         };
         $this->addNamedLink($links, $seen, $name);

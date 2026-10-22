@@ -164,7 +164,7 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 ---
 
-## 2. Cashier and bartender
+## 2. Cashier and bartende
 
 Sign in as `train_cashier` for this chapter. Use `train_mgr` on a second device (or the trainer types the manager credentials) for every authorization.
 
@@ -378,7 +378,7 @@ Situation: 17:00. Actual cash counted is ZMW 1,180; expected is ZMW 1,200.
 
 *Expected result:* the cashier is signed out (a manager is returned to the Dashboard). Signing in again shows the station blurred with **Start New Shift**. Shifts & X-Reads shows the shift as closed with the variance.
 
-### Assessment — cashier / bartender
+### Assessment — cashier / bartende
 
 | # | Checkpoint | Pass |
 |---|---|---|
@@ -398,7 +398,7 @@ Situation: 17:00. Actual cash counted is ZMW 1,180; expected is ZMW 1,200.
 
 ---
 
-## 3. Waiter
+## 3. Waite
 
 Sign in as `train_waiter`. Needs Pro or above; tables need Pro+.
 
@@ -463,7 +463,7 @@ Situation: one guest moves to Table 6.
 
 *Expected result:* its lines are in the cart; pay it with **Online**.
 
-### Assessment — waiter
+### Assessment — waite
 
 | # | Checkpoint | Pass |
 |---|---|---|
@@ -558,7 +558,7 @@ Sign in as `train_cook` on the kitchen screen.
 
 ---
 
-## 5. Manager
+## 5. Manage
 
 Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Managers do all approvals in chapters 2 and 3; make sure they have practised typing their credentials on another person's screen without leaving it.
 
@@ -655,7 +655,7 @@ Situation: month-end count at Main Bar. The system says 48 Mosi; you count 46.
 
 ### 5.3 Purchasing
 
-#### Scenario 5.3.1 — Vendor
+#### Scenario 5.3.1 — Vendo
 
 1. **Stock → Vendors → Add New Vendor**: name, contact, phone.
 2. Try to delete a vendor that has a GRV.
@@ -688,7 +688,7 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 
 *Expected result:* refused unless Main Bar is a **Goods receiver** location.
 
-#### Scenario 5.3.3 — Cancel an order
+#### Scenario 5.3.3 — Cancel an orde
 
 1. Create a second order and **Cancel** it.
 
@@ -849,7 +849,7 @@ Situation: closing the day.
 
 ### 5.7 Locations and tables
 
-#### Scenario 5.7.1 — Location edit queued for the developer
+#### Scenario 5.7.1 — Location edit queued for the develope
 
 1. **Office → Locations**. Edit Restaurant: tick **Goods receiver**. Save.
 
@@ -1111,7 +1111,7 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 
 *Expected result:* the bank Flutterwave pays for the subaccount, with only the last digits of the account. This is not the main collection or payout balance.
 
-### Assessment — manager
+### Assessment — manage
 
 | # | Checkpoint | Pass |
 |---|---|---|
@@ -1136,7 +1136,7 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 
 ---
 
-## 6. ZRA Smart Invoice (Enterprise) — administrator and manager
+## 6. ZRA Smart Invoice (Enterprise) — administrator and manage
 
 Train this on a **sandbox** device only. The live device must be initialized once, by the person doing go-live, following [ZRA_GO_LIVE.md](ZRA_GO_LIVE.md).
 
@@ -1221,7 +1221,7 @@ Explain to trainees why the button is disabled afterwards and why they must neve
 
 ---
 
-## 7. Developer
+## 7. Develope
 
 The developer account is the trainer's own. These scenarios are demonstrated, not practised by shop staff.
 
@@ -1262,6 +1262,16 @@ The developer account is the trainer's own. These scenarios are demonstrated, no
 2. In the quick converter type **100 USD → ZMW**.
 
 *Expected result:* the kwacha amount at the rate in use.
+
+### Scenario 7.1d — Live + Offline Edge Sync (administrator or developer)
+
+1. On the Online HQ server, open **Office → Settings → Edge Sync**. Keep **This Node Role** on **Online HQ (Master Server & ZRA VSDC)**. Click **Generate New Token**, copy the 64-character token, and click **Save Edge Sync**.
+
+*Expected result:* the token is saved and masked on reload.
+
+2. On the Offline Shop Edge PC (`http://localhost:8090`), open **Office → Settings → Edge Sync**. Set **This Node Role** to **Offline Shop Edge (Local Sealed POS)**, pick the branch's **Primary Store Location**, enter the **Online HQ Base URL**, paste the shared token, and click **Save Edge Sync**. Then click **Sync with Online HQ Now**.
+
+*Expected result:* "Synchronized with Online HQ." Last Pull and Last Push timestamps update, Pending Queue is `0 record(s)`, and the top navbar shows a green **Synced** badge. If the internet is disconnected, local sales still print full ZRA Smart Invoice QR codes from the branch's local VSDC container (`ZRA_VSDC_MODE=local`), the badge changes to **Offline · N queued**, and queued records push automatically once connectivity returns.
 
 ### Scenario 7.2 — Approve a location edit
 
@@ -1370,12 +1380,14 @@ Give the trainee the symptom only. They must find the cause and the right action
 | Subaccount totals stay at zero | Flutterwave has no completed batch for that subaccount yet, or the split is not saved on it | Update from Flutterwave. Check the split on the subaccount in the Flutterwave dashboard |
 | Update from Flutterwave says there are no settlement batches | No completed batch in the last 90 days | Charges stay pending until Flutterwave pays a batch |
 | The Guide says it is not set up | Gemini key is missing | Add it in System Settings → Guide |
+| Top bar says **Offline · N queued** on the shop PC | Internet or Online HQ is unreachable | Carry on selling locally; receipts still print ZRA QR codes from the branch VSDC and queued sales push automatically when internet returns |
+| Edge Sync says **Unauthorized Edge Sync token** | Token on the shop PC does not match Online HQ | Copy the token from Online HQ (Settings → Edge Sync) and save it on the shop PC |
 
 ---
 
 ## 10. Customer shop and events (Enterprise)
 
-### Scenario 10.1 — Place a web order
+### Scenario 10.1 — Place a web orde
 
 1. Without signing in, open `index.php?page=shop`.
 2. Browse a category and add an item to the basket.
@@ -1385,7 +1397,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 *Expected result:* The order shows in My Orders with a status of Received.
 
-### Scenario 10.2 — Fulfill the web order
+### Scenario 10.2 — Fulfill the web orde
 
 1. Sign in as `train_cashier` on the fulfilling POS.
 2. Notice the Web Orders badge has gone up. Click **Web Orders**.
