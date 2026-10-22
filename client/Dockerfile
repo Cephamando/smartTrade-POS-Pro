@@ -5,7 +5,7 @@
 # PHP source is compiled in the builder stage and is not copied into the
 # final image. The runtime receives zero-byte paths plus the OPcache file cache.
 
-ARG PHP_IMAGE=php:8.3-apache
+ARG PHP_IMAGE=php:8.3.36-apache
 
 FROM ${PHP_IMAGE} AS php-base
 
@@ -39,7 +39,7 @@ RUN a2enconf uploads-deny
 
 WORKDIR /var/www/html
 
-FROM php-base AS builder
+FROM php-base AS builde
 
 COPY app /var/www/html/app
 COPY config /var/www/html/config

@@ -1,5 +1,5 @@
-# Use 8.2 or 8.3 (8.5 is not yet standard in Docker Hub)
-FROM php:8.3-apache
+# Pinned to PHP 8.3.36+ (fixes CVE-2026-109618 & CVE-2026-109619)
+FROM php:8.3.36-apache
 
 # Prevent interactive prompts during build
 ARG DEBIAN_FRONTEND=noninteractive
@@ -30,16 +30,19 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.
 # 5. Security Configuration (Hide Server Info)
 RUN echo "ServerTokens Prod\nServerSignature Off" >> /etc/apache2/apache2.conf
 
-# 6. PHP Custom Config
+# 6. PHP Custom Config (hardened for CVE-2026-109618 / CVE-2026-109619)
 RUN echo "memory_limit = 512M\n\
-upload_max_filesize = 64M\n\
-post_max_size = 64M\n\
+upload_max_filesize = 16M\n\
+post_max_size = 32M\n\
+max_file_uploads = 12\n\
+max_input_vars = 2000\n\
+session.upload_progress.enabled = 0\n\
 max_execution_time = 300\n\
 display_errors = Off\n\
 log_errors = On" > /usr/local/etc/php/conf.d/app.ini
 
-# 7. Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# 7. Install Compose
+COPY --from=composer:latest /usr/bin/composer /usr/bin/compose
 
 # 8. Set Working Directory
 WORKDIR /var/www/html
