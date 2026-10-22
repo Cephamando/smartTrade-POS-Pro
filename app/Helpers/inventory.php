@@ -201,6 +201,15 @@ function fiscalizePaidSale(PDO $pdo, int $saleId, array $opts = []): string
         return ' Sample ZRA receipt ready.';
     }
     try {
+        $edge = new \App\Services\EdgeSync($pdo);
+        $vsdcMode = strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? ''))));
+        if ($edge->isEdge() && $vsdcMode !== 'local') {
+            $remote = $edge->pushAndFiscalizeSale($saleId, $opts);
+            if (!empty($remote['ok']) && !empty($remote['fiscalized'])) {
+                return ' Posted to ZRA.';
+            }
+            return ' Saved locally — ZRA & Online sync queued.';
+        }
         $client = new ZraVsdcClient($pdo);
         $res = $client->fiscalizeSale($saleId, $opts);
         if (($res['resultCd'] ?? '') === '000') {

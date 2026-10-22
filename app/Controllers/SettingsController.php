@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\SurchargeReason;
 use App\Services\CleanSlate;
 use App\Services\Currency;
+use App\Services\EdgeSync;
 use App\Services\Flutterwave;
 use App\Services\Guide;
 
@@ -58,6 +59,12 @@ final class SettingsController extends Controller
                     $this->saveGuide();
                 } elseif (isset($_POST['sync_guide'])) {
                     $this->syncGuide();
+                } elseif (isset($_POST['save_edge_sync'])) {
+                    $this->saveEdgeSync();
+                } elseif (isset($_POST['generate_edge_token'])) {
+                    $this->generateEdgeToken();
+                } elseif (isset($_POST['run_edge_sync_now'])) {
+                    $this->runEdgeSyncNow();
                 } elseif (isset($_POST['clean_slate'])) {
                     $this->cleanSlate();
                 } elseif (isset($_POST['bulk_action'])) {
@@ -120,32 +127,33 @@ final class SettingsController extends Controller
             'locations' => Location::all(),
             'menuPhotos' => (($_GET['tab'] ?? '') === 'branding') ? Product::menuForPhotos() : [],
             'libraryImages' => (($_GET['tab'] ?? '') === 'branding') ? Media::list() : [],
+            'edgeSyncStatus' => (new EdgeSync($this->pdo(), $settings))->statusSummary(),
         ]);
     }
 
     private function saveGeneral(): void
     {
-        $settingsToSave = [
-            'business_name' => $_POST['business_name'] ?? '',
-            'receipt_header' => $_POST['receipt_header'] ?? '',
-            'receipt_footer' => $_POST['receipt_footer'] ?? '',
-            'theme_color' => $_POST['theme_color'] ?? '#2c2c2c',
-            'theme_accent' => $_POST['theme_accent'] ?? '#ffc107',
-            'theme_cart' => $_POST['theme_cart'] ?? '#3e2723',
+            $settingsToSave = [
+                'business_name' => $_POST['business_name'] ?? '',
+                'receipt_header' => $_POST['receipt_header'] ?? '',
+                'receipt_footer' => $_POST['receipt_footer'] ?? '',
+                'theme_color' => $_POST['theme_color'] ?? '#2c2c2c',
+                'theme_accent' => $_POST['theme_accent'] ?? '#ffc107',
+                'theme_cart' => $_POST['theme_cart'] ?? '#3e2723',
             'vsias_enabled' => isset($_POST['vsias_enabled']) ? '1' : '0',
-        ];
-        if ($this->role() === 'dev') {
-            if (isset($_POST['license_tier'])) {
-                $tier = strtolower((string)$_POST['license_tier']);
-                if ($tier === 'hospitality') {
-                    $tier = 'pro+';
+            ];
+            if ($this->role() === 'dev') {
+                if (isset($_POST['license_tier'])) {
+                    $tier = strtolower((string)$_POST['license_tier']);
+                    if ($tier === 'hospitality') {
+                        $tier = 'pro+';
+                    }
+                    $settingsToSave['license_tier'] = $tier;
                 }
-                $settingsToSave['license_tier'] = $tier;
+                if (isset($_POST['lockout_date'])) {
+                    $settingsToSave['lockout_date'] = $_POST['lockout_date'];
+                }
             }
-            if (isset($_POST['lockout_date'])) {
-                $settingsToSave['lockout_date'] = $_POST['lockout_date'];
-            }
-        }
         Setting::save($settingsToSave);
         $this->flash('success', 'Settings saved.');
     }
@@ -682,5 +690,59 @@ final class SettingsController extends Controller
             return;
         }
         throw new \RuntimeException('That bulk action is not available.');
+    }
+
+    private function saveEdgeSync(): void
+    {
+        $this->requireRole(['admin', 'dev']);
+        $role = strtolower(trim((string)($_POST['sync_node_role'] ?? 'online')));
+        if (!in_array($role, ['online', 'edge'], true)) {
+            $role = 'online';
+        }
+        $onlineUrl = rtrim(trim((string)($_POST['sync_online_url'] ?? '')), '/');
+        if ($onlineUrl !== '' && !preg_match('#^https?://[^\s/]+#i', $onlineUrl)) {
+            throw new \InvalidArgumentException('Enter a valid http:// or https:// Online HQ URL.');
+        }
+        $token = trim((string)($_POST['sync_node_token'] ?? ''));
+        $locId = max(0, (int)($_POST['sync_location_id'] ?? 0));
+        $updates = [
+            'sync_node_role' => $role,
+            'sync_online_url' => $onlineUrl,
+            'sync_location_id' => (string)$locId,
+        ];
+        if ($token !== '') {
+            if (strlen($token) < 16) {
+                throw new \InvalidArgumentException('The Edge Sync token must be at least 16 characters.');
+            }
+            $updates['sync_node_token'] = $token;
+        }
+        Setting::save($updates);
+        $this->flash('success', 'Edge Sync settings saved.');
+    }
+
+    private function generateEdgeToken(): void
+    {
+        $this->requireRole(['admin', 'dev']);
+        $token = EdgeSync::generateToken();
+        Setting::save(['sync_node_token' => $token]);
+        if ($this->wantsAjax()) {
+            $this->jsonExit(['status' => 'success', 'token' => $token, 'msg' => 'New Edge Sync token generated.']);
+        }
+        $this->flash('success', 'New Edge Sync token generated. Copy it into the offline shop PC.');
+    }
+
+    private function runEdgeSyncNow(): void
+    {
+        $this->requireRole(['admin', 'manager', 'dev']);
+        $edge = new EdgeSync($this->pdo());
+        $res = $edge->syncNow(true);
+        if ($this->wantsAjax()) {
+            $this->jsonExit($res);
+        }
+        if (($res['status'] ?? '') === 'ok') {
+            $this->flash('success', $res['msg'] ?? 'Synchronized with Online HQ.');
+        } else {
+            $this->flash('error', $res['msg'] ?? 'Could not synchronize with Online HQ.');
+        }
     }
 }

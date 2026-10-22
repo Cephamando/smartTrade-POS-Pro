@@ -41,6 +41,11 @@ services:
       VSIAS_URL: ${VSIAS_URL:-http://localhost:8095}
       VSIAS_INTERNAL_URL: ${VSIAS_INTERNAL_URL:-http://host.docker.internal:8095}
       VSIAS_BRIDGE_TOKEN: ${VSIAS_BRIDGE_TOKEN:-change-me}
+      SYNC_NODE_ROLE: ${SYNC_NODE_ROLE:-edge}
+      SYNC_ONLINE_URL: ${SYNC_ONLINE_URL:-}
+      SYNC_NODE_TOKEN: ${SYNC_NODE_TOKEN:-}
+      SYNC_LOCATION_ID: ${SYNC_LOCATION_ID:-0}
+      ZRA_VSDC_MODE: ${ZRA_VSDC_MODE:-remote}
     volumes:
       - client_uploads:/var/www/html/public/uploads
       - ./client.env:/var/www/html/.env:ro

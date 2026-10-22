@@ -23,6 +23,27 @@
         });
     }
 
+    function paintEdgeSync(st) {
+        var badges = document.querySelectorAll('[data-edge-sync-badge]');
+        if (!badges.length) return;
+        if (!st || st.role !== 'edge') {
+            badges.forEach(function (el) { el.classList.add('d-none'); });
+            return;
+        }
+        var pending = Number(st.pending_count) || 0;
+        var offline = st.last_status === 'offline';
+        var cls = offline ? 'bg-warning text-dark' : (pending > 0 ? 'bg-info text-dark' : 'bg-success');
+        var label = offline
+            ? ('Offline · ' + pending + ' queued')
+            : (pending > 0 ? ('Syncing (' + pending + ')') : 'Synced');
+        var tip = st.last_error ? ('Offline — working locally: ' + st.last_error) : ('Last sync: ' + (st.last_pull_at || st.last_push_at || 'just now'));
+        badges.forEach(function (el) {
+            el.className = 'badge rounded-pill ' + cls;
+            el.textContent = label;
+            el.title = tip;
+        });
+    }
+
     function modalOpen(id) {
         var el = document.getElementById(id);
         return !!(el && el.classList.contains('show'));
@@ -302,6 +323,7 @@
                 paint('pickup', data.pickup || 0);
                 paint('tabs', data.tabs_unsettled || 0);
                 paint('approvals', data.approvals || 0);
+                paintEdgeSync(data.edge_sync || null);
                 lastReady = data.ready || [];
                 render(lastReady);
                 var next = (data.web_ids || '') + '|' + (data.tab_ids || '') + '|' + (data.pickup || 0);

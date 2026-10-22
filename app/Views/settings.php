@@ -1,6 +1,6 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$allowedTabs = ['general', 'surcharges', 'currency', 'shop', 'branding', 'email', 'guide'];
+$allowedTabs = ['general', 'surcharges', 'currency', 'shop', 'branding', 'email', 'guide', 'edge_sync'];
 if ($userRole === 'dev') {
     $allowedTabs[] = 'payments';
     $allowedTabs[] = 'developer';
@@ -20,6 +20,7 @@ $tabs += [
     'branding' => ['bi-image', 'Logo & banners'],
     'email' => ['bi-envelope', 'Email'],
     'guide' => ['bi-chat-left-text', 'Guide'],
+    'edge_sync' => ['bi-cloud-arrow-up', 'Edge Sync'],
 ];
 if ($userRole === 'dev') {
     $tabs['developer'] = ['bi-wrench', 'Developer'];
@@ -1640,6 +1641,136 @@ function pingShopFace() {
         </div>
     </div>
 </div>
+<?php elseif ($tab === 'edge_sync'):
+    $es = $edgeSyncStatus ?? [];
+    $esRole = (string)($es['role'] ?? ($settings['sync_node_role'] ?? 'online'));
+    $esOnlineUrl = (string)($es['online_url'] ?? ($settings['sync_online_url'] ?? ''));
+    $esLocId = (int)($es['location_id'] ?? ($settings['sync_location_id'] ?? 0));
+    $esToken = (string)($settings['sync_node_token'] ?? '');
+    $esTokenMasked = $esToken !== '' ? substr($esToken, 0, 8) . '••••••••••••••••' . substr($esToken, -6) : '';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $thisServerUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+?>
+<div class="row g-4">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm border-0 border-top border-4 border-info">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                    <div>
+                        <h5 class="fw-bold mb-1"><i class="bi bi-cloud-arrow-up text-info"></i> Live + Offline Edge Synchronization</h5>
+                        <p class="text-muted small mb-0">Pair a live Online HQ server with an offline sealed shop PC. The shop PC pulls products, prices, staff, and paid web orders from Online HQ, keeps working locally during internet outages, and pushes sales, shifts, tips, expenses, and stock deductions back once online.</p>
+                    </div>
+                    <span class="badge <?= $esRole === 'edge' ? 'bg-warning text-dark' : 'bg-primary' ?> px-3 py-2">
+                        <?= $esRole === 'edge' ? 'Offline Shop Edge' : 'Online HQ (Master)' ?>
+                    </span>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-4">
+                        <div class="p-3 rounded bg-light border h-100">
+                            <div class="text-muted small fw-bold">LAST PUSH</div>
+                            <div class="fw-bold mt-1"><?= !empty($es['last_push_at']) ? htmlspecialchars((string)$es['last_push_at']) : 'Never' ?></div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="p-3 rounded bg-light border h-100">
+                            <div class="text-muted small fw-bold">LAST PULL</div>
+                            <div class="fw-bold mt-1"><?= !empty($es['last_pull_at']) ? htmlspecialchars((string)$es['last_pull_at']) : 'Never' ?></div>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="p-3 rounded bg-light border h-100">
+                            <div class="text-muted small fw-bold">PENDING QUEUE</div>
+                            <div class="fw-bold mt-1 <?= ((int)($es['pending_count'] ?? 0) > 0) ? 'text-warning' : 'text-success' ?>">
+                                <?= (int)($es['pending_count'] ?? 0) ?> record(s)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if (!empty($es['last_error'])): ?>
+                <div class="alert alert-warning small">
+                    <strong>Last sync notice:</strong> <?= htmlspecialchars((string)$es['last_error']) ?>
+                </div>
+                <?php endif; ?>
+
+                <form method="POST" action="index.php?page=settings">
+                    <input type="hidden" name="tab" value="edge_sync">
+                    <input type="hidden" name="save_edge_sync" value="1">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">THIS NODE ROLE</label>
+                            <select name="sync_node_role" class="form-select fw-bold" id="syncNodeRoleSelect">
+                                <option value="online" <?= $esRole === 'online' ? 'selected' : '' ?>>Online HQ (Master Server & ZRA VSDC)</option>
+                                <option value="edge" <?= $esRole === 'edge' ? 'selected' : '' ?>>Offline Shop Edge (Local Sealed POS)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">PRIMARY STORE LOCATION</label>
+                            <select name="sync_location_id" class="form-select">
+                                <option value="0">All Locations</option>
+                                <?php foreach ($locations as $l): ?>
+                                <option value="<?= (int)$l['id'] ?>" <?= $esLocId === (int)$l['id'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars((string)$l['name']) ?> (<?= htmlspecialchars((string)($l['type'] ?? 'store')) ?>)
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted">ONLINE HQ BASE URL</label>
+                            <input type="url" name="sync_online_url" class="form-control" value="<?= htmlspecialchars($esOnlineUrl !== '' ? $esOnlineUrl : ($esRole === 'online' ? $thisServerUrl : '')) ?>" placeholder="https://smartrade.odeliazm.com">
+                            <div class="form-text">On the Offline Shop PC, enter the public HTTPS address of your Online HQ server.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted">SHARED EDGE SYNC TOKEN</label>
+                            <div class="input-group">
+                                <input type="text" name="sync_node_token" id="edgeSyncTokenInput" class="form-control font-monospace" value="" placeholder="<?= $esTokenMasked !== '' ? 'Saved (' . htmlspecialchars($esTokenMasked) . '). Leave blank to keep.' : 'Generate on Online HQ and paste on Offline Edge' ?>" autocomplete="off">
+                                <button type="button" class="btn btn-outline-secondary fw-bold" id="genEdgeTokenBtn">
+                                    <i class="bi bi-key"></i> Generate New Token
+                                </button>
+                            </div>
+                            <div class="form-text">Both the Online HQ and the Offline Shop PC must share this exact token.</div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                        <div>
+                            <?php if ($esRole === 'edge'): ?>
+                            <button type="submit" name="run_edge_sync_now" value="1" class="btn btn-outline-primary fw-bold">
+                                <i class="bi bi-arrow-repeat"></i> Sync with Online HQ Now
+                            </button>
+                            <?php endif; ?>
+                        </div>
+                        <button type="submit" class="btn btn-dark fw-bold px-5"><i class="bi bi-save"></i> Save Edge Sync</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var genBtn = document.getElementById('genEdgeTokenBtn');
+    var tokInput = document.getElementById('edgeSyncTokenInput');
+    if (genBtn && tokInput) {
+        genBtn.addEventListener('click', function () {
+            genBtn.disabled = true;
+            var body = new FormData();
+            body.set('ajax', '1');
+            body.set('tab', 'edge_sync');
+            body.set('generate_edge_token', '1');
+            fetch('index.php?page=settings', { method: 'POST', body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d && d.token) {
+                        tokInput.value = d.token;
+                        tokInput.select();
+                    }
+                })
+                .finally(function () { genBtn.disabled = false; });
+        });
+    }
+})();
+</script>
 <?php endif; ?>
 
 <?php if ($tab === 'developer' && $userRole === 'dev'): ?>

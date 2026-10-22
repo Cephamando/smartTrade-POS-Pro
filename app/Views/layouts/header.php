@@ -545,6 +545,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
         <?php endif; ?>
 
             <div class="d-flex align-items-center ms-auto gap-2 nav-toolbar">
+                <span class="badge rounded-pill bg-success d-none" data-edge-sync-badge title="Edge Sync Status"></span>
                 <?php if ($vsiasOn && $canSeeVsiasApprovals): ?>
                 <a href="#" class="nav-chip nav-icon-btn text-decoration-none" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals" title="Pending approvals">
                     <i class="bi bi-bell-fill text-warning"></i>

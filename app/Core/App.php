@@ -276,6 +276,19 @@ final class App
                 if (\App\Helpers\Vsias::enabled()) {
                     $out['approvals'] = \App\Helpers\Vsias::pendingApprovalCount();
                 }
+
+                $edgeSync = new \App\Services\EdgeSync($pdo, $this->settings);
+                if ($edgeSync->isEdge() && $edgeSync->configured()) {
+                    $st = $edgeSync->statusSummary();
+                    $lastAttempt = !empty($st['last_attempt_at']) ? strtotime((string)$st['last_attempt_at']) : 0;
+                    if ($lastAttempt === 0 || (time() - $lastAttempt) >= 20) {
+                        $edgeSync->syncNow(false);
+                        $st = $edgeSync->statusSummary();
+                    }
+                    $out['edge_sync'] = $st;
+                } else {
+                    $out['edge_sync'] = $edgeSync->statusSummary();
+                }
             } catch (\Throwable $e) {
                 $out['error'] = $e->getMessage();
             }

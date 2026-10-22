@@ -408,6 +408,8 @@ final class Checkout
         if (!empty($_SESSION['training_mode'])) {
             return;
         }
+        $edge = new EdgeSync($this->pdo);
+        $isRemoteEdge = $edge->isEdge() && strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? '')))) !== 'local';
         foreach ($origSaleIds as $saleId) {
             $sale = \App\Models\Sale::find($saleId);
             if (!$sale) {
@@ -417,7 +419,7 @@ final class Checkout
                 $zraMsg .= fiscalizePaidSale($this->pdo, $saleId);
                 $sale = \App\Models\Sale::find($saleId) ?: $sale;
             }
-            if (Movement::requiresZra() && empty($sale['zra_rcpt_sign'])) {
+            if (!$isRemoteEdge && Movement::requiresZra() && empty($sale['zra_rcpt_sign'])) {
                 throw new \Exception(
                     'Sale #' . $saleId . ' is not on ZRA yet. Fiscalize it from the ZRA page, then refund.'
                     . ($zraMsg !== '' ? ' ' . trim($zraMsg) : '')

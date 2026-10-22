@@ -300,6 +300,7 @@ function getCategoryStyle($name) {
             </div>
 
             <?php if ($activeShiftId): ?>
+                <span class="badge rounded-pill bg-success d-none" data-edge-sync-badge title="Edge Sync Status"></span>
                 <button type="button" class="btn btn-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#endShiftModal"><i class="bi bi-power"></i> End</button>
             <?php else: ?><span class="badge bg-secondary">LOCKED</span><?php endif; ?>
             

@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 15;
+    public const VERSION = 16;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -382,6 +382,38 @@ final class Schema
         self::addColumn($pdo, 'sales', 'cancel_source', 'VARCHAR(20) NULL');
         self::addColumn($pdo, 'sales', 'credit_note_id', 'INT NULL');
         self::allowSaleStatus($pdo, 'cancelled');
+
+        // --- Live + Offline Edge synchronization metadata
+        foreach (['sales', 'shifts', 'sale_tips', 'inventory_logs', 'expenses'] as $syncTable) {
+            self::addColumn($pdo, $syncTable, 'sync_uuid', 'VARCHAR(36) NULL');
+            self::addColumn($pdo, $syncTable, 'synced_at', 'DATETIME NULL');
+            self::addUniqueIndex($pdo, $syncTable, 'uq_' . $syncTable . '_sync_uuid', 'sync_uuid');
+        }
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS edge_sync_state (
+                id INT PRIMARY KEY,
+                last_pull_at DATETIME NULL,
+                last_push_at DATETIME NULL,
+                last_attempt_at DATETIME NULL,
+                last_status VARCHAR(20) NOT NULL DEFAULT 'idle',
+                last_error VARCHAR(500) NULL,
+                pending_count INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $pdo->exec("INSERT IGNORE INTO edge_sync_state (id, last_status, pending_count) VALUES (1, 'idle', 0)");
+    }
+
+    private static function addUniqueIndex(PDO $pdo, string $table, string $indexName, string $column): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?'
+        );
+        $stmt->execute([$table, $indexName]);
+        if ((int)$stmt->fetchColumn() === 0) {
+            $pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY `$indexName` (`$column`)");
+        }
     }
 
     private static function allowSaleStatus(PDO $pdo, string $value): void
