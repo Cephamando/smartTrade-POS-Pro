@@ -16,7 +16,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 echo "Building ${IMAGE}..."
-docker build --pull -f "$ROOT/client/Dockerfile" -t "$IMAGE" -t smarttradepos-pro-client:sealed "$ROOT"
+docker build -f "$ROOT/client/Dockerfile" -t "$IMAGE" -t smarttradepos-pro-client:sealed "$ROOT"
 
 echo "Pushing ${IMAGE}..."
 docker push "$IMAGE"

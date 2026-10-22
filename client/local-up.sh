@@ -21,7 +21,7 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 echo "Building smarttradepos-pro-client:sealed"
-docker build --pull -f "$ROOT/client/Dockerfile" -t smarttradepos-pro-client:sealed "$ROOT"
+docker build -f "$ROOT/client/Dockerfile" -t smarttradepos-pro-client:sealed "$ROOT"
 
 volume_for() {
     container=$1
