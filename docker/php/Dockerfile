@@ -41,8 +41,8 @@ max_execution_time = 300\n\
 display_errors = Off\n\
 log_errors = On" > /usr/local/etc/php/conf.d/app.ini
 
-# 7. Install Compose
-COPY --from=composer:latest /usr/bin/composer /usr/bin/compose
+# 7. Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # 8. Set Working Directory
 WORKDIR /var/www/html

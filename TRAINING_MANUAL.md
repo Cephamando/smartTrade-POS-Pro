@@ -164,7 +164,7 @@ At least one PC and one phone or tablet on the same network. Half of the scenari
 
 ---
 
-## 2. Cashier and bartende
+## 2. Cashier and bartender
 
 Sign in as `train_cashier` for this chapter. Use `train_mgr` on a second device (or the trainer types the manager credentials) for every authorization.
 
@@ -378,7 +378,7 @@ Situation: 17:00. Actual cash counted is ZMW 1,180; expected is ZMW 1,200.
 
 *Expected result:* the cashier is signed out (a manager is returned to the Dashboard). Signing in again shows the station blurred with **Start New Shift**. Shifts & X-Reads shows the shift as closed with the variance.
 
-### Assessment — cashier / bartende
+### Assessment — cashier / bartender
 
 | # | Checkpoint | Pass |
 |---|---|---|
@@ -398,7 +398,7 @@ Situation: 17:00. Actual cash counted is ZMW 1,180; expected is ZMW 1,200.
 
 ---
 
-## 3. Waite
+## 3. Waiter
 
 Sign in as `train_waiter`. Needs Pro or above; tables need Pro+.
 
@@ -463,7 +463,7 @@ Situation: one guest moves to Table 6.
 
 *Expected result:* its lines are in the cart; pay it with **Online**.
 
-### Assessment — waite
+### Assessment — waiter
 
 | # | Checkpoint | Pass |
 |---|---|---|
@@ -558,7 +558,7 @@ Sign in as `train_cook` on the kitchen screen.
 
 ---
 
-## 5. Manage
+## 5. Manager
 
 Sign in as `train_mgr`. Everything a cashier does, plus the chapters below. Managers do all approvals in chapters 2 and 3; make sure they have practised typing their credentials on another person's screen without leaving it.
 
@@ -655,7 +655,7 @@ Situation: month-end count at Main Bar. The system says 48 Mosi; you count 46.
 
 ### 5.3 Purchasing
 
-#### Scenario 5.3.1 — Vendo
+#### Scenario 5.3.1 — Vendor
 
 1. **Stock → Vendors → Add New Vendor**: name, contact, phone.
 2. Try to delete a vendor that has a GRV.
@@ -688,7 +688,7 @@ Situation: you need 10 cases of Mosi at the Warehouse.
 
 *Expected result:* refused unless Main Bar is a **Goods receiver** location.
 
-#### Scenario 5.3.3 — Cancel an orde
+#### Scenario 5.3.3 — Cancel an order
 
 1. Create a second order and **Cancel** it.
 
@@ -849,7 +849,7 @@ Situation: closing the day.
 
 ### 5.7 Locations and tables
 
-#### Scenario 5.7.1 — Location edit queued for the develope
+#### Scenario 5.7.1 — Location edit queued for the developer
 
 1. **Office → Locations**. Edit Restaurant: tick **Goods receiver**. Save.
 
@@ -1111,7 +1111,7 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 
 *Expected result:* the bank Flutterwave pays for the subaccount, with only the last digits of the account. This is not the main collection or payout balance.
 
-### Assessment — manage
+### Assessment — manager
 
 | # | Checkpoint | Pass |
 |---|---|---|
@@ -1136,7 +1136,7 @@ Sign in as `train_mgr` or `train_admin`. Flutterwave keys must already be saved 
 
 ---
 
-## 6. ZRA Smart Invoice (Enterprise) — administrator and manage
+## 6. ZRA Smart Invoice (Enterprise) — administrator and manager
 
 Train this on a **sandbox** device only. The live device must be initialized once, by the person doing go-live, following [ZRA_GO_LIVE.md](ZRA_GO_LIVE.md).
 
@@ -1221,7 +1221,7 @@ Explain to trainees why the button is disabled afterwards and why they must neve
 
 ---
 
-## 7. Develope
+## 7. Developer
 
 The developer account is the trainer's own. These scenarios are demonstrated, not practised by shop staff.
 
@@ -1387,7 +1387,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 ## 10. Customer shop and events (Enterprise)
 
-### Scenario 10.1 — Place a web orde
+### Scenario 10.1 — Place a web order
 
 1. Without signing in, open `index.php?page=shop`.
 2. Browse a category and add an item to the basket.
@@ -1397,7 +1397,7 @@ Give the trainee the symptom only. They must find the cause and the right action
 
 *Expected result:* The order shows in My Orders with a status of Received.
 
-### Scenario 10.2 — Fulfill the web orde
+### Scenario 10.2 — Fulfill the web order
 
 1. Sign in as `train_cashier` on the fulfilling POS.
 2. Notice the Web Orders badge has gone up. Click **Web Orders**.

@@ -39,7 +39,7 @@ RUN a2enconf uploads-deny
 
 WORKDIR /var/www/html
 
-FROM php-base AS builde
+FROM php-base AS builder
 
 COPY app /var/www/html/app
 COPY config /var/www/html/config
