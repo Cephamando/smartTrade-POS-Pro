@@ -1,25 +1,27 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Updating system CA certificates to fix PKIX validation..."
-apt-get update -qq
-apt-get install -y -qq ca-certificates ca-certificates-java curl
-update-ca-certificates -f
-
 # sandboxapi.zra.org.zm sends only the leaf (*.zra.org.zm).
 # Java 8 cannot build a path to Sectigo unless this intermediate is in cacerts.
 CACERTS="${JAVA_HOME:-/opt/java/openjdk}/lib/security/cacerts"
 if [ ! -f "$CACERTS" ]; then
-    echo "ERROR: Java cacerts not found at $CACERTS"
-    exit 1
-fi
-curl -fsSL -o /tmp/sectigo-r36.crt http://crt.sectigo.com/SectigoPublicServerAuthenticationCADVR36.crt
-if ! keytool -list -alias sectigo-dv-r36 -keystore "$CACERTS" -storepass changeit >/dev/null 2>&1; then
-    keytool -importcert -noprompt -trustcacerts -alias sectigo-dv-r36 \
-        -keystore "$CACERTS" -storepass changeit -file /tmp/sectigo-r36.crt
-    echo "Imported Sectigo DV R36 into the Java trust store"
-else
+    echo "WARNING: Java cacerts not found at $CACERTS"
+elif keytool -list -alias sectigo-dv-r36 -keystore "$CACERTS" -storepass changeit >/dev/null 2>&1; then
     echo "Sectigo DV R36 already in the Java trust store"
+else
+    echo "Updating system CA certificates to fix PKIX validation..."
+    apt-get update -qq || echo "Offline startup: apt-get update skipped"
+    apt-get install -y -qq ca-certificates ca-certificates-java curl || echo "Offline startup: apt-get install skipped"
+    update-ca-certificates -f || echo "Offline startup: update-ca-certificates skipped"
+
+    if command -v curl >/dev/null 2>&1 && curl -fsSL --connect-timeout 5 --max-time 15 -o /tmp/sectigo-r36.crt http://crt.sectigo.com/SectigoPublicServerAuthenticationCADVR36.crt; then
+        keytool -importcert -noprompt -trustcacerts -alias sectigo-dv-r36 \
+            -keystore "$CACERTS" -storepass changeit -file /tmp/sectigo-r36.crt \
+            && echo "Imported Sectigo DV R36 into the Java trust store" \
+            || echo "Offline startup: keytool import skipped"
+    else
+        echo "Offline startup: using cached trust store (could not download Sectigo DV R36)"
+    fi
 fi
 
 DEST_WAR="/usr/local/tomcat/webapps/sandboxvsdc.war"

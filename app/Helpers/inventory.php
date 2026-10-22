@@ -202,8 +202,8 @@ function fiscalizePaidSale(PDO $pdo, int $saleId, array $opts = []): string
     }
     try {
         $edge = new \App\Services\EdgeSync($pdo);
-        $vsdcMode = strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? ''))));
-        if ($edge->isEdge() && $vsdcMode !== 'local') {
+        $vsdcMode = strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? 'local')))) ?: 'local';
+        if ($edge->isEdge() && $vsdcMode === 'remote') {
             $remote = $edge->pushAndFiscalizeSale($saleId, $opts);
             if (!empty($remote['ok']) && !empty($remote['fiscalized'])) {
                 return ' Posted to ZRA.';

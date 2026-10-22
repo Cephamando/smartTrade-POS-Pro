@@ -409,7 +409,8 @@ final class Checkout
             return;
         }
         $edge = new EdgeSync($this->pdo);
-        $isRemoteEdge = $edge->isEdge() && strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? '')))) !== 'local';
+        $vsdcMode = strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? 'local')))) ?: 'local';
+        $isRemoteEdge = $edge->isEdge() && $vsdcMode === 'remote';
         foreach ($origSaleIds as $saleId) {
             $sale = \App\Models\Sale::find($saleId);
             if (!$sale) {

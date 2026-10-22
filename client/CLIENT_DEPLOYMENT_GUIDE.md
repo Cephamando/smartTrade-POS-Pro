@@ -1,8 +1,8 @@
 # Offline Sealed Edge Deployment & Live Synchronization Runbook
 
 This guide outlines the exact steps to set up two paired apps per client:
-1. **Online HQ (`SYNC_NODE_ROLE=online`)**: Runs on your live server, hosts customer web ordering, holds the master catalog, and runs the single active **ZRA VSDC**.
-2. **Offline Shop Edge (`SYNC_NODE_ROLE=edge`)**: Runs the sealed OPcache bytecode container (`smarttradepos-pro-client:sealed`) on the shop PC (`http://localhost:8090`). It works with zero internet dependency during outages, pulls products/staff/settings/web orders from Online HQ, and automatically pushes offline sales, shifts, tips, expenses, and stock deductions back to Online HQ (which fiscalizes them on the Master ZRA VSDC) as soon as connectivity returns.
+1. **Online HQ (`SYNC_NODE_ROLE=online`)**: Runs on your live server, hosts customer web ordering, holds the master catalog, and runs the HQ **ZRA VSDC**.
+2. **Offline Shop Edge (`SYNC_NODE_ROLE=edge`)**: Runs the sealed OPcache bytecode container (`smarttradepos-pro-client:sealed`) alongside its own branch **ZRA VSDC** container (`smarttrade-client-vsdc`) on the shop PC (`http://localhost:8090`). It works with zero internet dependency during outages—signing every receipt locally and printing official ZRA Smart Invoice QR codes offline—pulls products/staff/settings/web orders from Online HQ, and automatically pushes offline sales (with their branch ZRA signatures), shifts, tips, expenses, and stock deductions back to Online HQ as soon as connectivity returns.
 
 ---
 
@@ -97,10 +97,18 @@ SYNC_NODE_ROLE=edge
 SYNC_ONLINE_URL=https://smartrade.odeliazm.com
 SYNC_NODE_TOKEN=<64-char-token-from-online-hq-settings>
 SYNC_LOCATION_ID=1
-ZRA_VSDC_MODE=remote
+ZRA_VSDC_MODE=local
+
+# BRANCH ZRA VSDC PARAMETERS
+ZRA_TPIN=<10-digit-client-tpin>
+ZRA_BHF_ID=001
+ZRA_DVC_SRL_NO=<branch-device-serial-number>
+ZRA_VSDC_URL=http://vsdc:8080/sandboxvsdc
+ZRA_PORTAL_URL=https://www.zra.org.zm
+ZRA_NON_VAT=false
 ```
 
-> **How ZRA Fiscalization Works Across Both Apps:** With `ZRA_VSDC_MODE=remote`, the Offline Shop PC never conflicts with the Online HQ's ZRA VSDC device serial. When internet is up, checkout on the shop PC immediately fiscalizes the receipt through Online HQ's VSDC and prints the ZRA QR code. If internet is down, the sale completes locally in milliseconds (`ZRA: pending sync`), and once internet returns, `EdgeSync` pushes the sale to Online HQ, fiscalizes it on the master VSDC, and updates the receipt signature on both databases.
+> **How Offline ZRA QR Code Issuance Works:** With `ZRA_VSDC_MODE=local`, each branch runs its own local `smarttrade-client-vsdc` container initialized once with that branch's `ZRA_BHF_ID` (e.g., `001` or branch code) and `ZRA_DVC_SRL_NO`. During internet outages of any duration, the local VSDC signs every receipt in `<100ms` over the local Docker bridge (`http://vsdc:8080/sandboxvsdc`) and prints the official ZRA Smart Invoice QR code using the built-in offline QR generator (`qrcode.min.js`). When internet returns, the local VSDC automatically uploads its signed ledger to ZRA while `EdgeSync` pushes the already-signed receipts (`zra_rcpt_sign`, `zra_sdc_id`, `zra_rcpt_no`, `zra_qr_code_url`) to Online HQ without re-fiscalizing them. *(Note: `ZRA_VSDC_MODE=remote` remains available if running a lightweight sub-till without a local VSDC container.)*
 
 ---
 
@@ -122,7 +130,12 @@ ZRA_VSDC_MODE=remote
    sudo /opt/smarttrade-pos/client/edge-sync-cron.sh
    ```
 
-3. Open `http://localhost:8090` and verify the green **Synced** badge appears in the top bar.
+3. **One-Time Branch VSDC Initialization (while online during installation):**
+   - Open `http://localhost:8090` and sign in as an `admin` or `dev`.
+   - Navigate to **Office ➔ ZRA**, verify the branch's **TPIN**, **Branch ID (`ZRA_BHF_ID`)**, and **Device Serial (`ZRA_DVC_SRL_NO`)**, and click **Initialize Device** so `smarttrade-client-vsdc` downloads its cryptographic keys into the persistent `client_vsdc_webapps` volume.
+   - Next, click **Register Products** (under **Office ➔ ZRA**) to register the synced catalog items with the branch's local VSDC. Subsequent catalog additions from Online HQ are auto-registered on the branch VSDC during `EdgeSync` pulls.
+
+4. Verify the green **Synced** badge appears in the top bar and ring a test sale to confirm the receipt prints with the branch's `SDC ID` and ZRA QR code.
 
 ---
 

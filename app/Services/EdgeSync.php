@@ -32,6 +32,11 @@ final class EdgeSync
         return $this->role() === 'edge';
     }
 
+    public function usesLocalVsdc(): bool
+    {
+        return strtolower(trim((string)(getenv('ZRA_VSDC_MODE') ?: ($_ENV['ZRA_VSDC_MODE'] ?? 'local')))) !== 'remote';
+    }
+
     public function onlineUrl(): string
     {
         $envUrl = trim((string)(getenv('SYNC_ONLINE_URL') ?: ($_ENV['SYNC_ONLINE_URL'] ?? '')));
@@ -476,6 +481,7 @@ final class EdgeSync
                 $chk = $this->pdo->prepare('SELECT id, zra_rcpt_sign FROM sales WHERE sync_uuid = ? LIMIT 1');
                 $chk->execute([$uuid]);
                 $existing = $chk->fetch(PDO::FETCH_ASSOC);
+                $hasBranchZra = !empty($sale['zra_rcpt_sign']);
 
                 if ($existing) {
                     $onlineSaleId = (int)$existing['id'];
@@ -571,13 +577,54 @@ final class EdgeSync
                     }
                 }
 
-                if ((string)($sale['payment_status'] ?? '') === 'paid' && empty($existing['zra_rcpt_sign'])) {
+                if ($hasBranchZra) {
+                    $this->pdo->prepare(
+                        "UPDATE sales SET
+                            zra_rcpt_no = ?,
+                            zra_intrl_data = ?,
+                            zra_rcpt_sign = ?,
+                            zra_vsdc_rcpt_pbct_date = ?,
+                            zra_sdc_id = ?,
+                            zra_mrc_no = ?,
+                            zra_qr_code_url = ?,
+                            zra_cis_invc_no = ?,
+                            zra_status = 'synced',
+                            zra_last_error = NULL
+                         WHERE id = ?"
+                    )->execute([
+                        !empty($sale['zra_rcpt_no']) ? (int)$sale['zra_rcpt_no'] : null,
+                        $sale['zra_intrl_data'] ?? null,
+                        $sale['zra_rcpt_sign'] ?? null,
+                        $sale['zra_vsdc_rcpt_pbct_date'] ?? null,
+                        $sale['zra_sdc_id'] ?? null,
+                        $sale['zra_mrc_no'] ?? null,
+                        $sale['zra_qr_code_url'] ?? null,
+                        !empty($sale['zra_cis_invc_no']) ? (int)$sale['zra_cis_invc_no'] : null,
+                        $onlineSaleId,
+                    ]);
+                }
+
+                if ((string)($sale['payment_status'] ?? '') === 'paid' && !$hasBranchZra && empty($existing['zra_rcpt_sign'])) {
                     $toFiscalize[$uuid] = [
                         'id' => $onlineSaleId,
                         'rfdRsnCd' => (string)($sale['zra_rfd_rsn_cd'] ?? ''),
                     ];
                 }
                 $ackedSales[$uuid] = ['online_id' => $onlineSaleId];
+                if ($hasBranchZra) {
+                    $ackedSales[$uuid]['zra'] = [
+                        'zra_rcpt_no' => !empty($sale['zra_rcpt_no']) ? (int)$sale['zra_rcpt_no'] : null,
+                        'zra_intrl_data' => $sale['zra_intrl_data'] ?? null,
+                        'zra_rcpt_sign' => $sale['zra_rcpt_sign'] ?? null,
+                        'zra_vsdc_rcpt_pbct_date' => $sale['zra_vsdc_rcpt_pbct_date'] ?? null,
+                        'zra_sdc_id' => $sale['zra_sdc_id'] ?? null,
+                        'zra_mrc_no' => $sale['zra_mrc_no'] ?? null,
+                        'zra_qr_code_url' => $sale['zra_qr_code_url'] ?? null,
+                        'zra_cis_invc_no' => !empty($sale['zra_cis_invc_no']) ? (int)$sale['zra_cis_invc_no'] : null,
+                        'zra_status' => 'synced',
+                        'zra_last_error' => null,
+                    ];
+                }
             }
 
             // 3. Inventory Logs (apply net delta once per sync_uuid)
@@ -861,11 +908,16 @@ final class EdgeSync
                 ]);
             }
 
+            $localVsdc = $this->usesLocalVsdc();
             foreach ((array)($data['products'] ?? []) as $p) {
                 $this->pdo->prepare(
-                    'INSERT INTO products (id, name, sku, price, cost_price, unit, category_id, is_active, type, is_open_price, tax_class, unspsc_code, zra_synced, zra_item_cd, is_sellable, image_path)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     ON DUPLICATE KEY UPDATE name = VALUES(name), sku = VALUES(sku), price = VALUES(price), cost_price = VALUES(cost_price), unit = VALUES(unit), category_id = VALUES(category_id), is_active = VALUES(is_active), type = VALUES(type), is_open_price = VALUES(is_open_price), tax_class = VALUES(tax_class), unspsc_code = VALUES(unspsc_code), zra_synced = VALUES(zra_synced), zra_item_cd = VALUES(zra_item_cd), is_sellable = VALUES(is_sellable), image_path = COALESCE(VALUES(image_path), image_path)'
+                    $localVsdc
+                        ? "INSERT INTO products (id, name, sku, price, cost_price, unit, category_id, is_active, type, is_open_price, tax_class, unspsc_code, zra_synced, zra_item_cd, is_sellable, image_path)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE name = VALUES(name), sku = VALUES(sku), price = VALUES(price), cost_price = VALUES(cost_price), unit = VALUES(unit), category_id = VALUES(category_id), is_active = VALUES(is_active), type = VALUES(type), is_open_price = VALUES(is_open_price), tax_class = VALUES(tax_class), unspsc_code = VALUES(unspsc_code), zra_synced = IF(products.zra_synced = 1, 1, VALUES(zra_synced)), zra_item_cd = COALESCE(NULLIF(products.zra_item_cd, ''), VALUES(zra_item_cd)), is_sellable = VALUES(is_sellable), image_path = COALESCE(VALUES(image_path), image_path)"
+                        : 'INSERT INTO products (id, name, sku, price, cost_price, unit, category_id, is_active, type, is_open_price, tax_class, unspsc_code, zra_synced, zra_item_cd, is_sellable, image_path)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ON DUPLICATE KEY UPDATE name = VALUES(name), sku = VALUES(sku), price = VALUES(price), cost_price = VALUES(cost_price), unit = VALUES(unit), category_id = VALUES(category_id), is_active = VALUES(is_active), type = VALUES(type), is_open_price = VALUES(is_open_price), tax_class = VALUES(tax_class), unspsc_code = VALUES(unspsc_code), zra_synced = VALUES(zra_synced), zra_item_cd = VALUES(zra_item_cd), is_sellable = VALUES(is_sellable), image_path = COALESCE(VALUES(image_path), image_path)'
                 )->execute([
                     (int)$p['id'],
                     (string)$p['name'],
@@ -879,7 +931,7 @@ final class EdgeSync
                     (int)($p['is_open_price'] ?? 0),
                     (string)($p['tax_class'] ?? 'A'),
                     $p['unspsc_code'] ?? null,
-                    (int)($p['zra_synced'] ?? 0),
+                    $localVsdc ? 0 : (int)($p['zra_synced'] ?? 0),
                     $p['zra_item_cd'] ?? null,
                     (int)($p['is_sellable'] ?? 1),
                     $p['image_path'] ?? null,
@@ -951,8 +1003,22 @@ final class EdgeSync
             }
 
             if (!empty($data['settings']) && is_array($data['settings'])) {
+                $settingsToApply = $data['settings'];
+                if ($localVsdc) {
+                    foreach ([
+                        'vsdc_sdcId',
+                        'vsdc_mrcNo',
+                        'vsdc_bhfNm',
+                        'vsdc_device_installed',
+                        'vsdc_last_invc_no',
+                        'vsdc_last_sale_no',
+                        'vsdc_last_sar_no',
+                    ] as $protectedKey) {
+                        unset($settingsToApply[$protectedKey]);
+                    }
+                }
                 $sUpd = $this->pdo->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)');
-                foreach ($data['settings'] as $k => $v) {
+                foreach ($settingsToApply as $k => $v) {
                     $sUpd->execute([(string)$k, (string)$v]);
                 }
             }
@@ -1042,6 +1108,22 @@ final class EdgeSync
             } catch (\Throwable $ignored) {
             }
             throw $e;
+        }
+
+        // Auto-register any newly pulled HQ products with the branch's local VSDC
+        if ($this->usesLocalVsdc()) {
+            try {
+                $unsyncedCount = (int)$this->pdo->query(
+                    'SELECT COUNT(*) FROM products WHERE is_active = 1 AND COALESCE(is_sellable, 1) = 1 AND COALESCE(zra_synced, 0) = 0'
+                )->fetchColumn();
+                if ($unsyncedCount > 0) {
+                    $vsdc = new \ZraVsdcClient($this->pdo);
+                    if ($vsdc->isInitialized()) {
+                        $vsdc->syncUnsyncedProducts(25);
+                    }
+                }
+            } catch (\Throwable $ignored) {
+            }
         }
 
         // Download any missing product or branding media files outside the DB transaction
