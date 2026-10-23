@@ -81,6 +81,43 @@ final class DashboardController extends Controller
             $this->redirect('dashboard', ['tab' => 'settlements']);
         }
 
+        if ($tab === 'settlements' && (string)($_GET['live'] ?? '') === '1') {
+            $this->requireRole(['admin', 'manager', 'dev']);
+            $flw = new Flutterwave($this->pdo());
+            try {
+                $flw->syncSettlementsIfDue();
+            } catch (\Throwable $e) {
+            }
+            $board = $flw->settlementBoard();
+            $payload = [
+                'status' => 'ok',
+                'due' => $board['processed'],
+                'fees' => $board['fees'],
+                'waiting' => $board['pending'],
+                'paid' => $board['settled'],
+                'count' => $board['count'],
+                'waiting_count' => $board['pending_count'],
+                'paid_count' => $board['settled_count'],
+                'batches' => array_map(static function (array $batch): array {
+                    return [
+                        'id' => (string)($batch['settlement_id'] ?? ''),
+                        'when' => (string)($batch['processed_date'] ?: $batch['transaction_date'] ?: ''),
+                        'gross' => (float)($batch['gross_amount'] ?? 0),
+                        'fee' => (float)($batch['app_fee'] ?? 0),
+                        'net' => (float)($batch['net_amount'] ?? 0),
+                        'status' => (string)($batch['status'] ?? 'pending'),
+                    ];
+                }, $board['batches'] ?? []),
+            ];
+            if (strtolower((string)($_SESSION['role'] ?? '')) === 'dev') {
+                $payout = $flw->transferBoard();
+                $payload['collection'] = $payout['collection'];
+                $payload['payout'] = $payout['balance'];
+                $payload['balance_error'] = $payout['balance_error'];
+            }
+            $this->jsonExit($payload);
+        }
+
         $dashLocId = $this->locationId();
         $kpis = Sale::dashboardKpis($dashLocId);
         $dashLocName = 'All Locations';
@@ -88,6 +125,12 @@ final class DashboardController extends Controller
             $dashLocName = Location::nameById($dashLocId);
         }
         $flw = new Flutterwave($this->pdo());
+        if ($tab === 'settlements') {
+            try {
+                $flw->syncSettlementsIfDue();
+            } catch (\Throwable $e) {
+            }
+        }
         $settlement = $tab === 'settlements' ? $flw->settlementBoard() : null;
         $payout = ($tab === 'settlements' && strtolower((string)($_SESSION['role'] ?? '')) === 'dev') ? $flw->transferBoard() : null;
         $this->render(array_merge($kpis, [

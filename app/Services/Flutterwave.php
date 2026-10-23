@@ -696,41 +696,36 @@ final class Flutterwave
             }
         }
         unset($listed);
+        $fees = 0.0;
+        $batches = [];
         $due = 0.0;
         $pending = 0.0;
         $settled = 0.0;
         $pendingCount = 0;
         $settledCount = 0;
         $count = 0;
-        $all = $this->pdo->query(
-            "SELECT charged_amount, amount, app_fee, subaccount_amount, settlement_status
-             FROM payment_transactions
-             WHERE provider = 'flutterwave' AND status = 'successful'"
-        )->fetchAll();
-        foreach ($all as $row) {
-            $count++;
-            $charged = (float)($row['charged_amount'] ?? 0) > 0 ? (float)$row['charged_amount'] : (float)$row['amount'];
-            $stored = $row['subaccount_amount'] !== null && $row['subaccount_amount'] !== ''
-                ? (float)$row['subaccount_amount'] : null;
-            $share = $this->clientShare($stored, (float)$row['amount'], $charged, (float)($row['app_fee'] ?? 0), $profile);
-            if ($share === null) {
-                continue;
-            }
-            $due += $share;
-            if (($row['settlement_status'] ?? '') === 'settled') {
-                $settled += $share;
-                $settledCount++;
-            } else {
-                $pending += $share;
-                $pendingCount++;
-            }
-        }
-        $fees = 0.0;
-        $batches = [];
         if ($subId !== '') {
-            $feeRow = $this->pdo->prepare('SELECT COALESCE(SUM(app_fee), 0) FROM flutterwave_settlements WHERE subaccount_id = ?');
-            $feeRow->execute([$subId]);
-            $fees = (float)$feeRow->fetchColumn();
+            $sum = $this->pdo->prepare(
+                'SELECT
+                    COALESCE(SUM(net_amount), 0) AS due,
+                    COALESCE(SUM(app_fee), 0) AS fees,
+                    COALESCE(SUM(CASE WHEN status = "completed" THEN net_amount ELSE 0 END), 0) AS settled,
+                    COALESCE(SUM(CASE WHEN status = "completed" THEN 0 ELSE net_amount END), 0) AS pending,
+                    COALESCE(SUM(status = "completed"), 0) AS settled_count,
+                    COALESCE(SUM(status <> "completed"), 0) AS pending_count,
+                    COUNT(*) AS batches
+                 FROM flutterwave_settlements
+                 WHERE subaccount_id = ?'
+            );
+            $sum->execute([$subId]);
+            $totals = $sum->fetch() ?: [];
+            $due = (float)($totals['due'] ?? 0);
+            $fees = (float)($totals['fees'] ?? 0);
+            $pending = (float)($totals['pending'] ?? 0);
+            $settled = (float)($totals['settled'] ?? 0);
+            $pendingCount = (int)($totals['pending_count'] ?? 0);
+            $settledCount = (int)($totals['settled_count'] ?? 0);
+            $count = (int)($totals['batches'] ?? 0);
             $batchStmt = $this->pdo->prepare(
                 'SELECT settlement_id, status, gross_amount, app_fee, net_amount, transaction_count, transaction_date, processed_date, destination, settlement_account
                  FROM flutterwave_settlements
@@ -755,6 +750,25 @@ final class Flutterwave
             'subaccount_id' => $subId,
             'profile' => $profile,
         ];
+    }
+
+    /** Pull settlement batches at most once a minute while the page is open. */
+    public function syncSettlementsIfDue(int $seconds = 25): void
+    {
+        if (!$this->enabled() || $this->subaccountId() === '') {
+            return;
+        }
+        $last = strtotime((string)($this->settings['flw_settlement_sync_at'] ?? ''));
+        if ($last !== false && (time() - $last) < $seconds) {
+            return;
+        }
+        $result = $this->syncSettlements();
+        if (($result['status'] ?? '') !== 'ok') {
+            return;
+        }
+        $stamp = date('Y-m-d H:i:s');
+        \App\Models\Setting::save(['flw_settlement_sync_at' => $stamp]);
+        $this->settings['flw_settlement_sync_at'] = $stamp;
     }
 
     /**
@@ -1328,6 +1342,13 @@ final class Flutterwave
                 $balanceError = $e->getMessage();
             }
         }
+        $held = $this->unsettledBatchNet();
+        if (($collection === null || $collection <= 0) && $held > 0) {
+            $collection = $held;
+        }
+        if ($collection !== null && $balanceError !== null && $balance === null) {
+            $balanceError = null;
+        }
         try {
             if ($this->enabled()) {
                 $this->refreshPendingTransfers();
@@ -1618,7 +1639,10 @@ final class Flutterwave
         $currency = $this->currency();
         $paths = [
             '/payout-subaccounts/' . rawurlencode($subId) . '/balances?currency=' . rawurlencode($currency),
+            '/subaccounts/' . rawurlencode($subId) . '/balances?currency=' . rawurlencode($currency),
         ];
+        $payout = null;
+        $collection = null;
         $last = 'Flutterwave did not return a balance for subaccount ' . $subId . '.';
         foreach ($paths as $path) {
             try {
@@ -1635,37 +1659,95 @@ final class Flutterwave
                 continue;
             }
             $parsed = $this->balancePair($res['data'] ?? null, $currency);
-            if ($parsed !== null) {
-                return $parsed;
+            if ($parsed === null) {
+                continue;
+            }
+            if ($payout === null) {
+                $payout = $parsed['payout'];
+            }
+            if ($collection === null && $parsed['collection'] !== null) {
+                $collection = $parsed['collection'];
+            }
+            if ($payout !== null && $collection !== null) {
+                break;
             }
         }
-        throw new \RuntimeException($last);
+        if ($payout === null && $collection === null) {
+            throw new \RuntimeException($last);
+        }
+        return [
+            'payout' => $payout ?? 0.0,
+            'collection' => $collection,
+        ];
     }
 
-    /** @return array{payout: float, collection: float}|null */
+    /** Net still sitting in settlement batches that Flutterwave has not paid out. */
+    private function unsettledBatchNet(): float
+    {
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            return 0.0;
+        }
+        $stmt = $this->pdo->prepare(
+            'SELECT COALESCE(SUM(net_amount), 0) FROM flutterwave_settlements WHERE subaccount_id = ? AND status <> "completed"'
+        );
+        $stmt->execute([$subId]);
+        return round((float)$stmt->fetchColumn(), 2);
+    }
+
+    /** @return array{payout: float, collection: ?float}|null */
     private function balancePair(mixed $data, string $currency): ?array
     {
-        $items = [];
-        if (is_array($data) && (isset($data['available_balance']) || isset($data['ledger_balance']))) {
-            $items = [$data];
-        } elseif (is_array($data)) {
-            $items = $data;
+        $node = $this->findBalanceNode($data, $currency);
+        if ($node === null) {
+            return null;
         }
-        foreach ($items as $item) {
-            if (!is_array($item)) {
+        $payout = round((float)($node['available_balance'] ?? $node['available'] ?? 0), 2);
+        $collection = null;
+        foreach (['collection_balance', 'pending_balance', 'ledger_balance'] as $key) {
+            if (!isset($node[$key]) || $node[$key] === '' || $node[$key] === null) {
                 continue;
             }
-            if (!isset($item['available_balance']) && !isset($item['ledger_balance'])) {
+            $amount = round((float)$node[$key], 2);
+            if ($key === 'ledger_balance' && isset($node['available_balance'])) {
+                $available = round((float)$node['available_balance'], 2);
+                $collection = $amount > $available ? round($amount - $available, 2) : ($available <= 0 ? $amount : null);
+            } else {
+                $collection = $amount;
+            }
+            break;
+        }
+        return ['payout' => $payout, 'collection' => $collection];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function findBalanceNode(mixed $data, string $currency): ?array
+    {
+        if (!is_array($data)) {
+            return null;
+        }
+        $keys = ['available_balance', 'ledger_balance', 'collection_balance', 'pending_balance', 'available'];
+        $matched = false;
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $data)) {
+                $matched = true;
+                break;
+            }
+        }
+        if ($matched) {
+            $code = strtoupper(trim((string)($data['currency'] ?? $currency)));
+            if ($code === '' || $code === $currency) {
+                return $data;
+            }
+        }
+        foreach ($data as $value) {
+            if (!is_array($value)) {
                 continue;
             }
-            $code = strtoupper(trim((string)($item['currency'] ?? $currency)));
-            if ($code !== '' && $code !== $currency) {
-                continue;
+            $found = $this->findBalanceNode($value, $currency);
+            if ($found !== null) {
+                return $found;
             }
-            return [
-                'payout' => round((float)($item['available_balance'] ?? 0), 2),
-                'collection' => round((float)($item['ledger_balance'] ?? 0), 2),
-            ];
         }
         return null;
     }

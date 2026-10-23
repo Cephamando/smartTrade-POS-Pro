@@ -21,15 +21,7 @@ $subName = trim((string)($profile['name'] ?? ''));
 <?php if ($subId === ''): ?>
 <div class="alert alert-warning">Add the Flutterwave subaccount ID under <a href="index.php?page=settings&amp;tab=payments">Settings → Payments</a>. This tab follows that subaccount, not the main Flutterwave wallet.</div>
 <?php endif; ?>
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
-    <p class="text-muted small mb-0">
-        <?php if ($subId !== ''): ?>
-            Subaccount <span class="font-monospace"><?= htmlspecialchars($subId) ?></span><?= $subName !== '' ? ' · ' . htmlspecialchars($subName) : '' ?><?= !empty($profile['split']) ? ' · ' . htmlspecialchars((string)$profile['split']) : '' ?>.
-            Flutterwave pays this subaccount’s bank. These figures are not the main wallet that owns the API keys.
-        <?php else: ?>
-            Settlements on this dashboard are for the client’s Flutterwave subaccount.
-        <?php endif; ?>
-    </p>
+<div class="d-flex justify-content-end mb-3">
     <form method="POST" action="index.php?page=dashboard&amp;tab=settlements" class="flex-shrink-0">
         <input type="hidden" name="sync_settlements" value="1">
         <button type="submit" class="btn btn-primary fw-bold" <?= empty($settlement['enabled']) ? 'disabled title="Add the Flutterwave keys under Settings, Payments"' : '' ?>>
@@ -43,8 +35,7 @@ $subName = trim((string)($profile['name'] ?? ''));
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
             <div class="card-body">
                 <div class="text-muted small text-uppercase fw-bold">Due to the subaccount</div>
-                <div class="h4 fw-bold text-primary mb-1"><?= $money((float)$settlement['processed']) ?></div>
-                <div class="small text-muted"><?= (int)$settlement['count'] ?> confirmed charge<?= (int)$settlement['count'] === 1 ? '' : 's' ?></div>
+                <div class="h4 fw-bold text-primary mb-0" id="settleDue"><?= $money((float)$settlement['processed']) ?></div>
             </div>
         </div>
     </div>
@@ -52,8 +43,7 @@ $subName = trim((string)($profile['name'] ?? ''));
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
             <div class="card-body">
                 <div class="text-muted small text-uppercase fw-bold">Fees on subaccount payouts</div>
-                <div class="h4 fw-bold text-danger mb-1"><?= $money((float)$settlement['fees']) ?></div>
-                <div class="small text-muted">From the subaccount’s settlement batches</div>
+                <div class="h4 fw-bold text-danger mb-0" id="settleFees"><?= $money((float)$settlement['fees']) ?></div>
             </div>
         </div>
     </div>
@@ -61,8 +51,7 @@ $subName = trim((string)($profile['name'] ?? ''));
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
             <div class="card-body">
                 <div class="text-muted small text-uppercase fw-bold">Waiting on Flutterwave</div>
-                <div class="h4 fw-bold text-warning mb-1"><?= $money((float)$settlement['pending']) ?></div>
-                <div class="small text-muted"><?= (int)$settlement['pending_count'] ?> not yet paid to the subaccount</div>
+                <div class="h4 fw-bold text-warning mb-0" id="settleWaiting"><?= $money((float)$settlement['pending']) ?></div>
             </div>
         </div>
     </div>
@@ -70,8 +59,7 @@ $subName = trim((string)($profile['name'] ?? ''));
         <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
             <div class="card-body">
                 <div class="text-muted small text-uppercase fw-bold">Paid to the subaccount</div>
-                <div class="h4 fw-bold text-success mb-1"><?= $money((float)$settlement['settled']) ?></div>
-                <div class="small text-muted"><?= (int)$settlement['settled_count'] ?> matched to a completed subaccount payout</div>
+                <div class="h4 fw-bold text-success mb-0" id="settlePaid"><?= $money((float)$settlement['settled']) ?></div>
             </div>
         </div>
     </div>
@@ -94,8 +82,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
     <div class="card-body">
         <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
             <div>
-                <h5 class="fw-bold mb-1"><i class="bi bi-bank text-success"></i> Subaccount payout account</h5>
-                <p class="text-muted small mb-0">Flutterwave settles this subaccount to the bank saved on it. Update from Flutterwave loads that subaccount’s batches from the last 90 days.</p>
+                <h5 class="fw-bold mb-0"><i class="bi bi-bank text-success"></i> Subaccount payout account</h5>
             </div>
             <div class="text-md-end">
                 <div class="fw-bold"><?= htmlspecialchars($subName !== '' ? $subName : $subId) ?></div>
@@ -104,7 +91,6 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                 </div>
             </div>
         </div>
-        <?php if (!empty($settlement['batches'])): ?>
         <div class="table-responsive mt-3">
             <table class="table table-sm align-middle mb-0">
                 <thead class="table-light">
@@ -117,8 +103,8 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                         <th class="text-end small text-muted text-uppercase">Status</th>
                     </tr>
                 </thead>
-                <tbody>
-                <?php foreach ($settlement['batches'] as $batch):
+                <tbody id="settleBatches">
+                <?php foreach (($settlement['batches'] ?? []) as $batch):
                     $state = strtolower((string)($batch['status'] ?? 'pending'));
                     $badge = $state === 'completed' ? 'bg-success' : ($state === 'flagged' ? 'bg-danger' : 'bg-warning text-dark');
                     $when = (string)($batch['processed_date'] ?: $batch['transaction_date'] ?: '');
@@ -135,7 +121,6 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                 </tbody>
             </table>
         </div>
-        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
@@ -145,20 +130,17 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
     <div class="card-body">
         <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
             <div>
-                <h5 class="fw-bold mb-1"><i class="bi bi-send text-danger"></i> Subaccount transfer</h5>
-                <p class="text-muted small mb-2">Sends from subaccount <span class="font-monospace"><?= htmlspecialchars($subId !== '' ? $subId : 'RS_…') ?></span> to the saved bank account or mobile-money number. Flutterwave does not let this app move a chosen amount from the collection balance into the payout balance.</p>
-                <?php if (!empty($payout['test_mode'])): ?><span class="badge bg-warning text-dark">Sandbox keys — this will not pay a real bank</span><?php endif; ?>
+                <h5 class="fw-bold mb-0"><i class="bi bi-send text-danger"></i> Subaccount transfer</h5>
+                <?php if (!empty($payout['test_mode'])): ?><span class="badge bg-warning text-dark mt-2">Sandbox keys — this will not pay a real bank</span><?php endif; ?>
             </div>
             <div class="d-flex gap-4 text-md-end">
                 <div>
                     <div class="text-muted small text-uppercase fw-bold">Collection balance</div>
-                    <div class="h4 fw-bold mb-0"><?= $payout['collection'] === null ? '—' : $money((float)$payout['collection']) ?></div>
-                    <div class="small text-muted">Held until Flutterwave settles it</div>
+                    <div class="h4 fw-bold mb-0" id="settleCollection"><?= $payout['collection'] === null ? '—' : $money((float)$payout['collection']) ?></div>
                 </div>
                 <div>
                     <div class="text-muted small text-uppercase fw-bold">Payout balance</div>
-                    <div class="h4 fw-bold mb-0"><?= $payout['balance'] === null ? '—' : $money((float)$payout['balance']) ?></div>
-                    <div class="small text-muted">Available to transfer</div>
+                    <div class="h4 fw-bold mb-0" id="settlePayout"><?= $payout['balance'] === null ? '—' : $money((float)$payout['balance']) ?></div>
                 </div>
             </div>
         </div>
@@ -270,7 +252,7 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                     <td class="d-none d-md-table-cell small"><?= htmlspecialchars($method !== '' ? $method : 'Flutterwave') ?></td>
                     <td class="text-end"><?= $money($processed) ?></td>
                     <td class="text-end d-none d-sm-table-cell"><?= $row['app_fee'] === null || $row['app_fee'] === '' ? '—' : $money((float)$row['app_fee']) ?></td>
-                    <td class="text-end fw-bold"><?= $net === null ? '—' : $money($net) ?><?php if (!empty($row['share_estimated'])): ?><div class="small text-muted">From the split</div><?php endif; ?></td>
+                    <td class="text-end fw-bold"><?= $net === null ? '—' : $money($net) ?></td>
                     <td class="text-end pe-4">
                         <?php if ($settled): ?>
                             <span class="badge bg-success">Settled</span>
@@ -285,3 +267,73 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
         </table>
     </div>
 </div>
+<script>
+(function () {
+    var due = document.getElementById('settleDue');
+    if (!due) return;
+    function money(amount) {
+        var value = Number(amount);
+        if (!isFinite(value)) return '—';
+        return 'ZMW ' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function text(id, value) {
+        var node = document.getElementById(id);
+        if (node) node.textContent = value;
+    }
+    function badge(status) {
+        var state = String(status || 'pending').toLowerCase();
+        var cls = state === 'completed' ? 'bg-success' : (state === 'flagged' ? 'bg-danger' : 'bg-warning text-dark');
+        var label = state.replace(/-/g, ' ');
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        var span = document.createElement('span');
+        span.className = 'badge ' + cls;
+        span.textContent = label;
+        return span;
+    }
+    function cell(textValue, className) {
+        var td = document.createElement('td');
+        if (className) td.className = className;
+        td.textContent = textValue;
+        return td;
+    }
+    function paint(data) {
+        text('settleDue', money(data.due));
+        text('settleFees', money(data.fees));
+        text('settleWaiting', money(data.waiting));
+        text('settlePaid', money(data.paid));
+        if (Object.prototype.hasOwnProperty.call(data, 'collection')) {
+            text('settleCollection', data.collection === null || data.collection === '' ? '—' : money(data.collection));
+        }
+        if (Object.prototype.hasOwnProperty.call(data, 'payout')) {
+            text('settlePayout', data.payout === null || data.payout === '' ? '—' : money(data.payout));
+        }
+        var body = document.getElementById('settleBatches');
+        if (!body || !Array.isArray(data.batches)) return;
+        body.replaceChildren();
+        data.batches.forEach(function (batch) {
+            var tr = document.createElement('tr');
+            tr.appendChild(cell(batch.id || '', 'font-monospace small'));
+            var when = batch.when ? new Date(String(batch.when).replace(' ', 'T')) : null;
+            var whenText = when && !isNaN(when.getTime())
+                ? when.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                : '—';
+            tr.appendChild(cell(whenText, 'small'));
+            tr.appendChild(cell(money(batch.gross), 'text-end'));
+            tr.appendChild(cell(money(batch.fee), 'text-end d-none d-sm-table-cell'));
+            tr.appendChild(cell(money(batch.net), 'text-end fw-bold'));
+            var status = document.createElement('td');
+            status.className = 'text-end';
+            status.appendChild(badge(batch.status));
+            tr.appendChild(status);
+            body.appendChild(tr);
+        });
+    }
+    function refresh() {
+        fetch('index.php?page=dashboard&tab=settlements&live=1', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (data) { if (data && data.status === 'ok') paint(data); })
+            .catch(function () {});
+    }
+    setInterval(refresh, 30000);
+})();
+</script>

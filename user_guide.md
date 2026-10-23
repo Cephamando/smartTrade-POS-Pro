@@ -492,13 +492,11 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 **Dashboard → Settlements & Payouts.** These figures are for the Flutterwave subaccount saved under Settings → Payments, not the main wallet that owns the API keys. The workstation pin does not filter them. Paste the subaccount ID (`RS_…`) before the totals can be read.
 
-- **Due to the subaccount** is the client’s share of each confirmed charge. The percentage saved on the Flutterwave subaccount is the commission kept by the account that owns the keys. This screen shows the remainder and does not show that commission.
-- **Fees on subaccount payouts** come from the subaccount’s own settlement batches.
-- **Waiting on Flutterwave** is the share not yet in a completed payout to the subaccount.
-- **Paid to the subaccount** is the share Flutterwave has already matched to a completed subaccount batch.
-- **Subaccount payout account** names the bank Flutterwave pays for that subaccount, and lists its batches.
-- The charge table shows when, reference, receipt, method, what the customer paid, and the amount due to the subaccount. **Pending** or **Settled** means that subaccount payout.
-- **Update from Flutterwave** reads the subaccount’s settlement batches from the last 90 days and marks matching charges settled. A pending or flagged batch stays pending.
+- **Due to the subaccount**, **Fees on subaccount payouts**, **Waiting on Flutterwave**, and **Paid to the subaccount** are the same batches listed under **Subaccount payout account**. Waiting plus paid equals the amount due. Due plus fees equals the gross.
+- The page asks Flutterwave for those batches on its own, about every half minute. **Update from Flutterwave** does the same at once.
+- **Subaccount payout account** names the bank Flutterwave pays for that subaccount.
+- The charge table lists confirmed card and mobile-money payments. **Pending** or **Settled** is that payout.
+- On a developer account, **Collection balance** is the money still in batches Flutterwave has not paid out. **Payout balance** is what can be transferred.
 
 A developer can send an emergency transfer from that subaccount’s payout balance to the account saved under Settings → Payments. Only a developer sees it. Enter the amount (not more than the subaccount payout balance), a short reason, and the developer username and password. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
