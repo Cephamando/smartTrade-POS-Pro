@@ -64,6 +64,11 @@ final class PurchasingController extends Controller
                     );
                     $this->flash('success', 'Purchase inquiry #' . $id . ' saved.');
                 }
+                if (isset($_POST['accept_quote'])) {
+                    $orderId = Purchase::acceptQuotation((int)$_POST['inquiry_id'], $this->userId());
+                    $this->flash('success', 'Quotation accepted as purchase order #' . $orderId . '.');
+                    $this->redirect('purchasing', ['tab' => 'orders']);
+                }
                 if (isset($_POST['convert_inquiry'])) {
                     $orderId = Purchase::convertInquiry((int)$_POST['inquiry_id'], $this->userId());
                     $this->flash('success', 'Inquiry converted to purchase order #' . $orderId . '.');
@@ -169,6 +174,7 @@ final class PurchasingController extends Controller
             'orders' => Purchase::orders(),
             'openOrders' => Purchase::openOrders(),
             'editInquiry' => $editInquiry,
+            'inquiryQuote' => $editInquiry ? Purchase::quotationForInquiry((int)$editInquiry['id']) : null,
             'editOrder' => $editOrder,
             'receiveOrder' => $receiveOrder,
             'bayPrefill' => $bayPrefill,

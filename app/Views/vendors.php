@@ -22,6 +22,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                     <th>Vendor Name</th>
                     <th>Contact Person</th>
                     <th>Phone Number</th>
+                    <th>Portal</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
@@ -32,7 +33,20 @@ include __DIR__ . '/partials/bulk_bar.php';
                     <td class="fw-bold"><?= htmlspecialchars($v['name']) ?></td>
                     <td><?= htmlspecialchars($v['contact_person'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($v['phone'] ?? '-') ?></td>
+                    <td>
+                        <?php if (!empty($v['portal_active']) && !empty($v['portal_email'])): ?>
+                            <span class="badge bg-success">On</span>
+                            <div class="small text-muted"><?= htmlspecialchars((string)$v['portal_email']) ?></div>
+                        <?php else: ?>
+                            <span class="badge bg-secondary">Off</span>
+                        <?php endif; ?>
+                    </td>
                     <td class="text-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#portalModal"
+                            data-id="<?= (int)$v['id'] ?>"
+                            data-name="<?= htmlspecialchars((string)$v['name'], ENT_QUOTES) ?>"
+                            data-email="<?= htmlspecialchars((string)($v['portal_email'] ?? ''), ENT_QUOTES) ?>"
+                            data-active="<?= !empty($v['portal_active']) ? '1' : '0' ?>">Portal</button>
                         <form method="POST" action="index.php?page=vendors" class="d-inline js-confirm-form"
                             data-swal-title="Delete this vendor?"
                             data-swal-text="This cannot be undone."
@@ -47,7 +61,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                 </tr>
                 <?php endforeach; ?>
                 <?php if (empty($vendors)): ?>
-                    <tr><td colspan="5" class="text-center py-4 text-muted">No vendors found.</td></tr>
+                    <tr><td colspan="6" class="text-center py-4 text-muted">No vendors found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -88,3 +102,48 @@ include __DIR__ . '/partials/bulk_bar.php';
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="portalModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Vendor portal</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=vendors">
+                <div class="modal-body">
+                    <input type="hidden" name="save_portal" value="1">
+                    <input type="hidden" name="vendor_id" id="portalVendorId" value="">
+                    <p class="small text-muted mb-3" id="portalVendorName"></p>
+                    <p class="small">The supplier signs in at <a href="index.php?page=vendor" target="_blank">the vendor portal</a>. Leave the password blank to keep the current one. A new login with no password is given one, shown once.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="portal_email" id="portalEmail" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="text" name="portal_password" class="form-control" autocomplete="new-password" placeholder="At least 8 characters">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="portal_active" value="1" id="portalActive">
+                        <label class="form-check-label" for="portalActive">Portal login on</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+document.getElementById('portalModal')?.addEventListener('show.bs.modal', function (event) {
+    var btn = event.relatedTarget;
+    if (!btn) return;
+    document.getElementById('portalVendorId').value = btn.getAttribute('data-id') || '';
+    document.getElementById('portalVendorName').textContent = btn.getAttribute('data-name') || '';
+    document.getElementById('portalEmail').value = btn.getAttribute('data-email') || '';
+    document.getElementById('portalActive').checked = btn.getAttribute('data-active') === '1';
+});
+</script>

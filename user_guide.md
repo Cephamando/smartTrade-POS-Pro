@@ -324,6 +324,16 @@ V-SIAS inspections that are ready for the shop land here as docked consignments.
 - **Send to GRV** continues into Goods Received so stock is actually booked.
 - **Cancel dock** drops the consignment from the bay. Both actions ask you to confirm.
 
+### 8.5 Vendor portal
+
+**Stock → Vendors → Portal** turns on one login for that supplier: their email, a password of at least 8 characters, and **Portal login on**. Leave the password blank to keep the current one. A new login with no password is given one, and it is shown once. The supplier opens `index.php?page=vendor`. That sign-in is not a staff login and cannot open the till.
+
+Send an inquiry only after a vendor is chosen. **Send inquiry** is what puts it on their phone. Drafts stay in the office. The supplier prices each line, can mark a line they cannot supply, and sends a quotation with a delivery date and a valid-until date. Open that inquiry and press **Accept quote**. The purchase order uses those prices. Lines they cannot supply are left off the order.
+
+On the order they can confirm, decline, or mark it dispatched with their delivery reference. The order then shows that status. They can see what the shop has received. They cannot change stock.
+
+The portal can be installed: the page offers **Install**, or on iPhone use Share, then Add to Home Screen. Quotations and orders need a connection.
+
 ---
 
 ## 9. Transfers and V-SIAS
@@ -499,7 +509,7 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 - The charge table lists confirmed card and mobile-money payments. **Pending** or **Settled** is that payout.
 - On a developer account, **Collection balance** is the money still in batches Flutterwave has not paid out. **Payout balance** is what can be transferred.
 
-A developer can send an emergency transfer from that subaccount’s payout balance to the account saved under Settings → Payments. Only a developer sees it. Enter the amount (not more than the subaccount payout balance), a short reason, and the developer username and password. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
+A developer can send an emergency transfer from that subaccount’s payout balance to the account saved under Settings → Payments. Only a developer sees it. Money still marked on hold in the settlement batches is not a payout balance, and the transfer stays unavailable until Flutterwave releases one. Enter the amount (not more than the subaccount payout balance), a short reason, and the developer username and password. Sandbox keys do not pay a real bank. Flutterwave must whitelist this server’s IP before a live transfer is accepted.
 
 ---
 
@@ -586,7 +596,7 @@ How a slip is worked out: basic (pro-rated for days or hours when the pay type c
 
 ## 16. Customer ordering portal and events
 
-The storefront runs on `index.php?page=shop` and does not need a staff login.
+The storefront runs on `index.php?page=shop` and does not need a staff login. It can be installed on a phone: the page offers **Install**, or on iPhone use Share, then Add to Home Screen. The last menu that loaded can be opened without a connection. Checkout and payment still need one.
 
 - **Menu & Checkout:** Customers browse items by category, add them to a basket, and check out. They register with a name, Zambian mobile number (which becomes their PIN login), and PIN. Online orders are paid with Flutterwave only, by card or Zambia mobile money. The order reaches POS **Web Orders** and the kitchen only after that payment succeeds. Until then the order page says **Waiting for payment**. On the order page, **Cancel this order** stops it while it is still pending. If it was already paid, the store refunds that payment separately. **Reserve a table** on the shop home holds a free table for the fee saved under **Office → Tables**, with no food on the order. The hold starts when payment succeeds and lasts for the minutes saved there. The refundable percentage on that same screen is what the till should return if the hold is cancelled; **0** means the fee is non-refundable. The money is refunded in Flutterwave. A QR code from **Office → Tables** opens this menu. In the bag, the guest picks a store and then a free table from the dropdown. Choosing a table asks them to add the reservation surcharge. Accepting adds it to the bill and turns delivery off. They can remove the fee before paying, or clear the table if the order should be delivered.
 - **How was your visit:** The electronic menu and the bag both link to the same question. A finished, paid online order shows it once on the order page. **It was lovely** opens the Google review saved for that store on **Office → Locations**. If that store has no link, the page thanks them and stops. **Something was off** asks what happened, with an optional phone number, and saves a private note for **Office → Guest notes**. The Google link stays on that page as quiet text. Everyone is asked the same way, and nothing is offered in exchange for a review. A sale can be answered once. A table visit without an order can be answered once per browser. When email is already set up and the online customer has an email, handing over the paid web order sends one plain message with the same link. The POS shows a short line when this station’s store has an open unhappy note from the last day.
@@ -701,6 +711,7 @@ The Guide button on the back-office shared pages (Dashboard, Management, Setting
 | Dashboard | `index.php?page=dashboard` |
 | Point of sale | `index.php?page=pos` |
 | Customer shop | `index.php?page=shop` |
+| Vendor portal | `index.php?page=vendor` |
 | Products | `index.php?page=products` |
 | Categories | `index.php?page=categories` |
 | Stock levels | `index.php?page=inventory` |

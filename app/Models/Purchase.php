@@ -60,6 +60,46 @@ final class Purchase extends Model
                 KEY idx_poi_order (order_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS purchase_quotations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                inquiry_id INT NOT NULL,
+                vendor_id INT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'submitted',
+                delivery_date DATE DEFAULT NULL,
+                valid_until DATE DEFAULT NULL,
+                notes TEXT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_quote_inquiry (inquiry_id),
+                KEY idx_pq_vendor (vendor_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS purchase_quotation_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                quotation_id INT NOT NULL,
+                inquiry_item_id INT NOT NULL,
+                product_id INT NOT NULL,
+                quantity DECIMAL(12,4) NOT NULL DEFAULT 0,
+                unit_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+                can_supply TINYINT(1) NOT NULL DEFAULT 1,
+                notes VARCHAR(255) DEFAULT NULL,
+                KEY idx_pqi_quote (quotation_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        try {
+            $orderCols = array_column($pdo->query('SHOW COLUMNS FROM purchase_orders')->fetchAll() ?: [], 'Field');
+            if (!in_array('vendor_status', $orderCols, true)) {
+                $pdo->exec("ALTER TABLE purchase_orders ADD COLUMN vendor_status VARCHAR(20) NOT NULL DEFAULT 'awaiting' AFTER status");
+            }
+            if (!in_array('vendor_delivery_ref', $orderCols, true)) {
+                $pdo->exec('ALTER TABLE purchase_orders ADD COLUMN vendor_delivery_ref VARCHAR(80) DEFAULT NULL');
+            }
+            if (!in_array('vendor_status_at', $orderCols, true)) {
+                $pdo->exec('ALTER TABLE purchase_orders ADD COLUMN vendor_status_at TIMESTAMP NULL DEFAULT NULL');
+            }
+        } catch (\Throwable $e) {
+        }
         try {
             $cols = $pdo->query('SHOW COLUMNS FROM grvs')->fetchAll();
             $names = array_map(static fn($c) => $c['Field'] ?? '', $cols);
@@ -344,5 +384,294 @@ final class Purchase extends Model
         $open->execute([$orderId]);
         $status = ((int)$open->fetchColumn() > 0) ? 'partial' : 'received';
         $pdo->prepare('UPDATE purchase_orders SET status = ? WHERE id = ?')->execute([$status, $orderId]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function vendorInquiries(int $vendorId): array
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare(
+            "SELECT i.*, l.name AS location_name,
+                    (SELECT COUNT(*) FROM purchase_inquiry_items x WHERE x.inquiry_id = i.id) AS item_count,
+                    q.id AS quotation_id, q.status AS quote_status
+             FROM purchase_inquiries i
+             JOIN locations l ON l.id = i.location_id
+             LEFT JOIN purchase_quotations q ON q.inquiry_id = i.id
+             WHERE i.vendor_id = ? AND i.status IN ('sent', 'quoted', 'converted')
+             ORDER BY i.id DESC"
+        );
+        $stmt->execute([$vendorId]);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    public static function vendorInquiry(int $vendorId, int $inquiryId): ?array
+    {
+        $row = self::inquiry($inquiryId);
+        if (!$row || (int)($row['vendor_id'] ?? 0) !== $vendorId) {
+            return null;
+        }
+        if (!in_array((string)$row['status'], ['sent', 'quoted', 'converted'], true)) {
+            return null;
+        }
+        $row['quotation'] = self::quotationForInquiry($inquiryId);
+        return $row;
+    }
+
+    public static function quotationForInquiry(int $inquiryId): ?array
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare('SELECT * FROM purchase_quotations WHERE inquiry_id = ?');
+        $stmt->execute([$inquiryId]);
+        $quote = $stmt->fetch();
+        if (!$quote) {
+            return null;
+        }
+        $items = self::db()->prepare(
+            "SELECT x.*, p.name AS product_name, p.unit
+             FROM purchase_quotation_items x
+             JOIN products p ON p.id = x.product_id
+             WHERE x.quotation_id = ?
+             ORDER BY x.id"
+        );
+        $items->execute([(int)$quote['id']]);
+        $quote['items'] = $items->fetchAll() ?: [];
+        return $quote;
+    }
+
+    public static function submitQuotation(
+        int $vendorId,
+        int $inquiryId,
+        ?string $deliveryDate,
+        ?string $validUntil,
+        string $notes,
+        array $lines
+    ): int {
+        self::ensureSchema();
+        $inquiry = self::vendorInquiry($vendorId, $inquiryId);
+        if (!$inquiry || !in_array((string)$inquiry['status'], ['sent', 'quoted'], true)) {
+            throw new \Exception('This inquiry is not open for a quotation.');
+        }
+        $byItem = [];
+        foreach ($inquiry['items'] as $item) {
+            $byItem[(int)$item['id']] = $item;
+        }
+        $clean = [];
+        foreach ($lines as $line) {
+            $itemId = (int)($line['inquiry_item_id'] ?? 0);
+            if (!isset($byItem[$itemId])) {
+                continue;
+            }
+            $source = $byItem[$itemId];
+            $qty = (float)($line['quantity'] ?? $source['quantity']);
+            if ($qty < 0) {
+                $qty = 0;
+            }
+            $cost = round((float)($line['unit_cost'] ?? 0), 2);
+            if ($cost < 0) {
+                throw new \Exception('A price cannot be negative.');
+            }
+            $clean[] = [
+                'inquiry_item_id' => $itemId,
+                'product_id' => (int)$source['product_id'],
+                'quantity' => $qty,
+                'unit_cost' => $cost,
+                'can_supply' => empty($line['cannot_supply']) ? 1 : 0,
+            ];
+        }
+        if ($clean === []) {
+            throw new \Exception('Price the lines on this inquiry.');
+        }
+        $pdo = self::db();
+        $existing = self::quotationForInquiry($inquiryId);
+        if ($existing && (string)$existing['status'] === 'accepted') {
+            throw new \Exception('This quotation has already been accepted.');
+        }
+        if ($existing) {
+            $quoteId = (int)$existing['id'];
+            $pdo->prepare(
+                'UPDATE purchase_quotations SET delivery_date = ?, valid_until = ?, notes = ?, status = \'submitted\' WHERE id = ?'
+            )->execute([$deliveryDate ?: null, $validUntil ?: null, $notes, $quoteId]);
+            $pdo->prepare('DELETE FROM purchase_quotation_items WHERE quotation_id = ?')->execute([$quoteId]);
+        } else {
+            $pdo->prepare(
+                'INSERT INTO purchase_quotations (inquiry_id, vendor_id, status, delivery_date, valid_until, notes)
+                 VALUES (?, ?, \'submitted\', ?, ?, ?)'
+            )->execute([$inquiryId, $vendorId, $deliveryDate ?: null, $validUntil ?: null, $notes]);
+            $quoteId = (int)$pdo->lastInsertId();
+        }
+        $ins = $pdo->prepare(
+            'INSERT INTO purchase_quotation_items (quotation_id, inquiry_item_id, product_id, quantity, unit_cost, can_supply)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($clean as $line) {
+            $ins->execute([$quoteId, $line['inquiry_item_id'], $line['product_id'], $line['quantity'], $line['unit_cost'], $line['can_supply']]);
+        }
+        self::setInquiryStatus($inquiryId, 'quoted');
+        return $quoteId;
+    }
+
+    public static function acceptQuotation(int $inquiryId, int $userId): int
+    {
+        $inquiry = self::inquiry($inquiryId);
+        if (!$inquiry) {
+            throw new \Exception('Inquiry not found.');
+        }
+        $quote = self::quotationForInquiry($inquiryId);
+        if (!$quote || (string)$quote['status'] !== 'submitted') {
+            throw new \Exception('There is no quotation to accept.');
+        }
+        $items = [];
+        foreach ($quote['items'] as $line) {
+            if (empty($line['can_supply']) || (float)$line['quantity'] <= 0) {
+                continue;
+            }
+            $items[] = [
+                'product_id' => $line['product_id'],
+                'qty' => $line['quantity'],
+                'cost' => $line['unit_cost'],
+                'unit' => $line['unit'] ?? '',
+            ];
+        }
+        if ($items === []) {
+            throw new \Exception('The supplier cannot supply any of these lines.');
+        }
+        $notes = trim((string)($quote['notes'] ?? ''));
+        if ($notes === '') {
+            $notes = (string)($inquiry['notes'] ?? '');
+        }
+        $orderId = self::saveOrder(
+            null,
+            $inquiryId,
+            (int)$quote['vendor_id'],
+            (int)$inquiry['location_id'],
+            $userId,
+            'PO-' . date('Ymd') . '-' . $inquiryId,
+            $notes,
+            $items
+        );
+        self::db()->prepare("UPDATE purchase_quotations SET status = 'accepted' WHERE id = ?")->execute([(int)$quote['id']]);
+        return $orderId;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function vendorOrders(int $vendorId): array
+    {
+        self::ensureSchema();
+        $stmt = self::db()->prepare(
+            "SELECT o.*, l.name AS location_name
+             FROM purchase_orders o
+             JOIN locations l ON l.id = o.location_id
+             WHERE o.vendor_id = ?
+             ORDER BY o.id DESC"
+        );
+        $stmt->execute([$vendorId]);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    public static function vendorOrder(int $vendorId, int $orderId): ?array
+    {
+        $order = self::order($orderId);
+        if (!$order || (int)$order['vendor_id'] !== $vendorId) {
+            return null;
+        }
+        $order['receipts'] = self::receiptsForOrder($orderId);
+        return $order;
+    }
+
+    /** @return list<array<string, mixed>> */
+    public static function receiptsForOrder(int $orderId): array
+    {
+        self::ensureSchema();
+        try {
+            $stmt = self::db()->prepare(
+                'SELECT id, reference_no, notes, total_cost, created_at
+                 FROM grvs WHERE purchase_order_id = ? ORDER BY id DESC'
+            );
+            $stmt->execute([$orderId]);
+            return $stmt->fetchAll() ?: [];
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    public static function setVendorResponse(int $orderId, int $vendorId, string $action, string $deliveryRef = ''): void
+    {
+        self::ensureSchema();
+        $order = self::vendorOrder($vendorId, $orderId);
+        if (!$order) {
+            throw new \Exception('That order is not yours.');
+        }
+        if (in_array((string)$order['status'], ['cancelled', 'received', 'declined'], true)) {
+            throw new \Exception('This order is already closed.');
+        }
+        $pdo = self::db();
+        if ($action === 'confirm') {
+            $pdo->prepare(
+                "UPDATE purchase_orders SET vendor_status = 'confirmed', vendor_status_at = NOW() WHERE id = ? AND vendor_id = ?"
+            )->execute([$orderId, $vendorId]);
+            return;
+        }
+        if ($action === 'decline') {
+            if ((string)$order['status'] === 'partial') {
+                throw new \Exception('Part of this order is already received, so it cannot be declined.');
+            }
+            $pdo->prepare(
+                "UPDATE purchase_orders
+                 SET vendor_status = 'declined', status = 'declined', vendor_status_at = NOW()
+                 WHERE id = ? AND vendor_id = ? AND status = 'pending'"
+            )->execute([$orderId, $vendorId]);
+            return;
+        }
+        if ($action === 'dispatch') {
+            $deliveryRef = trim($deliveryRef);
+            if ($deliveryRef === '' || strlen($deliveryRef) > 80) {
+                throw new \Exception('Enter the delivery reference.');
+            }
+            if ((string)($order['vendor_status'] ?? '') === 'declined') {
+                throw new \Exception('This order was declined.');
+            }
+            $pdo->prepare(
+                "UPDATE purchase_orders
+                 SET vendor_status = 'dispatched', vendor_delivery_ref = ?, vendor_status_at = NOW()
+                 WHERE id = ? AND vendor_id = ?"
+            )->execute([$deliveryRef, $orderId, $vendorId]);
+            return;
+        }
+        throw new \Exception('That action is not available.');
+    }
+
+    /** @return array{inquiries: int, quotes: int, awaiting: int, to_dispatch: int} */
+    public static function vendorHome(int $vendorId): array
+    {
+        $inquiries = 0;
+        $quotes = 0;
+        $awaiting = 0;
+        $toDispatch = 0;
+        foreach (self::vendorInquiries($vendorId) as $row) {
+            if ((string)$row['status'] === 'sent' && empty($row['quotation_id'])) {
+                $inquiries++;
+            }
+            if ((string)($row['quote_status'] ?? '') === 'submitted') {
+                $quotes++;
+            }
+        }
+        foreach (self::vendorOrders($vendorId) as $row) {
+            $state = (string)($row['vendor_status'] ?? 'awaiting');
+            if (in_array((string)$row['status'], ['cancelled', 'declined', 'received'], true)) {
+                continue;
+            }
+            if ($state === 'awaiting') {
+                $awaiting++;
+            }
+            if (in_array($state, ['awaiting', 'confirmed'], true)) {
+                $toDispatch++;
+            }
+        }
+        return [
+            'inquiries' => $inquiries,
+            'quotes' => $quotes,
+            'awaiting' => $awaiting,
+            'to_dispatch' => $toDispatch,
+        ];
     }
 }

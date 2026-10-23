@@ -449,6 +449,7 @@ final class Guide
             ['name' => 'Products', 'href' => 'index.php?page=products', 'blank' => false, 'keys' => ['products']],
             ['name' => 'Categories', 'href' => 'index.php?page=categories', 'blank' => false, 'keys' => ['categories']],
             ['name' => 'Vendors', 'href' => 'index.php?page=vendors', 'blank' => false, 'keys' => ['vendor', 'vendors']],
+            ['name' => 'Vendor portal', 'href' => 'index.php?page=vendor', 'blank' => true, 'keys' => ['vendor portal', 'supplier portal', 'quotation']],
             ['name' => 'Reports', 'href' => 'index.php?page=reports', 'blank' => false, 'keys' => ['master reports', 'reports']],
             ['name' => 'Business analysis', 'href' => 'index.php?page=analysis', 'blank' => false, 'keys' => ['business analysis', 'forecast', 'projection']],
             ['name' => 'Shifts', 'href' => 'index.php?page=shifts', 'blank' => false, 'keys' => ['shifts']],

@@ -20,6 +20,7 @@ return [
     'users' => [],
     'members' => [],
     'vendors' => [],
+    'vendor' => ['auth' => false, 'standalone' => true],
     'settings' => [],
     'reports' => [],
     'analysis' => [],

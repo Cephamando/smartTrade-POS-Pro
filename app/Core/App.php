@@ -335,6 +335,10 @@ final class App
             return $page;
         }
 
+        if (!empty($_SESSION['vendor_portal_id']) && !isset($_SESSION['user_id'])) {
+            return 'vendor';
+        }
+
         if (isset($_SESSION['user_id'])) {
             if (in_array($userRole, ['admin', 'manager', 'dev'], true)) {
                 return 'dashboard';
@@ -355,6 +359,10 @@ final class App
         $needsAuth = ($routes[$page]['auth'] ?? true) !== false;
 
         if ($needsAuth && !isset($_SESSION['user_id'])) {
+            if (!empty($_SESSION['vendor_portal_id'])) {
+                header('Location: index.php?page=vendor');
+                exit;
+            }
             session_destroy();
             header('Location: index.php?page=login');
             exit;

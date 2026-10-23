@@ -136,6 +136,44 @@ foreach ($locations as $l) {
                 </form>
             </div>
         </div>
+        <?php if (!empty($inquiryQuote)): ?>
+        <div class="card shadow-sm border-0 mt-3">
+            <div class="card-body">
+                <h6 class="fw-bold">Quotation <?= htmlspecialchars((string)$inquiryQuote['status']) ?></h6>
+                <div class="small text-muted mb-2">
+                    <?php if (!empty($inquiryQuote['delivery_date'])): ?>Deliver <?= htmlspecialchars((string)$inquiryQuote['delivery_date']) ?>. <?php endif; ?>
+                    <?php if (!empty($inquiryQuote['valid_until'])): ?>Valid until <?= htmlspecialchars((string)$inquiryQuote['valid_until']) ?>.<?php endif; ?>
+                </div>
+                <?php if (!empty($inquiryQuote['notes'])): ?><p class="small mb-2"><?= htmlspecialchars((string)$inquiryQuote['notes']) ?></p><?php endif; ?>
+                <ul class="list-unstyled small mb-3">
+                    <?php foreach ($inquiryQuote['items'] as $line): ?>
+                        <li>
+                            <?= htmlspecialchars((string)$line['product_name']) ?>
+                            × <?= htmlspecialchars((string)$line['quantity']) ?>
+                            <?php if (empty($line['can_supply'])): ?>
+                                <span class="text-danger">Cannot supply</span>
+                            <?php else: ?>
+                                at ZMW <?= number_format((float)$line['unit_cost'], 2) ?>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php if ((string)$inquiryQuote['status'] === 'submitted'): ?>
+                <form method="POST" class="js-confirm-form"
+                    data-swal-title="Accept this quotation?"
+                    data-swal-text="A purchase order is created at the quoted prices."
+                    data-swal-confirm="Accept quote"
+                    data-swal-cancel="Cancel"
+                    data-swal-icon="question"
+                    data-swal-confirm-color="#198754">
+                    <input type="hidden" name="accept_quote" value="1">
+                    <input type="hidden" name="inquiry_id" value="<?= (int)$editInquiry['id'] ?>">
+                    <button class="btn btn-success fw-bold w-100">Accept quote</button>
+                </form>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     <div class="col-lg-7">
         <div class="card shadow-sm border-0">
@@ -251,7 +289,12 @@ foreach ($locations as $l) {
                             </td>
                             <td><?= htmlspecialchars($row['vendor_name']) ?></td>
                             <td>ZMW <?= number_format((float)$row['total_cost'], 2) ?></td>
-                            <td><span class="badge <?= $row['status'] === 'received' ? 'bg-success' : 'bg-warning text-dark' ?>"><?= htmlspecialchars($row['status']) ?></span></td>
+                            <td>
+                                <span class="badge <?= $row['status'] === 'received' ? 'bg-success' : ($row['status'] === 'declined' || $row['status'] === 'cancelled' ? 'bg-danger' : 'bg-warning text-dark') ?>"><?= htmlspecialchars($row['status']) ?></span>
+                                <?php if (!empty($row['vendor_status']) && $row['vendor_status'] !== 'awaiting'): ?>
+                                    <div class="small text-muted"><?= htmlspecialchars((string)$row['vendor_status']) ?><?= !empty($row['vendor_delivery_ref']) ? ' · ' . htmlspecialchars((string)$row['vendor_delivery_ref']) : '' ?></div>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-end">
                                 <?php if (in_array($row['status'], ['pending', 'partial'], true)): ?>
                                     <a class="btn btn-sm btn-primary" href="index.php?page=purchasing&tab=received&receive_order=<?= (int)$row['id'] ?>">Receive</a>

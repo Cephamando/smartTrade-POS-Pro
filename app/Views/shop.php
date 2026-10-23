@@ -72,6 +72,11 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111111">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Queen Bees">
+    <link rel="manifest" href="shop.webmanifest">
+    <link rel="apple-touch-icon" href="pwa/icon-192.png">
     <title><?= htmlspecialchars($storeName) ?></title>
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
@@ -416,6 +421,13 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
     </style>
 </head>
 <body class="<?= $view === 'home' ? 'is-home' : (in_array($view, ['menu', 'visit'], true) ? 'is-menu' : '') ?>">
+<div id="pwaInstall" data-dismiss="shop-pwa-dismiss" hidden style="background:#111;color:#fff;padding:10px 16px;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+    <span class="small">Add the menu to your home screen. On iPhone, use Share, then Add to Home Screen.</span>
+    <span>
+        <button type="button" class="btn btn-warning btn-sm fw-bold" data-install hidden>Install</button>
+        <button type="button" class="btn btn-outline-light btn-sm" data-dismiss-install>Not now</button>
+    </span>
+</div>
 <nav class="shop-nav py-2">
     <div class="container shop-wrap d-flex justify-content-between align-items-center gap-2">
         <a href="<?= $u('home') ?>" class="d-flex align-items-center gap-2 text-truncate">
@@ -2031,5 +2043,6 @@ window.setShopCurrency = function (code) {
     setShopCurrency(saved);
 })();
 </script>
+<script src="pwa/register.js"></script>
 </body>
 </html>

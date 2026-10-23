@@ -34,6 +34,23 @@ final class VendorsController extends Controller
                     Vendor::create($name, trim((string)$_POST['contact_person']), trim((string)$_POST['phone']));
                     $this->flash('success', "Vendor '$name' added.");
                 }
+            } elseif (isset($_POST['save_portal'])) {
+                try {
+                    $id = (int)($_POST['vendor_id'] ?? 0);
+                    $generated = Vendor::setPortal(
+                        $id,
+                        (string)($_POST['portal_email'] ?? ''),
+                        (string)($_POST['portal_password'] ?? ''),
+                        !empty($_POST['portal_active'])
+                    );
+                    $msg = 'Vendor portal login saved.';
+                    if ($generated !== null) {
+                        $msg .= ' Password, shown once: ' . $generated;
+                    }
+                    $this->flash('success', $msg);
+                } catch (\Throwable $e) {
+                    $this->flash('error', $e->getMessage());
+                }
             } elseif (isset($_POST['delete_vendor'])) {
                 if (!Vendor::delete((int)$_POST['vendor_id'])) {
                     $this->flash('error', 'This vendor has GRV records and cannot be deleted.');
