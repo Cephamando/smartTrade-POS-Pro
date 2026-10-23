@@ -155,22 +155,22 @@ $dest = is_array($payout['destination'] ?? null) ? $payout['destination'] : [];
                 <input type="hidden" name="emergency_transfer" value="1">
                 <div class="col-md-3">
                     <label class="form-label small fw-bold text-muted">AMOUNT (ZMW)</label>
-                    <input type="number" name="amount" class="form-control" min="1" step="0.01" <?= $payout['balance'] !== null ? 'max="' . htmlspecialchars((string)$payout['balance']) . '"' : '' ?> required <?= empty($payout['enabled']) || ($payout['balance'] !== null && (float)$payout['balance'] < 1) ? 'disabled' : '' ?>>
+                    <input type="number" name="amount" class="form-control" min="1" step="0.01" <?= $payout['balance'] !== null ? 'max="' . htmlspecialchars((string)$payout['balance']) . '"' : '' ?> required <?= empty($payout['enabled']) || $payout['balance'] === null || (float)$payout['balance'] < 1 ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-5">
                     <label class="form-label small fw-bold text-muted">REASON</label>
-                    <input type="text" name="narration" class="form-control" maxlength="100" placeholder="Emergency settlement to bank" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
+                    <input type="text" name="narration" class="form-control" maxlength="100" placeholder="Emergency settlement to bank" required <?= empty($payout['enabled']) || $payout['balance'] === null || (float)$payout['balance'] < 1 ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small fw-bold text-muted">DEVELOPER</label>
-                    <input type="text" name="mgr_username" class="form-control" autocomplete="off" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
+                    <input type="text" name="mgr_username" class="form-control" autocomplete="off" required <?= empty($payout['enabled']) || $payout['balance'] === null || (float)$payout['balance'] < 1 ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small fw-bold text-muted">PASSWORD</label>
-                    <input type="password" name="mgr_password" class="form-control" autocomplete="new-password" required <?= empty($payout['enabled']) ? 'disabled' : '' ?>>
+                    <input type="password" name="mgr_password" class="form-control" autocomplete="new-password" required <?= empty($payout['enabled']) || $payout['balance'] === null || (float)$payout['balance'] < 1 ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-12">
-                    <button type="submit" class="btn btn-danger fw-bold" <?= empty($payout['enabled']) || ($payout['balance'] !== null && (float)$payout['balance'] < 1) ? 'disabled' : '' ?>>
+                    <button type="submit" class="btn btn-danger fw-bold" <?= empty($payout['enabled']) || $payout['balance'] === null || (float)$payout['balance'] < 1 ? 'disabled' : '' ?>>
                         <i class="bi bi-send"></i> Send emergency transfer
                     </button>
                 </div>

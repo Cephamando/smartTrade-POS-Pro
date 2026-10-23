@@ -1452,6 +1452,10 @@ final class Flutterwave
         }
         $balance = $this->availableBalance();
         if ($amount - $balance > 0.001) {
+            $held = $this->unsettledBatchNet();
+            if ($balance <= 0 && $held > 0) {
+                throw new \RuntimeException('Flutterwave has not released a payout balance. ZMW ' . number_format($held, 2) . ' is still on hold in the settlement batches, so it cannot be transferred.');
+            }
             throw new \RuntimeException('The subaccount payout balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
         }
         $dupe = $this->pdo->prepare(
@@ -1637,6 +1641,12 @@ final class Flutterwave
             throw new \RuntimeException('Add the Flutterwave subaccount ID under Settings → Payments.');
         }
         $currency = $this->currency();
+        // RS_ is a split-collection subaccount. Flutterwave pays those batches to the
+        // bank on the subaccount. The payout-wallet balance URL is only for PSA wallets,
+        // and calling it with an RS_ id returns HTTP 404.
+        if (str_starts_with($subId, 'RS_')) {
+            return ['payout' => 0.0, 'collection' => null];
+        }
         $paths = [
             '/payout-subaccounts/' . rawurlencode($subId) . '/balances?currency=' . rawurlencode($currency),
             '/subaccounts/' . rawurlencode($subId) . '/balances?currency=' . rawurlencode($currency),
