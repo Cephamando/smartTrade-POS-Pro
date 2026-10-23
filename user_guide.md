@@ -492,7 +492,7 @@ On a phone the stat tiles scroll sideways and the buttons stretch to full width.
 
 **Dashboard → Settlements & Payouts.** These figures are for the Flutterwave subaccount saved under Settings → Payments, not the main wallet that owns the API keys. The workstation pin does not filter them. Paste the subaccount ID (`RS_…`) before the totals can be read.
 
-- **Due to the subaccount** is that subaccount’s share of confirmed charges, using the split saved on the subaccount.
+- **Due to the subaccount** is the client’s share of each confirmed charge. The percentage saved on the Flutterwave subaccount is the commission kept by the account that owns the keys. This screen shows the remainder and does not show that commission.
 - **Fees on subaccount payouts** come from the subaccount’s own settlement batches.
 - **Waiting on Flutterwave** is the share not yet in a completed payout to the subaccount.
 - **Paid to the subaccount** is the share Flutterwave has already matched to a completed subaccount batch.

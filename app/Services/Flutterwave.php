@@ -683,13 +683,15 @@ final class Flutterwave
              LIMIT 40"
         )->fetchAll();
         foreach ($rows as &$listed) {
-            if ($listed['subaccount_amount'] !== null && $listed['subaccount_amount'] !== '') {
+            $stored = ($listed['subaccount_amount'] !== null && $listed['subaccount_amount'] !== '')
+                ? (float)$listed['subaccount_amount'] : null;
+            $charged = (float)($listed['charged_amount'] ?? 0) > 0 ? (float)$listed['charged_amount'] : (float)$listed['amount'];
+            $share = $this->clientShare($stored, (float)$listed['amount'], $charged, (float)($listed['app_fee'] ?? 0), $profile);
+            if ($share === null) {
                 continue;
             }
-            $charged = (float)($listed['charged_amount'] ?? 0) > 0 ? (float)$listed['charged_amount'] : (float)$listed['amount'];
-            $est = $this->expectedShare($charged, $profile);
-            if ($est !== null) {
-                $listed['subaccount_amount'] = $est;
+            $listed['subaccount_amount'] = $share;
+            if ($stored === null || abs($stored - $share) >= 0.01) {
                 $listed['share_estimated'] = true;
             }
         }
@@ -701,16 +703,16 @@ final class Flutterwave
         $settledCount = 0;
         $count = 0;
         $all = $this->pdo->query(
-            "SELECT charged_amount, amount, subaccount_amount, settlement_status
+            "SELECT charged_amount, amount, app_fee, subaccount_amount, settlement_status
              FROM payment_transactions
              WHERE provider = 'flutterwave' AND status = 'successful'"
         )->fetchAll();
         foreach ($all as $row) {
             $count++;
             $charged = (float)($row['charged_amount'] ?? 0) > 0 ? (float)$row['charged_amount'] : (float)$row['amount'];
-            $share = $row['subaccount_amount'] !== null && $row['subaccount_amount'] !== ''
-                ? (float)$row['subaccount_amount']
-                : $this->expectedShare($charged, $profile);
+            $stored = $row['subaccount_amount'] !== null && $row['subaccount_amount'] !== ''
+                ? (float)$row['subaccount_amount'] : null;
+            $share = $this->clientShare($stored, (float)$row['amount'], $charged, (float)($row['app_fee'] ?? 0), $profile);
             if ($share === null) {
                 continue;
             }
@@ -971,10 +973,11 @@ final class Flutterwave
         $type = strtolower(trim((string)($row['split_type'] ?? '')));
         $value = (float)($row['split_value'] ?? 0);
         $split = '';
-        if ($type === 'percentage' && $value > 0) {
-            $split = rtrim(rtrim(number_format($value * 100, 2, '.', ''), '0'), '.') . '% of each payment';
+        if ($type === 'percentage' && $value > 0 && $value < 1) {
+            $clientPct = (1 - $value) * 100;
+            $split = rtrim(rtrim(number_format($clientPct, 2, '.', ''), '0'), '.') . '% of each payment';
         } elseif ($type === 'flat' && $value > 0) {
-            $split = 'ZMW ' . number_format($value, 2) . ' of each payment';
+            $split = 'Remainder of each payment';
         }
         return [
             'id' => strtoupper(trim((string)($row['subaccount_id'] ?? $id))),
@@ -988,21 +991,90 @@ final class Flutterwave
         ];
     }
 
-    /** @param array{split_type?: string, split_value?: float}|null $profile */
-    private function expectedShare(float $charged, ?array $profile): ?float
+    /**
+     * Flutterwave's split_value is the commission kept by the account that owns
+     * the API keys. The subaccount, which is the client, receives the rest.
+     * The commission itself is not returned for the client dashboard.
+     *
+     * @param array{split_type?: string, split_value?: float}|null $profile
+     */
+    private function expectedShare(float $base, ?array $profile): ?float
     {
-        if ($profile === null || $charged <= 0) {
+        if ($profile === null || $base <= 0) {
             return null;
         }
         $type = (string)($profile['split_type'] ?? '');
         $value = (float)($profile['split_value'] ?? 0);
-        if ($type === 'percentage' && $value > 0) {
-            return round($charged * $value, 2);
+        if ($type === 'percentage' && $value > 0 && $value < 1) {
+            return self::shareMoney($base * (1 - $value));
         }
-        if ($type === 'flat' && $value > 0) {
-            return round(min($value, $charged), 2);
+        if ($type === 'flat' && $value > 0 && $value < $base) {
+            return self::shareMoney($base - $value);
         }
         return null;
+    }
+
+    /** @param array{split_type?: string, split_value?: float}|null $profile */
+    private function mainCommission(float $base, ?array $profile): ?float
+    {
+        if ($profile === null || $base <= 0) {
+            return null;
+        }
+        $type = (string)($profile['split_type'] ?? '');
+        $value = (float)($profile['split_value'] ?? 0);
+        if ($type === 'percentage' && $value > 0 && $value < 1) {
+            return self::shareMoney($base * $value);
+        }
+        if ($type === 'flat' && $value > 0) {
+            return self::shareMoney(min($value, $base));
+        }
+        return null;
+    }
+
+    /**
+     * The amount Flutterwave splits. A fee added on top of the sale stays outside
+     * the split. A fee taken out of the charge is removed before the split.
+     */
+    private function splitBase(float $amount, float $charged, float $fee): float
+    {
+        $amount = round($amount, 2);
+        $charged = round($charged, 2);
+        $fee = round(max(0, $fee), 2);
+        if ($amount > 0 && $charged > $amount && $fee > 0 && abs(($amount + $fee) - $charged) <= 0.05) {
+            return $amount;
+        }
+        if ($fee > 0 && $charged > $fee) {
+            return round($charged - $fee, 2);
+        }
+        return $amount > 0 ? $amount : $charged;
+    }
+
+    /**
+     * Prefer a stored subaccount settlement. Replace it when it is only the
+     * main-account commission, which must not be shown on the client server.
+     *
+     * @param array{split_type?: string, split_value?: float}|null $profile
+     */
+    private function clientShare(?float $stored, float $amount, float $charged, float $fee, ?array $profile): ?float
+    {
+        $base = $this->splitBase($amount, $charged, $fee);
+        $due = $this->expectedShare($base, $profile);
+        if ($stored === null) {
+            return $due;
+        }
+        $gross = $charged > 0 ? $charged : $amount;
+        foreach ([$gross, $base] as $candidate) {
+            $cut = $this->mainCommission($candidate, $profile);
+            if ($due !== null && $cut !== null && abs($stored - $cut) < 0.02 && abs($stored - $due) >= 0.02) {
+                return $due;
+            }
+        }
+        return $stored;
+    }
+
+    private static function shareMoney(float $amount): float
+    {
+        return floor(($amount * 100) + 1.0e-6) / 100;
     }
 
     /** @param array<string, mixed> $data */
