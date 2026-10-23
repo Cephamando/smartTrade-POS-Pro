@@ -665,39 +665,59 @@ class ZraVsdcClient
                 $saleItems[$i]['zra_synced'] = 1;
             }
         }
-        $payload = $this->buildSalesPayload($saleData, $saleItems, $isRefund, $user, $opts);
-
-        $res = $this->post('trnsSales/saveSales', $payload);
-        $this->logSync('sale', $saleId, $res);
-
-        if (($res['resultCd'] ?? '') === '000') {
-            $data = $res['data'] ?? [];
-            $this->pdo->prepare(
-                "UPDATE sales SET
-                    zra_rcpt_no = ?, zra_intrl_data = ?, zra_rcpt_sign = ?,
-                    zra_sdc_id = ?, zra_mrc_no = ?, zra_vsdc_rcpt_pbct_date = ?,
-                    zra_qr_code_url = ?, zra_status = 'synced', zra_cis_invc_no = ?,
-                    zra_org_invc_no = ?, zra_last_error = NULL
-                 WHERE id = ?"
-            )->execute([
-                $data['rcptNo'] ?? null,
-                $data['intrlData'] ?? null,
-                $data['rcptSign'] ?? null,
-                $data['sdcId'] ?? ($this->getSettings()['vsdc_sdcId'] ?? null),
-                $data['mrcNo'] ?? ($this->getSettings()['vsdc_mrcNo'] ?? null),
-                $data['vsdcRcptPbctDate'] ?? null,
-                $this->receiptQrUrl($data['rcptSign'] ?? null, $data['qrCodeUrl'] ?? null),
-                $payload['cisInvcNo'],
-                $payload['orgInvcNo'] ?: null,
-                $saleId,
-            ]);
-
-            $this->putSettings(['vsdc_last_sale_no' => (string)((int)($this->getSettings()['vsdc_last_sale_no'] ?? 0) + 1)]);
-        } else {
-            $this->markSaleFailed($saleId, $res['resultMsg'] ?? 'VSDC rejected the sale');
+        $cisAtStart = trim((string)($saleData['zra_cis_invc_no'] ?? ''));
+        $legacy = $this->recoverLandedInvoice($saleId, $saleData, (int)($saleData['zra_org_invc_no'] ?? 0));
+        if ($legacy !== null) {
+            return $legacy;
         }
 
-        return $res;
+        $last = ['resultCd' => '901', 'resultMsg' => 'VSDC rejected the sale'];
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $saleData['zra_cis_invc_no'] = $this->reserveCisInvcNo($saleId);
+            $payload = $this->buildSalesPayload($saleData, $saleItems, $isRefund, $user, $opts);
+            $res = $this->post('trnsSales/saveSales', $payload);
+            $this->logSync('sale', $saleId, $res);
+            $last = $res;
+
+            if (($res['resultCd'] ?? '') === '000') {
+                $this->storeFiscalSuccess($saleId, $res['data'] ?? [], (string)$payload['cisInvcNo'], (int)($payload['orgInvcNo'] ?? 0));
+                return $res;
+            }
+            if (!$this->isDuplicateCis($res)) {
+                $this->markSaleFailed($saleId, $res['resultMsg'] ?? 'VSDC rejected the sale');
+                return $res;
+            }
+
+            $cis = (string)$payload['cisInvcNo'];
+            $replay = $cisAtStart !== '' && $cis === $cisAtStart;
+            $selected = $this->selectInvoice($cis);
+            if ($selected['status'] === 'found' && $replay && $this->priorAttemptMayHaveLanded($saleId)) {
+                $this->storeFiscalSuccess($saleId, $selected['data'], $cis, (int)($payload['orgInvcNo'] ?? 0));
+                return [
+                    'resultCd' => '000',
+                    'resultMsg' => 'Recovered the signature already on the tax device',
+                    'data' => $selected['data'],
+                ];
+            }
+            if ($selected['status'] === 'unavailable') {
+                $msg = 'This invoice number may already be on the tax device. The device could not be read, so the sale was not sent again.';
+                $this->markSaleFailed($saleId, $msg);
+                return ['resultCd' => '999', 'resultMsg' => $msg];
+            }
+            if ($selected['status'] !== 'found') {
+                $msg = 'ZRA already has invoice ' . $payload['cisInvcNo'] . ' but did not return its signature. It was not sent again.';
+                $this->markSaleFailed($saleId, $msg);
+                return ['resultCd' => (string)($res['resultCd'] ?? '924'), 'resultMsg' => $msg];
+            }
+
+            $this->clearCis($saleId, (string)$payload['cisInvcNo']);
+            $saleData['zra_cis_invc_no'] = '';
+        }
+
+        $msg = 'ZRA already has the invoice numbers tried for sale #' . $saleId . '. The sale was not sent again.';
+        $this->markSaleFailed($saleId, $msg);
+        $last['resultMsg'] = $msg;
+        return $last;
     }
 
     public function retryFailedSales(int $limit = 20): array
@@ -943,7 +963,7 @@ class ZraVsdcClient
             'tpin' => $this->tpin,
             'bhfId' => $this->bhfId,
             'orgInvcNo' => $orgInvcNo,
-            'cisInvcNo' => 'STP-' . str_pad((string)$sale['id'], 8, '0', STR_PAD_LEFT),
+            'cisInvcNo' => (string)$sale['zra_cis_invc_no'],
             'custNm' => mb_substr((string)($sale['customer_name'] ?: 'Walk-in Customer'), 0, 60),
             'salesTyCd' => 'N',
             'rcptTyCd' => $isRefund ? 'R' : 'S',
@@ -1577,6 +1597,209 @@ class ZraVsdcClient
                 // keep the skip even if the void flag cannot be written
             }
         }
+    }
+
+    /**
+     * A sale id is not an invoice number. The device keeps every CIS number it has
+     * ever accepted, including after a database restore or a second till on the same serial.
+     * Each database draws its own prefix so two tills cannot both emit STP-00000041.
+     */
+    private function reserveCisInvcNo(int $saleId): string
+    {
+        $stmt = $this->pdo->prepare("SELECT zra_cis_invc_no FROM sales WHERE id = ?");
+        $stmt->execute([$saleId]);
+        $existing = trim((string)$stmt->fetchColumn());
+        if ($existing !== '') {
+            return $existing;
+        }
+        return $this->allocateFreshCis($saleId);
+    }
+
+    private function allocateFreshCis(int $saleId): string
+    {
+        $own = !$this->pdo->inTransaction();
+        if ($own) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+            $this->pdo->prepare(
+                "INSERT INTO settings (setting_key, setting_value) VALUES ('vsdc_cis_seq', '0')
+                 ON DUPLICATE KEY UPDATE setting_value = setting_value"
+            )->execute();
+            $lock = $this->pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vsdc_cis_seq' FOR UPDATE");
+            $lock->execute();
+            $seq = (int)$lock->fetchColumn();
+            $prefix = $this->lockCisPrefix();
+            $used = (int)$this->pdo->query(
+                "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(zra_cis_invc_no, '-', -1) AS UNSIGNED)), 0) FROM sales"
+            )->fetchColumn();
+            $next = max($seq, $used) + 1;
+            $cis = 'STP-' . $prefix . '-' . str_pad((string)$next, 8, '0', STR_PAD_LEFT);
+            $this->pdo->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = 'vsdc_cis_seq'")
+                ->execute([(string)$next]);
+            $upd = $this->pdo->prepare(
+                "UPDATE sales SET zra_cis_invc_no = ? WHERE id = ? AND (zra_cis_invc_no IS NULL OR zra_cis_invc_no = '')"
+            );
+            $upd->execute([$cis, $saleId]);
+            if ($upd->rowCount() === 0) {
+                $again = $this->pdo->prepare("SELECT zra_cis_invc_no FROM sales WHERE id = ?");
+                $again->execute([$saleId]);
+                $have = trim((string)$again->fetchColumn());
+                if ($own) {
+                    $this->pdo->commit();
+                }
+                if ($have !== '') {
+                    return $have;
+                }
+                throw new RuntimeException('Could not reserve a ZRA invoice number for sale #' . $saleId);
+            }
+            if ($own) {
+                $this->pdo->commit();
+            }
+            return $cis;
+        } catch (Throwable $e) {
+            if ($own && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    private function lockCisPrefix(): string
+    {
+        $this->pdo->prepare(
+            "INSERT INTO settings (setting_key, setting_value) VALUES ('vsdc_cis_prefix', '')
+             ON DUPLICATE KEY UPDATE setting_value = setting_value"
+        )->execute();
+        $stmt = $this->pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'vsdc_cis_prefix' FOR UPDATE");
+        $stmt->execute();
+        $prefix = strtoupper(trim((string)$stmt->fetchColumn()));
+        if (preg_match('/^[0-9A-F]{4}$/', $prefix)) {
+            return $prefix;
+        }
+        $prefix = strtoupper(bin2hex(random_bytes(2)));
+        $this->pdo->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = 'vsdc_cis_prefix'")
+            ->execute([$prefix]);
+        return $prefix;
+    }
+
+    private function clearCis(int $saleId, string $cis): void
+    {
+        $this->pdo->prepare(
+            "UPDATE sales SET zra_cis_invc_no = NULL WHERE id = ? AND zra_cis_invc_no = ?"
+        )->execute([$saleId, $cis]);
+    }
+
+    private function recoverLandedInvoice(int $saleId, array $sale, int $orgInvcNo): ?array
+    {
+        if (!$this->priorAttemptMayHaveLanded($saleId)) {
+            return null;
+        }
+        $cis = trim((string)($sale['zra_cis_invc_no'] ?? ''));
+        if ($cis === '') {
+            $cis = 'STP-' . str_pad((string)$saleId, 8, '0', STR_PAD_LEFT);
+        }
+        $selected = $this->selectInvoice($cis);
+        if ($selected['status'] === 'found') {
+            $this->pdo->prepare(
+                "UPDATE sales SET zra_cis_invc_no = ? WHERE id = ? AND (zra_cis_invc_no IS NULL OR zra_cis_invc_no = '')"
+            )->execute([$cis, $saleId]);
+            $this->storeFiscalSuccess($saleId, $selected['data'], $cis, $orgInvcNo);
+            return [
+                'resultCd' => '000',
+                'resultMsg' => 'Recovered the signature already on the tax device',
+                'data' => $selected['data'],
+            ];
+        }
+        if ($selected['status'] === 'unavailable') {
+            $msg = 'This sale may already be on the tax device. The device could not be read, so it was not sent again.';
+            $this->markSaleFailed($saleId, $msg);
+            return ['resultCd' => '999', 'resultMsg' => $msg];
+        }
+        return null;
+    }
+
+    private function priorAttemptMayHaveLanded(int $saleId): bool
+    {
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT result_cd, result_msg FROM zra_sync_log
+                 WHERE entity_type = 'sale' AND entity_id = ?
+                 ORDER BY id ASC"
+            );
+            $stmt->execute([$saleId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            return false;
+        }
+        foreach ($rows as $row) {
+            $cd = (string)($row['result_cd'] ?? '');
+            $msg = strtolower((string)($row['result_msg'] ?? ''));
+            if ($cd === '000') {
+                return true;
+            }
+            if ($cd === '999' || str_contains($msg, 'curl') || str_contains($msg, 'timed out') || str_contains($msg, 'timeout')) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function isDuplicateCis(array $res): bool
+    {
+        $msg = strtolower((string)($res['resultMsg'] ?? ''));
+        return str_contains($msg, 'already exists') && str_contains($msg, 'invoice');
+    }
+
+    /**
+     * @return array{status: string, data: array}
+     */
+    private function selectInvoice(string $cis): array
+    {
+        $res = $this->post('trnsSales/selectInvoice', [
+            'tpin' => $this->tpin,
+            'bhfId' => $this->bhfId,
+            'cisInvcNo' => $cis,
+        ]);
+        $cd = (string)($res['resultCd'] ?? '');
+        $msg = strtolower((string)($res['resultMsg'] ?? ''));
+        if ($cd === '999' || str_contains($msg, 'curl') || str_contains($msg, 'no handler') || str_contains($msg, 'timed out')) {
+            return ['status' => 'unavailable', 'data' => []];
+        }
+        $data = $res['data'] ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+        $sign = trim((string)($data['rcptSign'] ?? ''));
+        $foundCis = trim((string)($data['cisInvcNo'] ?? ''));
+        if ($cd === '000' && $sign !== '' && ($foundCis === '' || $foundCis === $cis)) {
+            return ['status' => 'found', 'data' => $data];
+        }
+        return ['status' => 'missing', 'data' => []];
+    }
+
+    private function storeFiscalSuccess(int $saleId, array $data, string $cis, int $orgInvcNo): void
+    {
+        $this->pdo->prepare(
+            "UPDATE sales SET
+                zra_rcpt_no = ?, zra_intrl_data = ?, zra_rcpt_sign = ?,
+                zra_sdc_id = ?, zra_mrc_no = ?, zra_vsdc_rcpt_pbct_date = ?,
+                zra_qr_code_url = ?, zra_status = 'synced', zra_cis_invc_no = ?,
+                zra_org_invc_no = ?, zra_last_error = NULL
+             WHERE id = ?"
+        )->execute([
+            $data['rcptNo'] ?? null,
+            $data['intrlData'] ?? null,
+            $data['rcptSign'] ?? null,
+            $data['sdcId'] ?? ($this->getSettings()['vsdc_sdcId'] ?? null),
+            $data['mrcNo'] ?? ($this->getSettings()['vsdc_mrcNo'] ?? null),
+            $data['vsdcRcptPbctDate'] ?? null,
+            $this->receiptQrUrl($data['rcptSign'] ?? null, $data['qrCodeUrl'] ?? null),
+            $cis,
+            $orgInvcNo > 0 ? $orgInvcNo : null,
+            $saleId,
+        ]);
+        $this->putSettings(['vsdc_last_sale_no' => (string)((int)($this->getSettings()['vsdc_last_sale_no'] ?? 0) + 1)]);
     }
 
     private function markSaleFailed(int $saleId, string $message): void

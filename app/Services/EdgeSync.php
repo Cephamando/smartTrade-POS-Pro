@@ -599,7 +599,7 @@ final class EdgeSync
                         $sale['zra_sdc_id'] ?? null,
                         $sale['zra_mrc_no'] ?? null,
                         $sale['zra_qr_code_url'] ?? null,
-                        !empty($sale['zra_cis_invc_no']) ? (int)$sale['zra_cis_invc_no'] : null,
+                        trim((string)($sale['zra_cis_invc_no'] ?? '')) !== '' ? trim((string)$sale['zra_cis_invc_no']) : null,
                         $onlineSaleId,
                     ]);
                 }
@@ -620,7 +620,7 @@ final class EdgeSync
                         'zra_sdc_id' => $sale['zra_sdc_id'] ?? null,
                         'zra_mrc_no' => $sale['zra_mrc_no'] ?? null,
                         'zra_qr_code_url' => $sale['zra_qr_code_url'] ?? null,
-                        'zra_cis_invc_no' => !empty($sale['zra_cis_invc_no']) ? (int)$sale['zra_cis_invc_no'] : null,
+                        'zra_cis_invc_no' => trim((string)($sale['zra_cis_invc_no'] ?? '')) !== '' ? trim((string)$sale['zra_cis_invc_no']) : null,
                         'zra_status' => 'synced',
                         'zra_last_error' => null,
                     ];
