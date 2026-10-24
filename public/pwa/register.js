@@ -6,6 +6,9 @@
     }
     var bar = document.getElementById('pwaInstall');
     if (!bar) return;
+    try {
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) return;
+    } catch (e) {}
     var key = bar.getAttribute('data-dismiss') || 'pwa-dismiss';
     try {
         if (localStorage.getItem(key) === '1') return;

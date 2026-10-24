@@ -450,5 +450,6 @@
     </script>
     <?php endif; ?>
 <?php require APP_PATH . '/Views/partials/training_picker_modal.php'; ?>
+<script src="pwa/register.js"></script>
 </body>
 </html>

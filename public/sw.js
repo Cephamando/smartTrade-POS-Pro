@@ -1,4 +1,4 @@
-var SHELL = 'st-shell-v1';
+var SHELL = 'st-shell-v2';
 var MENU = 'st-menu-v1';
 
 self.addEventListener('install', function (event) {
@@ -7,8 +7,11 @@ self.addEventListener('install', function (event) {
             return cache.addAll([
                 'shop.webmanifest',
                 'vendor.webmanifest',
+                'app.webmanifest',
                 'pwa/icon-192.png',
                 'pwa/icon-512.png',
+                'pwa/app-icon-192.png',
+                'pwa/app-icon-512.png',
                 'vendor/bootstrap/bootstrap.min.css',
                 'vendor/bootstrap/bootstrap.bundle.min.js',
                 'vendor/bootstrap-icons/bootstrap-icons.css',

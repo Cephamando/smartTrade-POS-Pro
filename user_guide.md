@@ -18,6 +18,8 @@ Open the POS in a browser at `http://localhost:8090` on the shop PC, or at the P
 3. If the account is flagged to change its password, the Change Password screen blocks everything else until the new password is saved. New passwords must be at least 6 characters.
 4. **Log out** is in the account menu under your name (or **Exit** on the POS for staff who are not managers).
 
+The staff app can be installed from the sign-in page, the back office, the POS, or the kitchen display. Press **Install**, or on iPhone use Share, then Add to Home Screen. The icon opens the sign-in page. A cashier who is already signed in goes on to the till, and a manager goes to the Dashboard. Sales, stock, and the kitchen still need a connection. This install is separate from the customer menu and the vendor portal.
+
 The navbar for managers is four words: **Dashboard**, **Stock**, **Kitchen** (Pro+ and Enterprise), and **Office**, plus a green **POS** button. Stock, Kitchen, and Office open short grouped lists (Catalog, On hand, Buying, and so on) instead of one long menu. The page you are on is highlighted in yellow: the top-level link gets an underline, the parent menu lights up, and the exact entry inside the menu is marked. The pin chip is the current workstation. A bell, when V-SIAS is on, opens pending approvals. Your name opens the account menu: role, Training, and Log out.
 
 **On a phone or tablet** (screens narrower than 1200px) the navbar collapses. A green **POS** button sits next to **Menu** so the till is one tap away. **Menu** opens a scrolling panel. Stock, Kitchen, and Office expand like an accordion (only one open at a time), and the panel closes itself after you pick a page. Workstation and the account menu sit at the bottom of the panel.

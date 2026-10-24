@@ -1,0 +1,15 @@
+{
+  "id": "index.php?page=login",
+  "name": "smartTrade",
+  "short_name": "smartTrade",
+  "description": "Till, stock, and back office",
+  "start_url": "index.php?page=login",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1c2128",
+  "theme_color": "#1c2128",
+  "icons": [
+    { "src": "pwa/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "pwa/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

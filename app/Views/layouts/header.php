@@ -66,6 +66,7 @@ if (isset($pdo)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?></title>
+    <?php $pwaStaffPart = 'head'; require APP_PATH . '/Views/partials/pwa_staff.php'; ?>
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
@@ -377,6 +378,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
 </div>
 
 <?php require APP_PATH . '/Views/partials/training_bar.php'; ?>
+<?php $pwaStaffPart = 'bar'; require APP_PATH . '/Views/partials/pwa_staff.php'; ?>
 <nav class="navbar navbar-expand-xl navbar-dark app-navbar shadow-sm mb-4 sticky-top">
     <div class="container-fluid px-3 px-xl-4">
         <a class="navbar-brand fw-bold text-warning d-flex align-items-center" href="index.php">

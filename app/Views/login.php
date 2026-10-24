@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - SmarTrade Enterprise</title>
+    <?php $pwaStaffPart = 'head'; require APP_PATH . '/Views/partials/pwa_staff.php'; ?>
 
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
@@ -36,6 +37,8 @@
             margin: 0;
             padding: 1rem;
         }
+
+        #pwaInstall { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; }
 
         .login-wrapper {
             display: flex;
@@ -272,6 +275,7 @@
     </style>
 </head>
 <body>
+<?php $pwaStaffPart = 'bar'; require APP_PATH . '/Views/partials/pwa_staff.php'; ?>
 
 <div class="login-wrapper">
     <!-- Branding Side -->
@@ -431,5 +435,6 @@
     });
 </script>
 
+<script src="pwa/register.js"></script>
 </body>
 </html>

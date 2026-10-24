@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kitchen Display System</title>
+    <?php $pwaStaffPart = 'head'; require APP_PATH . '/Views/partials/pwa_staff.php'; ?>
     <link href="vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="vendor/bootstrap-icons/bootstrap-icons.css">
     <script src="vendor/sweetalert2/sweetalert2.all.min.js"></script>
@@ -23,6 +24,7 @@
     </style>
 </head>
 <body>
+<?php $pwaStaffPart = 'bar'; require APP_PATH . '/Views/partials/pwa_staff.php'; ?>
 
     <div class="container-fluid">
         <div class="kds-header mb-4">
@@ -149,5 +151,6 @@
         fetchOrders();
         setInterval(fetchOrders, 5000); // Poll every 5 seconds
     </script>
+<script src="pwa/register.js"></script>
 </body>
 </html>
