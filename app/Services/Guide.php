@@ -173,8 +173,8 @@ final class Guide
         if ($code === 401 || $code === 403) {
             throw new \RuntimeException('Gemini rejected the saved key. A manager can paste a new one under System Settings, Guide.');
         }
-        if ($detail !== '' && stripos($detail, 'quota') !== false) {
-            throw new \RuntimeException('The Gemini quota is used up for now. Try again later.');
+        if ($code === 402 || ($detail !== '' && (stripos($detail, 'quota') !== false || stripos($detail, 'prepay') !== false || stripos($detail, 'depleted') !== false))) {
+            throw new \RuntimeException('The Gemini prepaid credits are used up. Add credit in Google AI Studio, then ask again.');
         }
         throw new \RuntimeException('The guide could not get an answer. Try again in a moment.');
     }
