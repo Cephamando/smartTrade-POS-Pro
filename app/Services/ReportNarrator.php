@@ -18,10 +18,7 @@ final class ReportNarrator
         if ($key === '') {
             throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
         }
-        $model = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
-        if (!isset(Guide::models()[$model])) {
-            $model = 'gemini-2.5-flash';
-        }
+        $model = Guide::model((string)($settings['gemini_model'] ?? ''));
 
         $instruction = "You explain figures already shown on a screen in smartTrade POS Pro.\n"
             . "Use only the numbers in the brief. If a figure is missing, say it is not in the brief.\n"
@@ -78,10 +75,7 @@ final class ReportNarrator
         if ($key === '') {
             throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
         }
-        $model = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
-        if (!isset(Guide::models()[$model])) {
-            $model = 'gemini-2.5-flash';
-        }
+        $model = Guide::model((string)($settings['gemini_model'] ?? ''));
         $question = $this->clipQuestion($question);
         $ask = $question === ''
             ? "Write the opening note for this brief. Cover what the period shows, what stands out, and what the weekday projection suggests. Call every future figure a projection."

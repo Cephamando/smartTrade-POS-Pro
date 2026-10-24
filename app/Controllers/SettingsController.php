@@ -373,10 +373,7 @@ final class SettingsController extends Controller
         $oldModel = (string)($existing['gemini_model'] ?? 'gemini-2.5-flash');
         $oldKey = (string)($existing['gemini_api_key'] ?? '');
         $key = trim((string)($_POST['gemini_api_key'] ?? ''));
-        $model = (string)($_POST['gemini_model'] ?? 'gemini-2.5-flash');
-        if (!isset(Guide::models()[$model])) {
-            $model = 'gemini-2.5-flash';
-        }
+        $model = Guide::model((string)($_POST['gemini_model'] ?? ''));
         $savedKey = $key !== '' ? $key : $oldKey;
         $updates = [
             'gemini_api_key' => $savedKey,

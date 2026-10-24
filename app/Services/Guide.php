@@ -20,22 +20,27 @@ final class Guide
     public static function models(): array
     {
         return [
+            'gemini-3.5-flash-lite' => 'Gemini 3.5 Flash Lite',
             'gemini-3.8-flash' => 'Gemini 3.8 Flash',
             'gemini-3.8-live' => 'Gemini 3.8 Live',
             'gemini-3.1-pro-preview' => 'Gemini 3.1 Pro',
             'gemini-2.5-flash' => 'Gemini 2.5 Flash',
-            'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite',
-            'gemini-2.0-flash' => 'Gemini 2.0 Flash',
         ];
+    }
+
+    /** The model id to send. Retired lite models are no longer offered to new keys. */
+    public static function model(string $saved): string
+    {
+        if ($saved === 'gemini-2.5-flash-lite' || $saved === 'gemini-2.0-flash' || !isset(self::models()[$saved])) {
+            return 'gemini-3.5-flash-lite';
+        }
+        return $saved;
     }
 
     public function sync(array $settings): string
     {
         $key = trim((string)($settings['gemini_api_key'] ?? ''));
-        $model = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
-        if (!isset(self::models()[$model])) {
-            $model = 'gemini-2.5-flash';
-        }
+        $model = self::model((string)($settings['gemini_model'] ?? ''));
 
         $oldCache = (string)($settings['gemini_cache_name'] ?? '');
         if ($oldCache !== '') {
@@ -89,10 +94,7 @@ final class Guide
             throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
         }
 
-        $model = (string)($settings['gemini_model'] ?? 'gemini-2.5-flash');
-        if (!isset(self::models()[$model])) {
-            $model = 'gemini-2.5-flash';
-        }
+        $model = self::model((string)($settings['gemini_model'] ?? ''));
 
         $cacheName = (string)($settings['gemini_cache_name'] ?? '');
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
@@ -184,7 +186,9 @@ final class Guide
             'temperature' => 0.2,
             'maxOutputTokens' => 8192,
         ];
-        if (str_starts_with($model, 'gemini-3') && !str_contains($model, 'live')) {
+        if (str_contains($model, 'flash-lite')) {
+            $config['thinkingConfig'] = ['thinkingLevel' => 'minimal'];
+        } elseif (str_starts_with($model, 'gemini-3') && !str_contains($model, 'live')) {
             $config['thinkingConfig'] = ['thinkingLevel' => 'low'];
         } elseif (str_contains($model, '2.5-flash')) {
             $config['thinkingConfig'] = ['thinkingBudget' => 0];
