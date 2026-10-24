@@ -71,6 +71,16 @@ final class VendorController extends Controller
                 $this->flash('success', 'Order marked dispatched.');
                 $this->redirect('vendor', ['view' => 'order', 'order_id' => (int)$_POST['order_id']]);
             }
+            if (isset($_POST['save_offering'])) {
+                Vendor::saveOffering($vendorId, (int)($_POST['product_id'] ?? 0), (float)($_POST['unit_cost'] ?? 0));
+                $this->flash('success', 'Price saved.');
+                $this->redirect('vendor', ['view' => 'products']);
+            }
+            if (isset($_POST['remove_offering'])) {
+                Vendor::removeOffering($vendorId, (int)($_POST['product_id'] ?? 0));
+                $this->flash('success', 'Price removed.');
+                $this->redirect('vendor', ['view' => 'products']);
+            }
             if (isset($_POST['save_profile'])) {
                 Vendor::updatePortalProfile(
                     $vendorId,
@@ -87,7 +97,7 @@ final class VendorController extends Controller
 
         $vendor = $this->portalVendor() ?? $vendor;
         $view = (string)($_GET['view'] ?? 'home');
-        if (!in_array($view, ['home', 'inquiries', 'inquiry', 'orders', 'order', 'account'], true)) {
+        if (!in_array($view, ['home', 'products', 'inquiries', 'inquiry', 'orders', 'order', 'account'], true)) {
             $view = 'home';
         }
         $inquiry = $view === 'inquiry' ? Purchase::vendorInquiry($vendorId, (int)($_GET['inquiry_id'] ?? 0)) : null;
@@ -101,6 +111,8 @@ final class VendorController extends Controller
             'inquiry' => $inquiry,
             'orders' => Purchase::vendorOrders($vendorId),
             'order' => $order,
+            'offerings' => $view === 'products' ? Vendor::offerings($vendorId) : [],
+            'stockItems' => $view === 'products' ? Vendor::stockItems() : [],
             'flash' => $this->takeFlash(),
         ]);
     }

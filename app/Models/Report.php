@@ -804,6 +804,7 @@ final class Report extends Model
         $sql = "SELECT id, created_at, sale_id, COALESCE(app_fee, 0) + COALESCE(merchant_fee, 0) AS fee
                 FROM payment_transactions
                 WHERE created_at BETWEEN ? AND ?
+                  AND tx_ref NOT LIKE 'SUP-%'
                   AND LOWER(status) IN ('successful', 'success', 'completed', 'paid')
                   AND (COALESCE(app_fee, 0) + COALESCE(merchant_fee, 0)) > 0";
         $params = [$from, $to];

@@ -7,7 +7,9 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\ReceivingBay;
+use App\Models\User;
 use App\Models\Vendor;
+use App\Services\Flutterwave;
 
 final class PurchasingController extends Controller
 {
@@ -38,6 +40,47 @@ final class PurchasingController extends Controller
                     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
                 }
                 exit;
+            }
+
+            if (isset($_POST['pay_supplier'])) {
+                $this->requireRole(['dev']);
+                try {
+                    $mgr = User::verifyDeveloper((string)($_POST['mgr_username'] ?? ''), (string)($_POST['mgr_password'] ?? ''));
+                    if ($mgr === null) {
+                        throw new \RuntimeException('Developer authorization failed.');
+                    }
+                    $result = (new Flutterwave($this->pdo()));
+                    $source = (string)($_POST['pay_source'] ?? 'balance');
+                    $orderId = (int)($_POST['order_id'] ?? 0);
+                    $amount = (float)($_POST['amount'] ?? 0);
+                    $narration = (string)($_POST['narration'] ?? '');
+                    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+                    $dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/\\');
+                    $returnUrl = ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir . '/index.php?page=purchasing&tab=orders';
+                    if ($source === 'card') {
+                        $paid = $result->startSupplierCard($orderId, $amount, $narration, (int)$mgr['id'], $returnUrl);
+                        $_SESSION['supplier_checkout_url'] = $paid['link'];
+                    } elseif ($source === 'momo') {
+                        $paid = $result->startSupplierMomo(
+                            $orderId,
+                            $amount,
+                            $narration,
+                            (int)$mgr['id'],
+                            (string)($_POST['shop_network'] ?? ''),
+                            (string)($_POST['shop_phone'] ?? ''),
+                            $returnUrl
+                        );
+                        if ($paid['redirect'] !== '') {
+                            $_SESSION['supplier_checkout_url'] = $paid['redirect'];
+                        }
+                    } else {
+                        $paid = $result->sendSupplierTransfer($orderId, $amount, $narration, (int)$mgr['id']);
+                    }
+                    $this->flash('success', $paid['msg']);
+                } catch (\Throwable $e) {
+                    $this->flash('error', $e->getMessage() !== '' ? $e->getMessage() : 'The supplier payment was not sent.');
+                }
+                $this->redirect('purchasing', ['tab' => 'orders']);
             }
 
             try {
@@ -77,6 +120,18 @@ final class PurchasingController extends Controller
                 if (isset($_POST['cancel_inquiry'])) {
                     Purchase::setInquiryStatus((int)$_POST['inquiry_id'], 'cancelled');
                     $this->flash('success', 'Inquiry cancelled.');
+                }
+                if (isset($_POST['order_from_catalog'])) {
+                    $id = Purchase::orderFromOfferings(
+                        (int)$vendorId,
+                        (int)($_POST['location_id'] ?? 0),
+                        $this->userId(),
+                        trim((string)($_POST['reference_no'] ?? '')),
+                        trim((string)($_POST['notes'] ?? '')),
+                        (array)($_POST['lines'] ?? [])
+                    );
+                    $this->flash('success', 'Purchase order #' . $id . ' saved from the supplier list.');
+                    $this->redirect('purchasing', ['tab' => 'orders']);
                 }
                 if (isset($_POST['save_order'])) {
                     $id = Purchase::saveOrder(
@@ -147,6 +202,7 @@ final class PurchasingController extends Controller
             $tab = 'inquiry';
         }
 
+        $catalogVendorId = (int)($_GET['catalog_vendor'] ?? 0);
         $editInquiry = !empty($_GET['inquiry_id']) ? Purchase::inquiry((int)$_GET['inquiry_id']) : null;
         $editOrder = !empty($_GET['order_id']) ? Purchase::order((int)$_GET['order_id']) : null;
         $receiveOrder = !empty($_GET['receive_order']) ? Purchase::order((int)$_GET['receive_order']) : $editOrder;
@@ -168,10 +224,22 @@ final class PurchasingController extends Controller
             }
         }
 
+        $orders = Purchase::orders();
+        $supplierPayments = [];
+        if ($tab === 'orders') {
+            try {
+                $supplierPayments = (new Flutterwave($this->pdo()))->supplierPayments(array_map('intval', array_column($orders, 'id')));
+            } catch (\Throwable $e) {
+                $supplierPayments = [];
+            }
+        }
+
         $this->render([
             'tab' => $tab,
+            'role' => $this->role(),
             'inquiries' => Purchase::inquiries(),
-            'orders' => Purchase::orders(),
+            'orders' => $orders,
+            'supplierPayments' => $supplierPayments,
             'openOrders' => Purchase::openOrders(),
             'editInquiry' => $editInquiry,
             'inquiryQuote' => $editInquiry ? Purchase::quotationForInquiry((int)$editInquiry['id']) : null,
@@ -180,6 +248,8 @@ final class PurchasingController extends Controller
             'bayPrefill' => $bayPrefill,
             'grvHistory' => $tab === 'received' ? Grv::recent() : [],
             'grvView' => ($tab === 'received' && !empty($_GET['grv_id'])) ? Grv::find((int)$_GET['grv_id']) : null,
+            'catalogVendorId' => $catalogVendorId,
+            'catalogOfferings' => $catalogVendorId > 0 ? Vendor::offerings($catalogVendorId) : [],
             'vendors' => Vendor::active(),
             'locations' => Location::all(),
             'products' => Product::activeItems(),

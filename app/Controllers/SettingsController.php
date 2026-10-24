@@ -236,114 +236,12 @@ final class SettingsController extends Controller
     /** @return array<string, string> */
     private function payoutAccount(string $secret, string $public, string $enabled): array
     {
-        $method = (string)($_POST['flw_payout_method'] ?? 'bank') === 'momo' ? 'momo' : 'bank';
-        $bank = trim((string)($_POST['flw_payout_bank'] ?? ''));
-        $account = preg_replace('/\D+/', '', (string)($_POST['flw_payout_account'] ?? '')) ?? '';
-        $name = trim((string)($_POST['flw_payout_name'] ?? ''));
-        $branch = trim((string)($_POST['flw_payout_branch'] ?? ''));
-        $network = strtoupper(trim((string)($_POST['flw_payout_network'] ?? '')));
-        $empty = [
-            'flw_payout_method' => 'bank',
-            'flw_payout_network' => '',
-            'flw_payout_bank' => '',
-            'flw_payout_bank_id' => '',
-            'flw_payout_bank_name' => '',
-            'flw_payout_account' => '',
-            'flw_payout_name' => '',
-            'flw_payout_branch' => '',
-            'flw_payout_has_branches' => '0',
-        ];
-        if ($method === 'momo' && $account === '' && $name === '') {
-            return $empty;
-        }
-        if ($method === 'bank' && $bank === '' && $account === '' && $name === '' && $branch === '') {
-            return $empty;
-        }
-        if ($name === '' || !Flutterwave::payoutNameOk($name)) {
-            throw new \InvalidArgumentException('The name on the payout account should be 2 to 80 letters.');
-        }
-        if ($method === 'momo') {
-            if (!in_array($network, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
-                throw new \InvalidArgumentException('Choose MTN, Airtel, or Zamtel.');
-            }
-            $phone = Flutterwave::payoutPhone($account);
-            $labels = ['MTN' => 'MTN Mobile Money', 'AIRTEL' => 'Airtel Money', 'ZAMTEL' => 'Zamtel Money'];
-            return [
-                'flw_payout_method' => 'momo',
-                'flw_payout_network' => $network,
-                'flw_payout_bank' => 'MPS',
-                'flw_payout_bank_id' => '',
-                'flw_payout_bank_name' => $labels[$network],
-                'flw_payout_account' => $phone,
-                'flw_payout_name' => $name,
-                'flw_payout_branch' => '',
-                'flw_payout_has_branches' => '0',
-            ];
-        }
-        if ($bank === '' || $account === '') {
-            throw new \InvalidArgumentException('The emergency payout account needs a bank, an account number, and the name on the account.');
-        }
-        if (!preg_match('/^[0-9]{6,20}$/', $account)) {
-            throw new \InvalidArgumentException('The payout account number should be 6 to 20 digits.');
-        }
-        if ($branch !== '' && !preg_match('/^[A-Za-z0-9_-]{1,40}$/', $branch)) {
-            throw new \InvalidArgumentException('The branch code is not valid.');
-        }
-        $saved = [
-            'flw_payout_method' => 'bank',
-            'flw_payout_network' => '',
-            'flw_payout_bank' => $bank,
-            'flw_payout_bank_id' => '',
-            'flw_payout_bank_name' => trim((string)($_POST['flw_payout_bank_name'] ?? '')),
-            'flw_payout_account' => $account,
-            'flw_payout_name' => $name,
-            'flw_payout_branch' => $branch,
-            'flw_payout_has_branches' => '0',
-        ];
-        if ($enabled !== '1' || $secret === '' || $public === '') {
-            if ($saved['flw_payout_bank_name'] === '') {
-                throw new \InvalidArgumentException('Enter the bank name, or enable Flutterwave so the bank can be chosen from the list.');
-            }
-            return $saved;
-        }
         $flw = new Flutterwave($this->pdo(), array_merge(Setting::all(), [
-            'flw_enabled' => '1',
+            'flw_enabled' => $enabled,
             'flw_secret_key' => $secret,
             'flw_public_key' => $public,
         ]));
-        $banks = $flw->zmBanks();
-        $match = null;
-        foreach ($banks as $row) {
-            if (strcasecmp($row['code'], $bank) === 0 || strcasecmp($row['name'], $bank) === 0) {
-                $match = $row;
-                break;
-            }
-        }
-        if ($match === null) {
-            throw new \InvalidArgumentException('Choose a bank from the Flutterwave list.');
-        }
-        $saved['flw_payout_bank'] = $match['code'];
-        $saved['flw_payout_bank_id'] = $match['id'];
-        $saved['flw_payout_bank_name'] = $match['name'];
-        $saved['flw_payout_has_branches'] = $match['has_branches'] ? '1' : '0';
-        if ($match['has_branches'] && $match['id'] !== '') {
-            try {
-                $codes = array_column($flw->bankBranches($match['id']), 'code');
-            } catch (\Throwable $e) {
-                $codes = [];
-            }
-            if ($codes !== []) {
-                if ($branch === '' || !in_array($branch, $codes, true)) {
-                    throw new \InvalidArgumentException($match['name'] . ' needs a branch. Choose one before saving.');
-                }
-            } else {
-                $saved['flw_payout_has_branches'] = '0';
-                $saved['flw_payout_branch'] = '';
-            }
-        } else {
-            $saved['flw_payout_branch'] = '';
-        }
-        return $saved;
+        return $flw->normalizePayoutPost($_POST) ?? Flutterwave::emptyPayout();
     }
 
     private function subaccountId(string $raw): string

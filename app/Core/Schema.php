@@ -169,6 +169,8 @@ final class Schema
                 reference VARCHAR(64) NOT NULL,
                 provider_id VARCHAR(40) NULL,
                 user_id INT NULL,
+                vendor_id INT NULL,
+                purchase_order_id INT NULL,
                 amount DECIMAL(12,2) NOT NULL,
                 fee DECIMAL(12,2) NULL,
                 currency VARCHAR(3) NOT NULL DEFAULT 'ZMW',

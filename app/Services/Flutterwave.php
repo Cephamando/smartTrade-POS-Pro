@@ -512,6 +512,10 @@ final class Flutterwave
             $this->rememberCharge($txRef, $chargeId);
         }
         $tx = $this->verify($txRef);
+        if (str_starts_with($txRef, 'SUP-')) {
+            $this->applySupplierCharge($txRef, (string)($tx['status'] ?? ''));
+            return;
+        }
         if (str_starts_with($txRef, 'EVT-')) {
             \App\Models\Event::settleTx($txRef, (string)($tx['status'] ?? ''));
             return;
@@ -678,7 +682,7 @@ final class Flutterwave
             "SELECT id, tx_ref, sale_id, amount, charged_amount, app_fee, net_amount, subaccount_amount, currency, payment_type, network,
                     settlement_status, settlement_id, settled_at, created_at
              FROM payment_transactions
-             WHERE provider = 'flutterwave' AND status = 'successful'
+             WHERE provider = 'flutterwave' AND status = 'successful' AND tx_ref NOT LIKE 'SUP-%'
              ORDER BY id DESC
              LIMIT 40"
         )->fetchAll();
@@ -1527,6 +1531,595 @@ final class Flutterwave
             'status' => 'ok',
             'msg' => 'Emergency transfer of ZMW ' . number_format($amount, 2) . ' from subaccount ' . $subId . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
         ];
+    }
+
+    /** Commission kept by the Flutterwave account that owns the API keys on a supplier charge. */
+    public const SUPPLIER_MAIN_SHARE = 0.025;
+
+    /**
+     * Shop charge that leaves the supplier due $supplierAmount after the 2.5% relationship commission.
+     * Rounded up to the next tambala.
+     */
+    public static function supplierShopCharge(float $supplierAmount): float
+    {
+        $supplierAmount = round($supplierAmount, 2);
+        if ($supplierAmount <= 0) {
+            return 0.0;
+        }
+        return ceil(($supplierAmount / (1 - self::SUPPLIER_MAIN_SHARE)) * 100 - 1.0e-9) / 100;
+    }
+
+    /**
+     * Create or update the supplier's Flutterwave subaccount from the saved bank or mobile-money details.
+     * split_value is the commission kept by the account that owns the API keys.
+     */
+    public function onboardSupplier(int $vendorId): string
+    {
+        $this->assertEnabled();
+        $vendor = \App\Models\Vendor::find($vendorId);
+        if (!$vendor) {
+            throw new \InvalidArgumentException('Vendor not found.');
+        }
+        $dest = \App\Models\Vendor::payoutDestination($vendor);
+        if (empty($dest['ready'])) {
+            throw new \RuntimeException('Save the supplier bank account or mobile-money number first.');
+        }
+        $mobile = $this->supplierMobile($vendor, $dest);
+        $email = strtolower(trim((string)($vendor['portal_email'] ?? '')));
+        if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            $email = 'supplier' . (int)$vendor['id'] . '@' . $this->emailDomain();
+        }
+        $business = trim((string)$vendor['name']);
+        $business = trim(preg_replace('/\s+/', ' ', $business) ?? '');
+        if ($business === '') {
+            throw new \InvalidArgumentException('The supplier needs a name before Flutterwave can onboard them.');
+        }
+        $payload = [
+            'account_bank' => $dest['bank'],
+            'account_number' => $dest['account'],
+            'business_name' => substr($business, 0, 80),
+            'business_email' => $email,
+            'business_contact' => trim((string)($vendor['contact_person'] ?? '')) !== '' ? substr(trim((string)$vendor['contact_person']), 0, 80) : substr($business, 0, 80),
+            'business_contact_mobile' => $mobile,
+            'business_mobile' => $mobile,
+            'country' => 'ZM',
+            'split_type' => 'percentage',
+            'split_value' => self::SUPPLIER_MAIN_SHARE,
+        ];
+        $existing = strtoupper(trim((string)($vendor['payout_subaccount_id'] ?? '')));
+        if (preg_match('/^RS_[A-Z0-9]+$/', $existing) === 1) {
+            $found = $this->findSubaccount($existing);
+            $pathId = trim((string)($found['id'] ?? ''));
+            if ($pathId === '') {
+                $pathId = $existing;
+            }
+            $res = $this->request('PUT', '/subaccounts/' . rawurlencode($pathId), $payload);
+        } else {
+            $res = $this->request('POST', '/subaccounts', $payload);
+            $existing = '';
+        }
+        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+        if (($res['status'] ?? '') !== 'success') {
+            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not onboard this supplier.'));
+        }
+        $id = strtoupper(trim((string)($data['subaccount_id'] ?? $data['id'] ?? $existing)));
+        if (preg_match('/^RS_[A-Z0-9]+$/', $id) !== 1) {
+            throw new \RuntimeException('Flutterwave did not return a subaccount id for this supplier.');
+        }
+        \App\Models\Vendor::saveSubaccountId((int)$vendor['id'], $id);
+        return $id;
+    }
+
+    /** @param array<string, mixed> $vendor @param array{method: string, account: string} $dest */
+    private function supplierMobile(array $vendor, array $dest): string
+    {
+        foreach ([(string)($vendor['phone'] ?? ''), ($dest['method'] ?? '') === 'momo' ? (string)$dest['account'] : ''] as $raw) {
+            if ($raw === '') {
+                continue;
+            }
+            try {
+                return self::payoutPhone($raw);
+            } catch (\Throwable $e) {
+            }
+        }
+        throw new \InvalidArgumentException('Add a Zambian phone number on the supplier before Flutterwave can onboard them.');
+    }
+
+    private function applySupplierCharge(string $txRef, string $status): void
+    {
+        $this->ensureTransferColumns();
+        $mapped = $status === 'successful' ? 'successful' : ($status === 'failed' ? 'failed' : 'pending');
+        $this->pdo->prepare(
+            'UPDATE flutterwave_transfers SET status = ?, updated_at = NOW() WHERE reference = ? AND purchase_order_id IS NOT NULL'
+        )->execute([$mapped, $txRef]);
+    }
+
+    /**
+     * Charge the shop's card. Flutterwave sends the payment to the supplier's onboarded subaccount.
+     *
+     * @return array{status: string, msg: string, link: string}
+     */
+    public function startSupplierCard(int $orderId, float $amount, string $narration, int $userId, string $redirectUrl): array
+    {
+        $ctx = $this->supplierPayContext($orderId, $amount, $narration, true);
+        $charge = self::supplierShopCharge($ctx['amount']);
+        $txRef = self::newTxRef('SUP');
+        $email = 'shop@' . $this->emailDomain();
+        $payload = [
+            'tx_ref' => $txRef,
+            'amount' => $charge,
+            'currency' => 'ZMW',
+            'redirect_url' => $redirectUrl,
+            'payment_options' => 'card',
+            'customer' => [
+                'email' => $email,
+                'name' => (string)($this->settings['business_name'] ?? 'smartTrade'),
+            ],
+            'customizations' => [
+                'title' => $this->hostedText((string)($this->settings['business_name'] ?? 'smartTrade')),
+                'description' => $this->hostedText($ctx['narration']),
+            ],
+            'subaccounts' => [['id' => $ctx['subaccount']]],
+            'meta' => [
+                'purchase_order_id' => $orderId,
+                'vendor_id' => (int)$ctx['vendor']['id'],
+                'source' => 'SUP',
+                'supplier_amount' => $ctx['amount'],
+            ],
+        ];
+        $res = $this->request('POST', '/payments', $payload);
+        $link = $res['data']['link'] ?? null;
+        if (($res['status'] ?? '') !== 'success' || !$link) {
+            throw new \RuntimeException('Flutterwave: ' . ($res['message'] ?? 'could not open the card payment'));
+        }
+        $this->insertTransaction($txRef, $charge, [
+            'payment_type' => 'supplier_card',
+            'email' => $email,
+            'name' => (string)($this->settings['business_name'] ?? 'Shop'),
+            'user_id' => $userId,
+            'checkout_url' => $link,
+        ], $res);
+        $this->insertSupplierTransfer($txRef, $orderId, $ctx, $userId);
+        return [
+            'status' => 'ok',
+            'link' => (string)$link,
+            'msg' => 'Card payment opened. The shop pays ZMW ' . number_format($charge, 2) . ' so the supplier is due ZMW ' . number_format($ctx['amount'], 2) . '.',
+        ];
+    }
+
+    /**
+     * Charge the shop's mobile-money number. Flutterwave sends the payment to the supplier's onboarded subaccount.
+     *
+     * @return array{status: string, msg: string, redirect: string}
+     */
+    public function startSupplierMomo(int $orderId, float $amount, string $narration, int $userId, string $network, string $phone, string $redirectUrl): array
+    {
+        $ctx = $this->supplierPayContext($orderId, $amount, $narration, true);
+        $charge = self::supplierShopCharge($ctx['amount']);
+        $network = strtoupper($network);
+        if (!in_array($network, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
+            throw new \InvalidArgumentException('Choose MTN, Airtel, or Zamtel.');
+        }
+        $phone = preg_replace('/\D+/', '', $phone) ?? '';
+        if (strlen($phone) === 9) {
+            $phone = '0' . $phone;
+        } elseif (str_starts_with($phone, '260') && strlen($phone) === 12) {
+            $phone = '0' . substr($phone, 3);
+        }
+        if (!preg_match('/^0[0-9]{9}$/', $phone)) {
+            throw new \InvalidArgumentException('Enter the shop mobile-money number, for example 0971234567.');
+        }
+        $txRef = self::newTxRef('SUP');
+        $email = 'shop+' . $phone . '@' . $this->emailDomain();
+        $payload = [
+            'tx_ref' => $txRef,
+            'amount' => $charge,
+            'currency' => 'ZMW',
+            'network' => $network,
+            'email' => $email,
+            'phone_number' => $phone,
+            'fullname' => (string)($this->settings['business_name'] ?? 'smartTrade'),
+            'redirect_url' => $redirectUrl,
+            'subaccounts' => [['id' => $ctx['subaccount']]],
+            'meta' => [
+                'purchase_order_id' => $orderId,
+                'vendor_id' => (int)$ctx['vendor']['id'],
+                'source' => 'SUP',
+                'supplier_amount' => $ctx['amount'],
+            ],
+        ];
+        $res = $this->request('POST', '/charges?type=mobile_money_zambia', $payload);
+        if (($res['status'] ?? '') !== 'success') {
+            throw new \RuntimeException('Flutterwave: ' . ($res['message'] ?? 'mobile money charge was rejected'));
+        }
+        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+        $redirect = (string)($res['meta']['authorization']['redirect'] ?? ($data['meta']['authorization']['redirect'] ?? ''));
+        $this->insertTransaction($txRef, $charge, [
+            'payment_type' => 'supplier_momo',
+            'network' => $network,
+            'phone' => $phone,
+            'email' => $email,
+            'name' => (string)($this->settings['business_name'] ?? 'Shop'),
+            'user_id' => $userId,
+            'provider_tx_id' => isset($data['id']) ? (string)$data['id'] : null,
+            'flw_ref' => $data['flw_ref'] ?? null,
+            'checkout_url' => $redirect !== '' ? $redirect : null,
+        ], $res);
+        $this->insertSupplierTransfer($txRef, $orderId, $ctx, $userId);
+        return [
+            'status' => 'ok',
+            'redirect' => $redirect,
+            'msg' => 'Approve the prompt on ' . $phone . '. The shop pays ZMW ' . number_format($charge, 2) . ' so the supplier is due ZMW ' . number_format($ctx['amount'], 2) . '.',
+        ];
+    }
+
+    /**
+     * @return array{order: array<string, mixed>, vendor: array<string, mixed>, dest: array<string, mixed>, amount: float, narration: string, subaccount: string}
+     */
+    private function supplierPayContext(int $orderId, float $amount, string $narration, bool $needsOnboard): array
+    {
+        $this->assertEnabled();
+        $this->ensureTransferColumns();
+        $order = \App\Models\Purchase::order($orderId);
+        if (!$order) {
+            throw new \InvalidArgumentException('Purchase order not found.');
+        }
+        if (in_array((string)$order['status'], ['cancelled', 'declined'], true) || (string)($order['vendor_status'] ?? '') === 'declined') {
+            throw new \RuntimeException('A cancelled or declined order cannot be paid.');
+        }
+        $vendor = \App\Models\Vendor::find((int)$order['vendor_id']);
+        if (!$vendor) {
+            throw new \RuntimeException('That supplier no longer exists.');
+        }
+        $dest = \App\Models\Vendor::payoutDestination($vendor);
+        if (empty($dest['ready'])) {
+            throw new \RuntimeException('Save this supplier’s bank account or mobile-money number under Stock → Vendors first.');
+        }
+        $subaccount = strtoupper(trim((string)($vendor['payout_subaccount_id'] ?? '')));
+        if ($needsOnboard && preg_match('/^RS_[A-Z0-9]+$/', $subaccount) !== 1) {
+            throw new \RuntimeException('Save the payment details again so Flutterwave can onboard this supplier.');
+        }
+        $waiting = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM flutterwave_transfers WHERE purchase_order_id = ? AND status IN ('pending', 'unknown')"
+        );
+        $waiting->execute([$orderId]);
+        if ((int)$waiting->fetchColumn() > 0) {
+            throw new \RuntimeException('A payment for this order is already in progress.');
+        }
+        $paidStmt = $this->pdo->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM flutterwave_transfers WHERE purchase_order_id = ? AND status = 'successful'"
+        );
+        $paidStmt->execute([$orderId]);
+        $left = round((float)$order['total_cost'] - (float)$paidStmt->fetchColumn(), 2);
+        $amount = round($amount, 2);
+        if ($amount < 1) {
+            throw new \InvalidArgumentException('Enter an amount of at least ZMW 1.00.');
+        }
+        if ($amount - $left > 0.001) {
+            throw new \InvalidArgumentException('This order still has ZMW ' . number_format(max(0, $left), 2) . ' unpaid. The payment cannot be more than that.');
+        }
+        $narration = trim(preg_replace('/\s+/', ' ', $narration) ?? '');
+        if (!preg_match('/^[A-Za-z0-9 .,' . "\\-']{3,100}$/", $narration)) {
+            throw new \InvalidArgumentException('The reason should be 3 to 100 letters, numbers, or simple punctuation.');
+        }
+        return [
+            'order' => $order,
+            'vendor' => $vendor,
+            'dest' => $dest,
+            'amount' => $amount,
+            'narration' => $narration,
+            'subaccount' => $subaccount,
+        ];
+    }
+
+    /** @param array{vendor: array<string, mixed>, dest: array<string, mixed>, amount: float, narration: string} $ctx */
+    private function insertSupplierTransfer(string $reference, int $orderId, array $ctx, int $userId): void
+    {
+        $dest = $ctx['dest'];
+        $this->pdo->prepare(
+            'INSERT INTO flutterwave_transfers
+                (reference, user_id, vendor_id, purchase_order_id, amount, currency, account_bank, bank_name, account_number, beneficiary_name, branch_code, narration, status)
+             VALUES (?, ?, ?, ?, ?, "ZMW", ?, ?, ?, ?, ?, ?, "pending")'
+        )->execute([
+            $reference,
+            $userId > 0 ? $userId : null,
+            (int)$ctx['vendor']['id'],
+            $orderId,
+            $ctx['amount'],
+            $dest['bank'],
+            $dest['bank_name'],
+            $dest['account'],
+            $dest['name'],
+            ($dest['branch'] ?? '') !== '' ? $dest['branch'] : null,
+            $ctx['narration'],
+        ]);
+    }
+
+    /**
+     * Pay a purchase order to that supplier's saved account from the subaccount payout balance.
+     *
+     * @return array{status: string, msg: string}
+     */
+    public function sendSupplierTransfer(int $orderId, float $amount, string $narration, int $userId): array
+    {
+        $this->assertEnabled();
+        $this->ensureTransferColumns();
+        $subId = $this->subaccountId();
+        if ($subId === '') {
+            throw new \RuntimeException('Add the Flutterwave subaccount ID under Settings → Payments.');
+        }
+        $order = \App\Models\Purchase::order($orderId);
+        if (!$order) {
+            throw new \InvalidArgumentException('Purchase order not found.');
+        }
+        if (in_array((string)$order['status'], ['cancelled', 'declined'], true) || (string)($order['vendor_status'] ?? '') === 'declined') {
+            throw new \RuntimeException('A cancelled or declined order cannot be paid.');
+        }
+        $vendor = \App\Models\Vendor::find((int)$order['vendor_id']);
+        if (!$vendor) {
+            throw new \RuntimeException('That supplier no longer exists.');
+        }
+        $dest = \App\Models\Vendor::payoutDestination($vendor);
+        if (empty($dest['ready'])) {
+            throw new \RuntimeException('Save this supplier’s bank account or mobile-money number under Stock → Vendors first.');
+        }
+        $waiting = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM flutterwave_transfers
+             WHERE purchase_order_id = ? AND status IN ('pending', 'unknown')"
+        );
+        $waiting->execute([$orderId]);
+        if ((int)$waiting->fetchColumn() > 0) {
+            throw new \RuntimeException('A payment for this order is already in progress.');
+        }
+        $paidStmt = $this->pdo->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM flutterwave_transfers
+             WHERE purchase_order_id = ? AND status = 'successful'"
+        );
+        $paidStmt->execute([$orderId]);
+        $paid = round((float)$paidStmt->fetchColumn(), 2);
+        $left = round((float)$order['total_cost'] - $paid, 2);
+        $amount = round($amount, 2);
+        if ($amount < 1) {
+            throw new \InvalidArgumentException('Enter an amount of at least ZMW 1.00.');
+        }
+        if ($amount - $left > 0.001) {
+            throw new \InvalidArgumentException('This order still has ZMW ' . number_format(max(0, $left), 2) . ' unpaid. The payment cannot be more than that.');
+        }
+        $narration = trim(preg_replace('/\s+/', ' ', $narration) ?? '');
+        if (!preg_match('/^[A-Za-z0-9 .,' . "\\-']{3,100}$/", $narration)) {
+            throw new \InvalidArgumentException('The reason should be 3 to 100 letters, numbers, or simple punctuation.');
+        }
+        $balance = $this->availableBalance();
+        if ($amount - $balance > 0.001) {
+            $held = $this->unsettledBatchNet();
+            if ($balance <= 0 && $held > 0) {
+                throw new \RuntimeException('Flutterwave has not released a payout balance. ZMW ' . number_format($held, 2) . ' is still on hold in the settlement batches, so it cannot be transferred.');
+            }
+            throw new \RuntimeException('The subaccount payout balance is ZMW ' . number_format($balance, 2) . ', which is less than this transfer.');
+        }
+
+        $reference = 'SUP-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        $this->pdo->prepare(
+            'INSERT INTO flutterwave_transfers
+                (reference, user_id, vendor_id, purchase_order_id, amount, currency, account_bank, bank_name, account_number, beneficiary_name, branch_code, narration, status)
+             VALUES (?, ?, ?, ?, ?, "ZMW", ?, ?, ?, ?, ?, ?, "pending")'
+        )->execute([
+            $reference,
+            $userId > 0 ? $userId : null,
+            (int)$vendor['id'],
+            $orderId,
+            $amount,
+            $dest['bank'],
+            $dest['bank_name'],
+            $dest['account'],
+            $dest['name'],
+            $dest['branch'] !== '' ? $dest['branch'] : null,
+            $narration,
+        ]);
+
+        $payload = [
+            'account_bank' => $dest['bank'],
+            'account_number' => $dest['account'],
+            'amount' => $amount,
+            'narration' => $narration,
+            'currency' => 'ZMW',
+            'debit_currency' => 'ZMW',
+            'beneficiary_name' => $dest['name'],
+            'reference' => $reference,
+            'callback_url' => $this->webhookUrl(),
+            'debit_subaccount' => $subId,
+        ];
+        if (($dest['method'] ?? 'bank') === 'momo') {
+            $payload['account_bank'] = 'MPS';
+        } elseif ($dest['branch'] !== '') {
+            $payload['destination_branch_code'] = $dest['branch'];
+        }
+
+        try {
+            $res = $this->request('POST', '/transfers', $payload);
+        } catch (\Throwable $e) {
+            $this->storeTransferResult($reference, 'unknown', null, null, $e->getMessage(), null);
+            throw new \RuntimeException('Flutterwave did not answer. The transfer was not marked failed, because it may still have been queued. Check the list before sending it again.');
+        }
+
+        $data = is_array($res['data'] ?? null) ? $res['data'] : [];
+        $message = (string)($res['message'] ?? 'Flutterwave did not queue the transfer.');
+        if (($res['_http'] ?? 200) >= 400 || ($res['status'] ?? '') !== 'success') {
+            $this->storeTransferResult($reference, 'failed', null, null, $message, $res);
+            throw new \RuntimeException($message);
+        }
+        $fee = isset($data['fee']) ? round((float)$data['fee'], 2) : null;
+        $providerId = trim((string)($data['id'] ?? ''));
+        $status = $this->transferStatus($data);
+        $complete = trim((string)($data['complete_message'] ?? ''));
+        $this->storeTransferResult($reference, $status, $providerId !== '' ? $providerId : null, $fee, $complete !== '' ? $complete : null, $res);
+        $where = $dest['bank_name'] !== '' ? $dest['bank_name'] : 'the saved account';
+        return [
+            'status' => 'ok',
+            'msg' => 'Payment of ZMW ' . number_format($amount, 2) . ' to ' . $where . ' was queued. It stays pending until Flutterwave marks it successful.',
+        ];
+    }
+
+    /** @param list<int> $orderIds @return array<int, array{paid: float, pending: bool}> */
+    public function supplierPayments(array $orderIds): array
+    {
+        $this->ensureTransferColumns();
+        $ids = array_values(array_filter(array_map('intval', $orderIds), static fn(int $id): bool => $id > 0));
+        if (!$ids) {
+            return [];
+        }
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->pdo->prepare(
+            "SELECT purchase_order_id,
+                    COALESCE(SUM(CASE WHEN status = 'successful' THEN amount ELSE 0 END), 0) AS paid,
+                    SUM(CASE WHEN status IN ('pending', 'unknown') THEN 1 ELSE 0 END) AS waiting
+             FROM flutterwave_transfers
+             WHERE purchase_order_id IN ($marks)
+             GROUP BY purchase_order_id"
+        );
+        $stmt->execute($ids);
+        $out = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $out[(int)$row['purchase_order_id']] = [
+                'paid' => round((float)$row['paid'], 2),
+                'pending' => (int)$row['waiting'] > 0,
+            ];
+        }
+        return $out;
+    }
+
+    private function ensureTransferColumns(): void
+    {
+        static $ready = false;
+        if ($ready) {
+            return;
+        }
+        $ready = true;
+        $names = array_column($this->pdo->query('SHOW COLUMNS FROM flutterwave_transfers')->fetchAll() ?: [], 'Field');
+        if (!in_array('vendor_id', $names, true)) {
+            $this->pdo->exec('ALTER TABLE flutterwave_transfers ADD COLUMN vendor_id INT NULL AFTER user_id');
+        }
+        if (!in_array('purchase_order_id', $names, true)) {
+            $this->pdo->exec('ALTER TABLE flutterwave_transfers ADD COLUMN purchase_order_id INT NULL AFTER vendor_id');
+        }
+    }
+
+    /** @return array<string, string> */
+    public static function emptyPayout(): array
+    {
+        return [
+            'flw_payout_method' => 'bank',
+            'flw_payout_network' => '',
+            'flw_payout_bank' => '',
+            'flw_payout_bank_id' => '',
+            'flw_payout_bank_name' => '',
+            'flw_payout_account' => '',
+            'flw_payout_name' => '',
+            'flw_payout_branch' => '',
+            'flw_payout_has_branches' => '0',
+        ];
+    }
+
+    /**
+     * Bank or Zambia mobile-money destination from a payment form.
+     * Null means the account fields were left blank and should be cleared.
+     *
+     * @param array<string, mixed> $post
+     * @return array<string, string>|null
+     */
+    public function normalizePayoutPost(array $post): ?array
+    {
+        $method = (string)($post['flw_payout_method'] ?? 'bank') === 'momo' ? 'momo' : 'bank';
+        $bank = trim((string)($post['flw_payout_bank'] ?? ''));
+        $account = preg_replace('/\D+/', '', (string)($post['flw_payout_account'] ?? '')) ?? '';
+        $name = trim((string)($post['flw_payout_name'] ?? ''));
+        $branch = trim((string)($post['flw_payout_branch'] ?? ''));
+        $network = strtoupper(trim((string)($post['flw_payout_network'] ?? '')));
+        if ($method === 'momo' && $account === '' && $name === '') {
+            return null;
+        }
+        if ($method === 'bank' && $bank === '' && $account === '' && $name === '' && $branch === '') {
+            return null;
+        }
+        if ($name === '' || !self::payoutNameOk($name)) {
+            throw new \InvalidArgumentException('The name on the payout account should be 2 to 80 letters.');
+        }
+        if ($method === 'momo') {
+            if (!in_array($network, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
+                throw new \InvalidArgumentException('Choose MTN, Airtel, or Zamtel.');
+            }
+            $phone = self::payoutPhone($account);
+            $labels = ['MTN' => 'MTN Mobile Money', 'AIRTEL' => 'Airtel Money', 'ZAMTEL' => 'Zamtel Money'];
+            return [
+                'flw_payout_method' => 'momo',
+                'flw_payout_network' => $network,
+                'flw_payout_bank' => 'MPS',
+                'flw_payout_bank_id' => '',
+                'flw_payout_bank_name' => $labels[$network],
+                'flw_payout_account' => $phone,
+                'flw_payout_name' => $name,
+                'flw_payout_branch' => '',
+                'flw_payout_has_branches' => '0',
+            ];
+        }
+        if ($bank === '' || $account === '') {
+            throw new \InvalidArgumentException('The payout account needs a bank, an account number, and the name on the account.');
+        }
+        if (!preg_match('/^[0-9]{6,20}$/', $account)) {
+            throw new \InvalidArgumentException('The payout account number should be 6 to 20 digits.');
+        }
+        if ($branch !== '' && !preg_match('/^[A-Za-z0-9_-]{1,40}$/', $branch)) {
+            throw new \InvalidArgumentException('The branch code is not valid.');
+        }
+        $saved = [
+            'flw_payout_method' => 'bank',
+            'flw_payout_network' => '',
+            'flw_payout_bank' => $bank,
+            'flw_payout_bank_id' => '',
+            'flw_payout_bank_name' => trim((string)($post['flw_payout_bank_name'] ?? '')),
+            'flw_payout_account' => $account,
+            'flw_payout_name' => $name,
+            'flw_payout_branch' => $branch,
+            'flw_payout_has_branches' => '0',
+        ];
+        if (!$this->enabled()) {
+            if ($saved['flw_payout_bank_name'] === '') {
+                throw new \InvalidArgumentException('Enter the bank name, or enable Flutterwave so the bank can be chosen from the list.');
+            }
+            return $saved;
+        }
+        $match = null;
+        foreach ($this->zmBanks() as $row) {
+            if (strcasecmp($row['code'], $bank) === 0 || strcasecmp($row['name'], $bank) === 0) {
+                $match = $row;
+                break;
+            }
+        }
+        if ($match === null) {
+            throw new \InvalidArgumentException('Choose a bank from the Flutterwave list.');
+        }
+        $saved['flw_payout_bank'] = $match['code'];
+        $saved['flw_payout_bank_id'] = $match['id'];
+        $saved['flw_payout_bank_name'] = $match['name'];
+        $saved['flw_payout_has_branches'] = $match['has_branches'] ? '1' : '0';
+        if ($match['has_branches'] && $match['id'] !== '') {
+            try {
+                $codes = array_column($this->bankBranches($match['id']), 'code');
+            } catch (\Throwable $e) {
+                $codes = [];
+            }
+            if ($codes !== []) {
+                if ($branch === '' || !in_array($branch, $codes, true)) {
+                    throw new \InvalidArgumentException($match['name'] . ' needs a branch. Choose one before saving.');
+                }
+            } else {
+                $saved['flw_payout_has_branches'] = '0';
+                $saved['flw_payout_branch'] = '';
+            }
+        } else {
+            $saved['flw_payout_branch'] = '';
+        }
+        return $saved;
     }
 
     /** @return array{method: string, network: string, bank: string, bank_id: string, bank_name: string, account: string, name: string, branch: string, has_branches: bool, ready: bool, masked: string} */

@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\Vendor;
+use App\Services\Flutterwave;
 
 final class VendorsController extends Controller
 {
@@ -51,6 +52,27 @@ final class VendorsController extends Controller
                 } catch (\Throwable $e) {
                     $this->flash('error', $e->getMessage());
                 }
+            } elseif (isset($_POST['save_payout'])) {
+                try {
+                    $account = preg_replace('/\D+/', '', (string)($_POST['flw_payout_account'] ?? '')) ?? '';
+                    $name = trim((string)($_POST['flw_payout_name'] ?? ''));
+                    $pairs = ($account === '' && $name === '')
+                        ? null
+                        : (new Flutterwave($this->pdo()))->normalizePayoutPost($_POST);
+                    Vendor::savePayout((int)($_POST['vendor_id'] ?? 0), $pairs);
+                    if ($pairs === null) {
+                        $this->flash('success', 'Supplier payment details removed.');
+                    } else {
+                        try {
+                            $subId = (new Flutterwave($this->pdo()))->onboardSupplier((int)($_POST['vendor_id'] ?? 0));
+                            $this->flash('success', 'Supplier payment details saved. Flutterwave onboarded ' . $subId . '.');
+                        } catch (\Throwable $e) {
+                            $this->flash('error', 'Payment details were saved, but Flutterwave did not onboard this supplier. ' . ($e->getMessage() !== '' ? $e->getMessage() : 'Try again.'));
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $this->flash('error', $e->getMessage() !== '' ? $e->getMessage() : 'The payment details could not be saved.');
+                }
             } elseif (isset($_POST['delete_vendor'])) {
                 if (!Vendor::delete((int)$_POST['vendor_id'])) {
                     $this->flash('error', 'This vendor has GRV records and cannot be deleted.');
@@ -61,6 +83,13 @@ final class VendorsController extends Controller
             $this->redirect('vendors');
         }
 
-        $this->render(['vendors' => Vendor::all()]);
+        $banks = [];
+        $bankError = '';
+        try {
+            $banks = (new Flutterwave($this->pdo()))->zmBanks();
+        } catch (\Throwable $e) {
+            $bankError = 'Turn Flutterwave on under Settings → Payments to choose a bank. Mobile money can still be saved.';
+        }
+        $this->render(['vendors' => Vendor::all(), 'payoutBanks' => $banks, 'payoutBankError' => $bankError]);
     }
 }

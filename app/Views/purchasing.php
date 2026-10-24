@@ -217,7 +217,77 @@ foreach ($locations as $l) {
 <?php endif; ?>
 
 <?php if ($tab === 'orders'): ?>
+<?php if (!empty($_SESSION['supplier_checkout_url'])):
+    $supplierCheckout = (string)$_SESSION['supplier_checkout_url'];
+    unset($_SESSION['supplier_checkout_url']);
+?>
+<div class="alert alert-info">
+    <a class="alert-link" href="<?= htmlspecialchars($supplierCheckout) ?>" target="_blank" rel="noopener">Continue the Flutterwave payment</a>
+</div>
+<script>window.open(<?= json_encode($supplierCheckout) ?>, '_blank', 'noopener');</script>
+<?php endif; ?>
 <div class="row g-3">
+    <div class="col-12">
+        <div class="card shadow-sm border-0 border-top border-primary border-4">
+            <div class="card-body">
+                <h5 class="fw-bold mb-3">Order from supplier list</h5>
+                <form method="GET" class="mb-3">
+                    <input type="hidden" name="page" value="purchasing">
+                    <input type="hidden" name="tab" value="orders">
+                    <label class="form-label small fw-bold text-muted">SUPPLIER</label>
+                    <select name="catalog_vendor" class="form-select" onchange="this.form.submit()">
+                        <option value="">Choose a supplier…</option>
+                        <?php foreach ($vendors as $v): ?>
+                            <option value="<?= (int)$v['id'] ?>" <?= (int)($catalogVendorId ?? 0) === (int)$v['id'] ? 'selected' : '' ?>><?= htmlspecialchars($v['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+                <?php if ((int)($catalogVendorId ?? 0) > 0 && empty($catalogOfferings)): ?>
+                    <p class="text-muted small mb-0">This supplier has not priced any shop items yet.</p>
+                <?php elseif (!empty($catalogOfferings)): ?>
+                <form method="POST">
+                    <input type="hidden" name="order_from_catalog" value="1">
+                    <input type="hidden" name="vendor_id" value="<?= (int)$catalogVendorId ?>">
+                    <div class="row g-2 mb-3">
+                        <div class="col-7">
+                            <label class="form-label small fw-bold text-muted">DELIVER TO</label>
+                            <select name="location_id" class="form-select" required>
+                                <?php foreach ($locations as $l): ?>
+                                    <option value="<?= (int)$l['id'] ?>" <?= ((int)$currentLocId === (int)$l['id']) ? 'selected' : '' ?>><?= htmlspecialchars($l['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label small fw-bold text-muted">REFERENCE</label>
+                            <input type="text" name="reference_no" class="form-control" placeholder="PO-…">
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-3">
+                            <thead class="table-light small text-muted"><tr><th></th><th>Item</th><th>Price</th><th style="width:8rem">Qty</th></tr></thead>
+                            <tbody>
+                            <?php foreach ($catalogOfferings as $offer): ?>
+                                <tr>
+                                    <td><input type="checkbox" class="form-check-input" name="lines[<?= (int)$offer['product_id'] ?>][pick]" value="1"></td>
+                                    <td>
+                                        <?= htmlspecialchars((string)$offer['name']) ?>
+                                        <?php if (($offer['unit'] ?? '') !== ''): ?><div class="small text-muted"><?= htmlspecialchars((string)$offer['unit']) ?></div><?php endif; ?>
+                                        <input type="hidden" name="lines[<?= (int)$offer['product_id'] ?>][product_id]" value="<?= (int)$offer['product_id'] ?>">
+                                        <input type="hidden" name="lines[<?= (int)$offer['product_id'] ?>][unit]" value="<?= htmlspecialchars((string)($offer['unit'] ?? '')) ?>">
+                                    </td>
+                                    <td>ZMW <?= number_format((float)$offer['unit_cost'], 2) ?></td>
+                                    <td><input type="number" name="lines[<?= (int)$offer['product_id'] ?>][qty]" class="form-control form-control-sm" min="0.01" step="0.01" value="1"></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-primary fw-bold">Create order from ticked lines</button>
+                </form>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
     <div class="col-12">
         <div class="card shadow-sm border-0 border-top border-success border-4">
             <div class="card-body">
@@ -296,6 +366,31 @@ foreach ($locations as $l) {
                                 <?php endif; ?>
                             </td>
                             <td class="text-end">
+                                <?php
+                                $payInfo = $supplierPayments[(int)$row['id']] ?? ['paid' => 0, 'pending' => false];
+                                $payDest = \App\Models\Vendor::payoutDestination($row);
+                                $unpaid = round((float)$row['total_cost'] - (float)$payInfo['paid'], 2);
+                                $canPay = ($role ?? '') === 'dev'
+                                    && !in_array($row['status'], ['cancelled', 'declined'], true)
+                                    && ($row['vendor_status'] ?? '') !== 'declined'
+                                    && $unpaid >= 1
+                                    && empty($payInfo['pending']);
+                                ?>
+                                <?php if ((float)$payInfo['paid'] > 0): ?>
+                                    <div class="small text-muted">Paid ZMW <?= number_format((float)$payInfo['paid'], 2) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($payInfo['pending'])): ?>
+                                    <div class="small text-warning">Payment pending</div>
+                                <?php endif; ?>
+                                <?php if ($canPay && !empty($payDest['ready'])): ?>
+                                    <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#supplierPayModal"
+                                        data-id="<?= (int)$row['id'] ?>"
+                                        data-label="<?= htmlspecialchars((string)($row['reference_no'] ?: ('#' . $row['id'])), ENT_QUOTES) ?>"
+                                        data-left="<?= htmlspecialchars(number_format($unpaid, 2, '.', '')) ?>"
+                                        data-dest="<?= htmlspecialchars(trim($payDest['bank_name'] . ' ' . $payDest['masked'])) ?>">Pay</button>
+                                <?php elseif ($canPay): ?>
+                                    <div class="small text-muted">No payment account</div>
+                                <?php endif; ?>
                                 <?php if (in_array($row['status'], ['pending', 'partial'], true)): ?>
                                     <a class="btn btn-sm btn-primary" href="index.php?page=purchasing&tab=received&receive_order=<?= (int)$row['id'] ?>">Receive</a>
                                 <?php endif; ?>
@@ -311,6 +406,109 @@ foreach ($locations as $l) {
         </div>
     </div>
 </div>
+<?php if (($role ?? '') === 'dev'): ?>
+<div class="modal fade" id="supplierPayModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" class="js-confirm-form"
+                data-swal-title="Pay this supplier?"
+                data-swal-text="The shop pays by card or mobile money, or from a released payout balance. Flutterwave sends a card or mobile-money payment to the supplier's onboarded account."
+                data-swal-confirm="Send payment"
+                data-swal-cancel="Cancel"
+                data-swal-icon="warning">
+                <div class="modal-header">
+                    <h5 class="modal-title">Pay supplier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="pay_supplier" value="1">
+                    <input type="hidden" name="order_id" id="supplierPayOrder" value="">
+                    <p class="small mb-1" id="supplierPayLabel"></p>
+                    <p class="small text-muted" id="supplierPayDest"></p>
+                    <label class="form-label small">Pay from</label>
+                    <select name="pay_source" id="supplierPaySource" class="form-select mb-2 no-search" onchange="supplierPaySourceChanged(this.value)">
+                        <option value="card">Shop card</option>
+                        <option value="momo">Shop mobile money</option>
+                        <option value="balance">Released payout balance</option>
+                    </select>
+                    <div id="supplierPayMomo" class="d-none">
+                        <label class="form-label small">Shop network</label>
+                        <select name="shop_network" class="form-select mb-2 no-search">
+                            <option value="MTN">MTN</option>
+                            <option value="AIRTEL">Airtel</option>
+                            <option value="ZAMTEL">Zamtel</option>
+                        </select>
+                        <label class="form-label small">Shop mobile number</label>
+                        <input type="text" name="shop_phone" class="form-control mb-2" inputmode="numeric" placeholder="0971234567" autocomplete="off">
+                    </div>
+                    <label class="form-label small">Amount the supplier receives (ZMW)</label>
+                    <input type="number" name="amount" id="supplierPayAmount" class="form-control mb-2" min="1" step="0.01" required oninput="supplierPayRefresh()">
+                    <p class="small text-muted d-none" id="supplierPayGross"></p>
+                    <label class="form-label small">Reason</label>
+                    <input type="text" name="narration" class="form-control mb-2" maxlength="100" required placeholder="Payment for purchase order">
+                    <label class="form-label small">Developer username</label>
+                    <input type="text" name="mgr_username" class="form-control mb-2" required autocomplete="username">
+                    <label class="form-label small">Developer password</label>
+                    <input type="password" name="mgr_password" class="form-control" required autocomplete="current-password">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-dark">Send payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+function supplierShopCharge(amount) {
+    var n = Math.round(parseFloat(amount) * 100) / 100;
+    if (!(n > 0)) return 0;
+    return Math.ceil((n / 0.975) * 100 - 1e-9) / 100;
+}
+function supplierPayRefresh() {
+    var sourceEl = document.getElementById('supplierPaySource');
+    var source = sourceEl ? sourceEl.value : 'card';
+    var momo = document.getElementById('supplierPayMomo');
+    if (momo) momo.classList.toggle('d-none', source !== 'momo');
+    var form = document.querySelector('#supplierPayModal form');
+    var gross = document.getElementById('supplierPayGross');
+    var due = parseFloat(document.getElementById('supplierPayAmount')?.value || '');
+    var text = 'The shop pays by card. The amount is grossed up so the supplier is due the figure entered.';
+    if (gross) gross.classList.add('d-none');
+    if (source === 'balance') {
+        text = 'Flutterwave will be asked to send this amount from the released payout balance. Money still on hold cannot be sent.';
+    } else if (due > 0) {
+        var charge = supplierShopCharge(due);
+        var line = 'The shop pays ZMW ' + charge.toFixed(2) + ' so the supplier is due ZMW ' + due.toFixed(2) + '. The relationship account keeps 2.5%. Flutterwave’s processing fee still comes off the settlement.';
+        if (gross) {
+            gross.textContent = line;
+            gross.classList.remove('d-none');
+        }
+        text = source === 'momo'
+            ? 'The shop mobile money will be charged ZMW ' + charge.toFixed(2) + ' so the supplier is due ZMW ' + due.toFixed(2) + '.'
+            : 'The shop card will be charged ZMW ' + charge.toFixed(2) + ' so the supplier is due ZMW ' + due.toFixed(2) + '.';
+    } else if (source === 'momo') {
+        text = 'The shop pays from its mobile money. The amount is grossed up so the supplier is due the figure entered.';
+    }
+    if (form) form.setAttribute('data-swal-text', text);
+}
+function supplierPaySourceChanged(source) {
+    supplierPayRefresh();
+}
+document.getElementById('supplierPayModal')?.addEventListener('show.bs.modal', function (event) {
+    var btn = event.relatedTarget;
+    if (!btn) return;
+    document.getElementById('supplierPayOrder').value = btn.getAttribute('data-id') || '';
+    document.getElementById('supplierPayLabel').textContent = btn.getAttribute('data-label') || '';
+    document.getElementById('supplierPayDest').textContent = btn.getAttribute('data-dest') || '';
+    var left = btn.getAttribute('data-left') || '';
+    var amount = document.getElementById('supplierPayAmount');
+    amount.value = left;
+    amount.max = left;
+    supplierPayRefresh();
+});
+</script>
+<?php endif; ?>
 <?php endif; ?>
 
 <?php if ($tab === 'received'): ?>

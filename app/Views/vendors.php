@@ -23,6 +23,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                     <th>Contact Person</th>
                     <th>Phone Number</th>
                     <th>Portal</th>
+                    <th>Payment</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
@@ -41,7 +42,29 @@ include __DIR__ . '/partials/bulk_bar.php';
                             <span class="badge bg-secondary">Off</span>
                         <?php endif; ?>
                     </td>
+                    <td>
+                        <?php $pay = \App\Models\Vendor::payoutDestination($v); ?>
+                        <?php if (!empty($pay['ready'])): ?>
+                            <span class="badge bg-success"><?= $pay['method'] === 'momo' ? 'Mobile' : 'Bank' ?></span>
+                            <?php if (preg_match('/^RS_[A-Z0-9]+$/', (string)($v['payout_subaccount_id'] ?? ''))): ?>
+                                <span class="badge bg-dark">Flutterwave</span>
+                            <?php endif; ?>
+                            <div class="small text-muted"><?= htmlspecialchars($pay['bank_name'] !== '' ? $pay['bank_name'] : $pay['masked']) ?> <?= htmlspecialchars($pay['masked']) ?></div>
+                        <?php else: ?>
+                            <span class="badge bg-secondary">None</span>
+                        <?php endif; ?>
+                    </td>
                     <td class="text-end">
+                        <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="modal" data-bs-target="#payModal"
+                            data-id="<?= (int)$v['id'] ?>"
+                            data-name="<?= htmlspecialchars((string)$v['name'], ENT_QUOTES) ?>"
+                            data-method="<?= htmlspecialchars((string)($v['payout_method'] ?? ''), ENT_QUOTES) ?>"
+                            data-network="<?= htmlspecialchars((string)($v['payout_network'] ?? ''), ENT_QUOTES) ?>"
+                            data-bank="<?= htmlspecialchars((string)($v['payout_bank'] ?? ''), ENT_QUOTES) ?>"
+                            data-bank-name="<?= htmlspecialchars((string)($v['payout_bank_name'] ?? ''), ENT_QUOTES) ?>"
+                            data-account="<?= htmlspecialchars((string)($v['payout_account'] ?? ''), ENT_QUOTES) ?>"
+                            data-account-name="<?= htmlspecialchars((string)($v['payout_name'] ?? ''), ENT_QUOTES) ?>"
+                            data-branch="<?= htmlspecialchars((string)($v['payout_branch'] ?? ''), ENT_QUOTES) ?>">Payment</button>
                         <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#portalModal"
                             data-id="<?= (int)$v['id'] ?>"
                             data-name="<?= htmlspecialchars((string)$v['name'], ENT_QUOTES) ?>"
@@ -61,7 +84,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                 </tr>
                 <?php endforeach; ?>
                 <?php if (empty($vendors)): ?>
-                    <tr><td colspan="6" class="text-center py-4 text-muted">No vendors found.</td></tr>
+                    <tr><td colspan="7" class="text-center py-4 text-muted">No vendors found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -103,6 +126,66 @@ include __DIR__ . '/partials/bulk_bar.php';
     </div>
 </div>
 
+<div class="modal fade" id="payModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Supplier payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=vendors">
+                <div class="modal-body">
+                    <input type="hidden" name="save_payout" value="1">
+                    <input type="hidden" name="vendor_id" id="payVendorId" value="">
+                    <input type="hidden" name="flw_payout_bank_name" id="payBankName" value="">
+                    <p class="small text-muted mb-2" id="payVendorName"></p>
+                    <p class="small">The supplier cannot see this. Leave the account blank and save to remove it. A developer pays a purchase order to this account.</p>
+                    <?php if (!empty($payoutBankError)): ?><div class="alert alert-warning small"><?= htmlspecialchars($payoutBankError) ?></div><?php endif; ?>
+                    <div class="mb-3">
+                        <label class="form-label">Pay by</label>
+                        <select name="flw_payout_method" id="payMethod" class="form-select no-search" onchange="payMethodChanged(this.value)">
+                            <option value="bank">Bank account</option>
+                            <option value="momo">Mobile money</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="payNetworkWrap">
+                        <label class="form-label">Network</label>
+                        <select name="flw_payout_network" id="payNetwork" class="form-select no-search">
+                            <option value="MTN">MTN</option>
+                            <option value="AIRTEL">Airtel</option>
+                            <option value="ZAMTEL">Zamtel</option>
+                        </select>
+                    </div>
+                    <div class="mb-3" id="payBankWrap">
+                        <label class="form-label">Bank</label>
+                        <select name="flw_payout_bank" id="payBank" class="form-select" onchange="payBankChanged(this)">
+                            <option value="">No payment account</option>
+                            <?php foreach ($payoutBanks ?? [] as $bank): ?>
+                                <option value="<?= htmlspecialchars($bank['code']) ?>" data-id="<?= htmlspecialchars($bank['id']) ?>" data-name="<?= htmlspecialchars($bank['name']) ?>" data-branches="<?= $bank['has_branches'] ? '1' : '0' ?>"><?= htmlspecialchars($bank['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="mb-3 d-none" id="payBranchWrap">
+                        <label class="form-label">Branch</label>
+                        <select name="flw_payout_branch" id="payBranch" class="form-select"><option value="">Choose a branch</option></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" id="payAccountLabel">Account number</label>
+                        <input type="text" name="flw_payout_account" id="payAccount" class="form-control font-monospace" inputmode="numeric" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name on the account</label>
+                        <input type="text" name="flw_payout_name" id="payAccountName" class="form-control" autocomplete="off">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save payment details</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="portalModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -138,6 +221,59 @@ include __DIR__ . '/partials/bulk_bar.php';
     </div>
 </div>
 <script>
+function payMethodChanged(method) {
+    var momo = method === 'momo';
+    document.getElementById('payNetworkWrap').classList.toggle('d-none', !momo);
+    document.getElementById('payBankWrap').classList.toggle('d-none', momo);
+    document.getElementById('payAccountLabel').textContent = momo ? 'Mobile number' : 'Account number';
+    document.getElementById('payAccount').placeholder = momo ? '0971234567' : '';
+    if (momo) document.getElementById('payBranchWrap').classList.add('d-none');
+}
+function payBankChanged(sel) {
+    var opt = sel.options[sel.selectedIndex];
+    document.getElementById('payBankName').value = opt && opt.dataset.name ? opt.dataset.name : '';
+    var wrap = document.getElementById('payBranchWrap');
+    var branch = document.getElementById('payBranch');
+    if (!opt || opt.dataset.branches !== '1' || !opt.dataset.id) {
+        wrap.classList.add('d-none');
+        branch.innerHTML = '<option value="">Choose a branch</option>';
+        return;
+    }
+    wrap.classList.remove('d-none');
+    fetch('index.php?page=flutterwave&action=branches&bank_id=' + encodeURIComponent(opt.dataset.id), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var rows = Array.isArray(res.branches) ? res.branches : [];
+            var keep = branch.getAttribute('data-selected') || '';
+            branch.innerHTML = '<option value="">Choose a branch</option>';
+            rows.forEach(function (b) {
+                var o = document.createElement('option');
+                o.value = b.code;
+                o.textContent = b.name;
+                if (b.code === keep) o.selected = true;
+                branch.appendChild(o);
+            });
+        })
+        .catch(function () {});
+}
+document.getElementById('payModal')?.addEventListener('show.bs.modal', function (event) {
+    var btn = event.relatedTarget;
+    if (!btn) return;
+    document.getElementById('payVendorId').value = btn.getAttribute('data-id') || '';
+    document.getElementById('payVendorName').textContent = btn.getAttribute('data-name') || '';
+    var method = btn.getAttribute('data-method') === 'momo' ? 'momo' : 'bank';
+    document.getElementById('payMethod').value = method;
+    payMethodChanged(method);
+    var network = btn.getAttribute('data-network') || 'MTN';
+    document.getElementById('payNetwork').value = network;
+    var bank = document.getElementById('payBank');
+    bank.value = btn.getAttribute('data-bank') || '';
+    document.getElementById('payBankName').value = btn.getAttribute('data-bank-name') || '';
+    document.getElementById('payAccount').value = btn.getAttribute('data-account') || '';
+    document.getElementById('payAccountName').value = btn.getAttribute('data-account-name') || '';
+    document.getElementById('payBranch').setAttribute('data-selected', btn.getAttribute('data-branch') || '');
+    if (method === 'bank' && bank.value) payBankChanged(bank);
+});
 document.getElementById('portalModal')?.addEventListener('show.bs.modal', function (event) {
     var btn = event.relatedTarget;
     if (!btn) return;

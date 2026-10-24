@@ -332,6 +332,10 @@ V-SIAS inspections that are ready for the shop land here as docked consignments.
 
 Send an inquiry only after a vendor is chosen. **Send inquiry** is what puts it on their phone. Drafts stay in the office. The supplier prices each line, can mark a line they cannot supply, and sends a quotation with a delivery date and a valid-until date. Open that inquiry and press **Accept quote**. The purchase order uses those prices. Lines they cannot supply are left off the order.
 
+**Products** on the portal lists the shop’s stock items. The supplier sets a price on the ones they sell and can change or remove that price. They cannot rename those items or change stock. **Purchasing → Purchase orders → Order from supplier list** chooses that supplier, ticks the priced lines, and sets the quantities. Saving creates a purchase order at those prices. The supplier then sees it under Orders.
+
+**Stock → Vendors → Payment** saves where Flutterwave should pay that supplier: a bank account from the Flutterwave list, or MTN, Airtel, or Zamtel. Saving also onboards the supplier on Flutterwave, with 2.5% kept by the account that owns the API keys. The supplier does not see this. Leave the account and the name blank and save to remove it. On the purchase order, a developer can pay from the shop’s card, from the shop’s mobile money, or from a payout balance Flutterwave has already released. Card and mobile money charge the shop a grossed-up amount so the supplier is due the figure entered. Flutterwave’s own processing fee still comes off the settlement. The figure entered cannot exceed what is still unpaid, and a second payment waits until the first one finishes. Money still on hold in the settlement batches cannot be sent from the payout balance. The developer enters a short reason and their username and password.
+
 On the order they can confirm, decline, or mark it dispatched with their delivery reference. The order then shows that status. They can see what the shop has received. They cannot change stock.
 
 The portal can be installed: the page offers **Install**, or on iPhone use Share, then Add to Home Screen. Quotations and orders need a connection.

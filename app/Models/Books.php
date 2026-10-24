@@ -213,6 +213,7 @@ final class Books extends Model
                     SUM(CASE WHEN pt.settlement_status = 'settled' THEN 1 ELSE 0 END) AS settled
              FROM payment_transactions pt
              WHERE pt.created_at >= ? AND pt.created_at <= ? AND pt.status = 'successful'
+               AND pt.tx_ref NOT LIKE 'SUP-%'
              {$netLoc}
              GROUP BY DATE(pt.created_at), pt.network
              ORDER BY day DESC, amount DESC",

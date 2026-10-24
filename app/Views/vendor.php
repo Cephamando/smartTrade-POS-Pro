@@ -5,6 +5,8 @@ $flash = $flash ?? ['type' => '', 'msg' => ''];
 $home = $home ?? ['inquiries' => 0, 'quotes' => 0, 'awaiting' => 0, 'to_dispatch' => 0];
 $inquiries = $inquiries ?? [];
 $orders = $orders ?? [];
+$offerings = $offerings ?? [];
+$stockItems = $stockItems ?? [];
 $u = static fn(string $view, array $q = []): string => 'index.php?page=vendor&view=' . $view . ($q ? '&' . http_build_query($q) : '');
 $money = static fn($n): string => 'ZMW ' . number_format((float)$n, 2);
 ?>
@@ -73,6 +75,52 @@ $money = static fn($n): string => 'ZMW ' . number_format((float)$n, 2);
             <div class="col-6"><a class="vp-card d-block text-decoration-none text-dark" href="<?= $u('orders') ?>"><div class="small text-muted">Orders to confirm</div><div class="stat"><?= (int)$home['awaiting'] ?></div></a></div>
             <div class="col-6"><a class="vp-card d-block text-decoration-none text-dark" href="<?= $u('orders') ?>"><div class="small text-muted">Still to dispatch</div><div class="stat"><?= (int)$home['to_dispatch'] ?></div></a></div>
         </div>
+    <?php elseif ($screen === 'products'): ?>
+        <?php
+        $priced = [];
+        foreach ($offerings as $row) {
+            $priced[(int)$row['product_id']] = true;
+        }
+        ?>
+        <form method="POST" class="vp-card">
+            <input type="hidden" name="save_offering" value="1">
+            <h1 class="h5 fw-bold">Your prices</h1>
+            <p class="small text-muted">Choose a shop item and the price you charge. The shop orders from this list.</p>
+            <label class="form-label small">Item</label>
+            <input type="search" class="form-control mb-2" placeholder="Find an item" oninput="var q=this.value.toLowerCase(); document.querySelectorAll('#vendorItem option').forEach(function(o){ o.hidden = q !== '' && o.text.toLowerCase().indexOf(q) === -1; });">
+            <select name="product_id" id="vendorItem" class="form-select mb-2" required>
+                <option value="">Choose an item</option>
+                <?php foreach ($stockItems as $item): if (!empty($priced[(int)$item['id']])) continue; ?>
+                    <option value="<?= (int)$item['id'] ?>"><?= htmlspecialchars((string)$item['name']) ?><?= ($item['unit'] ?? '') !== '' ? ' (' . htmlspecialchars((string)$item['unit']) . ')' : '' ?></option>
+                <?php endforeach; ?>
+            </select>
+            <label class="form-label small">Your price (ZMW)</label>
+            <input type="number" name="unit_cost" class="form-control mb-3" min="0.01" step="0.01" required inputmode="decimal">
+            <button class="btn btn-dark w-100 fw-bold">Save price</button>
+        </form>
+        <?php if (!$offerings): ?><div class="vp-card text-muted">No prices yet.</div><?php endif; ?>
+        <?php foreach ($offerings as $row): ?>
+            <div class="vp-card">
+                <div class="d-flex justify-content-between gap-2">
+                    <div>
+                        <strong><?= htmlspecialchars((string)$row['name']) ?></strong>
+                        <?php if (($row['unit'] ?? '') !== ''): ?><div class="small text-muted"><?= htmlspecialchars((string)$row['unit']) ?></div><?php endif; ?>
+                    </div>
+                    <div class="fw-bold"><?= $money($row['unit_cost']) ?></div>
+                </div>
+                <form method="POST" class="d-flex gap-2 mt-2">
+                    <input type="hidden" name="save_offering" value="1">
+                    <input type="hidden" name="product_id" value="<?= (int)$row['product_id'] ?>">
+                    <input type="number" name="unit_cost" class="form-control form-control-sm" min="0.01" step="0.01" value="<?= htmlspecialchars(number_format((float)$row['unit_cost'], 2, '.', '')) ?>" required>
+                    <button class="btn btn-dark btn-sm">Update</button>
+                </form>
+                <form method="POST" class="mt-2">
+                    <input type="hidden" name="remove_offering" value="1">
+                    <input type="hidden" name="product_id" value="<?= (int)$row['product_id'] ?>">
+                    <button class="btn btn-outline-danger btn-sm">Remove</button>
+                </form>
+            </div>
+        <?php endforeach; ?>
     <?php elseif ($screen === 'inquiries'): ?>
         <?php if (!$inquiries): ?><div class="vp-card text-muted">No inquiries have been sent to you yet.</div><?php endif; ?>
         <?php foreach ($inquiries as $row): ?>
@@ -233,6 +281,7 @@ $money = static fn($n): string => 'ZMW ' . number_format((float)$n, 2);
 <?php if ($vendor): ?>
 <nav class="vp-nav">
     <a class="<?= $screen === 'home' ? 'on' : '' ?>" href="<?= $u('home') ?>"><i class="bi bi-house"></i>Home</a>
+    <a class="<?= $screen === 'products' ? 'on' : '' ?>" href="<?= $u('products') ?>"><i class="bi bi-tags"></i>Products</a>
     <a class="<?= in_array($screen, ['inquiries', 'inquiry'], true) ? 'on' : '' ?>" href="<?= $u('inquiries') ?>"><i class="bi bi-inboxes"></i>Inquiries</a>
     <a class="<?= in_array($screen, ['orders', 'order'], true) ? 'on' : '' ?>" href="<?= $u('orders') ?>"><i class="bi bi-receipt"></i>Orders</a>
     <a class="<?= $screen === 'account' ? 'on' : '' ?>" href="<?= $u('account') ?>"><i class="bi bi-person"></i>Account</a>

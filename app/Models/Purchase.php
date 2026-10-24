@@ -195,8 +195,11 @@ final class Purchase extends Model
     public static function orders(): array
     {
         self::ensureSchema();
+        Vendor::ensurePortal();
         return self::db()->query(
             "SELECT o.*, v.name AS vendor_name, l.name AS location_name, u.username,
+                    v.payout_method, v.payout_network, v.payout_bank, v.payout_bank_name,
+                    v.payout_account, v.payout_name, v.payout_branch, v.payout_has_branches, v.payout_subaccount_id,
                     (SELECT COUNT(*) FROM purchase_order_items x WHERE x.order_id = o.id) AS item_count
              FROM purchase_orders o
              JOIN vendors v ON v.id = o.vendor_id
@@ -281,6 +284,43 @@ final class Purchase extends Model
             self::setInquiryStatus($inquiryId, 'converted');
         }
         return $id;
+    }
+
+    /** @param list<array<string, mixed>> $lines */
+    public static function orderFromOfferings(int $vendorId, int $locationId, int $userId, string $ref, string $notes, array $lines): int
+    {
+        if ($vendorId <= 0) {
+            throw new \InvalidArgumentException('Select a supplier.');
+        }
+        if ($locationId <= 0) {
+            throw new \InvalidArgumentException('Select where the goods should be delivered.');
+        }
+        $items = [];
+        foreach ($lines as $line) {
+            if (empty($line['pick'])) {
+                continue;
+            }
+            $productId = (int)($line['product_id'] ?? 0);
+            $qty = (float)($line['qty'] ?? 0);
+            if ($qty <= 0) {
+                throw new \InvalidArgumentException('Enter a quantity for each ticked line.');
+            }
+            $cost = Vendor::offeringCost($vendorId, $productId);
+            if ($cost === null) {
+                throw new \InvalidArgumentException('One of the ticked lines is not on that supplier’s price list.');
+            }
+            $unit = trim((string)($line['unit'] ?? ''));
+            $items[] = [
+                'product_id' => $productId,
+                'qty' => $qty,
+                'cost' => $cost,
+                'unit' => $unit,
+            ];
+        }
+        if (!$items) {
+            throw new \InvalidArgumentException('Tick at least one priced line.');
+        }
+        return self::saveOrder(null, null, $vendorId, $locationId, $userId, $ref, $notes, $items);
     }
 
     public static function convertInquiry(int $inquiryId, int $userId): int
