@@ -45,8 +45,8 @@ $money = static fn($n): string => 'ZMW ' . number_format((float)$n, 2);
 </div>
 <div class="vp-wrap">
     <div id="pwaInstall" data-dismiss="vendor-pwa-dismiss" hidden>
-        <div class="small mb-2">Install this portal on your phone. On iPhone, use Share, then Add to Home Screen.</div>
-        <button type="button" class="btn btn-warning btn-sm fw-bold" data-install hidden>Install</button>
+        <div class="small mb-2">Add this portal to your home screen.</div>
+        <button type="button" class="btn btn-warning btn-sm fw-bold" data-install>Install</button>
         <button type="button" class="btn btn-outline-light btn-sm" data-dismiss-install>Not now</button>
     </div>
     <?php if (($flash['msg'] ?? '') !== ''): ?>

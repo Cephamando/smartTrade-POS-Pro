@@ -422,9 +422,9 @@ $u = fn(string $v, array $q = []) => 'index.php?page=shop&view=' . $v . ($q ? '&
 </head>
 <body class="<?= $view === 'home' ? 'is-home' : (in_array($view, ['menu', 'visit'], true) ? 'is-menu' : '') ?>">
 <div id="pwaInstall" data-dismiss="shop-pwa-dismiss" hidden style="background:#111;color:#fff;padding:10px 16px;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
-    <span class="small">Add the menu to your home screen. On iPhone, use Share, then Add to Home Screen.</span>
+    <span class="small">Add the menu to your home screen.</span>
     <span>
-        <button type="button" class="btn btn-warning btn-sm fw-bold" data-install hidden>Install</button>
+        <button type="button" class="btn btn-warning btn-sm fw-bold" data-install>Install</button>
         <button type="button" class="btn btn-outline-light btn-sm" data-dismiss-install>Not now</button>
     </span>
 </div>
