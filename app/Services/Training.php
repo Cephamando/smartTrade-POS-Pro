@@ -454,7 +454,7 @@ final class Training
         $prompt = $passed
             ? 'The staff member completed this step. In one or two plain sentences, confirm it.'
             : 'The staff member has not finished this step yet. In one or two plain sentences, tell them what to do next. If the practice records do not match the rule, say what to change.';
-        $system = 'You are the smartTrade training coach. Use only the staff manuals and the practice facts you are given. Speak in plain sentences. Do not show code, markdown, or web addresses.';
+        $system = 'You are the smartTrade training coach. Use only the staff manuals and the practice facts you are given. Name the screen those notes name, and no other screen. Speak in one or two plain sentences. Do not show code, markdown, or web addresses.';
         $user = $prompt
             . "\n\nCourse: " . $course['title']
             . "\nStep: " . $step['title']
@@ -463,7 +463,7 @@ final class Training
             . "\nPractice records: " . json_encode($this->evidence($step, $state))
             . "\n\nManual notes:\n" . $this->manualNotes($step);
         try {
-            $text = (new \App\Services\Guide())->ask($settings, $system, [['role' => 'user', 'text' => $user]], 60);
+            $text = (new \App\Services\Guide())->ask($settings, $system, [['role' => 'user', 'text' => $user]], 60, 80);
         } catch (\Throwable $e) {
             return $fallback;
         }

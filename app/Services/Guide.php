@@ -94,7 +94,7 @@ final class Guide
                 . "If the manuals give steps, leave a blank line and number them 1. 2. 3.\n"
                 . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
                 . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
                 . "If the manuals do not cover the question, say so in the first sentence and do not invent steps.\n"
                 . "Do not discuss live sales, stock counts, or customer records.\n"]]],
             'contents' => [
@@ -118,17 +118,21 @@ final class Guide
     public function answer(array $settings, string $question, array $history, string $role): array
     {
         if (self::offline($settings)) {
-            $excerpts = $this->excerpts($question);
+            $excerpts = $this->excerpts($question, 2, 1600);
+            $paths = $this->manualPaths($excerpts);
+            $explaining = preg_match('/\b(how|why|what|explain|describe|tell)\b/i', $question) === 1;
+            $path = (!$explaining && $paths !== []) ? $this->bestPath($paths, $question) : '';
+            if ($path !== '') {
+                return $this->present($path . ".\nOpen: " . $this->screenFromPath($path));
+            }
             $instruction = "You are the staff guide for smartTrade POS Pro.\n"
-                . "Answer the user's question directly and naturally, using only the manual excerpts below.\n"
-                . "Write in everyday language. Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
-                . "Explain why or how something works if the user asks, based on the excerpts.\n"
-                . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
-                . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
-                . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
-                . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
-                . "Do not discuss live sales, stock counts, or customer records.\n\n";
+                . "Answer in at most two short sentences, using only the manual excerpts below.\n"
+                . "Do not add screens, steps, or reasons the excerpts do not state.\n"
+                . "Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
+                . "If the excerpts name a path, repeat that path and do not substitute another screen.\n"
+                . "When a screen should be opened, end with one line: Open: followed by the screen name in that path.\n"
+                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+                . "If the excerpts do not cover the question, say so in one sentence.\n\n";
             $instruction .= $excerpts === ''
                 ? "Manual excerpts: none matched this question."
                 : "Manual excerpts:\n" . $excerpts;
@@ -144,7 +148,7 @@ final class Guide
                 $turns[] = ['role' => (string)($turn['role'] ?? 'user'), 'text' => $text];
             }
             $turns[] = ['role' => 'user', 'text' => "The person asking is a {$role}.\n\nQuestion: " . $question];
-            $text = $this->ask($settings, $instruction, $turns, 120);
+            $text = $this->ask($settings, $instruction, $turns, 120, 120);
             return $this->present($this->scrub($text, ''));
         }
 
@@ -165,7 +169,7 @@ final class Guide
             . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
             . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
             . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
             . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
             . "Do not discuss live sales, stock counts, or customer records.\n\n";
 
@@ -243,10 +247,10 @@ final class Guide
      *
      * @param list<array{role?:string,text?:string}> $turns
      */
-    public function ask(array $settings, string $system, array $turns, int $timeout = 90): string
+    public function ask(array $settings, string $system, array $turns, int $timeout = 90, int $predict = 220): string
     {
         if (self::offline($settings)) {
-            return $this->askOllama($settings, $system, $turns, $timeout);
+            return $this->askOllama($settings, $system, $turns, $timeout, $predict);
         }
         $key = trim((string)($settings['gemini_api_key'] ?? ''));
         if ($key === '') {
@@ -291,7 +295,7 @@ final class Guide
     }
 
     /** @param list<array{role?:string,text?:string}> $turns */
-    private function askOllama(array $settings, string $system, array $turns, int $timeout): string
+    private function askOllama(array $settings, string $system, array $turns, int $timeout, int $predict = 220): string
     {
         $messages = [['role' => 'system', 'content' => $system]];
         foreach ($turns as $turn) {
@@ -308,9 +312,11 @@ final class Guide
             'messages' => $messages,
             'stream' => false,
             'think' => false,
+            'keep_alive' => '30m',
             'options' => [
                 'temperature' => 0.2,
                 'num_ctx' => 8192,
+                'num_predict' => max(40, $predict),
             ],
         ];
         $ch = curl_init($url);
@@ -327,7 +333,10 @@ final class Guide
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         if (!is_string($raw) || $raw === '') {
-            throw new \RuntimeException('Ollama is not running on this computer. Start it, then ask again.' . ($err !== '' ? ' ' . $err : ''));
+            if (stripos($err, 'timed out') !== false) {
+                throw new \RuntimeException('Qwen is still working on this computer and did not finish in time. Ask again.');
+            }
+            throw new \RuntimeException('Ollama is not running on this computer. Start it, then ask again.');
         }
         $data = json_decode($raw, true);
         $text = trim((string)($data['message']['content'] ?? ''));
@@ -399,7 +408,7 @@ final class Guide
         return $contents;
     }
 
-    private function excerpts(string $question): string
+    private function excerpts(string $question, int $maxSections = self::MAX_SECTIONS, int $maxChars = self::MAX_EXCERPT): string
     {
         $tokens = $this->tokens($question);
         if ($tokens === []) {
@@ -429,15 +438,61 @@ final class Guide
 
         $out = '';
         $used = 0;
-        foreach (array_slice($scored, 0, self::MAX_SECTIONS) as $section) {
+        foreach (array_slice($scored, 0, $maxSections) as $section) {
             $block = '--- ' . $section['book'] . ': ' . $section['heading'] . " ---\n" . $section['text'] . "\n\n";
-            if (strlen($out) + strlen($block) > self::MAX_EXCERPT) {
+            $room = $maxChars - strlen($out);
+            if ($room < 200) {
                 break;
+            }
+            if (strlen($block) > $room) {
+                $block = substr($block, 0, $room);
             }
             $out .= $block;
             $used++;
         }
         return $used > 0 ? trim($out) : '';
+    }
+
+    /** @return list<string> */
+    private function manualPaths(string $excerpts): array
+    {
+        if ($excerpts === '' || !preg_match_all('/\*\*([^*]*→[^*]+)\*\*/u', $excerpts, $found)) {
+            return [];
+        }
+        $paths = [];
+        foreach ($found[1] ?? [] as $path) {
+            $path = trim((string)preg_replace('/\s+/', ' ', (string)$path));
+            $path = rtrim($path, '.');
+            if ($path !== '' && !in_array($path, $paths, true)) {
+                $paths[] = $path;
+            }
+        }
+        return $paths;
+    }
+
+    /** @param list<string> $paths */
+    private function bestPath(array $paths, string $question): string
+    {
+        $tokens = $this->tokens($question);
+        $chosen = '';
+        $best = 0;
+        foreach ($paths as $path) {
+            $score = $this->score($path, $path, $tokens);
+            if ($score > $best) {
+                $best = $score;
+                $chosen = $path;
+            }
+        }
+        return $chosen;
+    }
+
+    private function screenFromPath(string $path): string
+    {
+        $screen = trim((string)preg_replace('/^.*→\s*/u', '', $path));
+        if (str_contains($screen, ',')) {
+            $screen = trim(strstr($screen, ',', true) ?: $screen);
+        }
+        return trim($screen, " .");
     }
 
     /** @return list<array{heading:string,text:string}> */
@@ -585,11 +640,15 @@ final class Guide
         if (preg_match('/^Open:\s*(.+)$/mi', $text, $openLine)) {
             $this->addNamedLink($links, $seen, trim($openLine[1]));
             $text = preg_replace('/^Open:\s*.+$/mi', '', $text) ?? $text;
+        } elseif ($links === []) {
+            $this->scanScreenLinks($text, $links, $seen);
         }
-        $this->scanScreenLinks($text, $links, $seen);
 
         $text = trim((string)preg_replace("/[ \t]+\n/", "\n", $text));
         $text = trim((string)preg_replace("/\n{3,}/", "\n\n", $text));
+        if ($text === '' && $links !== []) {
+            $text = $links[0]['label'] . '.';
+        }
 
         return [
             'text' => $text,
@@ -610,6 +669,9 @@ final class Guide
             ['name' => 'Customer shop', 'href' => 'index.php?page=shop', 'blank' => true, 'keys' => ['customer shop', 'customer ordering', 'ordering portal', 'customer order', 'online customer']],
             ['name' => 'Point of sale', 'href' => 'index.php?page=pos', 'blank' => true, 'keys' => ['point of sale']],
             ['name' => 'End of day', 'href' => 'index.php?page=z_read', 'blank' => false, 'keys' => ['end of day', 'z-read', 'z read']],
+            ['name' => 'Books of account', 'href' => 'index.php?page=books', 'blank' => false, 'keys' => ['books of account', 'books of accounts']],
+            ['name' => 'ZRA invoices', 'href' => 'index.php?page=zra', 'blank' => false, 'keys' => ['zra invoices', 'zra invoice']],
+            ['name' => 'Guest notes', 'href' => 'index.php?page=guest_notes', 'blank' => false, 'keys' => ['guest notes', 'guest note']],
             ['name' => 'Kitchen display', 'href' => 'index.php?page=kds', 'blank' => true, 'keys' => ['kitchen display']],
             ['name' => 'Dashboard', 'href' => 'index.php?page=dashboard', 'blank' => false, 'keys' => ['dashboard']],
             ['name' => 'Products', 'href' => 'index.php?page=products', 'blank' => false, 'keys' => ['products']],
@@ -648,6 +710,9 @@ final class Guide
             $page === 'inventory' => 'Stock levels',
             $page === 'receiving_bay' => 'Receiving bay',
             $page === 'z_read' => 'End of day',
+            $page === 'books' => 'Books of account',
+            $page === 'zra' => 'ZRA invoices',
+            $page === 'guest_notes' => 'Guest notes',
             $page === 'analysis' => 'Business analysis',
             $page === 'kds' => 'Kitchen display',
             $page === 'audit' => 'Stock history',

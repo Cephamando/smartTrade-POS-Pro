@@ -428,8 +428,8 @@
                 .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
                 .then(function (result) {
                     const data = result.data || {};
-                    const text = data.answer || data.msg || 'The guide could not answer.';
-                    if (data.status === 'ok' && data.html) {
+                    const text = data.answer || data.msg || (data.links && data.links[0] && data.links[0].label) || 'The guide could not answer.';
+                    if (data.status === 'ok' && (data.html || text)) {
                         fillGuide(pending, { html: data.html, links: data.links || [], text: text });
                         history.push({ role: 'user', text: question });
                         history.push({ role: 'model', text: text, html: data.html, links: data.links || [] });
