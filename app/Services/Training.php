@@ -447,57 +447,25 @@ final class Training
         $fallback = $passed
             ? 'That step is recorded.'
             : (string)($step['ask'] ?? '');
-        $key = $this->apiKey();
-        if ($key === '') {
+        $settings = $this->aiSettings();
+        if (!\App\Services\Guide::offline($settings) && trim((string)($settings['gemini_api_key'] ?? '')) === '') {
             return $fallback;
         }
         $prompt = $passed
             ? 'The staff member completed this step. In one or two plain sentences, confirm it.'
             : 'The staff member has not finished this step yet. In one or two plain sentences, tell them what to do next. If the practice records do not match the rule, say what to change.';
-        $body = [
-            'system_instruction' => [
-                'parts' => [[
-                    'text' => 'You are the smartTrade training coach. Use only the staff manuals and the practice facts you are given. Speak in plain sentences. Do not show code, markdown, or web addresses.',
-                ]],
-            ],
-            'contents' => [[
-                'role' => 'user',
-                'parts' => [[
-                    'text' => $prompt
-                        . "\n\nCourse: " . $course['title']
-                        . "\nStep: " . $step['title']
-                        . "\nInstruction: " . $step['ask']
-                        . "\nRule: " . $step['rule']
-                        . "\nPractice records: " . json_encode($this->evidence($step, $state))
-                        . "\n\nManual notes:\n" . $this->manualNotes($step),
-                ]],
-            ]],
-            'generationConfig' => [
-                'temperature' => 0.2,
-                'maxOutputTokens' => 1024,
-                'thinkingConfig' => ['thinkingLevel' => 'low'],
-            ],
-        ];
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'x-goog-api-key: ' . $key,
-            ],
-            CURLOPT_POSTFIELDS => json_encode($body),
-        ]);
-        $raw = curl_exec($ch);
-        curl_close($ch);
-        $data = json_decode((string)$raw, true);
-        $text = '';
-        foreach ($data['candidates'][0]['content']['parts'] ?? [] as $part) {
-            if (!empty($part['text']) && empty($part['thought'])) {
-                $text .= $part['text'];
-            }
+        $system = 'You are the smartTrade training coach. Use only the staff manuals and the practice facts you are given. Speak in plain sentences. Do not show code, markdown, or web addresses.';
+        $user = $prompt
+            . "\n\nCourse: " . $course['title']
+            . "\nStep: " . $step['title']
+            . "\nInstruction: " . $step['ask']
+            . "\nRule: " . $step['rule']
+            . "\nPractice records: " . json_encode($this->evidence($step, $state))
+            . "\n\nManual notes:\n" . $this->manualNotes($step);
+        try {
+            $text = (new \App\Services\Guide())->ask($settings, $system, [['role' => 'user', 'text' => $user]], 60);
+        } catch (\Throwable $e) {
+            return $fallback;
         }
         $text = trim(preg_replace('/[`*_#]+/', '', $text) ?? '');
         if ($text === '' || !preg_match('/[.!?]$/', $text)) {
@@ -565,17 +533,21 @@ final class Training
         return $notes;
     }
 
-    private function apiKey(): string
+    private function aiSettings(): array
     {
+        $out = [];
         try {
-            $stmt = Database::production()->prepare(
-                "SELECT setting_value FROM settings WHERE setting_key = 'gemini_api_key' LIMIT 1"
+            $stmt = Database::production()->query(
+                "SELECT setting_key, setting_value FROM settings
+                 WHERE setting_key IN ('gemini_api_key', 'gemini_model', 'ollama_url')"
             );
-            $stmt->execute();
-            return trim((string)$stmt->fetchColumn());
+            foreach ($stmt->fetchAll() as $row) {
+                $out[(string)$row['setting_key']] = (string)$row['setting_value'];
+            }
         } catch (\Throwable $e) {
-            return '';
+            return [];
         }
+        return $out;
     }
 
     private function cloneSchema(PDO $prod, PDO $box): void

@@ -269,7 +269,7 @@ Ingredients are deducted from kitchen stock. Finished portions are added at the 
 
 - Filter by location and search.
 - **Total stock value** is cost times quantity for the rows on screen.
-- **Explain these figures** writes a short note from the lines on screen (counts, zeros, and the lowest quantities), using the Gemini key under Settings → Guide. The note treats the value it is given as selling price times quantity. It is not a forecast.
+- **Explain these figures** writes a short note from the lines on screen (counts, zeros, and the lowest quantities), using the model under Settings → Guide. Offline Qwen stays on this computer; a Gemini model uses the saved key. The note treats the value it is given as selling price times quantity. It is not a forecast.
 - Enter a **physical count** and a reason, then **Finish & update stock**. The grid updates in place. The adjustment is applied to live stock, so sales that happen during the count are kept. Quantity is not taken below zero.
 - The pencil saves that row's quantity and selling price in place. The price belongs to the product, so every location of that item on the screen updates.
 - **Print stock** makes a count sheet. **Download CSV** exports the grid.
@@ -475,7 +475,7 @@ When a client runs both an **Online HQ** server and one or more **Offline Shop E
 | **Tips & Surcharges** | Tiles for tips on receipts, tips added after payment (with the cash part), all tips, and surcharges. A table of surcharges by reason, then one row per staff member: paid receipts, tips on receipts, tips after payment (count and cash), and the total credited to them. | — |
 | **Finance** | Every money movement in the period: each paid sale and refund, paid event deposit or balance, expense (a paid payroll run is not listed twice), each paid payslip (net pay plus PAYE, NAPSA, and NHIMA), each goods-received note, and each Flutterwave service fee. Tiles show money in, money out, payroll, purchases, and the result. A bank transfer is listed and marked “not in result”, because that money was already counted as a sale. Tips, surcharges, discounts, and tax are inside the sale and are not added again. Choosing one employee leaves out event payments and bank transfers. The time-of-day filter does not apply on this tab. | — |
 
-Each table has a **Filter records** search box and pages of 50 rows. **Explain these figures** opens a window and writes a short note from the totals on the current tab, using the Gemini key under Settings → Guide. It does not forecast, and it does not send customer or staff names.
+Each table has a **Filter records** search box and pages of 50 rows. **Explain these figures** opens a window and writes a short note from the totals on the current tab, using the model under Settings → Guide. Offline Qwen stays on this computer; a Gemini model uses the saved key. It does not forecast, and it does not send customer or staff names.
 
 **Office → Business analysis** (administrators, managers, and developers). Pick a period of up to 120 days and, if you want, one store. Three charts show daily takings, how receipts were paid, and money in against refunds, expenses, payroll, purchases, and fees. The next 7 days on the takings chart are a projection: each day is the average of that weekday in the period. **Discuss these figures** opens a window that explains those totals and answers follow-up questions. The questions stay on this server. The reply can use only the totals behind the charts, and it will not give names, passwords, or keys. A projection is an estimate, not a promise. Changing the dates starts a fresh conversation.
 
@@ -497,7 +497,7 @@ Administrators, managers, and developers.
 - **Inventory** shortcuts: Receiving bay, Goods received, products, and History.
 - **Kitchen & menu** shortcuts on Pro+ and Enterprise: KDS, Meal Production, Menu Builder.
 - **Staff & users** shortcuts: Manage Users, View Shifts, Members.
-- **Sales trend.** Day, week, month, year, or a custom range. **Line**, **Bar**, or **Both**. **Items** picks up to 8 products sold in that period; each is drawn with the total. **Explain** writes a short note from the points on the chart, using the Gemini key under Settings → Guide. It does not forecast. Click the chart, or **Expand**, for a larger copy with the same button. **Payment mix** is today only.
+- **Sales trend.** Day, week, month, year, or a custom range. **Line**, **Bar**, or **Both**. **Items** picks up to 8 products sold in that period; each is drawn with the total. **Explain** writes a short note from the points on the chart, using the model under Settings → Guide. Offline Qwen stays on this computer; a Gemini model uses the saved key. It does not forecast. Click the chart, or **Expand**, for a larger copy with the same button. **Payment mix** is today only.
 - **Active shifts**: who is open, their role, and a button into that shift’s sales.
 - **Settlements & Payouts**: the second tab. See below.
 - **Pickup screen** and **Approvals** when your role and tier include them.
@@ -559,7 +559,7 @@ Any signed-in user can open Change Password. Enter the current password, the new
 
 **Email** — SMTP host, port, user, password, and sender address for system emails (like event invitations).
 
-**Guide** — The Gemini API key and model for the AI staff guide. To speed up answers and save tokens, tap **Sync Documentation** after saving the key to upload the manuals into Gemini's context cache. Sync again if the manuals change.
+**Guide** — The model for the staff guide, the training coach, and the short notes on report figures. **Offline — Qwen on this computer** answers through Ollama on this machine (pull `qwen3.5:4b`, and start Ollama so it listens on every address). A Gemini model needs the API key; leave the key blank to keep the one already saved. **Sync Documentation** is only for a Gemini model: it uploads the manuals into Gemini's context cache. Sync again if the manuals change. Offline Qwen reads the manuals here and has nothing to sync.
 
 **Edge Sync** — pairs a live **Online HQ (Master)** server with an **Offline Shop Edge** PC running the sealed OPcache container:
 
@@ -594,7 +594,7 @@ Open the account menu, then **Payroll**. Four tabs.
 2. Open the run and edit **days**, **hours**, **basic**, or **tips** per person. **One-off adjustments** sets the hours, the days, a subtraction (with a reason), and any extra earning or deduction for this run only. **Recalculate** reworks every slip. Clear Hours or Days to read the shifts again. A basic figure you type is kept.
 3. **Approve** locks the figures. **Mark paid** books the net pay as an expense and stamps the pay date. **Reopen** returns an approved run to draft. Draft runs can be deleted.
 4. **Print payslips** prints the whole run or a single slip: earnings, deductions, employer NAPSA and NHIMA, net pay. A percent allowance shows the rate and the basic next to the kwacha, and NAPSA and NHIMA show their percentage of gross or basic.
-5. **Explain these figures**, on an open run, writes a short note from the run totals (headcount, gross, PAYE, NAPSA, NHIMA, net) using the Gemini key under Settings → Guide. Employee names are not sent. It is not payroll advice and not a forecast.
+5. **Explain these figures**, on an open run, writes a short note from the run totals (headcount, gross, PAYE, NAPSA, NHIMA, net) using the model under Settings → Guide. Offline Qwen stays on this computer; a Gemini model uses the saved key. Employee names are not sent. It is not payroll advice and not a forecast.
 
 How a slip is worked out: basic (pro-rated for days or hours when the pay type calls for it) + allowances (+ tips if included) = gross. An allowance set to percent of basic is that percent of the basic on the slip. NAPSA employee share is 5% of gross up to the cap, and is deducted before tax. PAYE is applied to gross less NAPSA (and less non-taxable allowances) using the bands. NHIMA is 1% of basic. Net = gross − NAPSA − NHIMA − PAYE − other deductions. The employer's matching NAPSA and NHIMA appear separately and are not deducted from the worker.
 

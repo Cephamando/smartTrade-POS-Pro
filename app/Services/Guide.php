@@ -13,13 +13,14 @@ final class Guide
 
     public static function ready(array $settings): bool
     {
-        return trim((string)($settings['gemini_api_key'] ?? '')) !== '';
+        return self::offline($settings) || trim((string)($settings['gemini_api_key'] ?? '')) !== '';
     }
 
     /** @return array<string, string> */
     public static function models(): array
     {
         return [
+            'ollama:qwen3.5:4b' => 'Offline — Qwen on this computer',
             'gemini-3.5-flash-lite' => 'Gemini 3.5 Flash Lite',
             'gemini-3.8-flash' => 'Gemini 3.8 Flash',
             'gemini-3.8-live' => 'Gemini 3.8 Live',
@@ -31,15 +32,42 @@ final class Guide
     /** The model id to send. Retired lite models are no longer offered to new keys. */
     public static function model(string $saved): string
     {
+        if (str_starts_with($saved, 'ollama:')) {
+            return isset(self::models()[$saved]) ? $saved : 'ollama:qwen3.5:4b';
+        }
         if ($saved === 'gemini-2.5-flash-lite' || $saved === 'gemini-2.0-flash' || !isset(self::models()[$saved])) {
             return 'gemini-3.5-flash-lite';
         }
         return $saved;
     }
 
+    public static function offline(array $settings): bool
+    {
+        return str_starts_with(self::model((string)($settings['gemini_model'] ?? '')), 'ollama:');
+    }
+
+    public static function ollamaModel(array $settings): string
+    {
+        $id = self::model((string)($settings['gemini_model'] ?? ''));
+        $name = str_starts_with($id, 'ollama:') ? substr($id, 7) : '';
+        return $name !== '' ? $name : 'qwen3.5:4b';
+    }
+
+    public static function ollamaUrl(array $settings): string
+    {
+        $url = trim((string)($settings['ollama_url'] ?? ''));
+        if ($url === '' || preg_match('#^https?://[A-Za-z0-9._:-]+/?$#', $url) !== 1) {
+            return 'http://host.docker.internal:11434';
+        }
+        return rtrim($url, '/');
+    }
+
     public function sync(array $settings): string
     {
         $key = trim((string)($settings['gemini_api_key'] ?? ''));
+        if (self::offline($settings)) {
+            throw new \RuntimeException('Offline Qwen does not use the Gemini cache. The guide reads the manuals on this computer.');
+        }
         $model = self::model((string)($settings['gemini_model'] ?? ''));
 
         $oldCache = (string)($settings['gemini_cache_name'] ?? '');
@@ -89,6 +117,37 @@ final class Guide
     /** @return array{text:string,html:string,links:list<array{label:string,href:string,blank:bool}>} */
     public function answer(array $settings, string $question, array $history, string $role): array
     {
+        if (self::offline($settings)) {
+            $excerpts = $this->excerpts($question);
+            $instruction = "You are the staff guide for smartTrade POS Pro.\n"
+                . "Answer the user's question directly and naturally, using only the manual excerpts below.\n"
+                . "Write in everyday language. Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
+                . "Explain why or how something works if the user asks, based on the excerpts.\n"
+                . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
+                . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
+                . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
+                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Shifts, Users, Payroll, Locations, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+                . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
+                . "Do not discuss live sales, stock counts, or customer records.\n\n";
+            $instruction .= $excerpts === ''
+                ? "Manual excerpts: none matched this question."
+                : "Manual excerpts:\n" . $excerpts;
+            $turns = [];
+            foreach (array_slice($history, -6) as $turn) {
+                if (!is_array($turn)) {
+                    continue;
+                }
+                $text = trim((string)($turn['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $turns[] = ['role' => (string)($turn['role'] ?? 'user'), 'text' => $text];
+            }
+            $turns[] = ['role' => 'user', 'text' => "The person asking is a {$role}.\n\nQuestion: " . $question];
+            $text = $this->ask($settings, $instruction, $turns, 120);
+            return $this->present($this->scrub($text, ''));
+        }
+
         $key = trim((string)($settings['gemini_api_key'] ?? ''));
         if ($key === '') {
             throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
@@ -177,6 +236,109 @@ final class Guide
             throw new \RuntimeException('The Gemini prepaid credits are used up. Add credit in Google AI Studio, then ask again.');
         }
         throw new \RuntimeException('The guide could not get an answer. Try again in a moment.');
+    }
+
+    /**
+     * One completion for the guide, the training coach, and figure notes.
+     *
+     * @param list<array{role?:string,text?:string}> $turns
+     */
+    public function ask(array $settings, string $system, array $turns, int $timeout = 90): string
+    {
+        if (self::offline($settings)) {
+            return $this->askOllama($settings, $system, $turns, $timeout);
+        }
+        $key = trim((string)($settings['gemini_api_key'] ?? ''));
+        if ($key === '') {
+            throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
+        }
+        $model = self::model((string)($settings['gemini_model'] ?? ''));
+        $contents = [];
+        foreach ($turns as $turn) {
+            $text = trim((string)($turn['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $contents[] = [
+                'role' => ($turn['role'] ?? '') === 'model' ? 'model' : 'user',
+                'parts' => [['text' => $text]],
+            ];
+        }
+        if ($contents === []) {
+            throw new \RuntimeException('The guide could not prepare the question.');
+        }
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
+        $payload = [
+            'systemInstruction' => ['parts' => [['text' => $system]]],
+            'contents' => $contents,
+            'generationConfig' => $this->generationConfig($model),
+        ];
+        [$code, $raw] = $this->post($url, $key, $payload);
+        if ($code === 400 && isset($payload['generationConfig']['thinkingConfig'])) {
+            unset($payload['generationConfig']['thinkingConfig']);
+            [$code, $raw] = $this->post($url, $key, $payload);
+        }
+        $data = json_decode($raw, true);
+        $text = is_array($data) ? $this->replyText($data) : '';
+        if ($text !== '') {
+            return $text;
+        }
+        $detail = is_array($data) ? (string)($data['error']['message'] ?? '') : '';
+        if ($code === 402 || ($detail !== '' && (stripos($detail, 'quota') !== false || stripos($detail, 'prepay') !== false || stripos($detail, 'depleted') !== false))) {
+            throw new \RuntimeException('The Gemini prepaid credits are used up. Add credit in Google AI Studio, then ask again.');
+        }
+        throw new \RuntimeException($detail !== '' ? $detail : 'The guide could not get an answer. Try again in a moment.');
+    }
+
+    /** @param list<array{role?:string,text?:string}> $turns */
+    private function askOllama(array $settings, string $system, array $turns, int $timeout): string
+    {
+        $messages = [['role' => 'system', 'content' => $system]];
+        foreach ($turns as $turn) {
+            $text = trim((string)($turn['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+            $role = ($turn['role'] ?? '') === 'model' ? 'assistant' : 'user';
+            $messages[] = ['role' => $role, 'content' => $text];
+        }
+        $url = self::ollamaUrl($settings) . '/api/chat';
+        $body = [
+            'model' => self::ollamaModel($settings),
+            'messages' => $messages,
+            'stream' => false,
+            'think' => false,
+            'options' => [
+                'temperature' => 0.2,
+                'num_ctx' => 8192,
+            ],
+        ];
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => max(15, $timeout),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+        ]);
+        $raw = curl_exec($ch);
+        $err = curl_error($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if (!is_string($raw) || $raw === '') {
+            throw new \RuntimeException('Ollama is not running on this computer. Start it, then ask again.' . ($err !== '' ? ' ' . $err : ''));
+        }
+        $data = json_decode($raw, true);
+        $text = trim((string)($data['message']['content'] ?? ''));
+        if ($code >= 200 && $code < 300 && $text !== '') {
+            return $text;
+        }
+        $detail = is_array($data) ? (string)($data['error'] ?? '') : '';
+        if ($detail !== '' && stripos($detail, 'not found') !== false) {
+            throw new \RuntimeException('Pull ' . self::ollamaModel($settings) . ' in Ollama, then ask again.');
+        }
+        throw new \RuntimeException($detail !== '' ? $detail : 'Ollama did not answer. Try again in a moment.');
     }
 
     /** @return array<string, mixed> */

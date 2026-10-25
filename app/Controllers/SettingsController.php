@@ -374,10 +374,15 @@ final class SettingsController extends Controller
         $oldKey = (string)($existing['gemini_api_key'] ?? '');
         $key = trim((string)($_POST['gemini_api_key'] ?? ''));
         $model = Guide::model((string)($_POST['gemini_model'] ?? ''));
+        $url = trim((string)($_POST['ollama_url'] ?? ''));
+        if ($url !== '' && preg_match('#^https?://[A-Za-z0-9._:-]+/?$#', $url) !== 1) {
+            throw new \RuntimeException('The Ollama address should look like http://host.docker.internal:11434.');
+        }
         $savedKey = $key !== '' ? $key : $oldKey;
         $updates = [
             'gemini_api_key' => $savedKey,
             'gemini_model' => $model,
+            'ollama_url' => $url,
         ];
         if ($model !== $oldModel || ($key !== '' && $key !== $oldKey)) {
             $updates['gemini_cache_name'] = '';
@@ -391,9 +396,15 @@ final class SettingsController extends Controller
         $settings = Setting::all();
         if (!Guide::ready($settings)) {
             if ($this->wantsAjax()) {
-                $this->jsonExit(['status' => 'error', 'msg' => 'Save a Gemini API key first.']);
+                $this->jsonExit(['status' => 'error', 'msg' => 'Save a Gemini API key first, or choose Offline — Qwen on this computer.']);
             }
-            throw new \RuntimeException('Save a Gemini API key first.');
+            throw new \RuntimeException('Save a Gemini API key first, or choose Offline — Qwen on this computer.');
+        }
+        if (Guide::offline($settings)) {
+            if ($this->wantsAjax()) {
+                $this->jsonExit(['status' => 'error', 'msg' => 'Offline Qwen reads the manuals on this computer. There is nothing to sync.']);
+            }
+            throw new \RuntimeException('Offline Qwen reads the manuals on this computer. There is nothing to sync.');
         }
         $cacheName = (new Guide())->sync($settings);
         Setting::save(['gemini_cache_name' => $cacheName]);

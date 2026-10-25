@@ -1575,7 +1575,7 @@ function pingShopFace() {
         <div class="card shadow-sm border-0 border-top border-4 border-warning">
             <div class="card-body p-4">
                 <h5 class="fw-bold mb-1"><i class="bi bi-chat-left-text text-warning"></i> Staff guide</h5>
-                <p class="text-muted small">The Guide button on back-office pages answers how-to questions from the written manuals. The key stays on this server. Leave it blank to keep the one already saved.</p>
+                <p class="text-muted small">The Guide button and the training coach answer from the written manuals. Choose Offline to use Qwen through Ollama on this computer, or a Gemini model when a key is saved. Leave the key blank to keep the one already saved.</p>
                 <form method="POST" action="index.php?page=settings">
                     <input type="hidden" name="tab" value="guide">
                     <input type="hidden" name="save_guide" value="1">
@@ -1585,17 +1585,23 @@ function pingShopFace() {
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">MODEL</label>
-                        <select name="gemini_model" class="form-select">
+                        <select name="gemini_model" id="guideModel" class="form-select">
                             <?php foreach ($guideModels as $id => $label): ?>
                             <option value="<?= htmlspecialchars($id) ?>" <?= $guideModel === $id ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <div class="mb-3" id="ollamaAddress">
+                        <label class="form-label fw-bold small text-muted">OLLAMA ADDRESS</label>
+                        <input type="text" name="ollama_url" class="form-control" value="<?= htmlspecialchars((string)($settings['ollama_url'] ?? '')) ?>" placeholder="http://host.docker.internal:11434" autocomplete="off">
+                        <div class="form-text">Used only for Offline. Ollama has to be running and listening on every address (<code>OLLAMA_HOST=0.0.0.0:11434</code>), with <code>qwen3.5:4b</code> pulled. The shop container reaches the computer through <code>host.docker.internal</code>.</div>
+                    </div>
                     <div class="text-end mt-4">
                         <button class="btn btn-dark fw-bold px-5"><i class="bi bi-save"></i> Save guide</button>
                     </div>
                 </form>
-                <?php if ($guideReady = \App\Services\Guide::ready($settings)): ?>
+                <?php $guideOffline = \App\Services\Guide::offline($settings); ?>
+                <?php if (!$guideOffline && ($guideReady = \App\Services\Guide::ready($settings))): ?>
                 <div class="mt-4 border-top pt-3">
                     <h6 class="fw-bold"><i class="bi bi-lightning-charge text-warning"></i> Context Caching</h6>
                     <p class="text-muted small mb-3">Sync the manuals to Gemini's context cache. This makes answers faster and saves tokens. Sync again when the manuals are updated.</p>

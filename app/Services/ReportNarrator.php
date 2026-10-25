@@ -14,6 +14,16 @@ final class ReportNarrator
 {
     public function explain(array $settings, string $brief): string
     {
+        if (Guide::offline($settings)) {
+            $instruction = "You explain figures already shown on a screen in smartTrade POS Pro.\n"
+                . "Use only the numbers in the brief. If a figure is missing, say it is not in the brief.\n"
+                . "Write a short plain-language note: what the period shows, what stands out, and what is worth checking.\n"
+                . "Do not forecast. Do not invent causes. Do not give tax or payroll advice.\n"
+                . "Do not use markdown, asterisks, or backticks.\n"
+                . "Do not name customers, cashiers, or employees. The brief does not include them.\n"
+                . "Money is Zambian kwacha (ZMW).\n";
+            return $this->plain((new Guide())->ask($settings, $instruction, [['role' => 'user', 'text' => $brief]], 90));
+        }
         $key = trim((string)($settings['gemini_api_key'] ?? ''));
         if ($key === '') {
             throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
@@ -71,8 +81,9 @@ final class ReportNarrator
      */
     public function discuss(array $settings, string $brief, array $history, string $question): string
     {
+        $offline = Guide::offline($settings);
         $key = trim((string)($settings['gemini_api_key'] ?? ''));
-        if ($key === '') {
+        if (!$offline && $key === '') {
             throw new \RuntimeException('A manager still needs to save a Gemini key under System Settings, Guide.');
         }
         $model = Guide::model((string)($settings['gemini_model'] ?? ''));
@@ -104,6 +115,17 @@ final class ReportNarrator
             $contents[] = ['role' => $role, 'parts' => [['text' => $text]]];
         }
         $contents[] = ['role' => 'user', 'parts' => [['text' => $ask]]];
+
+        if ($offline) {
+            $turns = [];
+            foreach ($contents as $turn) {
+                $turns[] = [
+                    'role' => (string)($turn['role'] ?? 'user'),
+                    'text' => (string)($turn['parts'][0]['text'] ?? ''),
+                ];
+            }
+            return $this->plain((new Guide())->ask($settings, $instruction, $turns, 90));
+        }
 
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
         $payload = [
