@@ -57,7 +57,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                             <?php endif; ?>
                         <?php else: ?>
                             <button class="btn btn-sm btn-outline-primary" onclick='editUser(<?= json_encode($u) ?>)'><i class="bi bi-pencil"></i></button>
-                            <?php if (in_array($u['role'], ['admin', 'manager', 'dev'], true)): ?>
+                            <?php if (in_array($u['role'], ['admin', 'manager', 'dev', 'owner'], true)): ?>
                             <form method="POST" class="d-inline js-confirm-form"
                                 data-swal-title="Reset the sign-in code?"
                                 data-swal-text="The next sign-in sets a new authenticator code. Open browsers for this account are signed out."
@@ -120,6 +120,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                                     <option value="dev">Developer (Root)</option>
                                 <?php endif; ?>
                                 <option value="admin">Administrator</option>
+                                <option value="owner">Owner</option>
                                 <option value="manager">Manager</option>
                                 <option value="head_chef">Head Chef</option>
                                 <option value="chef">Chef</option>

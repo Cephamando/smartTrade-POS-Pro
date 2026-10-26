@@ -198,30 +198,9 @@ $canRefundSales = in_array($reportRole, ['admin', 'manager', 'dev'], true);
     </div>
 </form>
 
-<?php
-// Recalculate metrics dynamically based on the filtered $reportData
-$netSales = 0;
-$refunds = 0;
+<?php $ft = is_array($finance ?? null) ? ($finance['totals'] ?? null) : null; ?>
 
-if ($reportType === 'sales' || $reportType === 'taxes') {
-    foreach($reportData as $row) {
-        if ($row['final_total'] < 0 || strtolower($row['payment_status'] ?? '') === 'refunded') {
-            $refunds += abs($row['final_total']);
-        } elseif (strtolower($row['payment_status'] ?? '') === 'paid') {
-            $netSales += $row['final_total'];
-        }
-    }
-} else {
-    $netSales = $metrics['total_revenue'] ?? 0;
-    $refunds = $refundStats['total_refunded'] ?? 0;
-}
-
-$grossSales = $netSales + $refunds;
-$discounts = 0; 
-$grossProfit = $netSales * 0.45; // Approximate if cost isn't in metrics array
-$ft = is_array($finance ?? null) ? ($finance['totals'] ?? null) : null;
-?>
-
+<?php include __DIR__ . '/partials/trade_figures.php'; ?>
 <?php if ($reportType === 'finance' && $ft): ?>
 <div class="loy-metric-tabs shadow-sm">
     <div class="loy-metric-tab active">
@@ -251,34 +230,6 @@ $ft = is_array($finance ?? null) ? ($finance['totals'] ?? null) : null;
     </div>
 </div>
 <p class="small text-muted px-3">Tips <?= number_format($ft['tips'], 2) ?>, surcharges <?= number_format($ft['surcharges'], 2) ?>, discounts <?= number_format($ft['discounts'], 2) ?>, and tax <?= number_format($ft['tax'], 2) ?> are already inside the sales figure. Payroll is the net pay plus PAYE, NAPSA, and NHIMA, and is not also counted as an expense. A payout transfer is the same money leaving Flutterwave, so it is listed and left out of the result. Picking one employee leaves out event payments and bank transfers. The time-of-day filter does not apply on this tab.</p>
-<?php else: ?>
-<div class="loy-metric-tabs shadow-sm">
-    <div class="loy-metric-tab active">
-        <div class="loy-metric-title">Gross sales <i class="bi bi-info-circle" title="Total sales before discounts and refunds"></i></div>
-        <div class="loy-metric-value">ZMW <?= number_format($grossSales, 2) ?></div>
-        <div class="loy-metric-sub">0.00 ZK (0%)</div>
-    </div>
-    <div class="loy-metric-tab">
-        <div class="loy-metric-title">Refunds <i class="bi bi-info-circle" title="Items returned by customers"></i></div>
-        <div class="loy-metric-value">ZMW <?= number_format($refunds, 2) ?></div>
-        <div class="loy-metric-sub">0.00 ZK (0%)</div>
-    </div>
-    <div class="loy-metric-tab">
-        <div class="loy-metric-title">Discounts <i class="bi bi-info-circle" title="Total discounts applied"></i></div>
-        <div class="loy-metric-value">ZMW <?= number_format($discounts, 2) ?></div>
-        <div class="loy-metric-sub">0.00 ZK (0%)</div>
-    </div>
-    <div class="loy-metric-tab">
-        <div class="loy-metric-title">Net sales <i class="bi bi-info-circle" title="Gross sales minus discounts and refunds"></i></div>
-        <div class="loy-metric-value">ZMW <?= number_format($netSales, 2) ?></div>
-        <div class="loy-metric-sub">0.00 ZK (0%)</div>
-    </div>
-    <div class="loy-metric-tab">
-        <div class="loy-metric-title">Gross profit <i class="bi bi-info-circle" title="Net sales minus cost of goods sold"></i></div>
-        <div class="loy-metric-value">ZMW <?= number_format($grossProfit, 2) ?></div>
-        <div class="loy-metric-sub">0.00 ZK (0%)</div>
-    </div>
-</div>
 <?php endif; ?>
 
 <?php

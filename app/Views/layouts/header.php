@@ -315,6 +315,9 @@ if (isset($pdo)) {
 
 <?php
 $role = $_SESSION['role'] ?? 'cashier';
+$isOwner = $role === 'owner';
+$isOfficeNav = in_array($role, ['admin', 'manager', 'dev', 'owner'], true);
+$showPos = !$isOwner && !in_array($role, ['chef', 'head_chef'], true);
 $tier = defined('LICENSE_TIER') ? LICENSE_TIER : 'lite';
 $isEmbedded = isset($_GET['embedded']) && $_GET['embedded'] == '1';
 $canSeeVsiasApprovals = in_array($role, ['admin', 'manager', 'dev'], true);
@@ -322,7 +325,7 @@ $navPage = basename((string)($_GET['page'] ?? 'dashboard'));
 $navTab = (string)($_GET['tab'] ?? '');
 $navStockPages = ['products', 'unspsc', 'categories', 'inventory', 'receiving_bay', 'purchasing', 'transfers', 'vendors', 'audit'];
 $navKitchenPages = ['kds', 'kitchen', 'menu', 'report_consumption'];
-$navOfficePages = ['reports', 'analysis', 'z_read', 'books', 'zra', 'shifts', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'activity'];
+$navOfficePages = ['reports', 'analysis', 'z_read', 'books', 'assets', 'zra', 'shifts', 'locations', 'guest_notes', 'tables', 'events', 'settings', 'activity'];
 $navPeoplePages = ['users', 'payroll', 'members'];
 $navItem = static function (string $page, ?string $tab = null) use ($navPage, $navTab): string {
     if ($navPage !== $page) {
@@ -392,7 +395,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
         </a>
 
         <!-- Mobile quick POS button: one tap without opening the menu -->
-        <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
+        <?php if ($showPos): ?>
             <?php if ($currentLocationCanSell): ?>
                 <a class="nav-pos-mini d-xl-none" href="index.php?page=pos" title="Launch POS"><i class="bi bi-cart-check"></i><span class="nav-pos-mini-label">POS</span></a>
             <?php else: ?>
@@ -407,11 +410,12 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
         </button>
         
         <div class="collapse navbar-collapse" id="topNav">
-        <?php if(in_array($role, ['admin', 'manager', 'dev'])): ?>
+        <?php if($isOfficeNav): ?>
             <ul class="navbar-nav me-auto mb-2 mb-xl-0">
                 <li class="nav-item">
                     <a class="nav-link<?= $navItem('dashboard') ?>" href="index.php?page=dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a>
                 </li>
+                <?php if (!$isOwner): ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle<?= $navGroup($navStockPages) ?>" href="#" id="stockDropdown" role="button" data-bs-toggle="dropdown">
                         <i class="bi bi-boxes"></i> Stock
@@ -433,8 +437,9 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <li><a class="dropdown-item<?= $navItem('vendors') ?>" href="index.php?page=vendors"><i class="bi bi-truck"></i> Vendors</a></li>
                     </ul>
                 </li>
+                <?php endif; ?>
 
-                <?php if (in_array($tier, ['pro+', 'enterprise'])): ?>
+                <?php if (!$isOwner && in_array($tier, ['pro+', 'enterprise'])): ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle<?= $navGroup($navKitchenPages) ?>" href="#" id="kitchenDropdown" role="button" data-bs-toggle="dropdown">
                         <i class="bi bi-fire"></i> Kitchen
@@ -464,11 +469,12 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                         <li><a class="dropdown-item<?= $navItem('analysis') ?>" href="index.php?page=analysis"><i class="bi bi-graph-up-arrow"></i> Business analysis</a></li>
                         <li><a class="dropdown-item<?= $navItem('z_read') ?>" href="index.php?page=z_read"><i class="bi bi-journal-check"></i> End of day</a></li>
                         <li><a class="dropdown-item<?= $navItem('books') ?>" href="index.php?page=books"><i class="bi bi-journal-bookmark"></i> Books of account</a></li>
+                        <li><a class="dropdown-item<?= $navItem('assets') ?>" href="index.php?page=assets"><i class="bi bi-building"></i> Assets</a></li>
                         <li><a class="dropdown-item<?= $navItem('shifts') ?>" href="index.php?page=shifts"><i class="bi bi-clock-history"></i> Shifts</a></li>
-                        <?php if (in_array($tier, ['enterprise'], true) || in_array($role, ['admin', 'dev'], true)): ?>
+                        <?php if (!$isOwner && (in_array($tier, ['enterprise'], true) || in_array($role, ['admin', 'dev'], true))): ?>
                         <li><a class="dropdown-item<?= $navItem('zra') ?>" href="index.php?page=zra"><i class="bi bi-shield-check"></i> ZRA invoices</a></li>
                         <?php endif; ?>
-                        <?php if ($vsiasOn): ?>
+                        <?php if (!$isOwner && $vsiasOn): ?>
                         <li>
                             <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#vsiasInspectModal" data-vsias-url="<?= htmlspecialchars($vsiasPendingUrl) ?>" data-title="Pending V-SIAS approvals">
                                 <i class="bi bi-clipboard-check"></i> Inspections
@@ -476,6 +482,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                             </a>
                         </li>
                         <?php endif; ?>
+                        <?php if (!$isOwner): ?>
                         <li><h6 class="dropdown-header">Places</h6></li>
                         <li>
                             <a class="dropdown-item<?= $navItem('locations') ?>" href="index.php?page=locations">
@@ -497,7 +504,8 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                             </a>
                         </li>
                         <li><a class="dropdown-item<?= $navItem('events') ?>" href="index.php?page=events"><i class="bi bi-calendar-event"></i> Events</a></li>
-                        <?php if (in_array($role, ['admin', 'dev'], true)): ?>
+                        <?php endif; ?>
+                        <?php if (!$isOwner && in_array($role, ['admin', 'dev'], true)): ?>
                         <li><h6 class="dropdown-header">Setup</h6></li>
                         <li><a class="dropdown-item<?= $navItem('settings') ?>" href="index.php?page=settings"><i class="bi bi-gear"></i> Settings</a></li>
                         <?php endif; ?>
@@ -566,7 +574,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                     <ul class="dropdown-menu dropdown-menu-end shadow">
                         <li><span class="dropdown-item-text small text-uppercase text-muted fw-bold"><?= htmlspecialchars(str_replace('_', ' ', $role)) ?></span></li>
                         <li><hr class="dropdown-divider"></li>
-                        <?php if (in_array($role, ['admin', 'manager', 'dev'], true)): ?>
+                        <?php if (in_array($role, ['admin', 'manager', 'dev', 'owner'], true)): ?>
                         <li><h6 class="dropdown-header">People</h6></li>
                         <li><a class="dropdown-item<?= $navItem('users') ?>" href="index.php?page=users"><i class="bi bi-people"></i> Staff</a></li>
                         <li><a class="dropdown-item<?= $navItem('payroll') ?>" href="index.php?page=payroll"><i class="bi bi-cash-coin"></i> Payroll</a></li>
@@ -586,7 +594,7 @@ if ($vsiasOn && $canSeeVsiasApprovals && !$isEmbedded) {
                 </div>
 
                 <!-- Desktop Launch POS (Only on >= 1200px) -->
-                <?php if (!in_array($role, ['chef', 'head_chef'], true)): ?>
+                <?php if ($showPos): ?>
                 <div class="d-none d-xl-block ms-2">
                     <?php if ($currentLocationCanSell): ?>
                         <a class="nav-link nav-pos-btn fw-bold" href="index.php?page=pos" title="Open the point of sale"><i class="bi bi-cart-check me-1"></i> POS</a>

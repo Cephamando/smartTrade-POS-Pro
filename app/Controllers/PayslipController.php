@@ -9,7 +9,7 @@ final class PayslipController extends Controller
 {
     public function index(): void
     {
-        $this->requireRole(['admin', 'manager', 'dev']);
+        $this->requireRole(['admin', 'manager', 'dev', 'owner']);
         $payroll = new Payroll($this->pdo());
         $slips = [];
         if (!empty($_GET['run_id'])) {

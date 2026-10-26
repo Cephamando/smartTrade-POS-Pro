@@ -2,11 +2,13 @@
 
 namespace App\Controllers;
 
+use App\Models\Asset;
 use App\Models\Location;
 use App\Models\Report;
 use App\Models\Sale;
 use App\Models\Setting;
 use App\Services\Guide;
+use App\Services\OwnerOverview;
 use App\Services\ReportNarrator;
 
 final class ReportsController extends Controller
@@ -14,7 +16,7 @@ final class ReportsController extends Controller
     public function index(): void
     {
         if (isset($_POST['explain_report'])) {
-            if (!in_array($this->role(), ['admin', 'manager', 'dev'], true)) {
+            if (!in_array($this->role(), ['admin', 'manager', 'dev', 'owner'], true)) {
                 $this->jsonExit(['status' => 'error', 'msg' => 'You do not have permission to explain these figures.']);
             }
             try {
@@ -23,6 +25,15 @@ final class ReportsController extends Controller
                 $this->jsonExit(['status' => 'success', 'text' => $text]);
             } catch (\Throwable $e) {
                 $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() ?: 'The note could not be written.']);
+            }
+        }
+
+        if (isset($_POST['figure_drill'])) {
+            $this->requireRole(['admin', 'manager', 'dev', 'owner']);
+            try {
+                $this->jsonExit((new OwnerOverview($this->pdo()))->drill($_POST));
+            } catch (\Throwable $e) {
+                $this->jsonExit(['status' => 'error', 'msg' => $e->getMessage() !== '' ? $e->getMessage() : 'The detail could not be opened.']);
             }
         }
 
@@ -244,6 +255,16 @@ final class ReportsController extends Controller
             ? Report::statutory($startDate, $endDate, $locationId, (int)$employeeId)
             : null;
 
+        $tradeFilters = OwnerOverview::filters([
+            'start' => $startDate,
+            'end' => $endDate,
+            'location' => $locationId,
+            'employee_id' => $employeeId,
+            'daypart' => $daypart,
+        ]);
+        $tradeFigures = (new OwnerOverview($this->pdo()))->figures($tradeFilters);
+        $businessValue = Asset::snapshot($tradeFilters['location']);
+
         $metrics = Report::metrics($startDate, $endDate, $locationId, $daypart);
         $refundStats = Report::refundStats($startDate, $endDate, $locationId, $daypart);
         $voidStats = Report::voidStats($startDate, $endDate, $locationId, $daypart);
@@ -265,6 +286,9 @@ final class ReportsController extends Controller
             'locations' => Location::all(),
             'employees' => $employees,
             'explainReady' => Guide::ready(Setting::all()),
+            'tradeFigures' => $tradeFigures,
+            'businessValue' => $businessValue,
+            'figureFilters' => $tradeFilters,
         ]);
     }
 }

@@ -86,6 +86,7 @@ final class User extends Model
         $labels = [
             'dev' => 'Developer',
             'admin' => 'Administrator',
+            'owner' => 'Owner',
             'manager' => 'Manager',
             'head_chef' => 'Head Chef',
             'chef' => 'Chef',
@@ -194,7 +195,7 @@ final class User extends Model
 
     public static function officeRole(string $role): bool
     {
-        return in_array($role, ['admin', 'manager', 'dev'], true);
+        return in_array($role, ['admin', 'manager', 'dev', 'owner'], true);
     }
 
     public static function approverRole(string $role): bool

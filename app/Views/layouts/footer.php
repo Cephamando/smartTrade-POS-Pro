@@ -224,7 +224,7 @@
     <?php endif; ?>
     <?php if (empty($isEmbedded)):
         $guideReady = \App\Services\Guide::ready(\App\Models\Setting::all());
-        $guideManager = in_array(strtolower((string)($_SESSION['role'] ?? '')), ['admin', 'manager', 'dev'], true);
+        $guideManager = in_array(strtolower((string)($_SESSION['role'] ?? '')), ['admin', 'manager', 'dev', 'owner'], true);
     ?>
     <style>
         .guide-dock { position: fixed; right: 18px; bottom: 18px; z-index: 1030; }

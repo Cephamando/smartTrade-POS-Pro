@@ -12,7 +12,7 @@ Open the POS in a browser at `http://localhost:8090` on the shop PC, or at the P
 
 1. Open the address above. The login page asks for username and password.
 2. After a successful login:
-   - **Administrator, manager, and developer** land on the Dashboard.
+   - **Owner, administrator, manager, and developer** land on the Dashboard. An owner sees the business overview.
    - **Chef and head chef** (Pro+ or Enterprise) land on Meal Production.
    - **Cashier, bartender, and waiter** land on the POS.
 3. If the account is flagged to change its password, the Change Password screen blocks everything else until the new password is saved. New passwords must be at least 6 characters.
@@ -20,7 +20,7 @@ Open the POS in a browser at `http://localhost:8090` on the shop PC, or at the P
 
 The staff app can be installed from the sign-in page, the back office, the POS, or the kitchen display. Press **Install**. On iPhone that opens the steps: Share, then Add to Home Screen. The icon opens the sign-in page. A cashier who is already signed in goes on to the till, and a manager goes to the Dashboard. Sales, stock, and the kitchen still need a connection. This install is separate from the customer menu and the vendor portal.
 
-The navbar for managers is four words: **Dashboard**, **Stock**, **Kitchen** (Pro+ and Enterprise), and **Office**, plus a green **POS** button. Stock, Kitchen, and Office open short grouped lists (Catalog, On hand, Buying, and so on) instead of one long menu. The page you are on is highlighted in yellow: the top-level link gets an underline, the parent menu lights up, and the exact entry inside the menu is marked. The pin chip is the current workstation. A bell, when V-SIAS is on, opens pending approvals. Your name opens the account menu: role, Training, and Log out.
+The navbar for managers is four words: **Dashboard**, **Stock**, **Kitchen** (Pro+ and Enterprise), and **Office**, plus a green **POS** button. An owner has **Dashboard** and **Office** only. Stock, Kitchen, and the POS button are not on that account. Stock, Kitchen, and Office open short grouped lists (Catalog, On hand, Buying, and so on) instead of one long menu. The page you are on is highlighted in yellow: the top-level link gets an underline, the parent menu lights up, and the exact entry inside the menu is marked. The pin chip is the current workstation. A bell, when V-SIAS is on, opens pending approvals. Your name opens the account menu: role, Training, and Log out.
 
 **On a phone or tablet** (screens narrower than 1200px) the navbar collapses. A green **POS** button sits next to **Menu** so the till is one tap away. **Menu** opens a scrolling panel. Stock, Kitchen, and Office expand like an accordion (only one open at a time), and the panel closes itself after you pick a page. Workstation and the account menu sit at the bottom of the panel.
 
@@ -61,6 +61,7 @@ Roles are chosen on Users & Staff. They control the home page and which menus ex
 
 | Role | Home | What they can do |
 |---|---|---|
+| **Owner** | Business overview | The same sales strip as Reports, plus cost and total business value. Cost opens into cost price, tax, and payment fees, then the receipts or charges, then the items. Business value is the book value of assets still owned, plus stock at cost, cash, mobile money, bank, and unpaid customer bills, minus unpaid supplier bills and unpaid wages. Office → Assets records each asset, its useful life, and straight-line depreciation. Staff, shifts, members, payroll, reports, end of day, and the books stay available. Stock, kitchen, the till, and system settings do not. Sign-in uses an authenticator code, the same as other office accounts. |
 | **Developer** | Dashboard | Everything an administrator can do, plus System Settings (business name, receipt text, colours, license tier, lockout date), approving location edits, and editing other developer accounts. Location create, edit, and delete by anyone else needs this person’s username and password. |
 | **Administrator** | Dashboard | Full shop menus: POS, inventory, purchasing, transfers, reports, Z-Read, ZRA, users, locations, shifts. Can switch workstation from the navbar. Can approve a shift start and authorize payouts and refunds. Cannot change the license. |
 | **Manager** | Dashboard | Same shop menus as an administrator. Can approve shifts, payouts, and refunds. Location changes they save are queued until a developer approves them. Navbar workstation switch is for administrators and developers; managers change station from the POS location button when they are on a sellable till. |
@@ -70,7 +71,7 @@ Roles are chosen on Users & Staff. They control the home page and which menus ex
 | **Bartender** | POS | Same screens as a cashier. Counted as a money role on the shift list (drawer expected). |
 | **Waiter** | POS | Same screens as a cashier. Can be assigned on the pickup screen. Not treated as a drawer role on the shift money list. |
 
-Till approval on payouts, refunds, voids, and shift approval accepts an **administrator, manager, or developer** username and **approval code**. A head chef can approve a shift with their own code. The code is not the login password. Set it on **Change Password**, or when the account is created under the account menu → **Staff**. An office account (administrator, manager, or developer) also enters a 6-digit code from an authenticator app after the password. That sign-in code is set the first time they sign in. Recovery codes are shown once. The account menu → **Staff → Reset code** clears it so the next sign-in starts again. An office session ends after 30 minutes with no activity. A till session ends after 8 hours. Changing a password signs out every other browser still using that account.
+Till approval on payouts, refunds, voids, and shift approval accepts an **administrator, manager, or developer** username and **approval code**. A head chef can approve a shift with their own code. The code is not the login password. Set it on **Change Password**, or when the account is created under the account menu → **Staff**. An office account (owner, administrator, manager, or developer) also enters a 6-digit code from an authenticator app after the password. That sign-in code is set the first time they sign in. Recovery codes are shown once. The account menu → **Staff → Reset code** clears it so the next sign-in starts again. An office session ends after 30 minutes with no activity. A till session ends after 8 hours. Changing a password signs out every other browser still using that account.
 
 Deleting a user removes the account when it has no history. If the person already has sales or stock movements, the account is deactivated instead. You cannot delete the account you are signed in with. Developer profiles can be edited only by a developer.
 
@@ -395,6 +396,14 @@ Pick a book from the cards or the list, then the dates and a store (or all store
 
 The cash book puts cash in the cash columns and card, mobile money, and online payments in the bank columns. A discount is shown on its own. Flutterwave payouts stay on the sales register as “Paid out” and are not added a second time in the bank column.
 
+### 10.4 Assets
+
+**Office → Assets.**
+
+Record equipment, furniture, vehicles, buildings, and other assets the business owns. Each one has a cost, a salvage amount, and a useful life in months. Depreciation is a straight line: the cost minus salvage, spread evenly over that life. Book value is the cost minus depreciation charged so far. **Dispose** takes an asset off the register and records the proceeds. The gain or loss is those proceeds minus the book value on that date.
+
+The tiles on this page, and the second strip on the owner dashboard and on Reports, show asset cost, depreciation, stock at cost, cash, mobile money, bank, debtors, liabilities, and total business value. That strip is the position today. It does not follow the date filter. Cash is cash takings minus till payouts, plus or minus the drawer count. Mobile money is the shop’s share of Flutterwave charges after fees, minus transfers that left that balance. Bank is paid transfers, cheques, and delivery-app takings. Debtors are customer bills that are not paid yet. Liabilities are unpaid supplier bills for goods already received, and wages that are approved but not paid. Total business value adds the assets, stock, cash, mobile money, bank, and debtors, then subtracts the liabilities.
+
 ---
 
 ## 11. ZRA Smart Invoice (Enterprise)
@@ -462,7 +471,7 @@ When a client runs both an **Online HQ** server and one or more **Offline Shop E
 - **All employees** or one cashier. Receipts and Taxes match on the cashier who rang the sale; Items and Categories match on the user who owns the sale.
 - **Export** prints the current tab with a header (category, period, generated time).
 
-**Summary tiles** under the filter bar: **Gross sales**, **Refunds**, **Discounts**, **Net sales**, **Gross profit**. They recalculate from the rows the filter returned. Net sales is paid sales; refunds are credit notes and refunded tickets; gross sales is the two added back together. Gross profit is an estimate at 45% of net sales when product cost is not in the figures, so treat it as a guide, not an accounting number.
+**Summary tiles** under the filter bar: **Gross sales**, **Refunds**, **Discounts**, **Net sales**, **Gross profit**, and **Cost**. The same strip is on the owner dashboard. Net sales is paid sales. Refunds are credit notes and refunded tickets. Gross sales is the two added back together. Gross profit is net sales minus the cost price recorded on the items when they were sold. Cost is that cost price, plus tax on the paid receipts, plus Flutterwave fees. Tap a tile to open the receipts or charges behind it, then the items. A second strip shows **Asset cost**, **Depreciation**, **Stock at cost**, **Cash**, **Mobile money**, **Bank**, **Debtors**, **Liabilities**, and **Total business value**. That strip is the position today, not the dates in the filter. Cash is cash takings minus till payouts, plus or minus the drawer count. Mobile money is the shop’s share of Flutterwave after fees, minus transfers out of that balance. Bank is paid transfers, cheques, and delivery-app takings. Debtors are unpaid customer bills. Liabilities are unpaid supplier bills and unpaid wages, and they are taken off the total. Tap a tile to open the records behind it. **Open the asset register** goes to **Office → Assets**.
 
 **Tabs**
 
@@ -730,6 +739,7 @@ The Guide button on the back-office shared pages (Dashboard, Management, Setting
 | Business analysis | `index.php?page=analysis` |
 | End of day | `index.php?page=z_read` |
 | Books of account | `index.php?page=books` |
+| Assets | `index.php?page=assets` |
 | Shifts | `index.php?page=shifts` |
 | Users | `index.php?page=users` |
 | Payroll | `index.php?page=payroll` |

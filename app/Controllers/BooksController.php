@@ -9,7 +9,7 @@ final class BooksController extends Controller
 {
     public function index(): void
     {
-        $this->requireRole(['admin', 'manager', 'dev']);
+        $this->requireRole(['admin', 'manager', 'dev', 'owner']);
         $catalog = Books::catalog();
         $book = (string)($_GET['book'] ?? '');
         $start = $this->day((string)($_GET['start'] ?? date('Y-m-01')));

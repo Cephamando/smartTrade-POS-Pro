@@ -28,6 +28,7 @@ return [
     'shifts' => [],
     'z_read' => [],
     'books' => [],
+    'assets' => [],
     'print_shift' => ['standalone' => true],
     'end_shift_action' => ['action_only' => true],
     'receipt' => ['standalone' => true],

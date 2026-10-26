@@ -17,7 +17,7 @@ final class ShiftsController extends Controller
         $locId = (int)$_SESSION['location_id'];
         $moneyRoles = ['cashier', 'manager', 'admin', 'dev', 'bartender'];
         $isMoneyRole = in_array($userRole, $moneyRoles, true);
-        $isManager = $this->isManager();
+        $isManager = $this->isManager() || $this->role() === 'owner';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['explain_shifts'])) {
             if (!$isManager) {

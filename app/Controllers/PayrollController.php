@@ -13,7 +13,7 @@ final class PayrollController extends Controller
 {
     public function index(): void
     {
-        $this->requireRole(['admin', 'manager', 'dev']);
+        $this->requireRole(['admin', 'manager', 'dev', 'owner']);
         $payroll = new Payroll($this->pdo());
         $tab = (string)($_GET['tab'] ?? 'runs');
 

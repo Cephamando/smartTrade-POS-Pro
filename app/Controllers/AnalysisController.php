@@ -11,7 +11,7 @@ final class AnalysisController extends Controller
 {
     public function index(): void
     {
-        $this->requireRole(['admin', 'manager', 'dev']);
+        $this->requireRole(['admin', 'manager', 'dev', 'owner']);
         $narrator = new ReportNarrator();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_analysis'])) {

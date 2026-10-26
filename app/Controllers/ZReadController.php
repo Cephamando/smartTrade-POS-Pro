@@ -12,7 +12,7 @@ final class ZReadController extends Controller
 {
     public function index(): void
     {
-        $this->requireRole(['admin', 'manager', 'dev']);
+        $this->requireRole(['admin', 'manager', 'dev', 'owner']);
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['explain_zread'])) {
             try {
                 $narrator = new ReportNarrator();

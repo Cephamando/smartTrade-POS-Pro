@@ -94,7 +94,7 @@ final class Guide
                 . "If the manuals give steps, leave a blank line and number them 1. 2. 3.\n"
                 . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
                 . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Assets, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
                 . "If the manuals do not cover the question, say so in the first sentence and do not invent steps.\n"
                 . "Do not discuss live sales, stock counts, or customer records.\n"]]],
             'contents' => [
@@ -131,7 +131,7 @@ final class Guide
                 . "Do not use markdown, asterisks, backticks, file names, or web addresses.\n"
                 . "If the excerpts name a path, repeat that path and do not substitute another screen.\n"
                 . "When a screen should be opened, end with one line: Open: followed by the screen name in that path.\n"
-                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+                . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Assets, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
                 . "If the excerpts do not cover the question, say so in one sentence.\n\n";
             $instruction .= $excerpts === ''
                 ? "Manual excerpts: none matched this question."
@@ -169,7 +169,7 @@ final class Guide
             . "If the excerpts give steps, leave a blank line and number them 1. 2. 3.\n"
             . "Name screens in plain words, such as Vendors, Purchase inquiry, Purchase orders, Customer shop, or Point of sale.\n"
             . "When a screen should be opened, end with one line in this form: Open: Purchase inquiry\n"
-            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
+            . "Use a screen name from this list only: Dashboard, Point of sale, Products, Categories, Stock levels, Receiving bay, Goods received, Purchase inquiry, Purchase orders, Vendors, Reports, Business analysis, End of day, Books of account, Assets, Shifts, ZRA invoices, Users, Payroll, Locations, Guest notes, Tables, Events, Settings, Kitchen, Kitchen display, Menu, Customer shop, Members, Transfers, Stock history.\n"
             . "If the excerpts do not cover the question, say so in the first sentence and do not invent steps.\n"
             . "Do not discuss live sales, stock counts, or customer records.\n\n";
 
@@ -670,6 +670,7 @@ final class Guide
             ['name' => 'Point of sale', 'href' => 'index.php?page=pos', 'blank' => true, 'keys' => ['point of sale']],
             ['name' => 'End of day', 'href' => 'index.php?page=z_read', 'blank' => false, 'keys' => ['end of day', 'z-read', 'z read']],
             ['name' => 'Books of account', 'href' => 'index.php?page=books', 'blank' => false, 'keys' => ['books of account', 'books of accounts']],
+            ['name' => 'Assets', 'href' => 'index.php?page=assets', 'blank' => false, 'keys' => ['assets', 'asset register', 'asset management']],
             ['name' => 'ZRA invoices', 'href' => 'index.php?page=zra', 'blank' => false, 'keys' => ['zra invoices', 'zra invoice']],
             ['name' => 'Guest notes', 'href' => 'index.php?page=guest_notes', 'blank' => false, 'keys' => ['guest notes', 'guest note']],
             ['name' => 'Kitchen display', 'href' => 'index.php?page=kds', 'blank' => true, 'keys' => ['kitchen display']],
@@ -711,6 +712,7 @@ final class Guide
             $page === 'receiving_bay' => 'Receiving bay',
             $page === 'z_read' => 'End of day',
             $page === 'books' => 'Books of account',
+            $page === 'assets' => 'Assets',
             $page === 'zra' => 'ZRA invoices',
             $page === 'guest_notes' => 'Guest notes',
             $page === 'analysis' => 'Business analysis',

@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 16;
+    public const VERSION = 19;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -405,6 +405,26 @@ final class Schema
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
         $pdo->exec("INSERT IGNORE INTO edge_sync_state (id, last_status, pending_count) VALUES (1, 'idle', 0)");
+        self::allowUserRole($pdo, 'owner');
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS assets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(160) NOT NULL,
+                category VARCHAR(40) NOT NULL DEFAULT 'equipment',
+                location_id INT NULL,
+                acquired_on DATE NOT NULL,
+                cost DECIMAL(12,2) NOT NULL,
+                salvage DECIMAL(12,2) NOT NULL DEFAULT 0,
+                life_months INT NOT NULL DEFAULT 36,
+                notes VARCHAR(500) NULL,
+                disposed_on DATE NULL,
+                disposal_proceeds DECIMAL(12,2) NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        self::addColumn($pdo, 'flutterwave_transfers', 'vendor_id', 'INT NULL');
+        self::addColumn($pdo, 'flutterwave_transfers', 'purchase_order_id', 'INT NULL');
+        self::addColumn($pdo, 'flutterwave_transfers', 'fee', 'DECIMAL(12,2) NULL');
     }
 
     private static function addUniqueIndex(PDO $pdo, string $table, string $indexName, string $column): void
@@ -416,6 +436,25 @@ final class Schema
         if ((int)$stmt->fetchColumn() === 0) {
             $pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY `$indexName` (`$column`)");
         }
+    }
+
+    private static function allowUserRole(PDO $pdo, string $value): void
+    {
+        $stmt = $pdo->prepare(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute(['users', 'role']);
+        $type = (string)$stmt->fetchColumn();
+        if ($type === '' || str_contains($type, "'" . $value . "'")) {
+            return;
+        }
+        if (preg_match_all("/'((?:[^'\\\\]|\\\\.)*)'/", $type, $found) < 1 || ($found[1] ?? []) === []) {
+            return;
+        }
+        $values = $found[1];
+        $values[] = $value;
+        $list = implode(',', array_map(static fn(string $item): string => "'" . str_replace("'", "\\'", $item) . "'", $values));
+        $pdo->exec("ALTER TABLE users MODIFY role ENUM({$list}) NOT NULL DEFAULT 'cashier'");
     }
 
     private static function allowSaleStatus(PDO $pdo, string $value): void

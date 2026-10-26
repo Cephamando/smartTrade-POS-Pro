@@ -58,7 +58,7 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
 
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
     <div>
-        <h3 class="fw-bold mb-0"><i class="bi bi-speedometer2"></i> Dashboard</h3>
+        <h3 class="fw-bold mb-0"><i class="bi bi-speedometer2"></i> <?= (($_SESSION['role'] ?? '') === 'owner') ? 'Business overview' : 'Dashboard' ?></h3>
         <span class="text-muted small">Overview for <strong class="text-dark"><?= htmlspecialchars($dashLocName ?? 'All') ?></strong></span>
     </div>
     <div class="d-flex gap-2 flex-wrap">
@@ -75,15 +75,19 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
         </a>
         <?php endif; ?>
 
-        <?php if ($canSell): ?>
+        <?php if (($_SESSION['role'] ?? '') !== 'owner'): ?>
+            <?php if ($canSell): ?>
             <a href="index.php?page=pos" class="btn btn-primary fw-bold flex-grow-1 flex-md-grow-0"><i class="bi bi-cart4"></i> Go to POS</a>
-        <?php else: ?>
+            <?php else: ?>
             <button type="button" class="btn btn-secondary fw-bold flex-grow-1 flex-md-grow-0" disabled title="POS disabled for this location"><i class="bi bi-cart-x"></i> POS Disabled</button>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
 
 <?php $dashTab = ($dashTab ?? '') === 'settlements' ? 'settlements' : 'overview'; ?>
+<?php $isOwnerDash = (($_SESSION['role'] ?? '') === 'owner') && is_array($ownerOverview ?? null); ?>
+<?php if (!$isOwnerDash): ?>
 <ul class="nav nav-tabs mb-4">
     <li class="nav-item">
         <a class="nav-link<?= $dashTab === 'overview' ? ' active fw-bold' : '' ?>" href="index.php?page=dashboard">Overview</a>
@@ -92,6 +96,7 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
         <a class="nav-link<?= $dashTab === 'settlements' ? ' active fw-bold' : '' ?>" href="index.php?page=dashboard&tab=settlements"><i class="bi bi-bank"></i> Settlements &amp; Payouts</a>
     </li>
 </ul>
+<?php endif; ?>
 
 <?php if ($dashTab === 'settlements'): ?>
 <?php include __DIR__ . '/partials/settlements.php'; ?>
@@ -139,6 +144,7 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
     </div>
     <?php endif; ?>
 
+    <?php if (!$isOwnerDash): ?>
     <div class="stat-card-col">
         <a href="index.php?page=inventory" class="text-decoration-none">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
@@ -149,9 +155,15 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
             </div>
         </a>
     </div>
+    <?php endif; ?>
 </div>
 
+<?php if ($isOwnerDash): ?>
+<?php include __DIR__ . '/partials/owner_overview.php'; ?>
+<?php endif; ?>
+
 <div class="row g-3 mb-3">
+    <?php if (!$isOwnerDash): ?>
     <div class="<?= $midColSize ?>">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-box-seam"></i> Inventory</div>
@@ -180,8 +192,9 @@ $vsiasPendingUrl = $vsiasPendingUrl ?? \App\Helpers\Vsias::pendingApprovalsUrl()
         </div>
     </div>
     <?php endif; ?>
+    <?php endif; ?>
 
-    <div class="<?= $midColSize ?>">
+    <div class="<?= $isOwnerDash ? 'col-md-4' : $midColSize ?>">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white fw-bold py-2"><i class="bi bi-people"></i> Staff & Users</div>
             <div class="list-group list-group-flush small fw-bold">

@@ -9,7 +9,7 @@ final class UsersController extends Controller
 {
     public function index(): void
     {
-        if (!in_array($this->role(), ['admin', 'dev'], true)) {
+        if (!in_array($this->role(), ['admin', 'dev', 'owner'], true)) {
             $this->flash('error', 'You do not have permission to manage users.');
             $this->redirect('dashboard');
         }
