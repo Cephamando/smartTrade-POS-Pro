@@ -21,6 +21,9 @@ final class PosController extends Controller
             }
             $this->redirect('pos');
         }
+        if (isset($_GET['card_bill'])) {
+            $this->cardBill();
+        }
         $userId = $this->userId();
         $locationId = $this->locationId();
         $role = $this->role();
@@ -95,5 +98,43 @@ final class PosController extends Controller
         }
 
         $this->render($pos->viewData($_SESSION, $userId, $locationId, $role, $tier));
+    }
+
+    private function cardBill(): never
+    {
+        $cart = is_array($_SESSION['cart'] ?? null) ? $_SESSION['cart'] : [];
+        $lines = [];
+        $sum = 0.0;
+        foreach ($cart as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $qty = (float)($item['qty'] ?? 0);
+            $total = round($qty * (float)($item['price'] ?? 0), 2);
+            $sum += $total;
+            $lines[] = [
+                'name' => (string)($item['name'] ?? 'Item'),
+                'qty' => $qty,
+                'total' => $total,
+            ];
+        }
+        $sum = round($sum, 2);
+        $due = round((float)($_GET['due'] ?? $sum), 2);
+        $settings = [];
+        $stmt = $this->pdo()->query(
+            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_header', 'receipt_footer')"
+        );
+        while ($row = $stmt->fetch()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+        $bizName = (string)($settings['business_name'] ?? 'Shop');
+        $receiptHeader = (string)($settings['receipt_header'] ?? '');
+        $receiptFooter = (string)($settings['receipt_footer'] ?? '');
+        $cashier = (string)($_SESSION['username'] ?? '');
+        $customer = (string)($_SESSION['current_customer'] ?? 'Walk-in');
+        $location = (string)($_SESSION['location_name'] ?? '');
+        $training = !empty($_SESSION['training_mode']);
+        require APP_PATH . '/Views/pos_card_bill.php';
+        exit;
     }
 }

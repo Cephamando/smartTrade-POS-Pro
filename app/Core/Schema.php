@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 19;
+    public const VERSION = 20;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -425,6 +425,31 @@ final class Schema
         self::addColumn($pdo, 'flutterwave_transfers', 'vendor_id', 'INT NULL');
         self::addColumn($pdo, 'flutterwave_transfers', 'purchase_order_id', 'INT NULL');
         self::addColumn($pdo, 'flutterwave_transfers', 'fee', 'DECIMAL(12,2) NULL');
+        self::addColumn($pdo, 'sales', 'stanbic_rrn', 'VARCHAR(20) NULL');
+        self::addColumn($pdo, 'sales', 'stanbic_auth', 'VARCHAR(12) NULL');
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS commission_ledger (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                kind VARCHAR(20) NOT NULL,
+                amount DECIMAL(12,2) NOT NULL,
+                sale_id INT NULL,
+                tx_ref VARCHAR(64) NULL,
+                reference VARCHAR(32) NULL,
+                auth_code VARCHAR(16) NULL,
+                note VARCHAR(255) NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY commission_ledger_sale (sale_id),
+                KEY commission_ledger_tx (tx_ref),
+                KEY commission_ledger_kind (kind)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS commission_state (
+                id TINYINT PRIMARY KEY,
+                updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $pdo->exec('INSERT IGNORE INTO commission_state (id) VALUES (1)');
     }
 
     private static function addUniqueIndex(PDO $pdo, string $table, string $indexName, string $column): void

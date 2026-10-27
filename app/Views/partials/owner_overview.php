@@ -67,6 +67,19 @@ $settleCards = [
 
 <?php include __DIR__ . '/trade_figures.php'; ?>
 
+<?php
+$commission = is_array($ownerOverview['commission'] ?? null) ? $ownerOverview['commission'] : ['due' => 0, 'held' => 0];
+$commissionDue = (float)($commission['due'] ?? 0);
+$commissionHeld = (float)($commission['held'] ?? 0);
+?>
+<?php if ($commissionDue > 0.004 || $commissionHeld > 0.004): ?>
+<div class="alert alert-info">
+    Stanbic card commission still to collect: <strong><?= $money($commissionDue) ?></strong>
+    <?php if ($commissionHeld > 0.004): ?>
+        (<?= $money($commissionHeld) ?> is already on a mobile-money prompt that has not finished)
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 <?php if ($subId === ''): ?>
 <div class="alert alert-warning">An administrator adds the Flutterwave subaccount under Settings, Payments. These cards follow that subaccount.</div>
 <?php endif; ?>

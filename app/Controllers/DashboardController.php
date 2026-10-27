@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\CommissionLedger;
 use App\Models\Location;
 use App\Models\Sale;
 use App\Models\Setting;
@@ -155,6 +156,7 @@ final class DashboardController extends Controller
                 'figures' => (new OwnerOverview($this->pdo()))->figures($filters),
                 'business' => Asset::snapshot($filters['location']),
                 'settlement' => $settlement,
+                'commission' => CommissionLedger::summary($this->pdo()),
                 'locations' => Location::all(),
                 'employees' => User::staffForFilter(),
             ];

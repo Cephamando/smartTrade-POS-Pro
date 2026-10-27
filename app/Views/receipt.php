@@ -235,6 +235,9 @@ if ($isIncremental) {
                     <tr><td>Tendered:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>
                     <tr><td>Change:</td><td class="amount fw-bold">ZMW <?= number_format($sale['change_due'], 2) ?></td></tr>
                     <?php endif; ?>
+                    <?php if (!empty($sale['stanbic_rrn'])): ?>
+                    <tr><td>Stanbic RRN:</td><td class="amount small"><?= htmlspecialchars((string)$sale['stanbic_rrn']) ?></td></tr>
+                    <?php endif; ?>
                     <?php if (!empty($gateway['lines'])): ?>
                     <?php foreach ($gateway['lines'] as $line): ?>
                     <tr><td><?= htmlspecialchars($line['label']) ?>:</td><td class="amount small"><?= htmlspecialchars($line['value']) ?></td></tr>

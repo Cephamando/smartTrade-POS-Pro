@@ -789,7 +789,7 @@ function getCategoryStyle($name) {
         <div class="input-group mb-3"><span class="input-group-text bg-light fw-bold">Tip</span><input type="number" step="0.01" min="0" name="tip_amount" id="tipInput" class="form-control" placeholder="0.00" oninput="onTipChange()"><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.05)">5%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.10)">10%</button><button type="button" class="btn btn-outline-secondary" onclick="addTipPercent(0.15)">15%</button></div>
         <div class="mb-3"><input type="text" name="customer_name" class="form-control" placeholder="Customer Name" value="<?= $_SESSION['current_customer'] ?? 'Walk-in' ?>" <?= isset($_SESSION['pos_member']) ? 'readonly' : '' ?>></div>
         <div class="btn-group w-100 mb-3 <?= ($tier === 'lite') ? 'd-none' : '' ?>" role="group" id="splitModeGroup"><input type="radio" class="btn-check" name="is_split" id="modeSingle" value="0" checked onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSingle">Single Pay</label><input type="radio" class="btn-check" name="is_split" id="modeSplit" value="1" onchange="toggleMode()"><label class="btn btn-outline-dark fw-bold" for="modeSplit">Split Pay</label></div>
-        <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option>
+        <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option><option value="Stanbic card">Visa / Mastercard (Stanbic)</option>
         <?php if (!empty($flwEnabled)): ?>
         <option value="Flutterwave">Flutterwave (Card / Mobile Money)<?= !empty($flwTestMode) ? ' — TEST' : '' ?></option>
         <?php endif; ?>
@@ -807,6 +807,11 @@ function getCategoryStyle($name) {
             <div id="splitRows"></div>
             <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add another payment</button>
             <div class="small text-muted mt-2"><?php if (!empty($flwEnabled)): ?>Cash stays in the drawer. Card and mobile money are the Flutterwave line; the panel below charges that portion only.<?php else: ?>Add a line for each way the customer is paying. Use Other for a bank transfer, cheque, or voucher.<?php endif; ?></div>
+        </div>
+        <div id="stanbicPanel" class="p-3 rounded border mb-3" style="display:none;">
+            <div class="small text-muted mb-2">The bill is printed. After the customer taps the card on the Stanbic machine, type the RRN from the slip.</div>
+            <label class="form-label small fw-bold mb-1" for="stanbicRrn">RRN</label>
+            <input type="text" name="stanbic_rrn" id="stanbicRrn" class="form-control form-control-lg text-uppercase" maxlength="20" autocomplete="off" inputmode="text">
         </div>
         <?php if (!empty($flwEnabled)): ?>
         <div id="gatewayPanel" class="p-3 rounded border border-primary bg-light mb-3" style="display:none;">
@@ -979,7 +984,7 @@ function getCategoryStyle($name) {
         </div>
     </div>
 
-    <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-success text-white"><h5>Receipt</h5></div><div class="modal-body p-0" style="height:400px;"><iframe id="receiptFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-primary" onclick="document.getElementById('receiptFrame').contentWindow.print()">PRINT</button><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
+    <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header bg-success text-white"><h5 id="receiptModalTitle">Receipt</h5></div><div class="modal-body p-0" style="height:400px;"><iframe id="receiptFrame" src="" style="width:100%; height:100%; border:none;"></iframe></div><div class="modal-footer"><button type="button" class="btn btn-primary" onclick="document.getElementById('receiptFrame').contentWindow.print()">PRINT</button><button type="button" class="btn btn-secondary" id="receiptModalDismiss" data-bs-dismiss="modal">Close</button></div></div></div></div>
 
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/pos-keyboard.js?v=5"></script>
@@ -1233,6 +1238,13 @@ function getCategoryStyle($name) {
             const form = e.target;
             if (!form || form.id !== 'checkoutForm') return;
             if (form.classList.contains('js-confirm-form') && form.dataset.swalConfirmed !== '1') return;
+            if (stanbicSelected() && !stanbicReady()) {
+                e.preventDefault();
+                e.stopPropagation();
+                form.dataset.swalConfirmed = '';
+                AppAlert.notify({ icon: 'warning', text: 'Enter the Stanbic RRN from the card machine.' });
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             const body = new FormData(form);
@@ -1529,9 +1541,10 @@ function getCategoryStyle($name) {
         function showTabDetails(id) { let template = document.getElementById('tab-data-' + id); let container = document.getElementById('tabDetailContainer'); if (template && container) { container.innerHTML = template.innerHTML; } }
         function voidItem(itemId) { Swal.fire({ title: 'Void item', html: '<p class="text-muted small">Manager authorization is required.</p><input id="swal-user" class="swal2-input" placeholder="Username"><input id="swal-pass" type="password" class="swal2-input" placeholder="Approval code">', icon: 'warning', showCancelButton: true, reverseButtons: true, confirmButtonColor: '#d33', confirmButtonText: 'Authorize', cancelButtonText: 'Cancel', preConfirm: () => { return { user: document.getElementById('swal-user').value, pass: document.getElementById('swal-pass').value } } }).then((result) => { if (result.isConfirmed) { if(!result.value.user || !result.value.pass) { AppAlert.notify({icon:'error', title:'Credentials required', text:'Enter a username and approval code.'}); return; } fetch(window.location.href, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'void_item=1&item_id=' + itemId + '&mgr_user=' + encodeURIComponent(result.value.user) + '&mgr_pass=' + encodeURIComponent(result.value.pass) }).then(r => r.json()).then(data => { if (data.status === 'success') { AppAlert.notify({ icon: 'success', title: 'Item voided', text: '', confirmText: 'OK' }).then(() => location.reload()); } else { AppAlert.notify({ icon: 'error', title: 'Unable to void', text: data.msg || 'The item could not be voided.' }); } }); } }); }
 
-        let baseTotal = 0; let currentTotal = 0; let tenderedTouched = false;
+        let baseTotal = 0; let currentTotal = 0; let tenderedTouched = false; let cardBillPrinted = false;
         
         function initCheckout(isTabMode = false, tabTotal = 0, tabCustomer = '', pt = 0, forceTabId = 0) { 
+            cardBillPrinted = false; 
             let nameInput = document.querySelector('[name="customer_name"]');
             if (!isTabMode) { baseTotal = window.posCartBalance || 0; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = <?= json_encode((string)($_SESSION['current_customer'] ?? 'Walk-in')) ?>; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
             currentTotal = baseTotal; tenderedTouched = false; document.getElementById('tipInput').value = '';
@@ -1651,6 +1664,58 @@ function getCategoryStyle($name) {
             const btn = document.getElementById('btnCheckoutSubmit'); if (btn) btn.disabled = false;
         }
         function setGatewayStatus(text, color) { const b = document.getElementById('gatewayStatus'); if (b) { b.textContent = text; b.className = 'badge bg-' + color; } }
+        function stanbicSelected() {
+            if (!isSplitPay() && document.getElementById('paymentMethodSelect').value === 'Stanbic card') return true;
+            if (!isSplitPay()) return false;
+            let found = false;
+            document.querySelectorAll('#splitRows .split-method').forEach(function (sel) { if (sel.value === 'Stanbic card') found = true; });
+            return found;
+        }
+        function stanbicReady() {
+            const rrn = (document.getElementById('stanbicRrn').value || '').replace(/\s+/g, '');
+            return /^[A-Za-z0-9]{6,20}$/.test(rrn);
+        }
+        function printCardBillThenPay() {
+            if (cardBillPrinted || currentTotal < 0) return;
+            cardBillPrinted = true;
+            const tabId = document.getElementById('settle_tab_id_input').value;
+            const frame = document.getElementById('receiptFrame');
+            const title = document.getElementById('receiptModalTitle');
+            const dismiss = document.getElementById('receiptModalDismiss');
+            const receiptEl = document.getElementById('receiptModal');
+            if (title) title.textContent = 'Bill';
+            if (dismiss) dismiss.textContent = 'Enter RRN';
+            const reopen = function () {
+                receiptEl.removeEventListener('hidden.bs.modal', reopen);
+                if (title) title.textContent = 'Receipt';
+                if (dismiss) dismiss.textContent = 'Close';
+                safeModalShow('checkoutModal');
+                syncStanbicPanel();
+                const rrn = document.getElementById('stanbicRrn');
+                if (rrn) setTimeout(function () { rrn.focus(); }, 350);
+            };
+            receiptEl.addEventListener('hidden.bs.modal', reopen);
+            switchModal('checkoutModal', '', function () {
+                frame.src = 'about:blank';
+                setTimeout(function () {
+                    const due = amountDue().toFixed(2);
+                    frame.src = (tabId && tabId !== '0')
+                        ? 'index.php?page=receipt&sale_id=' + encodeURIComponent(tabId) + '&is_bill=1&_cb=' + Date.now()
+                        : 'index.php?page=pos&card_bill=1&due=' + encodeURIComponent(due) + '&_cb=' + Date.now();
+                    safeModalShow('receiptModal');
+                }, 100);
+            });
+        }
+        function syncStanbicPanel() {
+            const panel = document.getElementById('stanbicPanel');
+            if (!panel) return;
+            const on = stanbicSelected();
+            panel.style.display = on ? '' : 'none';
+            if (on && !isSplitPay()) {
+                document.getElementById('tenderedInput').value = amountDue().toFixed(2);
+                tenderedTouched = true;
+            }
+        }
         function onPaymentMethodChange() {
             const pm = document.getElementById('paymentMethodSelect').value; const panel = document.getElementById('gatewayPanel');
             if (panel) {
@@ -1660,6 +1725,8 @@ function getCategoryStyle($name) {
                     const ph = document.getElementById('gwPhone'); if (ph && !ph.value) ph.focus();
                 } else { resetGateway(); tenderedTouched = false; }
             }
+            if (pm === 'Stanbic card') printCardBillThenPay();
+            syncStanbicPanel();
             calcResult();
         }
         function gatewayPost(action, data) {
@@ -1784,9 +1851,10 @@ function getCategoryStyle($name) {
             if (fxRowOpen()) { if (fxSource === 'fx') onFxTenderChange(); else syncFxFromZmw(); }
             calcResult();
         }
-        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); sumSplit(); } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); onPaymentMethodChange(); } calcResult(); }
+        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); sumSplit(); } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); onPaymentMethodChange(); } syncStanbicPanel(); calcResult(); }
         const splitMethodList = <?= json_encode(array_values(array_filter([
             'Cash',
+            'Stanbic card',
             !empty($flwEnabled) ? 'Flutterwave' : null,
             $tier === 'enterprise' ? 'Online' : null,
         ]))) ?>;
@@ -1827,6 +1895,7 @@ function getCategoryStyle($name) {
             if (!wrap || wrap.children.length <= 1) return;
             btn.closest('.split-pay-row').remove();
             refreshSplitRemoveButtons();
+            syncStanbicPanel();
             sumSplit();
         }
         function refreshSplitRemoveButtons() {
@@ -1847,6 +1916,8 @@ function getCategoryStyle($name) {
             input.required = isCustom;
             if (!isCustom) input.value = '';
             if (sel.value === 'Flutterwave') resetGatewayConfirmation();
+            if (sel.value === 'Stanbic card') printCardBillThenPay();
+            syncStanbicPanel();
             syncSplitGateway();
         }
         function flutterwaveSplitAmount() {

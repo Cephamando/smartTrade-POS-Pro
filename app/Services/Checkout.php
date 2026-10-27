@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Helpers\Movement;
+use App\Models\CommissionLedger;
 use App\Models\User;
 use PDO;
 
@@ -113,6 +114,7 @@ final class Checkout
         $savedSaleId = (int)($session['completed_sale_id'] ?? 0);
         if ($savedSaleId > 0) {
             $this->storeTenderExtras($post, $savedSaleId, $gateway, $gatewayTxRef, $flwDue > 0.004 ? $flwDue : $checkTotal);
+            CommissionLedger::recordSale($this->pdo, $savedSaleId, $post);
         }
 
         if ($rfdRsnCd !== '' && $fiscalizeAfterCommit > 0) {

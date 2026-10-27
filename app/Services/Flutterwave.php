@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CommissionLedger;
 use App\Models\Setting;
 use PDO;
 
@@ -232,9 +233,38 @@ final class Flutterwave
     }
 
     /**
+     * Ask Flutterwave about a mobile-money prompt that is still holding commission,
+     * so a finished or failed prompt does not block the next one.
+     */
+    private function settleOpenReserves(): void
+    {
+        try {
+            $refs = $this->pdo->query(
+                "SELECT l.tx_ref FROM commission_ledger l
+                 INNER JOIN payment_transactions p ON p.tx_ref = l.tx_ref
+                 WHERE l.kind = 'reserve' AND l.created_at < (NOW() - INTERVAL 2 MINUTE)
+                 ORDER BY l.id ASC LIMIT 3"
+            )->fetchAll(PDO::FETCH_COLUMN);
+        } catch (\Throwable $e) {
+            return;
+        }
+        foreach ($refs as $ref) {
+            try {
+                $this->verify((string)$ref);
+            } catch (\Throwable $e) {
+            }
+        }
+    }
+
+    /**
      * Zambia mobile money push (MTN / Airtel / Zamtel). The customer approves on the handset;
      * poll status() until successful or failed. In sandbox Flutterwave usually returns a
      * redirect URL for a simulated approval page: pass it back to the UI.
+     *
+     * When Stanbic card commission is still uncollected, this charge overrides the
+     * dashboard split with a flat main-account amount (this charge's 2.5% plus as
+     * much of the debt as the charge can carry). Flutterwave's fee stays on the
+     * shop's remainder.
      */
     public function chargeMobileMoney(array $args): array
     {
@@ -272,12 +302,32 @@ final class Flutterwave
             'redirect_url' => $args['redirect_url'] ?? null,
             'meta' => ['sale_id' => (int)($args['sale_id'] ?? 0), 'source' => $args['prefix'] ?? 'POS'],
         ];
+        $prefix = (string)($args['prefix'] ?? 'POS');
+        $plan = ['override' => false, 'recovery' => 0.0, 'main' => 0.0];
         $subaccounts = $this->subaccounts();
+        if ($subaccounts !== [] && !str_starts_with($prefix, 'SUP') && !str_starts_with($prefix, 'EVT')) {
+            $this->settleOpenReserves();
+            $plan = CommissionLedger::reserveForCharge($this->pdo, $txRef, $amount);
+            if ($plan['override']) {
+                $subaccounts = [[
+                    'id' => $this->subaccountId(),
+                    'transaction_charge_type' => 'flat',
+                    'transaction_charge' => $plan['main'],
+                ]];
+                $payload['meta']['commission_recovery'] = $plan['recovery'];
+            }
+        }
         if ($subaccounts !== []) {
             $payload['subaccounts'] = $subaccounts;
         }
-        $res = $this->request('POST', '/charges?type=mobile_money_zambia', $payload);
+        try {
+            $res = $this->request('POST', '/charges?type=mobile_money_zambia', $payload);
+        } catch (\Throwable $e) {
+            CommissionLedger::release($this->pdo, $txRef);
+            throw $e;
+        }
         if (($res['status'] ?? '') !== 'success') {
+            CommissionLedger::release($this->pdo, $txRef);
             throw new \RuntimeException('Flutterwave: ' . ($res['message'] ?? 'mobile money charge was rejected'));
         }
         $data = is_array($res['data'] ?? null) ? $res['data'] : [];
@@ -296,6 +346,10 @@ final class Flutterwave
             'flw_ref' => $data['flw_ref'] ?? null,
             'checkout_url' => $redirect,
         ], $res);
+        $immediate = strtolower((string)($data['status'] ?? ''));
+        if (in_array($immediate, ['failed', 'cancelled', 'canceled'], true)) {
+            CommissionLedger::release($this->pdo, $txRef);
+        }
         return [
             'tx_ref' => $txRef,
             'status' => strtolower((string)($data['status'] ?? 'pending')),
@@ -324,6 +378,7 @@ final class Flutterwave
             throw new \RuntimeException('Unknown payment reference ' . $txRef);
         }
         if ($local['status'] === 'successful' && $local['verified_at']) {
+            CommissionLedger::settleCharge($this->pdo, $txRef, 'successful');
             return $local;
         }
         $res = $this->request('GET', '/transactions/verify_by_reference?tx_ref=' . rawurlencode($txRef));
@@ -338,7 +393,9 @@ final class Flutterwave
             && (float)($data['amount'] ?? 0) + 0.005 >= (float)$local['amount'];
         $status = $ok ? 'successful' : ($remoteStatus === 'pending' ? 'pending' : 'failed');
         $this->touch($txRef, $status, $data, $res);
-        return $this->transaction($txRef);
+        $tx = $this->transaction($txRef);
+        CommissionLedger::settleCharge($this->pdo, $txRef, (string)($tx['status'] ?? ''));
+        return $tx;
     }
 
     /**

@@ -137,11 +137,12 @@ Until that approval, the screen says the shift is pending. **Go to Dashboard** i
 Single pay methods:
 
 - **Cash**
+- **Visa / Mastercard (Stanbic)**. Choosing this prints the bill first. The customer taps that amount on the shop's Stanbic machine. The payment window then asks for the RRN from the machine's slip. The ZRA receipt prints that RRN. The 2.5% on that card payment is collected from the next Flutterwave mobile-money payment.
 - **Flutterwave (Card / Mobile Money)** when Payments is switched on. Card and mobile money are taken here, not as separate buttons.
 - **Online Delivery App** (Enterprise)
 - **Put on Tab** (Pro and above) — the order waits instead of taking money now
 
-**Split pay** (everything above Lite) starts with a cash line and a Flutterwave line. Add another line for cash, Flutterwave, the delivery-app method, or **Other** with a name you type (bank transfer, cheque, voucher). The status beside the heading shows whether the lines are short, cover the bill, or leave change. The Flutterwave panel under the lines charges only the Flutterwave amount, and **Complete transaction** stays locked until Flutterwave confirms that portion.
+**Split pay** (everything above Lite) starts with a cash line and a Flutterwave line. Add another line for cash, Stanbic card, Flutterwave, the delivery-app method, or **Other** with a name you type (bank transfer, cheque, voucher). A Stanbic line still needs the RRN from the machine. The bill prints before that window opens. The status beside the heading shows whether the lines are short, cover the bill, or leave change. The Flutterwave panel under the lines charges only the Flutterwave amount, and **Complete transaction** stays locked until Flutterwave confirms that portion.
 
 **Tip** accepts an amount or 5%, 10%, or 15% of the total.
 
