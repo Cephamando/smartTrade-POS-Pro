@@ -114,6 +114,23 @@ final class Pos
             return ['redirect' => true];
         }
 
+        if (isset($post['take_printed'])) {
+            \App\Services\TakeOrder::markPrinted($this->pdo, (int)$post['take_printed']);
+            return ['json' => ['status' => 'ok']];
+        }
+
+        if (isset($post['resend_take_momo'])) {
+            try {
+                $msg = \App\Services\TakeOrder::resend($this->pdo, (int)$post['resend_take_momo']);
+                $session['swal_type'] = 'success';
+                $session['swal_msg'] = $msg;
+            } catch (\Throwable $e) {
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = $e->getMessage();
+            }
+            return ['redirect' => true];
+        }
+
         if (isset($post['credit_web_order'])) {
             $saleId = (int)$post['credit_web_order'];
             try {
@@ -161,7 +178,7 @@ final class Pos
             $saleId = (int)$post['complete_prepaid_order'];
             $ajax = !empty($post['ajax'])
                 || strcasecmp((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''), 'XMLHttpRequest') === 0;
-            $stmt = $this->pdo->prepare("SELECT id, payment_status, status, order_type FROM sales WHERE id = ? AND payment_method = 'Online'");
+            $stmt = $this->pdo->prepare("SELECT id, payment_status, status, order_type, receipt_printed_at FROM sales WHERE id = ? AND payment_method = 'Online'");
             $stmt->execute([$saleId]);
             $sale = $stmt->fetch();
             if (!$sale || $sale['payment_status'] !== 'paid' || $sale['status'] !== 'pending') {
@@ -189,10 +206,17 @@ final class Pos
             OrderWebhook::notify($this->pdo, $saleId, 'handed_over');
             $zra = fiscalizePaidSale($this->pdo, $saleId);
             $msg = 'Web order #' . $saleId . ' handed over.' . $zra;
+            $reprint = empty($sale['receipt_printed_at']);
             if ($ajax) {
-                return ['json' => ['status' => 'ok', 'msg' => $msg, 'sale_id' => $saleId]];
+                $payload = ['status' => 'ok', 'msg' => $msg];
+                if ($reprint) {
+                    $payload['sale_id'] = $saleId;
+                }
+                return ['json' => $payload];
             }
-            $session['last_sale_id'] = $saleId;
+            if ($reprint) {
+                $session['last_sale_id'] = $saleId;
+            }
             $session['swal_type'] = 'success';
             $session['swal_msg'] = $msg;
             return ['redirect' => true];
@@ -399,6 +423,7 @@ final class Pos
             'occupiedTables' => $occupiedTables,
             'onlineTabs' => $onlineTabs,
             'onlineTabItems' => $onlineTabItems,
+            'takeMisses' => \App\Services\TakeOrder::recentMisses($this->pdo),
             'guestNoteOpen' => \App\Models\GuestNote::openAtLocation($locationId),
             'restaurantTables' => RestaurantTable::groupedForLocation($locationId),
             'cartStock' => $this->cartStockMap($session, $locationId),

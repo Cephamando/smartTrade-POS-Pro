@@ -567,9 +567,35 @@ document.addEventListener('DOMContentLoaded', cvFromZmw);
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_delivery" value="1" id="shopDelivery" <?= ($settings['shop_delivery'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopDelivery">Offer delivery</label></div>
                         </div>
                     </div>
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-1">Take App</h6>
+                    <p class="text-muted small">The menu link, WhatsApp, Instagram, Facebook, and table QR. Leave payments off inside Take App. This till sends the Flutterwave mobile-money prompt, then deducts stock and files the ZRA invoice when the customer approves it.</p>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted">WEBHOOK URL</label>
+                            <input type="text" class="form-control font-monospace" value="https://smartrade.odeliazm.com/api/take_webhook.php" readonly>
+                            <div class="form-text">Paste this in Take App → Settings → Apps → Webhooks. Events: <code>order.created</code> and <code>order.updated</code>.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">SIGNING SECRET</label>
+                            <input type="text" name="take_webhook_secret" class="form-control font-monospace" value="<?= htmlspecialchars($settings['take_webhook_secret'] ?? '') ?>" autocomplete="off">
+                            <div class="form-text">The same secret Take App uses to sign <code>X-Take-Signature</code>.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">API KEY</label>
+                            <input type="text" name="take_api_key" class="form-control font-monospace" value="<?= ($settings['take_api_key'] ?? '') !== '' ? '••••••••••••' : '' ?>" autocomplete="off" placeholder="Optional, for Copy menu">
+                            <div class="form-text">Used only to copy the POS menu. Leave the dots to keep the saved key. Clear the field to remove it.</div>
+                        </div>
+                    </div>
                     <div class="text-end mt-4">
                         <button type="submit" class="btn btn-info fw-bold px-5 py-2 shadow-sm text-dark"><i class="bi bi-save"></i> Save</button>
                     </div>
+                </form>
+                <form method="POST" action="index.php?page=settings" class="mt-3">
+                    <input type="hidden" name="tab" value="shop">
+                    <input type="hidden" name="copy_take_menu" value="1">
+                    <button type="submit" class="btn btn-outline-info fw-bold" <?= ($settings['take_api_key'] ?? '') === '' ? 'disabled' : '' ?>><i class="bi bi-cloud-upload"></i> Copy menu</button>
+                    <span class="form-text ms-2">Creates or updates Take App products with SKU equal to the POS product id, plus the name and price. Save the API key first.</span>
                 </form>
             </div>
         </div>

@@ -21,6 +21,9 @@ final class PosController extends Controller
             }
             $this->redirect('pos');
         }
+        if (isset($_GET['take_print'])) {
+            $this->jsonExit(\App\Services\TakeOrder::printQueue($pdo));
+        }
         if (isset($_GET['card_bill'])) {
             $this->cardBill();
         }

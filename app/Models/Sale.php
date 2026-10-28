@@ -457,10 +457,10 @@ final class Sale extends Model
         return 'DATE(s.created_at)';
     }
 
-    /** Paid online orders still on Web Orders: open tickets, and cancellations waiting for the Flutterwave payout. */
+    /** Paid online orders still on Web Orders, plus a Take App order whose mobile-money prompt has not been paid. */
     public static function openWebOrderWhere(string $alias = 's'): string
     {
-        return $alias . ".payment_method = 'Online' AND " . $alias . ".payment_status = 'paid' AND (
+        return "((" . $alias . ".payment_method = 'Online' AND " . $alias . ".payment_status = 'paid' AND (
             " . $alias . ".status = 'pending'
             OR (
                 " . $alias . ".status = 'cancelled'
@@ -470,7 +470,7 @@ final class Sale extends Model
                     WHERE pt.sale_id = " . $alias . ".id AND pt.settlement_status = 'settled'
                 )
             )
-        )";
+        )) OR (" . $alias . ".order_source = 'take' AND " . $alias . ".status = 'pending' AND " . $alias . ".payment_status <> 'paid'))";
     }
 
     /**

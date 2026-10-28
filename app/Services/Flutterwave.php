@@ -546,7 +546,7 @@ final class Flutterwave
      * Flutterwave calls this when a charge finishes, including when the customer
      * closed the browser before the return page loaded.
      * A shop order is marked paid and left pending for hand-over. It is not collected
-     * and it is not sent to ZRA from here.
+     * and it is not sent to ZRA from here. A Take App order is filed with ZRA at this moment.
      */
     public function handleWebhook(array $payload): void
     {
@@ -603,6 +603,7 @@ final class Flutterwave
         }
         if (($sale['payment_status'] ?? '') === 'paid') {
             \App\Models\Sale::ensureOnlineReleased($this->pdo, $saleId);
+            \App\Services\TakeOrder::afterPaid($this->pdo, $saleId);
             return;
         }
         if ((float)$tx['amount'] + 0.005 < (float)$sale['final_total']) {
@@ -610,6 +611,7 @@ final class Flutterwave
         }
         $this->claimForSale($txRef, (float)$sale['final_total'], $saleId);
         \App\Models\Sale::markOnlinePaid($this->pdo, $saleId, $txRef);
+        \App\Services\TakeOrder::afterPaid($this->pdo, $saleId);
     }
 
     public function webhookHashMatches(string $rawBody, string $signature): bool

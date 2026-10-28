@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 20;
+    public const VERSION = 21;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -450,6 +450,24 @@ final class Schema
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
         $pdo->exec('INSERT IGNORE INTO commission_state (id) VALUES (1)');
+        self::addColumn($pdo, 'sales', 'take_order_id', 'VARCHAR(80) NULL');
+        self::addColumn($pdo, 'sales', 'receipt_printed_at', 'DATETIME NULL');
+        $pdo->exec('ALTER TABLE sales MODIFY split_group_id VARCHAR(80) NULL');
+        self::addUniqueIndex($pdo, 'sales', 'sales_take_order', 'take_order_id');
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS take_deliveries (
+                delivery_id VARCHAR(80) PRIMARY KEY,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS take_misses (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                take_order_id VARCHAR(80) NULL,
+                note VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
     }
 
     private static function addUniqueIndex(PDO $pdo, string $table, string $indexName, string $column): void

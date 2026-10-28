@@ -497,7 +497,7 @@ function getCategoryStyle($name) {
 
     <div class="modal fade" id="locationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg border-warning"><div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">Change Workstation</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body bg-light p-4"><form method="POST" class="js-confirm-form" data-swal-title="Switch workstation?" data-swal-text="The cart and stock counts will use the location you pick." data-swal-confirm="Switch" data-swal-cancel="Cancel" data-swal-icon="question" data-swal-confirm-color="#fd7e14"><?php foreach($sellableLocations as $loc): ?><button name="set_pos_location" value="<?= $loc['id'] ?>" class="btn btn-white border w-100 mb-2 py-3 fw-bold text-start shadow-sm"><?= htmlspecialchars($loc['name']) ?></button><?php endforeach; ?></form></div></div></div></div>
 
-    <?php if ($tier === 'enterprise'): ?>
+    <?php if ($tier === 'enterprise' || !empty($portalOn)): ?>
     <div class="modal fade" id="onlineTabsModal" tabindex="-1">
         <div class="modal-dialog modal-xl">
             <div class="modal-content h-100">
@@ -508,6 +508,13 @@ function getCategoryStyle($name) {
                 <div class="modal-body">
                     <div class="row h-100">
                         <div class="col-4 border-end overflow-auto">
+                            <?php if (!empty($takeMisses)): ?>
+                            <div class="alert alert-warning py-2 small mb-2">
+                                <?php foreach ($takeMisses as $miss): ?>
+                                <div><?= htmlspecialchars((string)$miss['note']) ?></div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
                             <div class="list-group">
                             <?php if(empty($onlineTabs)): ?>
                                 <p class="text-muted text-center mt-4 fw-bold">No pending web orders.</p>
@@ -583,7 +590,7 @@ function getCategoryStyle($name) {
                                 <i class="bi bi-clock"></i> Held until time is up
                             </button>
                         <?php elseif ($allReady && $tabPaid): ?>
-                            <form method="POST" class="js-confirm-form js-handover" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="Payment is already taken. This marks the order collected and prints to ZRA." data-swal-confirm="Hand over" data-swal-icon="question">
+                            <form method="POST" class="js-confirm-form js-handover" data-swal-title="Hand over order #<?= $tid ?>?" data-swal-text="<?= ($tabRow['order_source'] ?? '') === 'take' ? 'Payment is already taken. This marks the order collected.' : 'Payment is already taken. This marks the order collected and prints to ZRA.' ?>" data-swal-confirm="Hand over" data-swal-icon="question">
                                 <input type="hidden" name="complete_prepaid_order" value="<?= $tid ?>">
                                 <button class="btn btn-success w-100 fw-bold py-3 shadow-sm text-uppercase"><i class="bi bi-bag-check"></i> Hand Over</button>
                             </form>
@@ -591,6 +598,11 @@ function getCategoryStyle($name) {
                             <button type="button" class="btn btn-secondary w-100 fw-bold py-3 shadow-sm text-uppercase" disabled>
                                 <i class="bi bi-hourglass-split"></i> Paid — still cooking
                             </button>
+                        <?php elseif (($tabRow['order_source'] ?? '') === 'take'): ?>
+                            <form method="POST" class="js-confirm-form" data-swal-title="Send the mobile-money prompt again?" data-swal-text="The customer approves it on the phone number on this order." data-swal-confirm="Send prompt" data-swal-icon="question">
+                                <input type="hidden" name="resend_take_momo" value="<?= (int)$tid ?>">
+                                <button class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-uppercase text-dark"><i class="bi bi-phone"></i> Send MoMo again</button>
+                            </form>
                         <?php else: ?>
                             <button type="button" class="btn btn-warning w-100 fw-bold py-3 shadow-sm text-uppercase text-dark" onclick="openOnlineSettleModal(<?= $tid ?>, <?= $tabTotal ?>, '<?= htmlspecialchars(addslashes($tabCustomerName)) ?>')">
                                 <i class="bi bi-cash-coin"></i> Take payment
@@ -2024,7 +2036,38 @@ function getCategoryStyle($name) {
                 document.querySelector('.workspace')?.classList.toggle('cart-open', open && isMobilePos());
             });
             initPagination(); 
-            <?php if(isset($_SESSION["last_sale_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_sale_id"] ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_sale_id"]); endif; ?> 
+            <?php if(isset($_SESSION["last_sale_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_sale_id"] ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_sale_id"]); endif; ?>
+            (function () {
+                if (window.takePrintPoll) return;
+                window.takePrintPoll = true;
+                function pollTakeReceipt() {
+                    if (window.takePrinting) return;
+                    fetch('index.php?page=pos&take_print=1', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            const id = data && parseInt(data.sale_id, 10);
+                            if (!id) return;
+                            window.takePrinting = id;
+                            const frame = document.getElementById('receiptFrame');
+                            const title = document.getElementById('receiptModalTitle');
+                            if (title) title.textContent = 'Receipt';
+                            if (!frame) return;
+                            frame.src = 'about:blank';
+                            setTimeout(function () {
+                                frame.src = 'index.php?page=receipt&sale_id=' + id + '&_cb=' + Date.now();
+                                if (typeof safeModalShow === 'function') safeModalShow('receiptModal');
+                            }, 100);
+                            const body = new FormData();
+                            body.set('take_printed', String(id));
+                            body.set('ajax', '1');
+                            fetch('index.php?page=pos', { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: body })
+                                .finally(function () { setTimeout(function () { window.takePrinting = 0; }, 20000); });
+                        })
+                        .catch(function () {});
+                }
+                setTimeout(pollTakeReceipt, 2000);
+                setInterval(pollTakeReceipt, 8000);
+            })(); 
             <?php if(isset($_SESSION["last_bill_id"])): ?> document.getElementById("receiptFrame").src = "about:blank"; setTimeout(() => { document.getElementById("receiptFrame").src = "index.php?page=receipt&sale_id=<?= $_SESSION["last_bill_id"] ?>&is_bill=1&items=<?= $_SESSION["last_added_item_ids"] ?? "" ?>&_cb=" + new Date().getTime(); }, 100); safeModalShow("receiptModal"); <?php unset($_SESSION["last_bill_id"], $_SESSION["last_added_item_ids"]); endif; ?>
             let pickupMod = document.getElementById('pickupModal'); if(pickupMod) { pickupMod.addEventListener('hidden.bs.modal', function () { Swal.fire({ title: 'Refreshing tabs…', showConfirmButton: false, timer: 700, timerProgressBar: true }); setTimeout(() => { location.reload(); }, 700); }); } 
         });

@@ -12,6 +12,7 @@ use App\Services\Currency;
 use App\Services\EdgeSync;
 use App\Services\Flutterwave;
 use App\Services\Guide;
+use App\Services\TakeOrder;
 
 final class SettingsController extends Controller
 {
@@ -37,6 +38,8 @@ final class SettingsController extends Controller
                 } elseif (isset($_POST['refresh_rates'])) {
                     $res = (new Currency($this->pdo()))->rates(true);
                     $this->flash($res['error'] ? 'error' : 'success', $res['error'] ? 'Rates not refreshed: ' . $res['error'] : 'Exchange rates refreshed.');
+                } elseif (isset($_POST['copy_take_menu'])) {
+                    $this->copyTakeMenu();
                 } elseif (isset($_POST['save_shop'])) {
                     $this->saveShop();
                 } elseif (isset($_POST['save_branding'])) {
@@ -286,6 +289,15 @@ final class SettingsController extends Controller
 
     private function saveShop(): void
     {
+        $existing = Setting::all();
+        $apiKey = trim((string)($_POST['take_api_key'] ?? ''));
+        if ($apiKey !== '' && !str_contains($apiKey, '•')) {
+            $storedKey = $apiKey;
+        } elseif ($apiKey === '') {
+            $storedKey = '';
+        } else {
+            $storedKey = (string)($existing['take_api_key'] ?? '');
+        }
         Setting::save([
             'shop_enabled' => isset($_POST['shop_enabled']) ? '1' : '0',
             'shop_location_id' => (string)(int)($_POST['shop_location_id'] ?? 0),
@@ -299,8 +311,20 @@ final class SettingsController extends Controller
             'shop_min_order' => (string)max(0, (float)($_POST['shop_min_order'] ?? 0)),
             'order_webhook_url' => $this->orderWebhookUrl((string)($_POST['order_webhook_url'] ?? '')),
             'order_webhook_secret' => $this->orderWebhookSecret((string)($_POST['order_webhook_secret'] ?? '')),
+            'take_webhook_secret' => trim((string)($_POST['take_webhook_secret'] ?? '')),
+            'take_api_key' => $storedKey,
         ]);
         $this->flash('success', 'Customer ordering settings saved.');
+    }
+
+    private function copyTakeMenu(): void
+    {
+        $result = TakeOrder::copyMenu($this->pdo(), Setting::all());
+        $msg = $result['created'] . ' added and ' . $result['updated'] . ' updated on Take App. Each product SKU is the POS product id.';
+        if (empty($result['listed'])) {
+            $msg .= ' Put them in a category in Take App, or the menu link will not show them.';
+        }
+        $this->flash('success', $msg);
     }
 
     private function orderWebhookUrl(string $url): string
