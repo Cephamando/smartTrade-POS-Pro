@@ -17,14 +17,18 @@ $adjust = round($due - $sum, 2);
     <meta charset="UTF-8">
     <title>Bill</title>
     <style>
-        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; width: 300px; margin: 0 auto; padding: 10px; color: #000; font-weight: bold; }
+        html, body { width: 72mm; margin: 0; padding: 2mm; background: #fff; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; font-weight: bold; }
         .text-center { text-align: center; }
         .border-bottom { border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
         .border-top { border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         th, td { text-align: left; padding: 4px 0; vertical-align: top; }
         .amount { text-align: right; }
-        @media print { body, * { font-weight: bold !important; color: #000 !important; } }
+        @media print {
+            html, body { width: 72mm; margin: 0; padding: 1mm; height: auto; }
+            body, * { font-weight: bold !important; color: #000 !important; }
+        }
     </style>
 </head>
 <body>
@@ -81,7 +85,19 @@ $adjust = round($due - $sum, 2);
     <div class="text-center border-top" style="margin-top: 15px; font-size: 13px;"><?= nl2br(htmlspecialchars($receiptFooter)) ?></div>
     <?php endif; ?>
     <script>
-        window.onload = function () { setTimeout(function () { window.print(); }, 400); };
+        function fitThermalPage() {
+            var px = document.body.offsetHeight;
+            var mm = Math.ceil(px * 25.4 / 96) + 2;
+            if (mm < 40) mm = 40;
+            var style = document.getElementById('thermal-page-size');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'thermal-page-size';
+                document.head.appendChild(style);
+            }
+            style.textContent = '@page { size: 80mm ' + mm + 'mm; margin: 0; } html, body { height: auto; min-height: 0; }';
+        }
+        window.onload = function () { setTimeout(function () { fitThermalPage(); window.print(); }, 400); };
     </script>
 </body>
 </html>

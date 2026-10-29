@@ -66,7 +66,8 @@ if ($isIncremental) {
     <meta charset="UTF-8">
     <title><?= $isBill ? 'Bill' : 'Receipt' ?> #<?= $saleId ?></title>
     <style>
-        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; width: 300px; margin: 0 auto; padding: 10px; color: #000; font-weight: bold; }
+        html, body { width: 72mm; margin: 0; padding: 2mm; background: #fff; }
+        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; font-weight: bold; }
         .text-center { text-align: center; }
         .fw-bold { font-weight: 900; }
         .border-bottom { border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
@@ -84,6 +85,7 @@ if ($isIncremental) {
             image-rendering: crisp-edges;
         }
         @media print {
+            html, body { width: 72mm; margin: 0; padding: 1mm; height: auto; }
             body { font-weight: bold !important; color: #000 !important; }
             * { font-weight: bold !important; color: #000 !important; }
             .zra-qr, .zra-qr img {
@@ -318,7 +320,19 @@ if ($isIncremental) {
                 el.innerHTML = qr.createImgTag(4, 4);
             });
         })();
-        window.onload = function() { setTimeout(function() { window.print(); }, 500); };
+        function fitThermalPage() {
+            var px = document.body.offsetHeight;
+            var mm = Math.ceil(px * 25.4 / 96) + 2;
+            if (mm < 40) mm = 40;
+            var style = document.getElementById('thermal-page-size');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'thermal-page-size';
+                document.head.appendChild(style);
+            }
+            style.textContent = '@page { size: 80mm ' + mm + 'mm; margin: 0; } html, body { height: auto; min-height: 0; }';
+        }
+        window.onload = function () { setTimeout(function () { fitThermalPage(); window.print(); }, 500); };
     </script>
 </body>
 </html>

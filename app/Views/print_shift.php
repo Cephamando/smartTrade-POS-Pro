@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <title>X-Read Shift #<?= $shift['id'] ?></title>
     <style>
-        body { font-family: 'Courier New', Courier, monospace; width: 300px; margin: 0 auto; padding: 10px; color: #000; background: #fff; font-size: 13px; }
+        html, body { width: 72mm; margin: 0; padding: 2mm; }
+        body { font-family: 'Courier New', Courier, monospace; color: #000; background: #fff; font-size: 13px; }
         html { background: #fff; color-scheme: light; }
         h2, h3, h4, h5 { text-align: center; margin: 5px 0; }
         .line { border-top: 1px dashed #000; margin: 10px 0; }
@@ -23,8 +24,9 @@
         .border-top { border-top: 2px dashed #000 !important; }
         hr { border-top: 2px dashed #000 !important; border-bottom: none !important; opacity: 1 !important; }
         
-        @media print { 
-            * { font-weight: 900 !important; color: #000 !important; } 
+        @media print {
+            html, body { width: 72mm; margin: 0; padding: 1mm; height: auto; }
+            * { font-weight: 900 !important; color: #000 !important; }
         }
     </style>
 </head>
@@ -131,5 +133,20 @@
 
     <div class="line"></div>
     <div style="text-align: center; font-size: 0.8em; margin-top: 10px;">End of Report</div>
+    <script>
+        function fitThermalPage() {
+            var px = document.body.offsetHeight;
+            var mm = Math.ceil(px * 25.4 / 96) + 2;
+            if (mm < 40) mm = 40;
+            var style = document.getElementById('thermal-page-size');
+            if (!style) {
+                style = document.createElement('style');
+                style.id = 'thermal-page-size';
+                document.head.appendChild(style);
+            }
+            style.textContent = '@page { size: 80mm ' + mm + 'mm; margin: 0; } html, body { height: auto; min-height: 0; }';
+        }
+        window.addEventListener('beforeprint', fitThermalPage);
+    </script>
 </body>
 </html>
