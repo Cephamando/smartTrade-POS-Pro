@@ -42,6 +42,8 @@ final class SettingsController extends Controller
                     $this->copyTakeMenu();
                 } elseif (isset($_POST['save_shop'])) {
                     $this->saveShop();
+                } elseif (isset($_POST['save_receipt'])) {
+                    $this->saveReceipt();
                 } elseif (isset($_POST['save_branding'])) {
                     $this->saveBranding();
                 } elseif (isset($_POST['save_library'])) {
@@ -125,8 +127,10 @@ final class SettingsController extends Controller
             'fxDisplay' => $fx->displayCurrencies(),
             'fxManual' => $fx->manualRates(),
             'fxKnown' => Currency::KNOWN,
-            'flwEnabled' => (new Flutterwave($this->pdo(), $settings))->enabled(),
-            'flwTestMode' => (new Flutterwave($this->pdo(), $settings))->isTestMode(),
+            'flwEnabled' => $flw->enabled(),
+            'flwTillOn' => $flw->tillOn(),
+            'flwWebOn' => $flw->webOn(),
+            'flwTestMode' => $flw->isTestMode(),
             'locations' => Location::all(),
             'menuPhotos' => (($_GET['tab'] ?? '') === 'branding') ? Product::menuForPhotos() : [],
             'libraryImages' => (($_GET['tab'] ?? '') === 'branding') ? Media::list() : [],
@@ -138,8 +142,6 @@ final class SettingsController extends Controller
     {
             $settingsToSave = [
                 'business_name' => $_POST['business_name'] ?? '',
-                'receipt_header' => $_POST['receipt_header'] ?? '',
-                'receipt_footer' => $_POST['receipt_footer'] ?? '',
                 'theme_color' => $_POST['theme_color'] ?? '#2c2c2c',
                 'theme_accent' => $_POST['theme_accent'] ?? '#ffc107',
                 'theme_cart' => $_POST['theme_cart'] ?? '#3e2723',
@@ -210,8 +212,13 @@ final class SettingsController extends Controller
         }
         $existing = Setting::all();
         $secret = trim((string)($_POST['flw_secret_key'] ?? ''));
+        $till = isset($_POST['flw_till_enabled']);
+        $web = isset($_POST['flw_web_enabled']);
         $pairs = [
-            'flw_enabled' => isset($_POST['flw_enabled']) ? '1' : '0',
+            'flw_till_enabled' => $till ? '1' : '0',
+            'flw_web_enabled' => $web ? '1' : '0',
+            'flw_enabled' => ($till || $web) ? '1' : '0',
+            'shop_pay_online' => $web ? '1' : '0',
             'flw_public_key' => trim((string)($_POST['flw_public_key'] ?? '')),
             'flw_encryption_key' => trim((string)($_POST['flw_encryption_key'] ?? '')),
             'flw_webhook_hash' => trim((string)($_POST['flw_webhook_hash'] ?? '')),
@@ -226,21 +233,29 @@ final class SettingsController extends Controller
             $pairs['flw_secret_key'] = (string)($existing['flw_secret_key'] ?? '');
         }
         try {
-            $pairs += $this->payoutAccount($pairs['flw_secret_key'], $pairs['flw_public_key'], $pairs['flw_enabled']);
+            $pairs += $this->payoutAccount($pairs['flw_secret_key'], $pairs['flw_public_key'], $pairs['flw_enabled'], $pairs['flw_till_enabled'], $pairs['flw_web_enabled']);
         } catch (\InvalidArgumentException $e) {
             if ($pairs['flw_enabled'] === '1') {
                 throw $e;
             }
         }
         Setting::save($pairs);
-        $this->flash('success', 'Payment gateway settings saved.' . ($pairs['flw_enabled'] === '1' ? ' Use "Test keys" to confirm Flutterwave accepts them.' : ''));
+        $note = '';
+        if ($pairs['flw_till_enabled'] !== '1') {
+            $note = ' With the till off, mobile money is recorded from the transaction id on the customer\'s phone.';
+        } elseif ($pairs['flw_enabled'] === '1') {
+            $note = ' Use "Test keys" to confirm Flutterwave accepts them.';
+        }
+        $this->flash('success', 'Payment gateway settings saved.' . $note);
     }
 
     /** @return array<string, string> */
-    private function payoutAccount(string $secret, string $public, string $enabled): array
+    private function payoutAccount(string $secret, string $public, string $enabled, string $till, string $web): array
     {
         $flw = new Flutterwave($this->pdo(), array_merge(Setting::all(), [
             'flw_enabled' => $enabled,
+            'flw_till_enabled' => $till,
+            'flw_web_enabled' => $web,
             'flw_secret_key' => $secret,
             'flw_public_key' => $public,
         ]));
@@ -290,6 +305,7 @@ final class SettingsController extends Controller
     private function saveShop(): void
     {
         $existing = Setting::all();
+        $tillOn = (new Flutterwave($this->pdo(), $existing))->tillOn();
         $apiKey = trim((string)($_POST['take_api_key'] ?? ''));
         if ($apiKey !== '' && !str_contains($apiKey, '•')) {
             $storedKey = $apiKey;
@@ -306,6 +322,9 @@ final class SettingsController extends Controller
             'shop_phone' => trim((string)($_POST['shop_phone'] ?? '')),
             'shop_pay_at_counter' => '0',
             'shop_pay_online' => isset($_POST['shop_pay_online']) ? '1' : '0',
+            'flw_web_enabled' => isset($_POST['shop_pay_online']) ? '1' : '0',
+            'flw_till_enabled' => $tillOn ? '1' : '0',
+            'flw_enabled' => ($tillOn || isset($_POST['shop_pay_online'])) ? '1' : '0',
             'shop_delivery' => isset($_POST['shop_delivery']) ? '1' : '0',
             'shop_delivery_fee' => (string)max(0, (float)($_POST['shop_delivery_fee'] ?? 0)),
             'shop_min_order' => (string)max(0, (float)($_POST['shop_min_order'] ?? 0)),
@@ -346,6 +365,25 @@ final class SettingsController extends Controller
             throw new \InvalidArgumentException('The order webhook secret is too long.');
         }
         return $secret;
+    }
+
+    private function saveReceipt(): void
+    {
+        $pairs = [
+            'receipt_name' => trim((string)($_POST['receipt_name'] ?? '')),
+            'receipt_header' => trim((string)($_POST['receipt_header'] ?? '')),
+            'receipt_footer' => trim((string)($_POST['receipt_footer'] ?? '')),
+        ];
+        if (!empty($_POST['remove_receipt_logo'])) {
+            $pairs['receipt_logo_path'] = '';
+        } else {
+            $stored = Media::store('receipt_logo', 'library');
+            if ($stored !== null) {
+                $pairs['receipt_logo_path'] = $stored;
+            }
+        }
+        Setting::save($pairs);
+        $this->flash('success', 'Receipt design saved.');
     }
 
     private function saveBranding(): void
@@ -457,6 +495,7 @@ final class SettingsController extends Controller
         $target = (string)($_POST['target'] ?? '');
         $labels = [
             'logo' => ['logo_path', 'Logo updated from the image library.'],
+            'receipt_logo' => ['receipt_logo_path', 'Receipt logo updated from the image library.'],
             'shop_banner' => ['shop_banner_path', 'Shop banner updated from the image library.'],
             'promo_banner' => ['promo_banner_path', 'Promo banner updated from the image library.'],
         ];

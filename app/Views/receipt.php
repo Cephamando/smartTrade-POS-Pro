@@ -144,7 +144,7 @@ if ($isIncremental) {
                         <?= nl2br(htmlspecialchars($receiptHeader)) ?>
                     </div>
                     <?php endif; ?>
-                    <?php if ($zraTpin !== '' && !str_contains((string)$receiptHeader, $zraTpin)): ?>
+                    <?php if ($zraTpin !== '' && stripos((string)$receiptHeader, 'TPIN') === false && !str_contains((string)$receiptHeader, $zraTpin)): ?>
                     <div style="font-size: 13px;">TPIN: <?= htmlspecialchars($zraTpin) ?></div>
                     <?php endif; ?>
                     
@@ -239,6 +239,9 @@ if ($isIncremental) {
                     <?php endif; ?>
                     <?php if (!empty($sale['stanbic_rrn'])): ?>
                     <tr><td>Stanbic RRN:</td><td class="amount small"><?= htmlspecialchars((string)$sale['stanbic_rrn']) ?></td></tr>
+                    <?php endif; ?>
+                    <?php if (!empty($sale['momo_ref'])): ?>
+                    <tr><td>MoMo ID:</td><td class="amount small"><?= htmlspecialchars((string)$sale['momo_ref']) ?></td></tr>
                     <?php endif; ?>
                     <?php if (!empty($gateway['lines'])): ?>
                     <?php foreach ($gateway['lines'] as $line): ?>

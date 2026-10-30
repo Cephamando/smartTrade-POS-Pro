@@ -23,7 +23,7 @@ final class ReceiptController extends Controller
 
         $pdo = $this->pdo();
         $settingsStmt = $pdo->query(
-            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_header', 'receipt_footer', 'vsdc_sdcId', 'vsdc_mrcNo')"
+            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_name', 'receipt_header', 'receipt_footer', 'receipt_logo_path', 'logo_path', 'vsdc_sdcId', 'vsdc_mrcNo')"
         );
         $sysSettings = [];
         while ($sRow = $settingsStmt->fetch()) {
@@ -36,16 +36,17 @@ final class ReceiptController extends Controller
         }
 
         $zraClient = new \ZraVsdcClient($pdo);
+        $face = \App\Models\Setting::receiptFace($sysSettings);
         $this->render([
             'saleId' => $saleId,
             'isBill' => $isBill,
             'specificItems' => $specificItems,
             'isIncremental' => $isIncremental,
             'sysSettings' => $sysSettings,
-            'bizName' => !empty($sysSettings['business_name']) ? $sysSettings['business_name'] : 'OdeliaPOS',
-            'logoUrl' => \App\Helpers\Media::url((string)($sysSettings['logo_path'] ?? '')),
-            'receiptHeader' => $sysSettings['receipt_header'] ?? '',
-            'receiptFooter' => $sysSettings['receipt_footer'] ?? 'Thank you for your business!',
+            'bizName' => $face['name'],
+            'logoUrl' => \App\Helpers\Media::url($face['logo']),
+            'receiptHeader' => $face['header'],
+            'receiptFooter' => $face['footer'],
             'zraTpin' => $zraClient->getConfig()['tpin'],
             'zraClient' => $zraClient,
             'gateway' => ($gw = \App\Services\Flutterwave::detailsForSales($pdo, [$saleId]))[$saleId] ?? null,

@@ -125,14 +125,16 @@ final class PosController extends Controller
         $due = round((float)($_GET['due'] ?? $sum), 2);
         $settings = [];
         $stmt = $this->pdo()->query(
-            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_header', 'receipt_footer')"
+            "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('business_name', 'receipt_name', 'receipt_header', 'receipt_footer', 'receipt_logo_path', 'logo_path')"
         );
         while ($row = $stmt->fetch()) {
             $settings[$row['setting_key']] = $row['setting_value'];
         }
-        $bizName = (string)($settings['business_name'] ?? 'Shop');
-        $receiptHeader = (string)($settings['receipt_header'] ?? '');
-        $receiptFooter = (string)($settings['receipt_footer'] ?? '');
+        $face = \App\Models\Setting::receiptFace($settings);
+        $bizName = $face['name'];
+        $logoUrl = \App\Helpers\Media::url($face['logo']);
+        $receiptHeader = $face['header'];
+        $receiptFooter = $face['footer'];
         $cashier = (string)($_SESSION['username'] ?? '');
         $customer = (string)($_SESSION['current_customer'] ?? 'Walk-in');
         $location = (string)($_SESSION['location_name'] ?? '');

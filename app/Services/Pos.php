@@ -411,7 +411,7 @@ final class Pos
             'tipMethods' => \App\Models\Tip::METHODS,
             'staffUsers' => $isManager ? User::activeStaff() : [],
             'fx' => $this->fxForPos($sysSettings),
-            'flwEnabled' => (new Flutterwave($this->pdo, $sysSettings))->enabled(),
+            'flwEnabled' => (new Flutterwave($this->pdo, $sysSettings))->tillEnabled(),
             'flwTestMode' => (new Flutterwave($this->pdo, $sysSettings))->isTestMode(),
             'portalOn' => $portalOn,
             'categories' => Category::all(),

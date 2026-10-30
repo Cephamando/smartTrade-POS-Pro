@@ -32,6 +32,9 @@ final class FlutterwaveController extends Controller
             switch ($action) {
                 case 'init':
                     $this->requirePost();
+                    if (!$flw->tillEnabled()) {
+                        throw new \RuntimeException('Flutterwave is turned off for the till.');
+                    }
                     $res = $flw->createPaymentLink([
                         'amount' => (float)($_POST['amount'] ?? 0),
                         'phone' => trim((string)($_POST['phone'] ?? '')),
@@ -46,6 +49,9 @@ final class FlutterwaveController extends Controller
                     // no break — jsonExit never returns
                 case 'momo':
                     $this->requirePost();
+                    if (!$flw->tillEnabled()) {
+                        throw new \RuntimeException('Flutterwave is turned off for the till.');
+                    }
                     $res = $flw->chargeMobileMoney([
                         'amount' => (float)($_POST['amount'] ?? 0),
                         'phone' => trim((string)($_POST['phone'] ?? '')),

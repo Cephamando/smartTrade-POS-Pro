@@ -3,6 +3,7 @@
 /** @var float $sum */
 /** @var float $due */
 /** @var string $bizName */
+/** @var string $logoUrl */
 /** @var string $receiptHeader */
 /** @var string $receiptFooter */
 /** @var string $cashier */
@@ -33,6 +34,7 @@ $adjust = round($due - $sum, 2);
 </head>
 <body>
     <div class="text-center border-bottom">
+        <?php if ($logoUrl !== ''): ?><img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;"><?php endif; ?>
         <h2 style="margin:0; font-size: 20px;"><?= htmlspecialchars($bizName) ?></h2>
         <?php if ($receiptHeader !== ''): ?>
         <div style="font-size: 13px; margin: 5px 0;"><?= nl2br(htmlspecialchars($receiptHeader)) ?></div>

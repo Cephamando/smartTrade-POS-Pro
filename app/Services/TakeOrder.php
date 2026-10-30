@@ -245,6 +245,9 @@ final class TakeOrder
             throw new \RuntimeException('This order has no phone number.');
         }
         $flw = new Flutterwave($pdo, $settings);
+        if (!$flw->webEnabled()) {
+            throw new \RuntimeException('Flutterwave is turned off for the website, so this order was not charged.');
+        }
         $made = $flw->chargeMobileMoney([
             'amount' => (float)$sale['final_total'],
             'phone' => $phone,
@@ -406,7 +409,7 @@ final class TakeOrder
             return;
         }
         $flw = new Flutterwave($pdo, Setting::all());
-        if (!$flw->enabled()) {
+        if (!$flw->configured()) {
             return;
         }
         foreach ($rows as $row) {

@@ -28,9 +28,43 @@ final class Flutterwave
         $this->settings ??= Setting::all();
     }
 
+    public function configured(): bool
+    {
+        return $this->secretKey() !== '' && $this->publicKey() !== '';
+    }
+
+    /** The till switch. A shop that has never saved the split switches follows the old single switch. */
+    public function tillOn(): bool
+    {
+        if (array_key_exists('flw_till_enabled', $this->settings)) {
+            return ($this->settings['flw_till_enabled'] ?? '0') === '1';
+        }
+        return ($this->settings['flw_enabled'] ?? '0') === '1';
+    }
+
+    /** The website switch, including event payments and Take App prompts. */
+    public function webOn(): bool
+    {
+        if (array_key_exists('flw_web_enabled', $this->settings)) {
+            return ($this->settings['flw_web_enabled'] ?? '0') === '1';
+        }
+        return ($this->settings['flw_enabled'] ?? '0') === '1'
+            && ($this->settings['shop_pay_online'] ?? '1') === '1';
+    }
+
+    public function tillEnabled(): bool
+    {
+        return $this->tillOn() && $this->configured();
+    }
+
+    public function webEnabled(): bool
+    {
+        return $this->webOn() && $this->configured();
+    }
+
     public function enabled(): bool
     {
-        return ($this->settings['flw_enabled'] ?? '0') === '1' && $this->secretKey() !== '' && $this->publicKey() !== '';
+        return $this->configured() && ($this->tillOn() || $this->webOn());
     }
 
     public function publicKey(): string
@@ -50,20 +84,19 @@ final class Flutterwave
      */
     public function testConnection(): array
     {
-        $this->assertEnabled();
+        if (!$this->configured()) {
+            return ['status' => 'error', 'msg' => 'Add the public key and secret key first.'];
+        }
         try {
-            $res = $this->request('GET', '/banks/ZM');
+            // The bank list fails on some sandboxes even when the key is valid.
+            $res = $this->request('GET', '/subaccounts');
             if (($res['status'] ?? '') === 'success') {
-                return [
-                    'status' => 'ok',
-                    'msg' => 'Keys accepted. ' . ($this->isTestMode() ? 'Sandbox (test) mode.' : 'LIVE mode — real money.'),
-                    'test_mode' => $this->isTestMode(),
-                ];
+                $msg = 'Keys accepted. ' . ($this->isTestMode() ? 'Sandbox (test) mode.' : 'LIVE mode — real money.');
+                return ['status' => 'ok', 'msg' => $msg, 'test_mode' => $this->isTestMode()];
             }
-            return ['status' => 'error', 'msg' => (string)($res['message'] ?? 'Flutterwave did not accept the keys.')];
+            return ['status' => 'error', 'msg' => $this->readableGatewayError((string)($res['message'] ?? ''))];
         } catch (\Throwable $e) {
-            $why = $e->getMessage();
-            return ['status' => 'error', 'msg' => $why !== '' ? $why : 'Flutterwave did not accept the keys.'];
+            return ['status' => 'error', 'msg' => $this->readableGatewayError($e->getMessage())];
         }
     }
 
@@ -75,6 +108,17 @@ final class Flutterwave
     private function secretKey(): string
     {
         return trim((string)($this->settings['flw_secret_key'] ?? ''));
+    }
+
+    /** Sandbox often refuses the bank list and wallet with a generic message even when the key is valid. */
+    private function readableGatewayError(string $message): string
+    {
+        $message = trim($message);
+        $lower = strtolower($message);
+        if ($this->isTestMode() && ($lower === 'an error occurred' || str_contains($lower, 'system token'))) {
+            return 'These test keys are accepted, but this sandbox has no wallet token, so the bank list and balances are unavailable. Mobile money does not need the bank list.';
+        }
+        return $message !== '' ? $message : 'Flutterwave did not accept the request.';
     }
 
     public static function newTxRef(string $prefix = 'POS'): string
@@ -154,7 +198,9 @@ final class Flutterwave
      */
     public function beginInline(array $args): array
     {
-        $this->assertEnabled();
+        if (!$this->webEnabled()) {
+            throw new \RuntimeException('Flutterwave is turned off for the website.');
+        }
         $amount = round((float)$args['amount'], 2);
         if ($amount <= 0) {
             throw new \InvalidArgumentException('Amount must be greater than zero.');
@@ -1402,7 +1448,7 @@ final class Flutterwave
                 $balance = $wallets['payout'];
                 $collection = $wallets['collection'];
             } catch (\Throwable $e) {
-                $balanceError = $e->getMessage();
+                $balanceError = $this->readableGatewayError($e->getMessage());
             }
         }
         $held = $this->unsettledBatchNet();
@@ -1439,7 +1485,7 @@ final class Flutterwave
         $this->assertEnabled();
         $res = $this->request('GET', '/banks/ZM');
         if (($res['status'] ?? '') !== 'success' || !is_array($res['data'] ?? null)) {
-            throw new \RuntimeException((string)($res['message'] ?? 'Flutterwave did not return Zambian banks.'));
+            throw new \RuntimeException($this->readableGatewayError((string)($res['message'] ?? 'Flutterwave did not return Zambian banks.')));
         }
         $out = [];
         foreach ($res['data'] as $bank) {

@@ -114,6 +114,7 @@ final class Checkout
         $savedSaleId = (int)($session['completed_sale_id'] ?? 0);
         if ($savedSaleId > 0) {
             $this->storeTenderExtras($post, $savedSaleId, $gateway, $gatewayTxRef, $flwDue > 0.004 ? $flwDue : $checkTotal);
+            $this->recordMomoRef($savedSaleId, $post);
             CommissionLedger::recordSale($this->pdo, $savedSaleId, $post);
         }
 
@@ -352,6 +353,54 @@ final class Checkout
             throw new \Exception('Choose a reason for the surcharge.');
         }
         return [$amount, mb_substr($reason, 0, 120)];
+    }
+
+    private function recordMomoRef(int $saleId, array $post): void
+    {
+        $stmt = $this->pdo->prepare('SELECT payment_method, split_method_1, split_method_2, split_payments, final_total FROM sales WHERE id = ?');
+        $stmt->execute([$saleId]);
+        $sale = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$sale || !$this->saleUsesMomo($sale)) {
+            return;
+        }
+        $ref = strtoupper(preg_replace('/\s+/', '', (string)($post['momo_ref'] ?? '')) ?? '');
+        if (!preg_match('/^[A-Z0-9.]{4,22}$/', $ref)) {
+            throw new \Exception('Enter the transaction id from the mobile-money message, not the whole message.');
+        }
+        if ((float)$sale['final_total'] > 0) {
+            $dup = $this->pdo->prepare(
+                "SELECT id FROM sales WHERE momo_ref = ? AND id <> ? AND payment_status = 'paid' AND final_total > 0 LIMIT 1"
+            );
+            $dup->execute([$ref, $saleId]);
+            $other = (int)$dup->fetchColumn();
+            if ($other > 0) {
+                throw new \Exception('That mobile-money transaction id is already on receipt #' . $other . '.');
+            }
+        }
+        $this->pdo->prepare('UPDATE sales SET momo_ref = ? WHERE id = ?')->execute([$ref, $saleId]);
+    }
+
+    /** @param array<string, mixed> $sale */
+    private function saleUsesMomo(array $sale): bool
+    {
+        if (strcasecmp((string)($sale['payment_method'] ?? ''), 'Mobile money') === 0) {
+            return true;
+        }
+        foreach (['split_method_1', 'split_method_2'] as $key) {
+            if (strcasecmp((string)($sale[$key] ?? ''), 'Mobile money') === 0) {
+                return true;
+            }
+        }
+        $legs = json_decode((string)($sale['split_payments'] ?? ''), true);
+        if (!is_array($legs)) {
+            return false;
+        }
+        foreach ($legs as $leg) {
+            if (is_array($leg) && strcasecmp((string)($leg['method'] ?? ''), 'Mobile money') === 0 && abs((float)($leg['amount'] ?? 0)) > 0.004) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function storeTenderExtras(array $post, int $saleId, ?Flutterwave $gateway, string $gatewayTxRef, float $due): void

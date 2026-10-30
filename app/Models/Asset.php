@@ -556,6 +556,11 @@ final class Asset extends Model
         if ($method === '' || str_contains($method, 'cash')) {
             return 'cash';
         }
+        // Typed at the till from the customer's own phone message. It is not a Flutterwave charge,
+        // so it stays with the other non-cash takings instead of the Flutterwave mobile balance.
+        if ($method === 'mobile money') {
+            return 'bank';
+        }
         if (
             str_contains($method, 'flutter') || str_contains($method, 'momo') || str_contains($method, 'mobile')
             || str_contains($method, 'airtel') || str_contains($method, 'mtn') || str_contains($method, 'zamtel')

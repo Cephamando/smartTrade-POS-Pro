@@ -804,6 +804,8 @@ function getCategoryStyle($name) {
         <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option><option value="Stanbic card">Visa / Mastercard (Stanbic)</option>
         <?php if (!empty($flwEnabled)): ?>
         <option value="Flutterwave">Flutterwave (Card / Mobile Money)<?= !empty($flwTestMode) ? ' — TEST' : '' ?></option>
+        <?php else: ?>
+        <option value="Mobile money">Mobile money</option>
         <?php endif; ?>
         <?php if ($tier === 'enterprise'): ?>
         <option value="Online">Online Delivery App</option>
@@ -818,12 +820,17 @@ function getCategoryStyle($name) {
             </div>
             <div id="splitRows"></div>
             <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add another payment</button>
-            <div class="small text-muted mt-2"><?php if (!empty($flwEnabled)): ?>Cash stays in the drawer. Card and mobile money are the Flutterwave line; the panel below charges that portion only.<?php else: ?>Add a line for each way the customer is paying. Use Other for a bank transfer, cheque, or voucher.<?php endif; ?></div>
+            <div class="small text-muted mt-2"><?php if (!empty($flwEnabled)): ?>Cash stays in the drawer. Card and mobile money are the Flutterwave line; the panel below charges that portion only.<?php else: ?>Add a line for each way the customer is paying. Mobile money needs the transaction id from the customer's message. Use Other for a bank transfer, cheque, or voucher.<?php endif; ?></div>
         </div>
         <div id="stanbicPanel" class="p-3 rounded border mb-3" style="display:none;">
             <div class="small text-muted mb-2">The bill is printed. After the customer taps the card on the Stanbic machine, type the RRN from the slip.</div>
             <label class="form-label small fw-bold mb-1" for="stanbicRrn">RRN</label>
             <input type="text" name="stanbic_rrn" id="stanbicRrn" class="form-control form-control-lg text-uppercase" maxlength="20" autocomplete="off" inputmode="text">
+        </div>
+        <div id="momoPanel" class="p-3 rounded border mb-3" style="display:none;">
+            <div class="small text-muted mb-2">The bill is printed. After the customer pays from their phone, type the transaction id from the message. Leave out the rest of the text.</div>
+            <label class="form-label small fw-bold mb-1" for="momoRef">Transaction ID</label>
+            <input type="text" name="momo_ref" id="momoRef" class="form-control form-control-lg text-uppercase" maxlength="22" autocomplete="off" inputmode="text">
         </div>
         <?php if (!empty($flwEnabled)): ?>
         <div id="gatewayPanel" class="p-3 rounded border border-primary bg-light mb-3" style="display:none;">
@@ -1257,6 +1264,13 @@ function getCategoryStyle($name) {
                 AppAlert.notify({ icon: 'warning', text: 'Enter the Stanbic RRN from the card machine.' });
                 return;
             }
+            if (momoSelected() && !momoReady()) {
+                e.preventDefault();
+                e.stopPropagation();
+                form.dataset.swalConfirmed = '';
+                AppAlert.notify({ icon: 'warning', text: 'Enter the transaction id from the mobile-money message.' });
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             const body = new FormData(form);
@@ -1560,6 +1574,7 @@ function getCategoryStyle($name) {
             let nameInput = document.querySelector('[name="customer_name"]');
             if (!isTabMode) { baseTotal = window.posCartBalance || 0; document.getElementById('settle_tab_id_input').value = '0'; nameInput.value = <?= json_encode((string)($_SESSION['current_customer'] ?? 'Walk-in')) ?>; nameInput.readOnly = false; } else { baseTotal = parseFloat(tabTotal) - parseFloat(pt); nameInput.value = tabCustomer; nameInput.readOnly = true; if (forceTabId > 0) { document.getElementById('settle_tab_id_input').value = forceTabId; } }
             currentTotal = baseTotal; tenderedTouched = false; document.getElementById('tipInput').value = '';
+            const momoRef = document.getElementById('momoRef'); if (momoRef) momoRef.value = '';
             resetSurcharge(); resetGateway(); clearForeignTender(true);
             resetSplitRows();
             const checkoutForm = document.getElementById('checkoutForm');
@@ -1687,7 +1702,26 @@ function getCategoryStyle($name) {
             const rrn = (document.getElementById('stanbicRrn').value || '').replace(/\s+/g, '');
             return /^[A-Za-z0-9]{6,20}$/.test(rrn);
         }
-        function printCardBillThenPay() {
+        function momoSelected() {
+            if (!isSplitPay() && document.getElementById('paymentMethodSelect').value === 'Mobile money') return true;
+            if (!isSplitPay()) return false;
+            let found = false;
+            document.querySelectorAll('#splitRows .split-method').forEach(function (sel) { if (sel.value === 'Mobile money') found = true; });
+            return found;
+        }
+        function momoReady() {
+            const el = document.getElementById('momoRef');
+            const ref = ((el && el.value) || '').replace(/\s+/g, '');
+            return /^[A-Za-z0-9.]{4,22}$/.test(ref);
+        }
+        function referenceBillLabel() {
+            const card = stanbicSelected();
+            const momo = momoSelected();
+            if (card && momo) return 'Enter references';
+            if (momo) return 'Enter ID';
+            return 'Enter RRN';
+        }
+        function printCardBillThenPay(which) {
             if (cardBillPrinted || currentTotal < 0) return;
             cardBillPrinted = true;
             const tabId = document.getElementById('settle_tab_id_input').value;
@@ -1696,15 +1730,17 @@ function getCategoryStyle($name) {
             const dismiss = document.getElementById('receiptModalDismiss');
             const receiptEl = document.getElementById('receiptModal');
             if (title) title.textContent = 'Bill';
-            if (dismiss) dismiss.textContent = 'Enter RRN';
+            if (dismiss) dismiss.textContent = referenceBillLabel();
             const reopen = function () {
                 receiptEl.removeEventListener('hidden.bs.modal', reopen);
                 if (title) title.textContent = 'Receipt';
                 if (dismiss) dismiss.textContent = 'Close';
                 safeModalShow('checkoutModal');
                 syncStanbicPanel();
-                const rrn = document.getElementById('stanbicRrn');
-                if (rrn) setTimeout(function () { rrn.focus(); }, 350);
+                syncMomoPanel();
+                const focusId = which === 'momo' ? 'momoRef' : 'stanbicRrn';
+                const field = document.getElementById(focusId);
+                if (field) setTimeout(function () { field.focus(); }, 350);
             };
             receiptEl.addEventListener('hidden.bs.modal', reopen);
             switchModal('checkoutModal', '', function () {
@@ -1728,6 +1764,16 @@ function getCategoryStyle($name) {
                 tenderedTouched = true;
             }
         }
+        function syncMomoPanel() {
+            const panel = document.getElementById('momoPanel');
+            if (!panel) return;
+            const on = momoSelected();
+            panel.style.display = on ? '' : 'none';
+            if (on && !isSplitPay()) {
+                document.getElementById('tenderedInput').value = amountDue().toFixed(2);
+                tenderedTouched = true;
+            }
+        }
         function onPaymentMethodChange() {
             const pm = document.getElementById('paymentMethodSelect').value; const panel = document.getElementById('gatewayPanel');
             if (panel) {
@@ -1737,8 +1783,10 @@ function getCategoryStyle($name) {
                     const ph = document.getElementById('gwPhone'); if (ph && !ph.value) ph.focus();
                 } else { resetGateway(); tenderedTouched = false; }
             }
-            if (pm === 'Stanbic card') printCardBillThenPay();
+            if (pm === 'Stanbic card') printCardBillThenPay('card');
+            if (pm === 'Mobile money') printCardBillThenPay('momo');
             syncStanbicPanel();
+            syncMomoPanel();
             calcResult();
         }
         function gatewayPost(action, data) {
@@ -1863,11 +1911,11 @@ function getCategoryStyle($name) {
             if (fxRowOpen()) { if (fxSource === 'fx') onFxTenderChange(); else syncFxFromZmw(); }
             calcResult();
         }
-        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); sumSplit(); } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); onPaymentMethodChange(); } syncStanbicPanel(); calcResult(); }
+        function toggleMode() { let isSplit = isSplitPay(); document.getElementById('singleSection').style.display = isSplit ? 'none' : 'block'; document.getElementById('splitSection').style.display = isSplit ? 'block' : 'none'; if(isSplit) { resetSplitRows(); sumSplit(); } else { tenderedTouched = false; document.getElementById('tenderedInput').value = amountDue().toFixed(2); onPaymentMethodChange(); } syncStanbicPanel(); syncMomoPanel(); calcResult(); }
         const splitMethodList = <?= json_encode(array_values(array_filter([
             'Cash',
             'Stanbic card',
-            !empty($flwEnabled) ? 'Flutterwave' : null,
+            !empty($flwEnabled) ? 'Flutterwave' : 'Mobile money',
             $tier === 'enterprise' ? 'Online' : null,
         ]))) ?>;
         function splitMethodOptions(selected) {
@@ -1900,7 +1948,7 @@ function getCategoryStyle($name) {
             if (!wrap) return;
             wrap.innerHTML = '';
             addSplitRow('Cash');
-            addSplitRow(splitMethodList.includes('Flutterwave') ? 'Flutterwave' : 'Cash');
+            addSplitRow(splitMethodList.includes('Flutterwave') ? 'Flutterwave' : (splitMethodList.includes('Mobile money') ? 'Mobile money' : 'Cash'));
         }
         function removeSplitRow(btn) {
             const wrap = document.getElementById('splitRows');
@@ -1908,6 +1956,7 @@ function getCategoryStyle($name) {
             btn.closest('.split-pay-row').remove();
             refreshSplitRemoveButtons();
             syncStanbicPanel();
+            syncMomoPanel();
             sumSplit();
         }
         function refreshSplitRemoveButtons() {
@@ -1928,8 +1977,10 @@ function getCategoryStyle($name) {
             input.required = isCustom;
             if (!isCustom) input.value = '';
             if (sel.value === 'Flutterwave') resetGatewayConfirmation();
-            if (sel.value === 'Stanbic card') printCardBillThenPay();
+            if (sel.value === 'Stanbic card') printCardBillThenPay('card');
+            if (sel.value === 'Mobile money') printCardBillThenPay('momo');
             syncStanbicPanel();
+            syncMomoPanel();
             syncSplitGateway();
         }
         function flutterwaveSplitAmount() {

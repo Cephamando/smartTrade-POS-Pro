@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 21;
+    public const VERSION = 23;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -468,6 +468,23 @@ final class Schema
                 created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
+        self::addColumn($pdo, 'sales', 'momo_ref', 'VARCHAR(24) NULL');
+        self::seedReceiptLogo($pdo);
+    }
+
+    /** Copy the app logo onto the slip once. A later clear stays empty and does not fall back. */
+    private static function seedReceiptLogo(PDO $pdo): void
+    {
+        $exists = $pdo->prepare('SELECT COUNT(*) FROM settings WHERE setting_key = ?');
+        $exists->execute(['receipt_logo_path']);
+        if ((int)$exists->fetchColumn() > 0) {
+            return;
+        }
+        $logo = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
+        $logo->execute(['logo_path']);
+        $path = $logo->fetchColumn();
+        $pdo->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)')
+            ->execute(['receipt_logo_path', is_string($path) ? $path : '']);
     }
 
     private static function addUniqueIndex(PDO $pdo, string $table, string $indexName, string $column): void

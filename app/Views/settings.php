@@ -1,6 +1,6 @@
 <?php
 $userRole = strtolower($_SESSION['role'] ?? '');
-$allowedTabs = ['general', 'surcharges', 'currency', 'shop', 'branding', 'email', 'guide', 'edge_sync'];
+$allowedTabs = ['general', 'receipt', 'surcharges', 'currency', 'shop', 'branding', 'email', 'guide', 'edge_sync'];
 if ($userRole === 'dev') {
     $allowedTabs[] = 'payments';
     $allowedTabs[] = 'developer';
@@ -9,6 +9,7 @@ $tab = in_array($tab ?? 'general', $allowedTabs, true) ? $tab : 'general';
 $secretMask = !empty($settings['flw_secret_key']) ? substr((string)$settings['flw_secret_key'], 0, 12) . '••••••••' : '';
 $tabs = [
     'general' => ['bi-sliders', 'General'],
+    'receipt' => ['bi-receipt', 'Receipt'],
     'surcharges' => ['bi-plus-slash-minus', 'POS surcharges'],
 ];
 if ($userRole === 'dev') {
@@ -42,18 +43,11 @@ if ($userRole === 'dev') {
             <div class="card-body p-4">
                 <form method="POST" action="index.php?page=settings">
                     <input type="hidden" name="tab" value="general">
-                    <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2">Business & Receipts</h5>
+                    <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2">Business</h5>
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">BUSINESS NAME</label>
                         <input type="text" name="business_name" class="form-control" value="<?= htmlspecialchars($settings['business_name'] ?? '') ?>" placeholder="e.g. Odelia POS">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-muted">RECEIPT HEADER (Optional)</label>
-                        <textarea name="receipt_header" class="form-control" rows="3" placeholder="Tax Number, Slogan, etc."><?= htmlspecialchars($settings['receipt_header'] ?? '') ?></textarea>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label fw-bold small text-muted">RECEIPT FOOTER</label>
-                        <textarea name="receipt_footer" class="form-control" rows="2" placeholder="Thank you for your business!"><?= htmlspecialchars($settings['receipt_footer'] ?? '') ?></textarea>
+                        <div class="form-text">The menu bar and sign-in use this name. The till slip has its own name, logo, and lines under Receipt.</div>
                     </div>
                     <h5 class="fw-bold mb-3 text-secondary border-bottom pb-2 mt-4">Site inspection</h5>
                     <div class="form-check form-switch mb-4">
@@ -104,6 +98,81 @@ if ($userRole === 'dev') {
                         <button type="submit" class="btn btn-dark fw-bold px-5 py-2 shadow-sm"><i class="bi bi-save"></i> Save Settings</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php elseif ($tab === 'receipt'):
+$receiptFace = \App\Models\Setting::receiptFace($settings);
+$receiptLogoUrl = \App\Helpers\Media::url($receiptFace['logo']);
+?>
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0 border-top border-4 border-dark">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-1"><i class="bi bi-receipt"></i> Till slip</h5>
+                <p class="text-muted small">This name, logo, and text are printed on the sale receipt and the card bill. They do not change the menu bar, sign-in, or the online shop.</p>
+                <form method="POST" action="index.php?page=settings" enctype="multipart/form-data">
+                    <input type="hidden" name="tab" value="receipt">
+                    <input type="hidden" name="save_receipt" value="1">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">NAME ON THE SLIP</label>
+                        <input type="text" name="receipt_name" class="form-control" value="<?= htmlspecialchars($settings['receipt_name'] ?? '') ?>" placeholder="<?= htmlspecialchars($settings['business_name'] ?? '') ?>">
+                        <div class="form-text">Leave this blank to print the business name.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">HEADER</label>
+                        <textarea name="receipt_header" class="form-control" rows="3" placeholder="TPIN, address, slogan"><?= htmlspecialchars($settings['receipt_header'] ?? '') ?></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">FOOTER</label>
+                        <textarea name="receipt_footer" class="form-control" rows="2" placeholder="Thank you!"><?= htmlspecialchars($settings['receipt_footer'] ?? '') ?></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">RECEIPT LOGO</label>
+                        <div id="brandPreview-receipt_logo" class="mb-2 rounded d-flex align-items-center justify-content-center" style="height:88px;width:180px;background:#f6efe6;overflow:hidden;">
+                            <?php if ($receiptLogoUrl !== ''): ?>
+                                <img src="<?= htmlspecialchars($receiptLogoUrl) ?>" alt="" style="max-width:100%;max-height:88px;object-fit:contain;">
+                            <?php else: ?>
+                                <span class="text-muted small">No logo on the slip</span>
+                            <?php endif; ?>
+                        </div>
+                        <input type="file" name="receipt_logo" class="form-control form-control-sm" accept="image/jpeg,image/png,image/webp,image/gif">
+                        <div class="form-text">JPG, PNG, WEBP, or GIF, up to 2.5 MB. The image library can also set this with Use as receipt logo.</div>
+                        <?php if ($receiptLogoUrl !== ''): ?>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="remove_receipt_logo" value="1" id="remove_receipt_logo">
+                            <label class="form-check-label small" for="remove_receipt_logo">Remove the receipt logo</label>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button type="submit" class="btn btn-dark fw-bold px-5 py-2 shadow-sm"><i class="bi bi-save"></i> Save receipt</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-muted">Saved slip</h6>
+                <div class="border rounded bg-white p-3 mx-auto" style="width:72mm;font-family:'Courier New',Courier,monospace;color:#000;">
+                    <div class="text-center border-bottom pb-2 mb-2">
+                        <?php if ($receiptLogoUrl !== ''): ?>
+                        <img src="<?= htmlspecialchars($receiptLogoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;">
+                        <?php endif; ?>
+                        <div style="font-weight:900;font-size:18px;"><?= htmlspecialchars($receiptFace['name']) ?></div>
+                        <?php if (trim($receiptFace['header']) !== ''): ?>
+                        <div style="font-size:13px;margin-top:4px;"><?= nl2br(htmlspecialchars($receiptFace['header'])) ?></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="text-center text-muted" style="font-size:12px;">Items and totals print here</div>
+                    <?php if (trim($receiptFace['footer']) !== ''): ?>
+                    <div class="text-center border-top pt-2 mt-2" style="font-size:13px;"><?= nl2br(htmlspecialchars($receiptFace['footer'])) ?></div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
@@ -206,16 +275,22 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h5 class="fw-bold mb-1"><i class="bi bi-credit-card-2-front text-primary"></i> Flutterwave</h5>
-                        <p class="text-muted small mb-3">Cards open the Flutterwave window. Mobile money prompts go to the customer's MTN, Airtel, or Zamtel line. A subaccount id sends the split already saved on that subaccount. Keys that start with <code>FLWPUBK_TEST</code> or <code>FLWSECK_TEST</code> are sandbox.</p>
+                        <p class="text-muted small mb-3">The till and the website switch separately. Cards open the Flutterwave window. Mobile money prompts go to the customer's MTN, Airtel, or Zamtel line. With the till off, the cashier types the transaction id from the customer's own phone message. A subaccount id sends the split already saved on that subaccount. Keys that start with <code>FLWPUBK_TEST</code> or <code>FLWSECK_TEST</code> are sandbox.</p>
                     </div>
-                    <?php if ($flwEnabled): ?><span class="badge <?= $flwTestMode ? 'bg-warning text-dark' : 'bg-success' ?> fs-6"><?= $flwTestMode ? 'TEST MODE' : 'LIVE' ?></span><?php else: ?><span class="badge bg-secondary fs-6">OFF</span><?php endif; ?>
+                    <?php if (!empty($flwTestMode) && !empty($flwEnabled)): ?><span class="badge bg-warning text-dark fs-6">TEST MODE</span><?php elseif (!empty($flwEnabled)): ?><span class="badge bg-success fs-6">LIVE</span><?php else: ?><span class="badge bg-secondary fs-6">OFF</span><?php endif; ?>
                 </div>
                 <form method="POST" action="index.php?page=settings">
                     <input type="hidden" name="tab" value="payments">
                     <input type="hidden" name="save_payments" value="1">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" name="flw_till_enabled" value="1" id="flwTillEnabled" <?= !empty($flwTillOn) ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-bold" for="flwTillEnabled">Flutterwave on the till</label>
+                        <div class="form-text">The cashier's card window and mobile-money prompt. Off: the customer pays from their phone, and the till asks for the transaction id.</div>
+                    </div>
                     <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" name="flw_enabled" value="1" id="flwEnabled" <?= ($settings['flw_enabled'] ?? '0') === '1' ? 'checked' : '' ?>>
-                        <label class="form-check-label fw-bold" for="flwEnabled">Enable Flutterwave payments</label>
+                        <input class="form-check-input" type="checkbox" name="flw_web_enabled" value="1" id="flwWebEnabled" <?= !empty($flwWebOn) ? 'checked' : '' ?>>
+                        <label class="form-check-label fw-bold" for="flwWebEnabled">Flutterwave on the website</label>
+                        <div class="form-text">The online shop, event payments, and Take App prompts. Turning this off leaves the till as it is.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">PUBLIC KEY</label>
@@ -253,13 +328,15 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                     <hr class="my-4">
                     <h6 class="fw-bold mb-1"><i class="bi bi-bank"></i> Emergency payout account</h6>
                     <p class="text-muted small">A developer can send from the subaccount payout balance to this account. Flutterwave must have this server's IP on the transfer whitelist. A company name may include &amp; and commas.</p>
-                    <?php if (!empty($flwBanksError)): ?>
-                        <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?> You can type the bank code and name instead, or use mobile money.</div>
-                    <?php endif; ?>
                     <?php
                     $payoutBanks = $flwBanks ?? [];
                     $payoutBranches = $flwBranches ?? [];
-                    $payoutMethod = (($settings['flw_payout_method'] ?? '') === 'momo' || ($settings['flw_payout_bank'] ?? '') === 'MPS') ? 'momo' : 'bank';
+                    $payoutMethod = (($settings['flw_payout_method'] ?? '') === 'momo' || strtoupper(trim((string)($settings['flw_payout_bank'] ?? ''))) === 'MPS') ? 'momo' : 'bank';
+                    ?>
+                    <?php if (!empty($flwBanksError)): ?>
+                        <div class="alert alert-warning small"><?= htmlspecialchars((string)$flwBanksError) ?><?php if ($payoutMethod === 'bank'): ?> You can type the bank code and name instead.<?php endif; ?></div>
+                    <?php endif; ?>
+                    <?php
                     $payoutNetwork = strtoupper((string)($settings['flw_payout_network'] ?? 'MTN'));
                     if (!in_array($payoutNetwork, ['MTN', 'AIRTEL', 'ZAMTEL'], true)) {
                         $payoutNetwork = 'MTN';
@@ -295,7 +372,7 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                                 <input type="text" name="flw_payout_bank" class="form-control font-monospace" value="<?= htmlspecialchars($settings['flw_payout_bank'] ?? '') ?>" placeholder="Bank code" autocomplete="off">
                             <?php endif; ?>
                         </div>
-                        <?php if ($payoutBanks === []): ?>
+                        <?php if ($payoutBanks === [] && $payoutMethod === 'bank'): ?>
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">BANK NAME</label>
                             <input type="text" name="flw_payout_bank_name" class="form-control" value="<?= htmlspecialchars($settings['flw_payout_bank_name'] ?? '') ?>" autocomplete="off">
@@ -563,13 +640,13 @@ document.addEventListener('DOMContentLoaded', cvFromZmw);
                             <div class="form-text">Sent as <code>X-SmartTrade-Signature</code>, the HMAC-SHA256 of the raw body. Optional.</div>
                         </div>
                         <div class="col-12 d-flex flex-wrap gap-4 mt-2">
-                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_pay_online" value="1" id="shopOnline" <?= ($settings['shop_pay_online'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopOnline">Take payment with Flutterwave<?= $flwEnabled ? '' : ' <span class="text-danger">(enable Flutterwave first)</span>' ?></label></div>
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_pay_online" value="1" id="shopOnline" <?= !empty($flwWebOn) ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopOnline">Take payment with Flutterwave on this website</label><div class="form-text">Does not change the till. The same switch is under Payments.</div></div>
                             <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="shop_delivery" value="1" id="shopDelivery" <?= ($settings['shop_delivery'] ?? '1') === '1' ? 'checked' : '' ?>><label class="form-check-label fw-bold small" for="shopDelivery">Offer delivery</label></div>
                         </div>
                     </div>
                     <hr class="my-4">
                     <h6 class="fw-bold mb-1">Take App</h6>
-                    <p class="text-muted small">The menu link, WhatsApp, Instagram, Facebook, and table QR. Leave payments off inside Take App. This till sends the Flutterwave mobile-money prompt, then deducts stock and files the ZRA invoice when the customer approves it.</p>
+                    <p class="text-muted small">The menu link, WhatsApp, Instagram, Facebook, and table QR. Leave payments off inside Take App. While website Flutterwave is on, this till sends the mobile-money prompt, then deducts stock and files the ZRA invoice when the customer approves it.</p>
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label fw-bold small text-muted">WEBHOOK URL</label>
@@ -638,6 +715,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                 </div>
                 <div class="d-flex flex-wrap gap-2 mt-3">
                     <button type="button" class="btn btn-sm btn-outline-dark" id="libUseLogo">Use as logo</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark" id="libUseReceiptLogo">Use as receipt logo</button>
                     <button type="button" class="btn btn-sm btn-outline-dark" id="libUseBanner">Use as shop banner</button>
                     <button type="button" class="btn btn-sm btn-outline-dark" id="libUsePromo">Add to slideshow</button>
                     <button type="button" class="btn btn-sm btn-outline-success" id="libUseItem">Use on menu item</button>
@@ -715,7 +793,7 @@ $promoUrl = \App\Helpers\Media::url((string)($settings['promo_banner_path'] ?? '
                     <input type="hidden" name="save_branding" value="1">
                     <div class="row g-3">
                         <?php foreach ([
-                            ['LOGO', 'Menu bar, receipts, sign-in, and the online shop mark.', 'logo', $logoUrl],
+                            ['LOGO', 'Menu bar, sign-in, and the online shop mark. The till slip uses the logo under Receipt.', 'logo', $logoUrl],
                             ['SHOP BANNER', 'The large photo on the shop landing page.', 'shop_banner', $bannerUrl],
                         ] as [$label, $help, $field, $url]): ?>
                         <div class="col-md-4">
@@ -1080,6 +1158,7 @@ function pingShopFace() {
     var selectLabel = document.getElementById('librarySelectLabel');
     var useButtons = [
         ['libUseLogo', 'logo'],
+        ['libUseReceiptLogo', 'receipt_logo'],
         ['libUseBanner', 'shop_banner'],
         ['libUsePromo', 'promo_slide']
     ];

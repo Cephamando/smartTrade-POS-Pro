@@ -59,8 +59,8 @@ final class ShopController extends Controller
             'cartTotal' => $cartTotal,
             'cartCount' => array_sum(array_column($cart, 'qty')),
             'flash' => $this->takeFlash(),
-            'flwGateway' => (new Flutterwave($this->pdo(), $this->settings))->enabled(),
-            'flwOn' => ($this->settings['shop_pay_online'] ?? '1') === '1' && (new Flutterwave($this->pdo(), $this->settings))->enabled(),
+            'flwGateway' => (new Flutterwave($this->pdo(), $this->settings))->webEnabled(),
+            'flwOn' => (new Flutterwave($this->pdo(), $this->settings))->webEnabled(),
             'deliveryOn' => ($this->settings['shop_delivery'] ?? '1') === '1',
             'deliveryFee' => (float)($this->settings['shop_delivery_fee'] ?? 0),
             'minOrder' => (float)($this->settings['shop_min_order'] ?? 0),
@@ -491,7 +491,7 @@ final class ShopController extends Controller
         if ($preset['amount'] <= 0) {
             throw new \RuntimeException('This store has not set a reservation fee.');
         }
-        if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($this->pdo(), $this->settings))->enabled()) {
+        if (!(new Flutterwave($this->pdo(), $this->settings))->webEnabled()) {
             throw new \RuntimeException('Online payment is not available at the moment.');
         }
         $allowed = array_map('intval', array_column($this->shopLocations, 'id'));
@@ -556,7 +556,7 @@ final class ShopController extends Controller
         $loc = $this->shopLocationId();
         $table = $this->shopTable();
         $orderType = ($p['order_type'] ?? 'pickup') === 'delivery' && ($this->settings['shop_delivery'] ?? '1') === '1' && !$table ? 'delivery' : 'pickup';
-        if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !(new Flutterwave($pdo, $this->settings))->enabled()) {
+        if (!(new Flutterwave($pdo, $this->settings))->webEnabled()) {
             throw new \RuntimeException('Online payment is not available at the moment.');
         }
         $address = trim((string)($p['address'] ?? ''));
@@ -672,7 +672,7 @@ final class ShopController extends Controller
     private function startOrderPayment(array $customer, int $saleId, float $total, int $loc): array
     {
         $flw = new Flutterwave($this->pdo(), $this->settings);
-        if (($this->settings['shop_pay_online'] ?? '1') !== '1' || !$flw->enabled()) {
+        if (!$flw->webEnabled()) {
             throw new \RuntimeException('Online payment is not available at the moment.');
         }
         $title = (string)(($this->settings['shop_title'] ?? '') ?: ($this->settings['business_name'] ?? 'Order'));
@@ -867,7 +867,7 @@ final class ShopController extends Controller
             throw new \RuntimeException('Nothing is due on this invitation.');
         }
         $flw = new Flutterwave($this->pdo(), $this->settings);
-        if (!$flw->enabled()) {
+        if (!$flw->webEnabled()) {
             throw new \RuntimeException('Online payment is not available at the moment.');
         }
         $made = $flw->createPaymentLink([
@@ -891,7 +891,7 @@ final class ShopController extends Controller
     private function refreshEventPayments(array $guest): void
     {
         $flw = new Flutterwave($this->pdo(), $this->settings);
-        if (!$flw->enabled()) {
+        if (!$flw->configured()) {
             return;
         }
         foreach (Event::paymentsForGuest((int)$guest['id']) as $payment) {

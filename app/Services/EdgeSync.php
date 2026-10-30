@@ -799,7 +799,7 @@ final class EdgeSync
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $safeSettingKeys = [
-            'business_name', 'license_tier', 'lockout_date', 'receipt_header', 'receipt_footer',
+            'business_name', 'license_tier', 'lockout_date', 'receipt_name', 'receipt_header', 'receipt_footer', 'receipt_logo_path',
             'theme_color', 'theme_accent', 'theme_cart', 'vsias_enabled', 'logo_path',
             'fx_enabled', 'fx_display', 'fx_refresh_minutes', 'fx_manual_rates', 'fx_cached_rates', 'fx_cached_at',
             'vsdc_taxprNm', 'vsdc_bhfNm', 'vsdc_sdcId', 'vsdc_mrcNo', 'vsdc_default_unspsc',
@@ -811,10 +811,12 @@ final class EdgeSync
 
         // Media files referenced by products or logo
         $mediaFiles = [];
-        if (!empty($settingsRows['logo_path'])) {
-            $u = Media::url((string)$settingsRows['logo_path']);
-            if ($u !== '') {
-                $mediaFiles[$u] = $u;
+        foreach (['logo_path', 'receipt_logo_path'] as $mediaKey) {
+            if (!empty($settingsRows[$mediaKey])) {
+                $u = Media::url((string)$settingsRows[$mediaKey]);
+                if ($u !== '') {
+                    $mediaFiles[$u] = $u;
+                }
             }
         }
         foreach ($products as $p) {
