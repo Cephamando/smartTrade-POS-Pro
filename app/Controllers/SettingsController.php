@@ -241,10 +241,13 @@ final class SettingsController extends Controller
         }
         Setting::save($pairs);
         $note = '';
-        if ($pairs['flw_till_enabled'] !== '1') {
+        if ($pairs['flw_till_enabled'] === '1') {
+            $note = ' Mobile money stays on the till for a customer who pays from their own phone.';
+            if ($pairs['flw_enabled'] === '1') {
+                $note .= ' Use "Test keys" to confirm Flutterwave accepts them.';
+            }
+        } else {
             $note = ' With the till off, mobile money is recorded from the transaction id on the customer\'s phone.';
-        } elseif ($pairs['flw_enabled'] === '1') {
-            $note = ' Use "Test keys" to confirm Flutterwave accepts them.';
         }
         $this->flash('success', 'Payment gateway settings saved.' . $note);
     }

@@ -275,7 +275,7 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h5 class="fw-bold mb-1"><i class="bi bi-credit-card-2-front text-primary"></i> Flutterwave</h5>
-                        <p class="text-muted small mb-3">The till and the website switch separately. Cards open the Flutterwave window. Mobile money prompts go to the customer's MTN, Airtel, or Zamtel line. With the till off, the cashier types the transaction id from the customer's own phone message. A subaccount id sends the split already saved on that subaccount. Keys that start with <code>FLWPUBK_TEST</code> or <code>FLWSECK_TEST</code> are sandbox.</p>
+                        <p class="text-muted small mb-3">The till and the website switch separately. Cards open the Flutterwave window. A Flutterwave mobile-money prompt goes to the customer's MTN, Airtel, or Zamtel line. The till also keeps Mobile money, where the customer pays from their own phone and the cashier types the transaction id. A subaccount id sends the split already saved on that subaccount. Keys that start with <code>FLWPUBK_TEST</code> or <code>FLWSECK_TEST</code> are sandbox.</p>
                     </div>
                     <?php if (!empty($flwTestMode) && !empty($flwEnabled)): ?><span class="badge bg-warning text-dark fs-6">TEST MODE</span><?php elseif (!empty($flwEnabled)): ?><span class="badge bg-success fs-6">LIVE</span><?php else: ?><span class="badge bg-secondary fs-6">OFF</span><?php endif; ?>
                 </div>
@@ -285,7 +285,7 @@ function scReset() { document.getElementById('scFormTitle').textContent = 'Add a
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" name="flw_till_enabled" value="1" id="flwTillEnabled" <?= !empty($flwTillOn) ? 'checked' : '' ?>>
                         <label class="form-check-label fw-bold" for="flwTillEnabled">Flutterwave on the till</label>
-                        <div class="form-text">The cashier's card window and mobile-money prompt. Off: the customer pays from their phone, and the till asks for the transaction id.</div>
+                        <div class="form-text">The cashier's card window and Flutterwave phone prompt. Mobile money stays on the till either way, for a customer who pays from their own phone. Off: that prompt is hidden.</div>
                     </div>
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" name="flw_web_enabled" value="1" id="flwWebEnabled" <?= !empty($flwWebOn) ? 'checked' : '' ?>>

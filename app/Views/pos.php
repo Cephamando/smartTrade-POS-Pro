@@ -804,9 +804,8 @@ function getCategoryStyle($name) {
         <div id="singleSection"><div class="mb-3"><select name="payment_method" id="paymentMethodSelect" class="form-select form-select-lg fw-bold" onchange="onPaymentMethodChange()"><option value="Cash" selected>Cash</option><option value="Stanbic card">Visa / Mastercard (Stanbic)</option>
         <?php if (!empty($flwEnabled)): ?>
         <option value="Flutterwave">Flutterwave (Card / Mobile Money)<?= !empty($flwTestMode) ? ' — TEST' : '' ?></option>
-        <?php else: ?>
-        <option value="Mobile money">Mobile money</option>
         <?php endif; ?>
+        <option value="Mobile money">Mobile money</option>
         <?php if ($tier === 'enterprise'): ?>
         <option value="Online">Online Delivery App</option>
         <?php endif; ?>
@@ -820,7 +819,7 @@ function getCategoryStyle($name) {
             </div>
             <div id="splitRows"></div>
             <button type="button" class="btn btn-outline-dark btn-sm w-100 fw-bold" onclick="addSplitRow()"><i class="bi bi-plus-lg"></i> Add another payment</button>
-            <div class="small text-muted mt-2"><?php if (!empty($flwEnabled)): ?>Cash stays in the drawer. Card and mobile money are the Flutterwave line; the panel below charges that portion only.<?php else: ?>Add a line for each way the customer is paying. Mobile money needs the transaction id from the customer's message. Use Other for a bank transfer, cheque, or voucher.<?php endif; ?></div>
+            <div class="small text-muted mt-2"><?php if (!empty($flwEnabled)): ?>Cash stays in the drawer. Flutterwave charges only the Flutterwave line. Mobile money is the customer paying from their own phone, and it needs the transaction id.<?php else: ?>Add a line for each way the customer is paying. Mobile money needs the transaction id from the customer's message. Use Other for a bank transfer, cheque, or voucher.<?php endif; ?></div>
         </div>
         <div id="stanbicPanel" class="p-3 rounded border mb-3" style="display:none;">
             <div class="small text-muted mb-2">The bill is printed. After the customer taps the card on the Stanbic machine, type the RRN from the slip.</div>
@@ -1915,7 +1914,8 @@ function getCategoryStyle($name) {
         const splitMethodList = <?= json_encode(array_values(array_filter([
             'Cash',
             'Stanbic card',
-            !empty($flwEnabled) ? 'Flutterwave' : 'Mobile money',
+            !empty($flwEnabled) ? 'Flutterwave' : null,
+            'Mobile money',
             $tier === 'enterprise' ? 'Online' : null,
         ]))) ?>;
         function splitMethodOptions(selected) {
