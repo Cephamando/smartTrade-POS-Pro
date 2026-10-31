@@ -258,7 +258,7 @@ class ZraVsdcClient
         if ($cd === '838' || $cd === '894' || str_contains($msg, 'zra api refused') || str_contains($msg, 'check connection')) {
             return [
                 'layer' => 'zra',
-                'hint' => 'Local VSDC answered, but it could not talk to ZRA’s sandbox gateway. Confirm internet from the vsdc container and retry. Do not register a new device yet.',
+                'hint' => 'Local VSDC answered, but ZRA’s gateway refused the connection. The items stay on the till. They are posted to ZRA when the gateway accepts the connection again. Do not register a new device.',
             ];
         }
 
@@ -549,6 +549,7 @@ class ZraVsdcClient
         $fail = 0;
         $errors = [];
         $firstFailCd = '910';
+        $gatewayDown = false;
 
         foreach ($products as $product) {
             $res = $this->saveItem($product);
@@ -563,16 +564,61 @@ class ZraVsdcClient
                     . ' [class ' . ($res['itemClsCd'] ?? '?') . ']: '
                     . ($res['resultMsg'] ?? 'Unknown error')
                     . ' (' . ($res['resultCd'] ?? '?') . ')';
+                if ($this->isGatewayDown($res)) {
+                    $gatewayDown = true;
+                    break;
+                }
             }
+        }
+
+        if ($gatewayDown) {
+            $this->putSettings(['vsdc_item_retry_after' => (string)(time() + 900)]);
+        } elseif ($ok > 0) {
+            $this->putSettings(['vsdc_item_retry_after' => '0']);
         }
 
         return [
             'resultCd' => $fail === 0 ? '000' : $firstFailCd,
-            'resultMsg' => "Synced $ok item(s)" . ($fail ? ", $fail failed" : ''),
+            'resultMsg' => $gatewayDown
+                ? 'ZRA’s gateway did not accept the update. The items stay on the till and will be posted when the gateway answers.'
+                : ("Synced $ok item(s)" . ($fail ? ", $fail failed" : '')),
             'synced' => $ok,
             'failed' => $fail,
             'errors' => $errors,
         ];
+    }
+
+    /** Post waiting items. A quiet visit waits 15 minutes after a gateway refusal so the till is not stalled. */
+    public function catchUpItems(bool $force = false): array
+    {
+        if (!$this->isInitialized()) {
+            return ['resultCd' => 'skipped', 'resultMsg' => 'VSDC device is not initialized', 'synced' => 0, 'failed' => 0];
+        }
+        $waiting = (int)$this->pdo->query(
+            "SELECT COUNT(*) FROM products WHERE is_active = 1 AND (COALESCE(zra_synced, 0) = 0 OR zra_item_cd IS NULL OR zra_item_cd = '')"
+        )->fetchColumn();
+        if ($waiting === 0) {
+            return ['resultCd' => 'skipped', 'resultMsg' => 'No products are waiting for ZRA.', 'synced' => 0, 'failed' => 0];
+        }
+        if (!$force) {
+            $after = (int)($this->getSettings()['vsdc_item_retry_after'] ?? 0);
+            if ($after > time()) {
+                return ['resultCd' => 'skipped', 'resultMsg' => 'Product registration is waiting for the ZRA gateway.', 'synced' => 0, 'failed' => 0];
+            }
+        }
+        return $this->syncUnsyncedProducts(25);
+    }
+
+    private function isGatewayDown(array $res): bool
+    {
+        $cd = (string)($res['resultCd'] ?? '');
+        $msg = strtolower((string)($res['resultMsg'] ?? ''));
+        return in_array($cd, ['838', '894', '999'], true)
+            || str_contains($msg, 'zra api refused')
+            || str_contains($msg, 'check connection')
+            || str_contains($msg, 'pkix')
+            || str_contains($msg, 'curl error')
+            || str_contains($msg, 'gateway did not accept');
     }
 
     public function fiscalizeSale(int $saleId, array $opts = []): array
@@ -656,7 +702,10 @@ class ZraVsdcClient
                     'zra_item_cd' => $line['zra_item_cd'] ?? null,
                 ], $user['id'], $user['name']);
                 if (($itemRes['resultCd'] ?? '') !== '000') {
-                    $msg = 'Could not register ' . ($line['name'] ?? 'item') . ': ' . ($itemRes['resultMsg'] ?? 'VSDC rejected the item');
+                    $name = (string)($line['name'] ?? 'item');
+                    $msg = $this->isGatewayDown($itemRes)
+                        ? 'The sale is saved. ' . $name . ' will be filed with ZRA when the gateway answers.'
+                        : 'Could not register ' . $name . ': ' . ($itemRes['resultMsg'] ?? 'VSDC rejected the item');
                     $this->markSaleFailed($saleId, $msg);
                     return $itemRes + ['resultMsg' => $msg];
                 }
@@ -723,6 +772,16 @@ class ZraVsdcClient
     public function retryFailedSales(int $limit = 20): array
     {
         $this->ensureSaleColumns();
+        $items = $this->catchUpItems(true);
+        if ($this->isGatewayDown($items)) {
+            return [
+                'resultCd' => (string)($items['resultCd'] ?? '894'),
+                'resultMsg' => (string)($items['resultMsg'] ?? 'ZRA’s gateway did not accept the update.'),
+                'synced' => 0,
+                'failed' => (int)($items['failed'] ?? 0),
+                'skipped' => 0,
+            ];
+        }
         $stmt = $this->pdo->query(
             "SELECT id FROM sales
              WHERE " . $this->fiscalizablePendingWhere() . "
@@ -749,9 +808,12 @@ class ZraVsdcClient
         } elseif ($ok === 0 && $skip > 0) {
             $cd = 'skipped';
         }
+        $itemNote = ((int)($items['synced'] ?? 0) > 0)
+            ? ' Posted ' . (int)$items['synced'] . ' waiting product(s) to ZRA.'
+            : '';
         return [
             'resultCd' => $cd,
-            'resultMsg' => 'Retried ' . count($ids) . ' sale(s): ' . $ok . ' synced, ' . $fail . ' failed, ' . $skip . ' skipped.',
+            'resultMsg' => 'Retried ' . count($ids) . ' sale(s): ' . $ok . ' synced, ' . $fail . ' failed, ' . $skip . ' skipped.' . $itemNote,
             'synced' => $ok,
             'failed' => $fail,
             'skipped' => $skip,

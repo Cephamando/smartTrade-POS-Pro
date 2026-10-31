@@ -72,12 +72,6 @@ final class Movement
                 'reason' => 'Raw material cannot be transferred to a POS. Keep it in kitchen or warehouse.',
             ];
         }
-        if (self::requiresZra() && !self::isZraReady($product) && self::isFrontOfHouse($dest)) {
-            return [
-                'ok' => false,
-                'reason' => 'Not registered with ZRA yet. Keep it in warehouse until ZRA registration completes.',
-            ];
-        }
         return ['ok' => true, 'reason' => null];
     }
 
@@ -90,12 +84,6 @@ final class Movement
             return [
                 'ok' => false,
                 'reason' => 'Raw material must be received into kitchen or warehouse, not a POS bar or store.',
-            ];
-        }
-        if (self::requiresZra() && !self::isZraReady($product) && self::isFrontOfHouse($location)) {
-            return [
-                'ok' => false,
-                'reason' => 'Not registered with ZRA yet. Receive into warehouse until ZRA registration completes.',
             ];
         }
         return ['ok' => true, 'reason' => null];
@@ -120,12 +108,6 @@ final class Movement
 
     public static function sellOnPos(?array $product): array
     {
-        if (self::requiresZra() && !self::isZraReady($product)) {
-            return [
-                'ok' => false,
-                'reason' => 'Not registered with ZRA yet.',
-            ];
-        }
         if (self::isRawProduct($product)) {
             return [
                 'ok' => false,

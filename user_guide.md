@@ -427,8 +427,8 @@ A developer enters the TPIN, branch, and device serial on this page and clicks *
 | **Initialize device** | Once, on a brand-new serial, when the badge says **Not initialized**. The button is disabled after an SDC ID exists. Initializing again, or doing it on a second PC with the same serial, burns the device. |
 | **Sync standard codes** | After the first successful handshake, before you register items. |
 | **Sync UNSPSC classes** | After standard codes. You can also import the UNSPSC workbook from the UNSPSC page. |
-| **Register products** | After every sellable item has a level-4 UNSPSC and the correct tax class. Posts the catalog to the device. |
-| **Retry failed / pending** | Sends the unfiscalized queue again. A sale whose invoice number is already on the device keeps that signature when it is the same sale, and otherwise goes out under a new invoice number. |
+| **Register products** | After every sellable item has a level-4 UNSPSC and the correct tax class. Posts the catalog to ZRA. An item that does not get through stays on the till and is posted again when the gateway answers. |
+| **Retry failed / pending** | Posts waiting products, then sends the unfiscalized queue again. A sale whose invoice number is already on the device keeps that signature when it is the same sale, and otherwise goes out under a new invoice number. |
 | **Push** on one row | Fiscalizes that invoice now. Use it for a sale that failed. Do not push a sale that was already accepted under another receipt. |
 
 A successful test with the same SDC ID you had before means the keys are still there. An empty SDC ID after the device was previously initialized means the local keystore is gone. Do not click Initialize on that serial. Restore the backup or register a new serial (see the go-live guide).
@@ -443,6 +443,7 @@ A successful test with the same SDC ID you had before means the keys are still t
 | 902 This device is installed | ZRA already knows this serial. Normal after the first handshake. | Carry on. If **Sync standard codes** then gives 899, see the go-live guide. |
 | 899 | The device has no API keys for this serial. | A new serial must be registered on the ZRA portal. Do not retry Initialize. |
 | 910 Parameter error | A field ZRA did not like, most often a customer TPIN or a class code. | Read the hint under the message. Fix the product or the customer, then Push again. |
+| 894 or 838 | ZRA’s gateway refused the connection. The local device is still up. | Leave the device as it is. The items stay on the till. They are posted when the gateway answers. Do not click Initialize. |
 | CIS Invoice number already exists | That invoice number is already on this tax device, so the receipt has no signature yet. | Use **Push** on that row, or **Retry failed / pending**. Do not click Initialize, and do not delete the sale. |
 | 931 | A credit note would exceed the original invoice. | Do not retry. Refund against the right receipt. |
 

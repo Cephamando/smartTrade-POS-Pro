@@ -168,6 +168,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
             <strong>Register products</strong>.
             Item class must be a <strong>level-4 UNSPSC</strong> from that list (for example
             <code>50202201</code> Beer). Family codes such as <code>50101500</code> are rejected.
+            A product that could not reach ZRA stays on the till. Opening this page, or <strong>Retry failed / pending</strong>, posts it when the gateway answers.
             Do not click Initialize again, and do not recreate the <code>vsdc</code> container
             or remove the <code>vsdc_webapps</code> volume — that deletes the API keys.
         </div>
@@ -180,7 +181,7 @@ $initialized = $sdcId !== '' || (($zraSettings['vsdc_device_installed'] ?? '') =
                     <h5 class="fw-bold mb-0">Unfiscalized paid sales</h5>
                     <form method="post" class="js-confirm-form"
                         data-swal-title="Retry unfiscalized sales?"
-                        data-swal-text="Pending and failed invoices will be sent to ZRA again."
+                        data-swal-text="Waiting products are posted first. Pending and failed invoices are sent after that."
                         data-swal-confirm="Retry"
                         data-swal-cancel="Cancel"
                         data-swal-icon="question"

@@ -120,6 +120,7 @@ final class ZraController extends Controller
         }
 
         render_page:
+        $zra->catchUpItems(false);
         $last = $_SESSION['zra_last_result'] ?? null;
         unset($_SESSION['zra_last_result']);
         $this->render([
