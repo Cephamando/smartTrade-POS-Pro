@@ -3,36 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <title>X-Read Shift #<?= $shift['id'] ?></title>
+    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
     <style>
-        html, body { width: 72mm; margin: 0; padding: 2mm; }
-        body { font-family: 'Courier New', Courier, monospace; color: #000; background: #fff; font-size: 13px; }
         html { background: #fff; color-scheme: light; }
-        h2, h3, h4, h5 { text-align: center; margin: 5px 0; }
-        .line { border-top: 1px dashed #000; margin: 10px 0; }
-        .flex { display: flex; justify-content: space-between; margin-bottom: 2px; }
-        .bold { font-weight: bold; }
-    </style>
-
-    <style id="force-thermal-bold">
-        body, table, th, td, p, span, div, li, h1, h2, h3, h4, h5, h6, * { 
-            font-family: "Courier New", Courier, monospace !important; 
-            font-weight: 900 !important; 
-            color: #000 !important; 
-            background-color: #fff !important;
-        }
-        .border-bottom { border-bottom: 2px dashed #000 !important; }
-        .border-top { border-top: 2px dashed #000 !important; }
-        hr { border-top: 2px dashed #000 !important; border-bottom: none !important; opacity: 1 !important; }
-        
-        @media print {
-            html, body { width: 72mm; margin: 0; padding: 1mm; height: auto; }
-            * { font-weight: 900 !important; color: #000 !important; }
-        }
+        h2, h3, h4, h5 { text-align: center; margin: 4px 0; }
+        .line { border-top: 1px dashed #000; margin: 8px 0; }
+        .flex { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 1px; }
+        .bold { font-weight: 700; }
     </style>
 </head>
 <body>
     <h2 style="margin-bottom: 2px;"><?= htmlspecialchars(APP_NAME ?? 'OdeliaPOS') ?></h2>
-    <h5 style="margin-top: 0; font-weight: normal; color: #333;"><?= htmlspecialchars($shift['loc_name']) ?></h5>
+    <h5 style="margin-top: 0; font-weight: 600;"><?= htmlspecialchars($shift['loc_name']) ?></h5>
     
     <h3>X-READ REPORT</h3>
     <div class="line"></div>
@@ -133,20 +115,6 @@
 
     <div class="line"></div>
     <div style="text-align: center; font-size: 0.8em; margin-top: 10px;">End of Report</div>
-    <script>
-        function fitThermalPage() {
-            var px = document.body.offsetHeight;
-            var mm = Math.ceil(px * 25.4 / 96) + 2;
-            if (mm < 40) mm = 40;
-            var style = document.getElementById('thermal-page-size');
-            if (!style) {
-                style = document.createElement('style');
-                style.id = 'thermal-page-size';
-                document.head.appendChild(style);
-            }
-            style.textContent = '@page { size: 80mm ' + mm + 'mm; margin: 0; } html, body { height: auto; min-height: 0; }';
-        }
-        window.addEventListener('beforeprint', fitThermalPage);
-    </script>
+    <script src="js/thermal-slip.js?v=1"></script>
 </body>
 </html>

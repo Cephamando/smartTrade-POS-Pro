@@ -17,25 +17,20 @@ $adjust = round($due - $sum, 2);
 <head>
     <meta charset="UTF-8">
     <title>Bill</title>
+    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
     <style>
-        html, body { width: 72mm; margin: 0; padding: 2mm; background: #fff; }
-        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; font-weight: bold; }
         .text-center { text-align: center; }
-        .border-bottom { border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
-        .border-top { border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-        th, td { text-align: left; padding: 4px 0; vertical-align: top; }
-        .amount { text-align: right; }
-        @media print {
-            html, body { width: 72mm; margin: 0; padding: 1mm; height: auto; }
-            body, * { font-weight: bold !important; color: #000 !important; }
-        }
+        .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+        .border-top { border-top: 1px dashed #000; padding-top: 4px; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+        th, td { text-align: left; padding: 1px 0; vertical-align: top; }
+        .amount { text-align: right; white-space: nowrap; }
     </style>
 </head>
 <body>
     <div class="text-center border-bottom">
         <?php if ($logoUrl !== ''): ?><img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;"><?php endif; ?>
-        <h2 style="margin:0; font-size: 20px;"><?= htmlspecialchars($bizName) ?></h2>
+        <h2 style="margin:0; font-size: 16px; font-weight: 700;"><?= htmlspecialchars($bizName) ?></h2>
         <?php if ($receiptHeader !== ''): ?>
         <div style="font-size: 13px; margin: 5px 0;"><?= nl2br(htmlspecialchars($receiptHeader)) ?></div>
         <?php endif; ?>
@@ -80,26 +75,18 @@ $adjust = round($due - $sum, 2);
             <td>AMOUNT DUE:</td><td class="amount">ZMW <?= number_format($due, 2) ?></td>
         </tr>
     </table>
-    <div class="text-center" style="font-size: 16px; margin-top: 10px; padding: 5px; border: 2px solid #000;">
-        PLEASE PAY THIS AMOUNT
-    </div>
+    <div class="thank-you">Thank you</div>
     <?php if ($receiptFooter !== ''): ?>
     <div class="text-center border-top" style="margin-top: 15px; font-size: 13px;"><?= nl2br(htmlspecialchars($receiptFooter)) ?></div>
     <?php endif; ?>
+    <script src="js/thermal-slip.js?v=1"></script>
     <script>
-        function fitThermalPage() {
-            var px = document.body.offsetHeight;
-            var mm = Math.ceil(px * 25.4 / 96) + 2;
-            if (mm < 40) mm = 40;
-            var style = document.getElementById('thermal-page-size');
-            if (!style) {
-                style = document.createElement('style');
-                style.id = 'thermal-page-size';
-                document.head.appendChild(style);
-            }
-            style.textContent = '@page { size: 80mm ' + mm + 'mm; margin: 0; } html, body { height: auto; min-height: 0; }';
-        }
-        window.onload = function () { setTimeout(function () { fitThermalPage(); window.print(); }, 400); };
+        window.onload = function () {
+            setTimeout(function () {
+                if (window.printThermalSlip) window.printThermalSlip();
+                else window.print();
+            }, 200);
+        };
     </script>
 </body>
 </html>

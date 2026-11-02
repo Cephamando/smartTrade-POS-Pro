@@ -1,0 +1,81 @@
+/* 80mm thermal slip. Condensed sans matches ESC/POS Font B (Shoprite-style). */
+@font-face {
+    font-family: "Slip Font B";
+    src: url("../fonts/roboto-condensed-600.ttf") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+    font-display: block;
+}
+@font-face {
+    font-family: "Slip Font B";
+    src: url("../fonts/roboto-condensed-700.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+}
+
+@page {
+    margin: 0;
+    size: 80mm 50mm;
+}
+
+html, body {
+    width: 72mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+}
+
+body {
+    box-sizing: border-box;
+    width: 72mm;
+    padding: 0 1.5mm;
+    font-family: "Slip Font B", "Arial Narrow", "Liberation Sans Narrow", "Roboto Condensed", Arial, Helvetica, sans-serif;
+    font-stretch: condensed;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: none;
+    text-rendering: optimizeSpeed;
+}
+
+table { width: 100%; border-collapse: collapse; }
+th, td { font-weight: 600; color: #000; }
+.fw-bold, strong, b { font-weight: 700; }
+h2, h3, h4, h5 { font-weight: 700; color: #000; }
+
+.thank-you {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin: 8px 0 0;
+}
+
+body > :first-child { margin-top: 0; }
+body > :last-child { margin-bottom: 0; }
+
+@media print {
+    @page { margin: 0; }
+    html, body {
+        width: 72mm;
+        margin: 0 !important;
+        padding: 0 1.5mm !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+    body {
+        font-family: "Slip Font B", "Arial Narrow", "Liberation Sans Narrow", "Roboto Condensed", Arial, Helvetica, sans-serif !important;
+        font-stretch: condensed;
+        font-weight: 600;
+        font-size: 12px;
+        line-height: 1.2;
+        color: #000 !important;
+    }
+}
