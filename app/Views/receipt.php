@@ -65,19 +65,18 @@ if ($isIncremental) {
 <head>
     <meta charset="UTF-8">
     <title><?= $isBill ? 'Bill' : 'Receipt' ?> #<?= $saleId ?></title>
+    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
     <style>
-        html, body { width: 72mm; margin: 0; padding: 2mm; background: #fff; }
-        body { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; font-weight: bold; }
         .text-center { text-align: center; }
-        .fw-bold { font-weight: 900; }
-        .border-bottom { border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
-        .border-top { border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 5px; }
-        th, td { text-align: left; padding: 4px 0; vertical-align: top; font-weight: bold; }
-        .amount { text-align: right; }
-        .cut-line { border-top: 2px dashed #000; margin: 25px 0; position: relative; text-align: center; }
-        .cut-line span { background: #fff; padding: 0 10px; position: relative; top: -10px; font-size: 12px; color: #000; font-weight: bold; }
-        .zra-qr { margin: 8px auto 0; text-align: center; }
+        .fw-bold { font-weight: 700; }
+        .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+        .border-top { border-top: 1px dashed #000; padding-top: 4px; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 4px; margin-bottom: 4px; }
+        th, td { text-align: left; padding: 1px 0; vertical-align: top; }
+        .amount { text-align: right; white-space: nowrap; }
+        .cut-line { border-top: 1px dashed #000; margin: 16px 0; position: relative; text-align: center; }
+        .cut-line span { background: #fff; padding: 0 8px; position: relative; top: -8px; font-size: 11px; color: #000; }
+        .zra-qr { margin: 6px auto 0; text-align: center; }
         .zra-qr img {
             display: block;
             margin: 0 auto;
@@ -85,12 +84,7 @@ if ($isIncremental) {
             image-rendering: crisp-edges;
         }
         @media print {
-            html, body { width: 72mm; margin: 0; padding: 1mm; height: auto; }
-            body { font-weight: bold !important; color: #000 !important; }
-            * { font-weight: bold !important; color: #000 !important; }
             .zra-qr, .zra-qr img {
-                color: unset !important;
-                font-weight: normal !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
@@ -107,10 +101,10 @@ if ($isIncremental) {
 
         <?php if ($copyName === 'BARMAN SLIP'): ?>
             <div class="receipt-section text-center">
-                <h2 style="margin:0; font-weight: 900; font-size: 18px;"><?= htmlspecialchars($bizName) ?></h2>
-                <div style="font-size: 14px; font-weight: 900; margin-top: 5px; border: 2px solid #000; display: inline-block; padding: 2px 8px;"><?= $copyName ?></div>
+                <h2 style="margin:0; font-weight: 700; font-size: 18px;"><?= htmlspecialchars($bizName) ?></h2>
+                <div style="font-size: 14px; font-weight: 700; margin-top: 5px; border: 2px solid #000; display: inline-block; padding: 2px 8px;"><?= $copyName ?></div>
                 
-                <div style="font-size: 60px; font-weight: 900; border-top: 3px solid #000; border-bottom: 3px solid #000; margin: 15px 0; padding: 5px 0; line-height: 1;">
+                <div style="font-size: 60px; font-weight: 700; border-top: 3px solid #000; border-bottom: 3px solid #000; margin: 15px 0; padding: 5px 0; line-height: 1;">
                     #<?= $sale['id'] ?>
                 </div>
                 
@@ -137,7 +131,7 @@ if ($isIncremental) {
             <div class="receipt-section">
                 <div class="text-center border-bottom">
                     <?php if (!empty($logoUrl)): ?><img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;"><?php endif; ?>
-                    <h2 style="margin:0; font-weight: 900; font-size: 20px;"><?= htmlspecialchars($bizName) ?></h2>
+                    <h2 style="margin:0; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;"><?= htmlspecialchars($bizName) ?></h2>
                     
                     <?php if (!empty($receiptHeader)): ?>
                     <div style="font-size: 13px; margin: 5px 0;">
@@ -153,12 +147,12 @@ if ($isIncremental) {
                     </div>
 
                     <?php if (!empty($_SESSION['training_mode'])): ?>
-                    <div style="border: 2px solid #000; font-weight: 900; text-align: center; margin: 8px 0; padding: 4px;">
+                    <div style="border: 2px solid #000; font-weight: 700; text-align: center; margin: 8px 0; padding: 4px;">
                         TRAINING SAMPLE<br>Not filed with ZRA
                     </div>
                     <?php endif; ?>
                     <p style="margin:5px 0; font-size: 13px;">
-                        <span style="font-size: 16px; font-weight: 900; border: 2px solid #000; padding: 3px 6px; display: inline-block; margin-bottom: 5px;">
+                        <span style="font-size: 16px; font-weight: 700; border: 2px solid #000; padding: 3px 6px; display: inline-block; margin-bottom: 5px;">
                             <?= $copyName ?>
                         </span><br>
                         <span style="font-size: 14px; font-weight: bold; margin-bottom: 5px; display: inline-block;">
@@ -260,14 +254,14 @@ if ($isIncremental) {
                     <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
                 </table>
                 <?php else: ?>
-                <div class="text-center fw-bold" style="font-size: 16px; margin-top: 10px; padding: 5px; border: 2px solid #000;">
-                    <?= $isIncremental ? 'ITEMS ADDED TO TAB' : 'PLEASE PAY THIS AMOUNT' ?>
+                <div class="thank-you">
+                    <?= $isIncremental ? 'ITEMS ADDED TO TAB' : 'Thank you' ?>
                 </div>
                 <?php endif; ?>
                 
                 <?php if (!$isBill && !empty($sale['zra_rcpt_sign'])): ?>
                 <div class="text-center border-top" style="margin-top: 12px; font-size: 12px;">
-                    <p style="margin: 6px 0; font-weight: 900;"><?= !empty($_SESSION['training_mode']) ? 'SAMPLE ZRA SMART INVOICE' : 'ZRA SMART INVOICE' ?></p>
+                    <p style="margin: 6px 0; font-weight: 700;"><?= !empty($_SESSION['training_mode']) ? 'SAMPLE ZRA SMART INVOICE' : 'ZRA SMART INVOICE' ?></p>
                     <div>SDC: <?= htmlspecialchars($sale['zra_sdc_id'] ?? '') ?></div>
                     <?php if (!empty($sale['zra_mrc_no'])): ?>
                     <div>MRC: <?= htmlspecialchars($sale['zra_mrc_no']) ?></div>
@@ -307,6 +301,7 @@ if ($isIncremental) {
     <?php endforeach; ?>
 
     <script src="js/qrcode.min.js"></script>
+    <script src="js/thermal-slip.js?v=1"></script>
     <script>
         (function () {
             if (typeof qrcode !== 'function') {
@@ -323,19 +318,12 @@ if ($isIncremental) {
                 el.innerHTML = qr.createImgTag(4, 4);
             });
         })();
-        function fitThermalPage() {
-            var px = document.body.offsetHeight;
-            var mm = Math.ceil(px * 25.4 / 96) + 2;
-            if (mm < 40) mm = 40;
-            var style = document.getElementById('thermal-page-size');
-            if (!style) {
-                style = document.createElement('style');
-                style.id = 'thermal-page-size';
-                document.head.appendChild(style);
-            }
-            style.textContent = '@page { size: 80mm ' + mm + 'mm; margin: 0; } html, body { height: auto; min-height: 0; }';
-        }
-        window.onload = function () { setTimeout(function () { fitThermalPage(); window.print(); }, 500); };
+        window.onload = function () {
+            setTimeout(function () {
+                if (window.printThermalSlip) window.printThermalSlip();
+                else window.print();
+            }, 300);
+        };
     </script>
 </body>
 </html>

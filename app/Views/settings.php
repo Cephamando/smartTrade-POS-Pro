@@ -107,6 +107,10 @@ if ($userRole === 'dev') {
 $receiptFace = \App\Models\Setting::receiptFace($settings);
 $receiptLogoUrl = \App\Helpers\Media::url($receiptFace['logo']);
 ?>
+<style>
+@font-face { font-family: "Slip Font B"; src: url("fonts/roboto-condensed-600.ttf") format("truetype"); font-weight: 600; font-style: normal; }
+@font-face { font-family: "Slip Font B"; src: url("fonts/roboto-condensed-700.ttf") format("truetype"); font-weight: 700; font-style: normal; }
+</style>
 <div class="row g-4">
     <div class="col-lg-7">
         <div class="card shadow-sm border-0 border-top border-4 border-dark">
@@ -158,12 +162,12 @@ $receiptLogoUrl = \App\Helpers\Media::url($receiptFace['logo']);
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <h6 class="fw-bold text-muted">Saved slip</h6>
-                <div class="border rounded bg-white p-3 mx-auto" style="width:72mm;font-family:'Courier New',Courier,monospace;color:#000;">
+                <div class="border rounded bg-white p-3 mx-auto" style="width:72mm;font-family:'Slip Font B','Arial Narrow',Arial,sans-serif;font-stretch:condensed;font-weight:600;font-size:12px;line-height:1.2;color:#000;">
                     <div class="text-center border-bottom pb-2 mb-2">
                         <?php if ($receiptLogoUrl !== ''): ?>
                         <img src="<?= htmlspecialchars($receiptLogoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;">
                         <?php endif; ?>
-                        <div style="font-weight:900;font-size:18px;"><?= htmlspecialchars($receiptFace['name']) ?></div>
+                        <div style="font-weight:700;font-size:16px;"><?= htmlspecialchars($receiptFace['name']) ?></div>
                         <?php if (trim($receiptFace['header']) !== ''): ?>
                         <div style="font-size:13px;margin-top:4px;"><?= nl2br(htmlspecialchars($receiptFace['header'])) ?></div>
                         <?php endif; ?>
