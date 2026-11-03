@@ -86,7 +86,6 @@
                     if (data.status === 'success') {
                         const frame = document.getElementById('receiptFrame');
                         frame.src = 'index.php?page=receipt&sale_id=' + saleId;
-                        frame.onload = function() { frame.contentWindow.print(); };
                         document.getElementById('order-card-' + saleId).remove();
                     } else {
                         AppAlert.notify({ icon: 'error', title: 'Collection failed', text: 'Unable to complete collection. Try again.', confirmText: 'OK' });

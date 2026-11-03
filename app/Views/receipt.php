@@ -65,7 +65,7 @@ if ($isIncremental) {
 <head>
     <meta charset="UTF-8">
     <title><?= $isBill ? 'Bill' : 'Receipt' ?> #<?= $saleId ?></title>
-    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
+    <link rel="stylesheet" href="css/thermal-slip.css?v=2">
     <style>
         .text-center { text-align: center; }
         .fw-bold { font-weight: 700; }
@@ -301,7 +301,7 @@ if ($isIncremental) {
     <?php endforeach; ?>
 
     <script src="js/qrcode.min.js"></script>
-    <script src="js/thermal-slip.js?v=1"></script>
+    <script src="js/thermal-slip.js?v=2"></script>
     <script>
         (function () {
             if (typeof qrcode !== 'function') {

@@ -27,7 +27,7 @@ html, body {
     color: #000;
 }
 
-body {
+body, .slip-sheet {
     box-sizing: border-box;
     width: 72mm;
     padding: 0 1.5mm;
@@ -55,8 +55,8 @@ h2, h3, h4, h5 { font-weight: 700; color: #000; }
     margin: 8px 0 0;
 }
 
-body > :first-child { margin-top: 0; }
-body > :last-child { margin-bottom: 0; }
+body > :first-child, .slip-sheet > :first-child { margin-top: 0; }
+body > :last-child, .slip-sheet > :last-child { margin-bottom: 0; }
 
 @media print {
     @page { margin: 0; }
@@ -70,7 +70,7 @@ body > :last-child { margin-bottom: 0; }
         background: #fff !important;
         color: #000 !important;
     }
-    body {
+    body, .slip-sheet {
         font-family: "Slip Font B", "Arial Narrow", "Liberation Sans Narrow", "Roboto Condensed", Arial, Helvetica, sans-serif !important;
         font-stretch: condensed;
         font-weight: 600;

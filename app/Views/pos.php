@@ -2124,7 +2124,12 @@ function getCategoryStyle($name) {
         });
         function printThermalFrame(id) {
             const frame = document.getElementById(id);
-            if (frame && frame.contentWindow) frame.contentWindow.print();
+            const win = frame && frame.contentWindow;
+            if (win && typeof win.printThermalSlip === 'function') {
+                win.printThermalSlip();
+                return;
+            }
+            if (win) win.print();
         }
         function showShiftReport(shiftId) { document.getElementById("reportTitle").innerText = "X-Read (Open Shift)"; document.getElementById("reportFrame").src = "about:blank"; setTimeout(() => { document.getElementById("reportFrame").src = "index.php?page=print_shift&shift_id=" + shiftId + "&_cb=" + new Date().getTime(); }, 100); safeModalShow("reportModal"); }
         function initPagination() { applyFilters(); }

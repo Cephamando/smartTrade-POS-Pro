@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>X-Read Shift #<?= $shift['id'] ?></title>
-    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
+    <link rel="stylesheet" href="css/thermal-slip.css?v=2">
     <style>
         html { background: #fff; color-scheme: light; }
         h2, h3, h4, h5 { text-align: center; margin: 4px 0; }
@@ -115,6 +115,6 @@
 
     <div class="line"></div>
     <div style="text-align: center; font-size: 0.8em; margin-top: 10px;">End of Report</div>
-    <script src="js/thermal-slip.js?v=1"></script>
+    <script src="js/thermal-slip.js?v=2"></script>
 </body>
 </html>

@@ -17,7 +17,7 @@ $adjust = round($due - $sum, 2);
 <head>
     <meta charset="UTF-8">
     <title>Bill</title>
-    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
+    <link rel="stylesheet" href="css/thermal-slip.css?v=2">
     <style>
         .text-center { text-align: center; }
         .border-bottom { border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
@@ -79,7 +79,7 @@ $adjust = round($due - $sum, 2);
     <?php if ($receiptFooter !== ''): ?>
     <div class="text-center border-top" style="margin-top: 15px; font-size: 13px;"><?= nl2br(htmlspecialchars($receiptFooter)) ?></div>
     <?php endif; ?>
-    <script src="js/thermal-slip.js?v=1"></script>
+    <script src="js/thermal-slip.js?v=2"></script>
     <script>
         window.onload = function () {
             setTimeout(function () {
