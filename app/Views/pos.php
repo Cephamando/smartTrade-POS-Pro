@@ -66,7 +66,12 @@ function getCategoryStyle($name) {
     <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         :root { --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>; --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>; --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>; }
-        body { background-color: #f0f2f5; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; }
+        body { background-color: #f6f1ea; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; color: #2c241c; }
+        .header-custom { background: #fff !important; color: #2c241c !important; border-bottom: 1px solid #efe7dc !important; box-shadow: 0 8px 24px rgba(80, 48, 20, 0.04); }
+        .header-custom .text-light, #headerPosLabel, #headerLocIcon { color: #2c241c !important; }
+        .header-custom .text-warning, .header-custom .btn-link.text-warning { color: #ef6c00 !important; }
+        .header-custom .btn-outline-light { color: #3d342c; border-color: #e4d9cc; background: #fff; }
+        .header-custom .btn-outline-light:hover { color: #fff; background: #2c241c; border-color: #2c241c; }
         .header-custom { background-color: var(--pos-main-color) !important; border-bottom: 4px solid var(--pos-accent-color) !important; color: white; flex: 0 0 auto; z-index: 1050; transition: background-color 0.3s, border-color 0.3s; }
         #headerPosLabel, #headerLocIcon { color: var(--pos-accent-color) !important; }
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
@@ -138,13 +143,22 @@ function getCategoryStyle($name) {
         }
 
         .product-list-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
-        .product-list { flex: 1 1 auto; overflow-y: auto; padding: 15px; }
-        .pagination-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #ddd; padding: 10px 15px; display: flex; justify-content: center; align-items: center; gap: 15px; }
-        .item-card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; transition: transform 0.1s, box-shadow 0.1s; cursor: pointer; overflow: hidden; position: relative; height: 100%; display: block; width: 100%; text-align: left; }
-        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: var(--pos-accent-color) !important; }
+        .product-list { flex: 1 1 auto; overflow-y: auto; padding: 16px; }
+        .pagination-bar { flex: 0 0 auto; background: transparent; border-top: 0; padding: 10px 15px 14px; display: flex; justify-content: center; align-items: center; gap: 15px; }
+        .item-card { background: #fff; border: 0; border-radius: 22px; box-shadow: 0 10px 24px rgba(80, 48, 20, 0.06); transition: transform 0.15s, box-shadow 0.15s; cursor: pointer; overflow: hidden; position: relative; height: 100%; display: block; width: 100%; text-align: left; }
+        .item-photo { height: 128px; margin: 10px 10px 0; border-radius: 16px; overflow: hidden; background: #f4efe8; display: flex; align-items: center; justify-content: center; color: #c5b8aa; }
+        .item-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .item-photo i { font-size: 1.7rem; }
+        .item-copy { padding: 10px 12px 12px; }
+        .item-price { color: #ef6c00; letter-spacing: -0.01em; }
+        .item-card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(80, 48, 20, 0.12); }
         .item-card:active { transform: scale(0.98); }
         .item-card:disabled, .item-card[disabled] { opacity: 0.4 !important; filter: grayscale(100%) !important; background-color: #e9ecef !important; cursor: not-allowed !important; pointer-events: none !important; box-shadow: none !important; border-color: #ddd !important; }
-        .stock-badge { display: inline-block; font-size: 0.7rem; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
+        .stock-badge { display: inline-block; font-size: 0.68rem; padding: 3px 8px; border-radius: 999px; font-weight: 700; }
+        .pos-filter-bar, #drilldown-header, #main-category-grid, #sub-category-grid { background: transparent !important; border-color: transparent !important; }
+        .pos-search { border: 0 !important; border-radius: 16px; background: #fff; box-shadow: 0 8px 20px rgba(80, 48, 20, 0.05); }
+        .cat-card-modern { border: 0; border-radius: 20px; box-shadow: 0 8px 20px rgba(80, 48, 20, 0.05); }
+        .cart-panel { border-left: 0; box-shadow: -12px 0 32px rgba(80, 48, 20, 0.08); }
         .bg-low { background-color: #dc3545; color: white; }
         .bg-ok { background-color: #198754; color: white; }
         .bg-recipe { background-color: #0dcaf0; color: #000; }
@@ -415,11 +429,14 @@ function getCategoryStyle($name) {
                             $available = $hasRecipe ? (float)$p['stock_qty'] : max(0, (float)$p['stock_qty'] - $inCart);
                             $isOut = ($available <= 0 && !$hasRecipe && !$notSellable);
                             $blocked = $notSellable;
+                            $photo = \App\Helpers\Media::url((string)($p['image_path'] ?? ''));
                         ?>
                         <div class="col-6 col-md-4 col-lg-3 col-xl-2 item position-relative" data-cat="<?= $p['category_id'] ?>" data-name="<?= htmlspecialchars(strtolower($p['name'])) ?>" data-label="<?= htmlspecialchars($p['name']) ?>" data-out="<?= ($isOut || $blocked) ? '1' : '0' ?>" data-product-id="<?= (int)$p['id'] ?>" data-on-hand="<?= htmlspecialchars((string)(float)$p['stock_qty']) ?>" data-tracks-stock="<?= ($hasRecipe || $notSellable || $pendingZra || $isRaw) ? '0' : '1' ?>">
                             <form method="POST" class="h-100 add-item-form js-pos-cart">
                                 <input type="hidden" name="add_item" value="1"><input type="hidden" name="product_id" value="<?= $p['id'] ?>"><input type="hidden" name="is_refund" class="refund-input" value="0">
-                                <button type="submit" class="item-card d-flex flex-column text-start p-2 <?= $notSellable ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
+                                <button type="submit" class="item-card d-flex flex-column text-start <?= $notSellable ? 'is-blocked' : '' ?>" <?= $blocked ? 'disabled="disabled"' : '' ?>>
+                                    <div class="item-photo"><?php if ($photo !== ''): ?><img src="<?= htmlspecialchars($photo, ENT_QUOTES) ?>" alt=""><?php else: ?><i class="bi bi-camera"></i><?php endif; ?></div>
+                                    <div class="item-copy d-flex flex-column flex-grow-1 w-100">
                                     <div style="height: 38px; overflow: hidden;" class="fw-bold text-dark mb-1 lh-sm w-100"><?= htmlspecialchars($p['name']) ?></div>
                                     <div class="mb-1 w-100">
                                         <?php if ($pendingZra): ?>
@@ -428,7 +445,8 @@ function getCategoryStyle($name) {
                                             <span class="stock-badge bg-secondary">Raw</span>
                                         <?php elseif($hasRecipe): ?><span class="stock-badge bg-recipe">Made to Order</span><?php else: ?><span class="stock-badge <?= $isOut ? 'bg-low' : 'bg-ok' ?>"><?= \App\Helpers\Movement::formatQty($available) ?> in stock</span><?php endif; ?>
                                     </div>
-                                    <div class="text-primary fw-bold w-100 mt-auto fs-6">ZMW <?= number_format($p['price'], 2) ?></div>
+                                    <div class="item-price fw-bold w-100 mt-auto fs-6">ZMW <?= number_format($p['price'], 2) ?></div>
+                                    </div>
                                 </button>
                             </form>
                             <?php if ($notSellable): ?>

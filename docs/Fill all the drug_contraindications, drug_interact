@@ -1,0 +1,49 @@
+Fill all the drug_contraindications, drug_interactions, drug_side_effects, drug_indications tables
+Populate and Store a hash of the diagnosis, symptoms, signs, and medicine ids with encounter under ## Clinical decision support
+
+
+
+```3. what practical local model can I use, for 'custom wording', for the sentence rewrite and a short safety summary, and for full consult, with tool calls and a reliable contraindication judgement?
+```
+Use two local models, and keep the contraindication decision in the formulary. A local model can rewrite a sentence and explain flags. It should not be the thing that decides whether Diclofenac is unsafe in deep-vein thrombosis.
+
+Run them with Ollama on this machine. Download once while the network is up (`ollama pull …`). After that, inference stays on the Docker network.
+
+**Custom wording.** Use **Qwen3 4B** (`ollama pull qwen3:4b`). This job is one JSON sentence, the same call as `override_reason` today. It needs about 6 GB of video memory, or it will run on CPU in a few seconds. **MedGemma 4B** (`ollama pull medgemma:4b`) is the alternative when you want the sentence in a clinical register. Either model is enough. The four preset reasons stay as fixed text and do not call a model.
+
+**Short safety summary.** Use **MedGemma 4B** for the paragraph, with **Qwen3 8B** if you would rather keep a single model for both the sentence and the summary. Feed it only the anonymized context PHP already builds: age band, sex, conditions, findings, and the formulary flag rows. The summary then explains those rows. On a 24 GB card, **MedGemma 27B** writes a clearer paragraph, at roughly 16 GB for a 4-bit copy.
+
+**Full consult with tool calls.** Use **Qwen3 14B**, or **Qwen3 30B-A3B** if you have 24 GB (`ollama pull qwen3:14b` or `qwen3:30b`). Qwen3 speaks Ollama’s tools API, so it can call `get_lab_tests_for_condition`, `get_cost_effective_tx`, and the ICD-11 lookup the way Gemini does now. **MedGemma does not.** Ollama rejects tool requests to it, so it cannot be the consult orchestrator.
+
+| Machine | Wording | Safety summary | Consult |
+|---|---|---|---|
+| CPU, 16 GB RAM | Qwen3 4B | MedGemma 4B, slow | Catalog only |
+| 8–12 GB GPU | Qwen3 4B | Qwen3 8B or MedGemma 4B | Qwen3 8B, short tool list |
+| 16 GB GPU | Qwen3 4B | MedGemma 4B | Qwen3 14B |
+| 24 GB GPU | Qwen3 4B | MedGemma 27B, loaded when needed | Qwen3 30B-A3B |
+
+Load one large model at a time. Qwen3 30B-A3B and MedGemma 27B together need about 35 GB.
+
+The reliable contraindication check stays in `DrugSafety` and the three formulary tables. Qwen3 retrieves labs and medicines. MedGemma writes the summary from those tool results plus the formulary flags. An empty `drug_contraindications` row still produces no flag, whichever local model you run.
+```
+
+Which server would you suggest achieve this. My PC is:
+Windows EliteBook 840 G7 Notebook
+Device name	DESKTOP-BJEA018
+Processor	Intel(R) Core(TM) i5-10310U CPU @ 1.70GHz (2.21 GHz)
+Installed RAM	16.0 GB (15.8 GB usable)
+Graphics card	Intel(R) UHD Graphics (128 MB)
+Storage	223 GB of 477 GB used
+Device ID	88D052C3-7AE0-45B2-9BAF-2A822B5BEE3E
+Product ID	00330-53183-04068-AAOEM
+System type	64-bit operating system, x64-based processor
+Pen and touch	No pen or touch input is available for this display
+
+> huggingface-cli download Qwen/Qwen3-30B-A3B-Instruct --local-dir /Odelia/Projects/LLM/Qwen3
+> huggingface-cli download google/medgemma-4b --local-dir /Odelia/Projects/LLM/MedGemma
+
+ 
+curl -fsSL https://ollama.com/install.sh | sh
+sudo apt-get install zstd
+1. Please refactor the `agents/hodmas_agents` service and the root `compose.yaml` to migrate our LLM inference from the Gemini cloud to a local Ollama instance. 
+2. Configure the OpenAI client to use base_url="http://host.docker.internal:11434/v1" (via an OLLAMA_BASE_URL env var) and set the model to "medgemma:4b".

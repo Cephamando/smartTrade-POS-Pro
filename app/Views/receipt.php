@@ -47,6 +47,13 @@ $vatSplit['excl'] = round($stdIncl - $vatSplit['vat'] + $vatSplit['zero'] + $vat
 $vatSplit['zero'] = round($vatSplit['zero'], 2);
 $vatSplit['exempt'] = round($vatSplit['exempt'], 2);
 $splitLegs = saleSplitLegs($sale);
+$zraDeviceReady = isset($zraClient) && $zraClient->isInitialized();
+$zraDeviceRejected = (bool)preg_match(
+    '/not valid device|device is not valid|invalid device/i',
+    (string)($sale['zra_last_error'] ?? '')
+);
+$fontBCss = $fontBCss ?? \App\Services\ReceiptPrinter::getBrowserFontBCss();
+$printerInterface = $printerInterface ?? strtolower(trim((string)($sysSettings['printer_interface'] ?? 'browser')));
 
 // --- FINAL PERFECTED PRINTING LOGIC ---
 if ($isIncremental) {
@@ -65,7 +72,7 @@ if ($isIncremental) {
 <head>
     <meta charset="UTF-8">
     <title><?= $isBill ? 'Bill' : 'Receipt' ?> #<?= $saleId ?></title>
-    <link rel="stylesheet" href="css/thermal-slip.css?v=1">
+    <link rel="stylesheet" href="css/thermal-slip.css?v=2">
     <style>
         .text-center { text-align: center; }
         .fw-bold { font-weight: 700; }
@@ -89,6 +96,7 @@ if ($isIncremental) {
                 print-color-adjust: exact !important;
             }
         }
+        <?= $fontBCss ?>
     </style>
 </head>
 <body>
@@ -100,11 +108,11 @@ if ($isIncremental) {
         <?php endif; ?>
 
         <?php if ($copyName === 'BARMAN SLIP'): ?>
-            <div class="receipt-section text-center">
-                <h2 style="margin:0; font-weight: 700; font-size: 18px;"><?= htmlspecialchars($bizName) ?></h2>
-                <div style="font-size: 14px; font-weight: 700; margin-top: 5px; border: 2px solid #000; display: inline-block; padding: 2px 8px;"><?= $copyName ?></div>
+            <div class="receipt-section receipt-font-b text-center">
+                <h2 class="receipt-header-title" style="margin:0; font-weight: 700; font-size: 18px;"><?= htmlspecialchars($bizName) ?></h2>
+                <div class="receipt-copy-badge" style="font-size: 14px; font-weight: 700; margin-top: 5px; border: 2px solid #000; display: inline-block; padding: 2px 8px;"><?= $copyName ?></div>
                 
-                <div style="font-size: 60px; font-weight: 700; border-top: 3px solid #000; border-bottom: 3px solid #000; margin: 15px 0; padding: 5px 0; line-height: 1;">
+                <div style="font-size: 60px !important; font-weight: 700; border-top: 3px solid #000; border-bottom: 3px solid #000; margin: 15px 0; padding: 5px 0; line-height: 1;">
                     #<?= $sale['id'] ?>
                 </div>
                 
@@ -128,10 +136,10 @@ if ($isIncremental) {
             </div>
 
         <?php else: ?>
-            <div class="receipt-section">
+            <div class="receipt-section receipt-font-b">
                 <div class="text-center border-bottom">
                     <?php if (!empty($logoUrl)): ?><img src="<?= htmlspecialchars($logoUrl) ?>" alt="" style="max-height:52px;max-width:160px;object-fit:contain;margin-bottom:4px;"><?php endif; ?>
-                    <h2 style="margin:0; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;"><?= htmlspecialchars($bizName) ?></h2>
+                    <h2 class="receipt-header-title" style="margin:0; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;"><?= htmlspecialchars($bizName) ?></h2>
                     
                     <?php if (!empty($receiptHeader)): ?>
                     <div style="font-size: 13px; margin: 5px 0;">
@@ -152,7 +160,7 @@ if ($isIncremental) {
                     </div>
                     <?php endif; ?>
                     <p style="margin:5px 0; font-size: 13px;">
-                        <span style="font-size: 16px; font-weight: 700; border: 2px solid #000; padding: 3px 6px; display: inline-block; margin-bottom: 5px;">
+                        <span class="receipt-copy-badge" style="font-size: 16px; font-weight: 700; border: 2px solid #000; padding: 3px 6px; display: inline-block; margin-bottom: 5px;">
                             <?= $copyName ?>
                         </span><br>
                         <span style="font-size: 14px; font-weight: bold; margin-bottom: 5px; display: inline-block;">
@@ -187,7 +195,7 @@ if ($isIncremental) {
                     <?php if($isIncremental): ?>
                         <tr><td>Added Now:</td><td class="amount"><?= number_format($displayTotal, 2) ?></td></tr>
                         <tr><td>Prev Balance:</td><td class="amount"><?= number_format($previousBalance, 2) ?></td></tr>
-                        <tr class="fw-bold" style="font-size: 17px; border-top: 1px dashed #000;">
+                        <tr class="fw-bold receipt-total-row" style="font-size: 17px; border-top: 1px dashed #000;">
                             <td>NEW BALANCE:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td>
                         </tr>
                     <?php else: ?>
@@ -208,7 +216,7 @@ if ($isIncremental) {
                         <?php if($calcDisc > 0.01): ?>
                         <tr><td>Incl. discount:</td><td class="amount">-ZMW <?= number_format($calcDisc, 2) ?></td></tr>
                         <?php endif; ?>
-                        <tr class="fw-bold" style="font-size: 17px;">
+                        <tr class="fw-bold receipt-total-row" style="font-size: 17px;">
                             <td><?= $isBill ? 'TAB BALANCE' : 'TOTAL PAID' ?>:</td><td class="amount">ZMW <?= number_format($sale['final_total'], 2) ?></td>
                         </tr>
                     <?php endif; ?>
@@ -249,7 +257,7 @@ if ($isIncremental) {
                     <?php endif; ?>
                     <?php if($sale['payment_status'] === 'pending' && $sale['amount_tendered'] > 0): ?>
                     <tr><td>Paid So Far:</td><td class="amount">ZMW <?= number_format($sale['amount_tendered'], 2) ?></td></tr>
-                    <tr class="fw-bold" style="font-size:16px;"><td>BALANCE DUE:</td><td class="amount">ZMW <?= number_format($sale['final_total'] - $sale['amount_tendered'], 2) ?></td></tr>
+                    <tr class="fw-bold receipt-total-row" style="font-size:16px;"><td>BALANCE DUE:</td><td class="amount">ZMW <?= number_format($sale['final_total'] - $sale['amount_tendered'], 2) ?></td></tr>
                     <?php endif; ?>
                     <tr><td>Status:</td><td class="amount"><?= strtoupper($sale['payment_status']) ?></td></tr>
                 </table>
@@ -283,7 +291,7 @@ if ($isIncremental) {
                     <div class="zra-qr" data-payload="<?= htmlspecialchars($zraQrUrl, ENT_QUOTES) ?>"></div>
                     <?php endif; ?>
                 </div>
-                <?php elseif (!$isBill && empty($sale['zra_rcpt_sign']) && ($sale['payment_status'] ?? '') === 'paid'): ?>
+                <?php elseif ($zraDeviceReady && !$zraDeviceRejected && !$isBill && empty($sale['zra_rcpt_sign']) && ($sale['payment_status'] ?? '') === 'paid'): ?>
                 <div class="text-center border-top" style="margin-top: 12px; font-size: 12px;">
                     ZRA: pending sync
                     <?php if (!empty($sale['zra_last_error'])): ?>
@@ -301,7 +309,7 @@ if ($isIncremental) {
     <?php endforeach; ?>
 
     <script src="js/qrcode.min.js"></script>
-    <script src="js/thermal-slip.js?v=1"></script>
+    <script src="js/thermal-slip.js?v=2"></script>
     <script>
         (function () {
             if (typeof qrcode !== 'function') {
@@ -319,10 +327,32 @@ if ($isIncremental) {
             });
         })();
         window.onload = function () {
-            setTimeout(function () {
-                if (window.printThermalSlip) window.printThermalSlip();
-                else window.print();
-            }, 300);
+            if (window.parent && window.parent !== window) return;
+            var printerMode = <?= json_encode($printerInterface) ?>;
+            var triggerBrowserPrint = function () {
+                setTimeout(function () {
+                    if (window.printThermalSlip) window.printThermalSlip();
+                    else window.print();
+                }, 300);
+            };
+            if (printerMode === 'lan' || printerMode === 'usb') {
+                var sep = window.location.search ? '&' : '?';
+                fetch(window.location.pathname + window.location.search + sep + 'direct_print=1', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res || res.status !== 'ok') {
+                        triggerBrowserPrint();
+                    }
+                })
+                .catch(function () {
+                    triggerBrowserPrint();
+                });
+            } else {
+                triggerBrowserPrint();
+            }
         };
     </script>
 </body>

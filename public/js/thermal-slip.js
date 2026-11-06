@@ -41,11 +41,18 @@
     }
 
     function whenSlipReady(done) {
+        var finished = false;
+        function once() {
+            if (finished) return;
+            finished = true;
+            done();
+        }
         if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(done).catch(done);
+            document.fonts.ready.then(once).catch(once);
+            setTimeout(once, 400);
             return;
         }
-        done();
+        once();
     }
 
     window.fitThermalPage = fitThermalPage;
