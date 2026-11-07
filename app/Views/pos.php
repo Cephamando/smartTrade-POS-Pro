@@ -1,5 +1,5 @@
 <?php
-// Intelligent Category Styler
+// Intelligent Category Styler PRINTER_INTERFACE printerInterface
 function getCategoryStyle($name) {
     $n = strtolower($name);
     
@@ -2143,6 +2143,13 @@ function getCategoryStyle($name) {
         function printThermalFrame(id) {
             const frame = document.getElementById(id);
             const win = frame && frame.contentWindow;
+            
+            // If direct thermal printing is configured, let the backend handle it silently
+            var printerMode = window.PRINTER_INTERFACE || 'browser';
+            if (printerMode === 'lan' || printerMode === 'usb') {
+                return; // Skip browser print dialog entirely
+            }
+
             if (win && typeof win.printThermalSlip === 'function') {
                 win.printThermalSlip();
                 return;
