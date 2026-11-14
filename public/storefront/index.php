@@ -9,8 +9,9 @@ $branchId         = isset($_GET['branch']) ? max(1, (int) $_GET['branch']) : 1;
 $merchantWhatsApp = WhatsAppCloudService::env('MERCHANT_WHATSAPP_NUMBER', '260970000000');
 $storeTitle       = WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
 
-$products  = [];
-$flwConfig = WhatsAppCloudService::getFlwConfig();
+$products   = [];
+$categories = [];
+$flwConfig  = WhatsAppCloudService::getFlwConfig();
 
 try {
     $pdo       = WhatsAppCloudService::getDb();
@@ -49,11 +50,36 @@ try {
         }
     }
 
+    // Dynamic Category Resolution (categories table join or direct text column)
+    $hasCategoriesTable = (bool) $pdo->query("SHOW TABLES LIKE 'categories'")->fetchColumn();
+    $catSelectExpr      = "'General' AS resolved_category_name, 0 AS resolved_category_id";
+    $catJoinSql         = "";
+
+    if ( $hasCategoriesTable && in_array('category_id', $colNames, true) ) {
+        $catCols = array_column($pdo->query("SHOW COLUMNS FROM categories")->fetchAll(), 'Field');
+        $catNameCol = 'name';
+        foreach ( ['name', 'category_name', 'title', 'label'] as $cc ) {
+            if ( in_array($cc, $catCols, true) ) {
+                $catNameCol = $cc;
+                break;
+            }
+        }
+        $catSelectExpr = "COALESCE(c.`{$catNameCol}`, 'General') AS resolved_category_name, COALESCE(p.`category_id`, 0) AS resolved_category_id";
+        $catJoinSql    = "LEFT JOIN categories c ON p.`category_id` = c.`id`";
+    } elseif ( in_array('category', $colNames, true) ) {
+        $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
+    } elseif ( in_array('category_name', $colNames, true) ) {
+        $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category_name`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
+    }
+
     $whereParts = ["1=1"];
     $params     = [];
 
     if ( in_array('is_active', $colNames, true) ) {
         $whereParts[] = "p.`is_active` = 1";
+    }
+    if ( in_array('is_sellable', $colNames, true) ) {
+        $whereParts[] = "p.`is_sellable` = 1";
     }
     if ( in_array('branch_id', $colNames, true) ) {
         $whereParts[] = "p.`branch_id` = :bid";
@@ -77,7 +103,7 @@ try {
     if ( $stockCol !== null ) {
         $stockSelectExpr = "COALESCE(p.`{$stockCol}`, 50) AS resolved_stock";
     } elseif ( $hasInventoryTable ) {
-        $invCols = array_column($pdo->query("SHOW COLUMNS FROM inventory")->fetchAll(), 'Field');
+        $invCols   = array_column($pdo->query("SHOW COLUMNS FROM inventory")->fetchAll(), 'Field');
         $invQtyCol = in_array('quantity', $invCols, true) ? 'quantity' : (in_array('stock_qty', $invCols, true) ? 'stock_qty' : null);
         if ( $invQtyCol !== null ) {
             $stockSelectExpr = "COALESCE((SELECT SUM(i.`{$invQtyCol}`) FROM inventory i WHERE i.product_id = p.id), 50) AS resolved_stock";
@@ -85,11 +111,12 @@ try {
     }
 
     $sql = "
-        SELECT p.*, p.`{$priceCol}` AS resolved_price, {$stockSelectExpr}
+        SELECT p.*, p.`{$priceCol}` AS resolved_price, {$stockSelectExpr}, {$catSelectExpr}
         FROM products p
+        {$catJoinSql}
         WHERE " . implode(' AND ', $whereParts) . "
         ORDER BY CASE WHEN p.`sku` = 'ST-TEST-02' THEN 0 ELSE 1 END, p.`name` ASC
-        LIMIT 100
+        LIMIT 150
     ";
 
     $stmt = $pdo->prepare($sql);
@@ -101,12 +128,30 @@ try {
         if ( $qtyAvail <= 0 ) {
             $qtyAvail = 25;
         }
+        $catName = trim((string) ($rp['resolved_category_name'] ?? 'General'));
+        if ( $catName === '' ) {
+            $catName = 'General';
+        }
+        $catSlug = strtolower((string) preg_replace('/[^a-zA-Z0-9]+/', '-', $catName));
+        $catSlug = trim($catSlug, '-') ?: 'general';
+
+        if ( !isset($categories[$catSlug]) ) {
+            $categories[$catSlug] = [
+                'slug'  => $catSlug,
+                'name'  => $catName,
+                'count' => 0
+            ];
+        }
+        $categories[$catSlug]['count']++;
+
         $products[] = [
             'id'            => (int) $rp['id'],
             'sku'           => (string) ($rp['sku'] ?? ('SKU-' . $rp['id'])),
             'name'          => (string) ($rp['name'] ?? ('Item #' . $rp['id'])),
             'selling_price' => (float) ($rp['resolved_price'] ?? 0.00),
-            'stock_qty'     => $qtyAvail
+            'stock_qty'     => $qtyAvail,
+            'category_name' => $catName,
+            'category_slug' => $catSlug
         ];
     }
 } catch ( \Throwable $e ) {
@@ -115,9 +160,13 @@ try {
 
 if ( empty($products) ) {
     $products = [
-        ['id' => 1, 'sku' => 'GRL-001', 'name' => 'Full Flame-Grilled Chicken & Chips', 'selling_price' => 185.00, 'stock_qty' => 20],
-        ['id' => 2, 'sku' => 'GRL-002', 'name' => 'T-Bone Steak (350g) + Nshima & Relish', 'selling_price' => 210.00, 'stock_qty' => 15],
-        ['id' => 3, 'sku' => 'BVG-004', 'name' => 'Fresh Fruit Smoothie (500ml)', 'selling_price' => 55.00, 'stock_qty' => 40]
+        ['id' => 1, 'sku' => 'GRL-001', 'name' => 'Full Flame-Grilled Chicken & Chips', 'selling_price' => 185.00, 'stock_qty' => 20, 'category_name' => 'Grill & Meals', 'category_slug' => 'grill-meals'],
+        ['id' => 2, 'sku' => 'GRL-002', 'name' => 'T-Bone Steak (350g) + Nshima & Relish', 'selling_price' => 210.00, 'stock_qty' => 15, 'category_name' => 'Grill & Meals', 'category_slug' => 'grill-meals'],
+        ['id' => 3, 'sku' => 'BVG-004', 'name' => 'Fresh Fruit Smoothie (500ml)', 'selling_price' => 55.00, 'stock_qty' => 40, 'category_name' => 'Drinks', 'category_slug' => 'drinks']
+    ];
+    $categories = [
+        'grill-meals' => ['slug' => 'grill-meals', 'name' => 'Grill & Meals', 'count' => 2],
+        'drinks'      => ['slug' => 'drinks', 'name' => 'Drinks', 'count' => 1]
     ];
 }
 
@@ -134,10 +183,50 @@ $websiteEnabled  = (bool) $flwConfig['website_enabled'];
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://checkout.flutterwave.com/v3.js"></script>
     <style>
-        body { background-color: #f4f6f8; padding-bottom: 90px; }
+        body { background-color: #f4f6f8; padding-bottom: 95px; }
         .wa-header { background: linear-gradient(135deg, #075E54, #128C7E); color: #fff; }
-        .product-card { border: 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .product-card { border: 0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.15s ease; }
+        .product-card:hover { transform: translateY(-2px); }
         .sticky-cart-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 1030; background: #fff; box-shadow: 0 -4px 12px rgba(0,0,0,0.1); }
+        .cat-scroll-bar {
+            display: flex;
+            gap: 0.5rem;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .cat-scroll-bar::-webkit-scrollbar { display: none; }
+        .cat-pill {
+            border-radius: 50rem;
+            padding: 0.4rem 0.95rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1px solid #d0d7de;
+            background: #fff;
+            color: #344054;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .cat-pill.active {
+            background: #075E54;
+            color: #fff;
+            border-color: #075E54;
+        }
+        .search-box-wrap { position: relative; }
+        .search-clear-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 0;
+            background: transparent;
+            color: #6c757d;
+            font-size: 1.1rem;
+            line-height: 1;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -159,12 +248,54 @@ $websiteEnabled  = (bool) $flwConfig['website_enabled'];
         </div>
     <?php endif; ?>
 
+    <!-- Instant Search & Category Filter Bar -->
+    <div class="card border-0 shadow-sm rounded-3 p-3 mb-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-5">
+                <div class="search-box-wrap">
+                    <input type="search"
+                           id="catalogSearchInput"
+                           class="form-control form-control-sm pe-4"
+                           placeholder="🔍 Search item name, SKU, or category..."
+                           oninput="applyCatalogFilters()">
+                    <button type="button" class="search-clear-btn" id="clearSearchBtn" onclick="clearCatalogSearch()" title="Clear search">&times;</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-7">
+                <div class="cat-scroll-bar" id="categoryTabs">
+                    <button type="button"
+                            class="cat-pill active"
+                            data-cat="all"
+                            onclick="selectCategory('all', this)">
+                        All Items (<?= count($products) ?>)
+                    </button>
+                    <?php foreach ( $categories as $cat ): ?>
+                        <button type="button"
+                                class="cat-pill"
+                                data-cat="<?= htmlspecialchars($cat['slug']) ?>"
+                                onclick="selectCategory('<?= htmlspecialchars(addslashes($cat['slug'])) ?>', this)">
+                            <?= htmlspecialchars($cat['name']) ?> (<?= (int) $cat['count'] ?>)
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-3" id="catalogGrid">
         <?php foreach ( $products as $p ): ?>
-            <div class="col-12 col-md-6 col-lg-4">
+            <?php
+            $searchHaystack = strtolower($p['name'] . ' ' . $p['sku'] . ' ' . $p['category_name']);
+            ?>
+            <div class="col-12 col-md-6 col-lg-4 catalog-item-col"
+                 data-category="<?= htmlspecialchars($p['category_slug']) ?>"
+                 data-search="<?= htmlspecialchars($searchHaystack) ?>">
                 <div class="card product-card h-100 p-3 d-flex flex-column justify-content-between">
                     <div>
-                        <span class="badge bg-secondary-subtle text-secondary mb-1"><?= htmlspecialchars((string) $p['sku']) ?></span>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-secondary-subtle text-secondary"><?= htmlspecialchars((string) $p['sku']) ?></span>
+                            <span class="badge bg-success-subtle text-success"><?= htmlspecialchars((string) $p['category_name']) ?></span>
+                        </div>
                         <h6 class="fw-bold mb-1"><?= htmlspecialchars((string) $p['name']) ?></h6>
                         <p class="text-success fw-bold fs-5 mb-2">ZMW <?= number_format((float) $p['selling_price'], 2) ?></p>
                     </div>
@@ -179,6 +310,12 @@ $websiteEnabled  = (bool) $flwConfig['website_enabled'];
                 </div>
             </div>
         <?php endforeach; ?>
+    </div>
+
+    <div id="emptyFilterState" class="text-center py-5 d-none">
+        <h6 class="fw-bold text-secondary mb-1">No matching items found</h6>
+        <p class="small text-muted mb-2">Try a different search term or switch back to All Items.</p>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="resetAllFilters()">Show All Items</button>
     </div>
 </main>
 
@@ -259,6 +396,62 @@ const MERCHANT_WA = <?= json_encode($merchantWhatsApp) ?>;
 const STORE_TITLE = <?= json_encode($storeTitle) ?>;
 
 let cart = {};
+let activeCategory = 'all';
+
+function selectCategory(catSlug, btnEl) {
+    activeCategory = catSlug;
+    document.querySelectorAll('#categoryTabs .cat-pill').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) {
+        btnEl.classList.add('active');
+    }
+    applyCatalogFilters();
+}
+
+function clearCatalogSearch() {
+    const input = document.getElementById('catalogSearchInput');
+    input.value = '';
+    applyCatalogFilters();
+    input.focus();
+}
+
+function resetAllFilters() {
+    document.getElementById('catalogSearchInput').value = '';
+    const allBtn = document.querySelector('#categoryTabs .cat-pill[data-cat="all"]');
+    selectCategory('all', allBtn);
+}
+
+function applyCatalogFilters() {
+    const searchInput = document.getElementById('catalogSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    const query = (searchInput.value || '').trim().toLowerCase();
+
+    clearBtn.style.display = query.length > 0 ? 'block' : 'none';
+
+    const cards = document.querySelectorAll('.catalog-item-col');
+    let visibleCount = 0;
+
+    cards.forEach(col => {
+        const itemCat = col.getAttribute('data-category') || '';
+        const itemSearch = col.getAttribute('data-search') || '';
+
+        const matchesCat = (activeCategory === 'all' || itemCat === activeCategory);
+        const matchesQuery = (query === '' || itemSearch.includes(query));
+
+        if (matchesCat && matchesQuery) {
+            col.classList.remove('d-none');
+            visibleCount++;
+        } else {
+            col.classList.add('d-none');
+        }
+    });
+
+    const emptyState = document.getElementById('emptyFilterState');
+    if (visibleCount === 0) {
+        emptyState.classList.remove('d-none');
+    } else {
+        emptyState.classList.add('d-none');
+    }
+}
 
 function addToCart(id, name, price) {
     if (!cart[id]) {
