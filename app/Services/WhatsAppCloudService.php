@@ -337,6 +337,91 @@ class WhatsAppCloudService
     }
 
     /**
+     * Reads the in-app Flutterwave configuration (Public Key, Secret Key, Encryption Key,
+     * Webhook Secret Hash, Subaccount ID RS_..., and Website Enabled toggle) directly from
+     * smartTrade's database settings table, with .env fallback.
+     */
+    public static function getFlwConfig(?object $pdo = null): array
+    {
+        $config = [
+            'public_key'      => self::env('FLW_PUBLIC_KEY', ''),
+            'secret_key'      => self::env('FLW_SECRET_KEY', ''),
+            'encryption_key'  => self::env('FLW_ENCRYPTION_KEY', ''),
+            'secret_hash'     => self::env('FLW_SECRET_HASH', ''),
+            'subaccount_id'   => self::env('FLW_SUBACCOUNT_ID', ''),
+            'till_enabled'    => true,
+            'website_enabled' => true
+        ];
+
+        try {
+            $db = $pdo ?? self::getDb();
+            $candidateTables = ['settings', 'system_settings', 'app_settings', 'pos_settings', 'company_settings'];
+            $kvMap = [];
+
+            foreach ( $candidateTables as $tbl ) {
+                $exists = (bool) $db->query("SHOW TABLES LIKE '{$tbl}'")->fetchColumn();
+                if ( !$exists ) {
+                    continue;
+                }
+
+                $rows = $db->query("SELECT * FROM `{$tbl}` LIMIT 250")->fetchAll();
+                foreach ( $rows as $r ) {
+                    // Case A: Key-Value rows (setting_key/setting_value, key/value, name/value)
+                    $k = $r['setting_key'] ?? $r['key'] ?? $r['name'] ?? $r['config_key'] ?? $r['option_name'] ?? null;
+                    $v = $r['setting_value'] ?? $r['value'] ?? $r['val'] ?? $r['config_value'] ?? $r['option_value'] ?? null;
+                    if ( $k !== null && $v !== null ) {
+                        $kvMap[strtolower(trim((string) $k))] = trim((string) $v);
+                    } else {
+                        // Case B: Wide single-row settings table
+                        foreach ( $r as $colName => $colVal ) {
+                            if ( $colVal !== null && $colVal !== '' ) {
+                                $kvMap[strtolower(trim((string) $colName))] = trim((string) $colVal);
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach ( $kvMap as $k => $v ) {
+                if ( $v === '' ) {
+                    continue;
+                }
+                if ( str_starts_with($v, 'FLWPUBK-') || in_array($k, ['flw_public_key', 'flutterwave_public_key', 'public_key'], true) ) {
+                    $config['public_key'] = $v;
+                } elseif ( (str_starts_with($v, 'FLWSECK-') && !str_contains($v, '•') && !str_contains($v, '*')) || in_array($k, ['flw_secret_key', 'flutterwave_secret_key', 'secret_key'], true) ) {
+                    if ( !str_contains($v, '•') && !str_contains($v, '*') ) {
+                        $config['secret_key'] = $v;
+                    }
+                } elseif ( in_array($k, ['flw_encryption_key', 'flutterwave_encryption_key', 'encryption_key'], true) ) {
+                    $config['encryption_key'] = $v;
+                } elseif ( in_array($k, ['flw_secret_hash', 'flutterwave_secret_hash', 'webhook_secret_hash', 'flw_webhook_secret_hash', 'flw_webhook_hash'], true) ) {
+                    $config['secret_hash'] = $v;
+                } elseif ( str_starts_with($v, 'RS_') || in_array($k, ['flw_subaccount_id', 'flutterwave_subaccount_id', 'subaccount_id'], true) ) {
+                    $config['subaccount_id'] = $v;
+                } elseif ( in_array($k, ['flw_website_enabled', 'flutterwave_on_website', 'flutterwave_website', 'website_flutterwave_enabled'], true) ) {
+                    $config['website_enabled'] = !in_array(strtolower($v), ['0', 'false', 'off', 'no'], true);
+                } elseif ( in_array($k, ['flw_till_enabled', 'flutterwave_on_till', 'flutterwave_till'], true) ) {
+                    $config['till_enabled'] = !in_array(strtolower($v), ['0', 'false', 'off', 'no'], true);
+                }
+            }
+        } catch ( Exception $e ) {
+            // Gracefully retain .env fallback values if settings table lookup fails
+        }
+
+        if ( $config['public_key'] === '' ) {
+            $config['public_key'] = 'FLWPUBK_TEST-SANDBOX-KEY-X';
+        }
+        if ( $config['secret_hash'] === '' ) {
+            $config['secret_hash'] = 'YOUR_FLW_WEBHOOK_SECRET_HASH';
+        }
+        if ( $config['secret_key'] === '' ) {
+            $config['secret_key'] = 'YOUR_FLW_SECRET_KEY';
+        }
+
+        return $config;
+    }
+
+    /**
      * Sends a plain-text WhatsApp message via Meta WhatsApp Cloud API
      */
     public function sendTextMessage(string $recipientMsisdn, string $messageBody): array

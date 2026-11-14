@@ -1,51 +1,21 @@
 <?php
 declare(strict_types=1);
 
-$env = static function (string $key, string $default = ''): string {
-    $val = getenv($key);
-    if ( $val !== false && $val !== '' ) {
-        return (string) $val;
-    }
-    static $parsedEnv = null;
-    if ( $parsedEnv === null ) {
-        $parsedEnv = [];
-        $envFile = dirname(__DIR__, 2) . '/.env';
-        if ( is_file($envFile) && is_readable($envFile) ) {
-            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
-            foreach ( $lines as $line ) {
-                $trimmed = trim($line);
-                if ( $trimmed === '' || str_starts_with($trimmed, '#') || !str_contains($trimmed, '=') ) {
-                    continue;
-                }
-                [$k, $v] = explode('=', $trimmed, 2);
-                $parsedEnv[trim($k)] = trim($v, " \t\n\r\0\x0B\"'");
-            }
-        }
-    }
-    return $parsedEnv[$key] ?? $default;
-};
+require_once __DIR__ . '/../../app/Services/WhatsAppCloudService.php';
+
+use SmartTrade\Services\WhatsAppCloudService;
 
 $branchId         = isset($_GET['branch']) ? max(1, (int) $_GET['branch']) : 1;
-$flwPublicKey     = $env('FLW_PUBLIC_KEY', 'FLWPUBK_TEST-SANDBOX-KEY-X');
-$merchantWhatsApp = $env('MERCHANT_WHATSAPP_NUMBER', '260970000000');
-$storeTitle       = $env('STORE_BRAND_NAME', 'smartTrade Express Store');
+$merchantWhatsApp = WhatsAppCloudService::env('MERCHANT_WHATSAPP_NUMBER', '260970000000');
+$storeTitle       = WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
 
-$dbHost = $env('DB_HOST', '127.0.0.1');
-$dbName = $env('DB_NAME', 'smarttrade_db');
-$dbUser = $env('DB_USER', 'root');
-$dbPass = $env('DB_PASS', '');
+$products  = [];
+$flwConfig = WhatsAppCloudService::getFlwConfig();
 
-$products = [];
 try {
-    $pdo = new PDO(
-        "mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4",
-        $dbUser,
-        $dbPass,
-        [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-        ]
-    );
+    $pdo       = WhatsAppCloudService::getDb();
+    $flwConfig = WhatsAppCloudService::getFlwConfig($pdo);
+
     $stmt = $pdo->prepare("SELECT id, sku, name, selling_price, stock_qty FROM products WHERE branch_id = :bid AND is_active = 1 AND stock_qty > 0 ORDER BY name ASC LIMIT 100");
     $stmt->execute([':bid' => $branchId]);
     $products = $stmt->fetchAll();
@@ -56,6 +26,10 @@ try {
         ['id' => 3, 'sku' => 'BVG-004', 'name' => 'Fresh Fruit Smoothie (500ml)', 'selling_price' => 55.00, 'stock_qty' => 40]
     ];
 }
+
+$flwPublicKey    = $flwConfig['public_key'];
+$flwSubaccountId = $flwConfig['subaccount_id'];
+$websiteEnabled  = (bool) $flwConfig['website_enabled'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -85,6 +59,12 @@ try {
 </header>
 
 <main class="container">
+    <?php if ( !$websiteEnabled ): ?>
+        <div class="alert alert-warning shadow-sm">
+            <strong>Online Payments Paused:</strong> Online Flutterwave checkout is currently turned off in Office settings.
+        </div>
+    <?php endif; ?>
+
     <div class="row g-3" id="catalogGrid">
         <?php foreach ( $products as $p ): ?>
             <div class="col-12 col-md-6 col-lg-4">
@@ -167,7 +147,7 @@ try {
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-success w-100 fw-bold py-2" id="payNowBtn" onclick="startFlutterwaveCheckout()">
+                <button type="button" class="btn btn-success w-100 fw-bold py-2" id="payNowBtn" onclick="startFlutterwaveCheckout()" <?= !$websiteEnabled ? 'disabled' : '' ?>>
                     Pay with Mobile Money / Card
                 </button>
             </div>
@@ -179,6 +159,8 @@ try {
 <script>
 const BRANCH_ID = <?= $branchId ?>;
 const FLW_PUBLIC_KEY = <?= json_encode($flwPublicKey) ?>;
+const FLW_SUBACCOUNT_ID = <?= json_encode($flwSubaccountId) ?>;
+const WEBSITE_ENABLED = <?= json_encode($websiteEnabled) ?>;
 const MERCHANT_WA = <?= json_encode($merchantWhatsApp) ?>;
 const STORE_TITLE = <?= json_encode($storeTitle) ?>;
 
@@ -238,7 +220,7 @@ function renderCart() {
 
     document.getElementById('cartCount').textContent = count;
     document.getElementById('cartTotal').textContent = subtotal.toFixed(2);
-    document.getElementById('openCheckoutBtn').disabled = (count === 0);
+    document.getElementById('openCheckoutBtn').disabled = (count === 0 || !WEBSITE_ENABLED);
 
     document.getElementById('modalSubtotal').textContent = subtotal.toFixed(2);
     document.getElementById('modalDelivery').textContent = deliveryFee.toFixed(2);
@@ -246,6 +228,11 @@ function renderCart() {
 }
 
 async function startFlutterwaveCheckout() {
+    if (!WEBSITE_ENABLED) {
+        alert('Online Flutterwave payments are currently disabled in Office settings.');
+        return;
+    }
+
     const customerName = document.getElementById('custName').value.trim();
     const customerPhone = document.getElementById('custPhone').value.trim();
     const deliveryType = document.getElementById('deliveryType').value;
@@ -280,7 +267,7 @@ async function startFlutterwaveCheckout() {
             throw new Error(orderData.message || 'Could not initialize order.');
         }
 
-        FlutterwaveCheckout({
+        const flwPayload = {
             public_key: FLW_PUBLIC_KEY,
             tx_ref: orderData.tx_ref,
             amount: orderData.amount_zmw,
@@ -320,7 +307,14 @@ async function startFlutterwaveCheckout() {
                 btn.disabled = false;
                 btn.textContent = 'Pay with Mobile Money / Card';
             }
-        });
+        };
+
+        // Automatically attach Subaccount ID (RS_...) configured in Office -> Flutterwave settings
+        if (FLW_SUBACCOUNT_ID && FLW_SUBACCOUNT_ID.startsWith('RS_')) {
+            flwPayload.subaccounts = [{ id: FLW_SUBACCOUNT_ID }];
+        }
+
+        FlutterwaveCheckout(flwPayload);
 
     } catch (err) {
         alert(err.message);

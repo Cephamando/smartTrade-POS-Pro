@@ -13,14 +13,26 @@ if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) {
     exit;
 }
 
-$rawBody    = file_get_contents('php://input');
-$secretHash = WhatsAppCloudService::env('FLW_SECRET_HASH', 'YOUR_FLW_WEBHOOK_SECRET_HASH');
-$flwSecret  = WhatsAppCloudService::env('FLW_SECRET_KEY', 'YOUR_FLW_SECRET_KEY');
+$rawBody   = file_get_contents('php://input');
+$pdo       = null;
+$flwConfig = WhatsAppCloudService::getFlwConfig();
+
+try {
+    $pdo       = WhatsAppCloudService::getDb();
+    $flwConfig = WhatsAppCloudService::getFlwConfig($pdo);
+} catch ( Exception $e ) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    exit;
+}
+
+$secretHash = $flwConfig['secret_hash'];
+$flwSecret  = $flwConfig['secret_key'];
 
 $verifHashHeader = $_SERVER['HTTP_VERIF_HASH'] ?? '';
 $flwSigHeader    = $_SERVER['HTTP_FLUTTERWAVE_SIGNATURE'] ?? '';
 
-if ( $secretHash !== 'YOUR_FLW_WEBHOOK_SECRET_HASH' ) {
+if ( $secretHash !== 'YOUR_FLW_WEBHOOK_SECRET_HASH' && $secretHash !== '' ) {
     $isValidSig = false;
     if ( !empty($verifHashHeader) && hash_equals($secretHash, $verifHashHeader) ) {
         $isValidSig = true;
@@ -58,7 +70,7 @@ if ( empty($txRef) || empty($transactionId) ) {
 }
 
 $verifiedData = [];
-if ( !str_starts_with($flwRef, 'FLW-ZM-MOCK-') && $flwSecret !== 'YOUR_FLW_SECRET_KEY' ) {
+if ( !str_starts_with($flwRef, 'FLW-ZM-MOCK-') && $flwSecret !== 'YOUR_FLW_SECRET_KEY' && $flwSecret !== '' ) {
     $verifyUrl = 'https://api.flutterwave.com/v3/transactions/' . urlencode($transactionId) . '/verify';
     $ch = curl_init($verifyUrl);
     curl_setopt_array($ch, [
@@ -79,7 +91,6 @@ $verifiedAmount = (float) ($verifiedData['amount'] ?? ($eventData['amount'] ?? 0
 $verifiedCurr   = strtoupper((string) ($verifiedData['currency'] ?? ($eventData['currency'] ?? 'ZMW')));
 
 try {
-    $pdo = WhatsAppCloudService::getDb();
     $pdo->beginTransaction();
 
     $stmt = $pdo->prepare("SELECT * FROM st_direct_wa_orders WHERE tx_ref = :txref LIMIT 1 FOR UPDATE");
