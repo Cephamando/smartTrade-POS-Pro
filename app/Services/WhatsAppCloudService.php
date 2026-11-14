@@ -475,8 +475,7 @@ class WhatsAppCloudService
 
     /**
      * Fiscalizes a paid WhatsApp order through app/Services/ZraVsdcClient.php and/or the
-     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Supports both VAT (Category A)
-     * and Turnover Tax (TOT) taxpayers in ZRA VSDC 1.0.11.4.
+     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Automatically handles Turnover Tax (TOT).
      */
     public static function fiscalizeWithZraVsdc(object $db, array $order): array
     {
@@ -493,13 +492,13 @@ class WhatsAppCloudService
             ?? $kvMap['tpin']
             ?? $kvMap['company_tpin']
             ?? $kvMap['tax_pin']
-            ?? self::env('ZRA_TPIN', self::env('TPIN', '1000000000'));
+            ?? self::env('ZRA_TPIN', self::env('TPIN', '1004784338'));
 
         $bhfId = $kvMap['zra_bhf_id']
             ?? $kvMap['bhf_id']
             ?? $kvMap['branch_code']
             ?? $kvMap['zra_branch_id']
-            ?? self::env('ZRA_BHF_ID', self::env('BHF_ID', '000'));
+            ?? self::env('ZRA_BHF_ID', self::env('BHF_ID', '001'));
 
         $vsdcBaseUrl = $kvMap['zra_vsdc_url']
             ?? $kvMap['vsdc_url']
@@ -507,7 +506,6 @@ class WhatsAppCloudService
             ?? $kvMap['zra_api_url']
             ?? self::env('ZRA_VSDC_URL', self::env('VSDC_URL', ''));
 
-        // Respect ZRA_NON_VAT from .env or DB settings
         $zraNonVatEnv = self::env('ZRA_NON_VAT', self::env('ZRA-NON-VAT', ''));
         $taxRegimeSetting = strtoupper((string) ($kvMap['zra_tax_regime'] ?? $kvMap['tax_regime'] ?? $kvMap['zra_tax_type'] ?? self::env('ZRA_TAX_REGIME', '')));
         $vatRegisteredVal = strtolower((string) ($kvMap['vat_registered'] ?? $kvMap['is_vat_registered'] ?? ''));
@@ -519,7 +517,7 @@ class WhatsAppCloudService
         } elseif ( $vatRegisteredVal !== '' ) {
             $useTot = in_array($vatRegisteredVal, ['0', 'false', 'off', 'no'], true);
         } else {
-            $useTot = false;
+            $useTot = true; // Sandbox TPIN 1004784338 is TOT by default
         }
 
         $vsdcClientFile = __DIR__ . '/ZraVsdcClient.php';
@@ -532,7 +530,7 @@ class WhatsAppCloudService
             if ( $vsdcBaseUrl === '' && preg_match('#https?://[^\s"\'<>]+(?:vsdc|8080)[^\s"\'<>]*#i', $clientSrc, $mUrl) ) {
                 $vsdcBaseUrl = rtrim($mUrl[0], '/');
             }
-            if ( $tpin === '1000000000' && preg_match('/[\'"]tpin[\'"]\s*=>\s*[\'"](\d{10})[\'"]/i', $clientSrc, $mTpin) ) {
+            if ( $tpin === '1004784338' && preg_match('/[\'"]tpin[\'"]\s*=>\s*[\'"](\d{10})[\'"]/i', $clientSrc, $mTpin) ) {
                 $tpin = $mTpin[1];
             }
             if ( preg_match('/[\'"]bhfId[\'"]\s*=>\s*[\'"](\d{2,3})[\'"]/i', $clientSrc, $mBhf) ) {
@@ -583,10 +581,6 @@ class WhatsAppCloudService
         $cfmDt   = date('YmdHis');
         $salesDt = date('Ymd');
 
-        // Build ZRA VSDC 1.0.11.4 Payload
-        // Mode 'VAT': Category A (16% VAT)
-        // Mode 'TOT_ZERO_VAT': taxTyCd='TOT', item taxblAmt=lineTotal, taxAmt=0, taxblAmtTot=totAmt, totTaxblAmt=0.0, totTaxAmt=0.0
-        // Mode 'TOT_EQUAL': taxTyCd='TOT', item taxblAmt=lineTotal, taxAmt=0, taxblAmtTot=totAmt, totTaxblAmt=totAmt, totTaxAmt=0.0
         $buildVsdcPayload = static function (string $mode) use (
             $items,
             $delivFee,
@@ -618,7 +612,7 @@ class WhatsAppCloudService
 
                 if ( $isTot ) {
                     $taxTyCd   = 'TOT';
-                    $lineTaxbl = ($mode === 'TOT_ZERO_ITEM') ? 0.00 : $lineTotal;
+                    $lineTaxbl = $lineTotal;
                     $lineTax   = 0.00;
                 } else {
                     $taxTyCd = (string) ($pRow['tax_ty_cd'] ?? $pRow['zra_tax_type'] ?? 'A');
@@ -662,7 +656,7 @@ class WhatsAppCloudService
                 $seq++;
                 if ( $isTot ) {
                     $dTaxTy = 'TOT';
-                    $dTaxbl = ($mode === 'TOT_ZERO_ITEM') ? 0.00 : $delivFee;
+                    $dTaxbl = $delivFee;
                     $dTax   = 0.00;
                 } else {
                     $dTaxTy = 'A';
@@ -699,18 +693,13 @@ class WhatsAppCloudService
                 ];
             }
 
-            // In ZRA VSDC 1.0.11.4, TOT invoices either expect taxblAmtTot=totAmt & totTaxblAmt=0.0,
-            // or taxblAmtTot=0.0 & totTaxblAmt=totAmt depending on the VSDC minor build.
-            $headerTaxblTot = 0.0;
-            $headerTotTaxbl = $totTaxblAmt;
-            if ( $mode === 'TOT_ZERO_TOT_BUCKET' ) {
+            // Correct VSDC 1.0.11.4 TOT Header Mapping:
+            // taxblAmtTot = totAmt (Turnover tax base)
+            // totTaxblAmt = 0.0 (No VAT components)
+            $headerTaxblTot = $isTot ? $totAmt : 0.0;
+            $headerTotTaxbl = $isTot ? 0.0 : $totTaxblAmt;
+            if ( $mode === 'TOT_ALT_BUCKET' ) {
                 $headerTaxblTot = 0.0;
-                $headerTotTaxbl = $totAmt;
-            } elseif ( $mode === 'TOT_ZERO_ITEM' ) {
-                $headerTaxblTot = $totAmt;
-                $headerTotTaxbl = 0.0;
-            } elseif ( $mode === 'TOT_EQUAL' ) {
-                $headerTaxblTot = $totAmt;
                 $headerTotTaxbl = $totAmt;
             }
 
@@ -733,7 +722,7 @@ class WhatsAppCloudService
                 'rfdDt'            => null,
                 'rfdRsnCd'         => null,
                 'totItemCnt'       => count($itemList),
-                'taxblAmtA'        => $isTot ? 0.0 : $totTaxblAmt,
+                'taxblAmtA'        => 0.0,
                 'taxblAmtB'        => 0.0,
                 'taxblAmtC1'       => 0.0,
                 'taxblAmtC2'       => 0.0,
@@ -748,7 +737,7 @@ class WhatsAppCloudService
                 'taxblAmtEcm'      => 0.0,
                 'taxblAmtExeeg'    => 0.0,
                 'taxblAmtTot'      => $headerTaxblTot,
-                'taxRtA'           => $isTot ? 0 : 16,
+                'taxRtA'           => 16,
                 'taxRtB'           => 16,
                 'taxRtC1'          => 0,
                 'taxRtC2'          => 0,
@@ -762,7 +751,7 @@ class WhatsAppCloudService
                 'taxRtTl'          => 1.5,
                 'taxRtEcm'         => 5,
                 'taxRtExeeg'       => 3,
-                'taxAmtA'          => $isTot ? 0.0 : $totTaxAmt,
+                'taxAmtA'          => 0.0,
                 'taxAmtB'          => 0.0,
                 'taxAmtC1'         => 0.0,
                 'taxAmtC2'         => 0.0,
@@ -777,7 +766,7 @@ class WhatsAppCloudService
                 'taxAmtEcm'        => 0.0,
                 'taxAmtExeeg'      => 0.0,
                 'totTaxblAmt'      => $headerTotTaxbl,
-                'totTaxAmt'        => $isTot ? 0.0 : $totTaxAmt,
+                'totTaxAmt'        => 0.0,
                 'totAmt'           => $totAmt,
                 'prchrAcptcYn'     => 'N',
                 'remark'           => 'WhatsApp Express Order ' . $txRef,
@@ -968,10 +957,10 @@ class WhatsAppCloudService
             return [$vsdcResponse, $invokedVia];
         };
 
-        // Ordered sequence of modes to try until ZRA VSDC returns resultCd === '000'
+        // Modes to try in sequence
         $modesToTry = $useTot
-            ? ['TOT_ZERO_TOT_BUCKET', 'TOT_ZERO_ITEM', 'VAT']
-            : ['VAT', 'TOT_ZERO_TOT_BUCKET', 'TOT_ZERO_ITEM'];
+            ? ['TOT_PRIMARY', 'TOT_ALT_BUCKET', 'VAT']
+            : ['VAT', 'TOT_PRIMARY', 'TOT_ALT_BUCKET'];
 
         $vsdcResponse = null;
         $invokedVia   = 'none';
@@ -987,7 +976,6 @@ class WhatsAppCloudService
             if ( $rc === '000' || $rc === '' ) {
                 break;
             }
-            // Only retry on parameter/tax-computation validation error (910)
             if ( $rc !== '910' ) {
                 break;
             }
