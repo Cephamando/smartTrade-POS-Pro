@@ -26,6 +26,7 @@ TARGET_FILES=(
     "public/api/flutterwave_webhook_native.php"
     "public/api/whatsapp_checkout/init_order.php"
     "public/api/whatsapp_checkout/pos_order_actions.php"
+    "public/api/whatsapp_checkout/handover_hook.php"
     "public/api/webhooks/flutterwave_webhook.php"
     "public/api/webhooks/whatsapp_webhook.php"
     "public/storefront/index.php"
@@ -43,7 +44,7 @@ for f in "${TARGET_FILES[@]}"; do
 done
 
 if ! git diff --cached --quiet; then
-    git commit -m "feat(whatsapp): clean untracked remote files before git pull in Kamatera deploy script"
+    git commit -m "feat(whatsapp): add VSDC Throwable guard and two-way Web Orders Hand Over sync hook"
 fi
 git push origin "${BRANCH}"
 
@@ -53,20 +54,19 @@ ssh "${SSH_TARGET}" "FLW_SECRET_HASH='${FLW_SECRET_HASH}' BRANCH='${BRANCH}' REM
 set -euo pipefail
 eval cd "${REMOTE_DIR}"
 
-# 1. Back up the server's original native webhook outside the Git working tree (/tmp)
 if [ -f public/api/flutterwave_webhook_native.php ] && ! grep -q "ST-FLW-" public/api/flutterwave_webhook_native.php; then
     cp -p public/api/flutterwave_webhook_native.php /tmp/flutterwave_webhook_native.bak
 elif [ -f public/api/flutterwave_webhook.php ] && ! grep -q "ST-FLW-" public/api/flutterwave_webhook.php; then
     cp -p public/api/flutterwave_webhook.php /tmp/flutterwave_webhook_native.bak
 fi
 
-# 2. Remove untracked working tree files that match incoming tracked files in origin/${BRANCH}
 CLEAN_UNTRACKED=(
     "app/Services/WhatsAppCloudService.php"
     "public/api/flutterwave_webhook.php"
     "public/api/flutterwave_webhook_native.php"
     "public/api/whatsapp_checkout/init_order.php"
     "public/api/whatsapp_checkout/pos_order_actions.php"
+    "public/api/whatsapp_checkout/handover_hook.php"
     "public/api/webhooks/flutterwave_webhook.php"
     "public/api/webhooks/whatsapp_webhook.php"
     "public/storefront/index.php"
@@ -83,7 +83,6 @@ for uf in "${CLEAN_UNTRACKED[@]}"; do
     fi
 done
 
-# 3. Stash tracked modifications if dirty, pull latest commit, and restore stashed VPS changes
 if ! git diff --quiet || ! git diff --cached --quiet; then
     git stash push -m "auto-stash-before-wa-deploy-$(date +%s)" || true
 fi
@@ -128,6 +127,7 @@ if [[ -n "${WEB_CID}" ]]; then
         "public/api/flutterwave_webhook.php"
         "public/api/whatsapp_checkout/init_order.php"
         "public/api/whatsapp_checkout/pos_order_actions.php"
+        "public/api/whatsapp_checkout/handover_hook.php"
         "public/api/webhooks/flutterwave_webhook.php"
         "public/api/webhooks/whatsapp_webhook.php"
         "public/storefront/index.php"
@@ -143,7 +143,7 @@ if [[ -n "${WEB_CID}" ]]; then
 
     docker cp .env "${WEB_CID}:/var/www/html/.env" || true
     docker exec "${WEB_CID}" chown -R www-data:www-data /var/www/html/app/Services /var/www/html/public || true
-    echo "      Synced router and WhatsApp stack into container ${WEB_CID}."
+    echo "      Synced router, VSDC bridge, and Hand Over hook into container ${WEB_CID}."
 fi
 REMOTE_SCRIPT
 

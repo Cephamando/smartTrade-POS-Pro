@@ -475,8 +475,7 @@ class WhatsAppCloudService
 
     /**
      * Fiscalizes a paid WhatsApp order through app/Services/ZraVsdcClient.php and/or the
-     * live Tomcat ZRA VSDC container (/trnsSales/saveSales), returning the official VSDC
-     * signature, internal data, SDC ID, receipt number, and QR verification URL.
+     * live Tomcat ZRA VSDC container (/trnsSales/saveSales).
      */
     public static function fiscalizeWithZraVsdc(object $db, array $order): array
     {
@@ -737,7 +736,6 @@ class WhatsAppCloudService
         $vsdcResponse = null;
         $invokedVia   = 'none';
 
-        // 3. First attempt: Invoke app/Services/ZraVsdcClient.php with type-safe argument resolution
         if ( is_file($vsdcClientFile) ) {
             try {
                 require_once $vsdcClientFile;
@@ -787,7 +785,6 @@ class WhatsAppCloudService
                             } elseif ( $tName === 'int' ) {
                                 $ctorArgs[] = str_contains($pName, 'branch') ? $branchId : ($param->isDefaultValueAvailable() ? $param->getDefaultValue() : 1);
                             } else {
-                                // String or untyped parameter
                                 if ( str_contains($pName, 'url') || str_contains($pName, 'host') || str_contains($pName, 'endpoint') ) {
                                     $ctorArgs[] = $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4';
                                 } elseif ( str_contains($pName, 'tpin') ) {
@@ -805,7 +802,6 @@ class WhatsAppCloudService
                     }
 
                     if ( $instance !== null ) {
-                        // A. Check 1-arg sales methods
                         $singleArgMethods = [
                             'saveSales',
                             'saveTrnsSales',
@@ -838,7 +834,6 @@ class WhatsAppCloudService
                             }
                         }
 
-                        // B. Check 2-arg generic transport methods: post('/trnsSales/saveSales', $payload)
                         if ( $vsdcResponse === null ) {
                             $twoArgMethods = ['post', 'request', 'send', 'sendRequest', 'call'];
                             foreach ( $twoArgMethods as $mName ) {
@@ -858,11 +853,9 @@ class WhatsAppCloudService
                     }
                 }
             } catch ( Throwable $t ) {
-                // Safely ignore any reflection/type error and proceed to direct Tomcat VSDC HTTP call
             }
         }
 
-        // 4. Second attempt: Direct HTTP POST to Tomcat VSDC container (/trnsSales/saveSales)
         if ( $vsdcResponse === null ) {
             $candidateEndpoints = [];
             if ( $vsdcBaseUrl !== '' ) {
@@ -1535,6 +1528,218 @@ class WhatsAppCloudService
     }
 
     /**
+     * Direct hook callable when a cashier clicks "Hand Over" in the native Web Orders UI.
+     * Accepts either the ST-FLW-* tx_ref, the native Web Orders row ID, or the ZRA receipt number.
+     */
+    public static function onNativeHandOver(string|int $orderIdentifier, ?object $pdo = null): array
+    {
+        try {
+            $db  = $pdo ?? self::getDb();
+            $idStr = trim((string) $orderIdentifier);
+            if ( $idStr === '' ) {
+                return ['success' => false, 'message' => 'Empty order identifier'];
+            }
+
+            $txRef = null;
+
+            if ( str_starts_with(strtoupper($idStr), 'ST-FLW-') ) {
+                $txRef = strtoupper($idStr);
+            } else {
+                // Lookup in native Web Orders table by ID or reference
+                $table = self::discoverNativeWebOrdersTable($db);
+                if ( $table !== null ) {
+                    $colsRaw = $db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
+                    $cols    = [];
+                    foreach ( $colsRaw as $c ) {
+                        $cols[strtolower((string) $c['Field'])] = $c['Field'];
+                    }
+
+                    $refCols = ['tx_ref', 'order_number', 'order_ref', 'reference', 'order_code', 'invoice_no', 'payment_reference', 'flw_tx_ref'];
+                    $matchedRefCol = null;
+                    foreach ( $refCols as $rc ) {
+                        if ( isset($cols[$rc]) ) {
+                            $matchedRefCol = $cols[$rc];
+                            break;
+                        }
+                    }
+
+                    if ( $matchedRefCol !== null && ctype_digit($idStr) && isset($cols['id']) ) {
+                        $nStmt = $db->prepare("SELECT `{$matchedRefCol}` AS ref_val FROM `{$table}` WHERE id = :id LIMIT 1");
+                        $nStmt->execute([':id' => (int) $idStr]);
+                        $nRow = $nStmt->fetch();
+                        if ( is_array($nRow) && !empty($nRow['ref_val']) ) {
+                            $txRef = (string) $nRow['ref_val'];
+                        }
+                    }
+                }
+            }
+
+            if ( $txRef === null ) {
+                $txRef = $idStr;
+            }
+
+            $stmt = $db->prepare("SELECT * FROM st_direct_wa_orders WHERE tx_ref = :txref OR zra_rcpt_no = :rcpt LIMIT 1");
+            $stmt->execute([':txref' => $txRef, ':rcpt' => $txRef]);
+            $order = $stmt->fetch();
+
+            if ( !$order ) {
+                return ['success' => false, 'message' => "No WhatsApp order matched '{$idStr}'"];
+            }
+
+            if ( $order['fulfillment_status'] === 'COMPLETED' ) {
+                return [
+                    'success'            => true,
+                    'tx_ref'             => $order['tx_ref'],
+                    'fulfillment_status' => 'COMPLETED',
+                    'already_completed'  => true,
+                    'whatsapp_notified'  => false
+                ];
+            }
+
+            $upd = $db->prepare("UPDATE st_direct_wa_orders SET fulfillment_status = 'COMPLETED' WHERE id = :id");
+            $upd->execute([':id' => $order['id']]);
+
+            self::syncNativeWebOrderStatus($db, (string) $order['tx_ref'], 'COMPLETED', (string) ($order['flw_transaction_id'] ?? ''));
+
+            $waService = new self();
+            $waResult  = $waService->sendFulfillmentStatusUpdate($order, 'COMPLETED');
+
+            return [
+                'success'            => true,
+                'tx_ref'             => $order['tx_ref'],
+                'fulfillment_status' => 'COMPLETED',
+                'already_completed'  => false,
+                'whatsapp_notified'  => (bool) ($waResult['success'] ?? false)
+            ];
+        } catch ( Throwable $e ) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Automatically reconciles any ST-FLW-* orders that were marked "Handed Over" or "Completed"
+     * inside smartTrade's native Web Orders screen, transitioning them to COMPLETED in
+     * st_direct_wa_orders and sending the WhatsApp completion message to the customer.
+     */
+    public static function reconcileHandedOverWebOrders(object $db): array
+    {
+        $reconciledRefs = [];
+        try {
+            $table = self::discoverNativeWebOrdersTable($db);
+            if ( $table === null ) {
+                return $reconciledRefs;
+            }
+
+            $colsRaw = $db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
+            $cols    = [];
+            foreach ( $colsRaw as $c ) {
+                $cols[strtolower((string) $c['Field'])] = $c['Field'];
+            }
+
+            $refCols = ['tx_ref', 'order_number', 'order_ref', 'reference', 'order_code', 'invoice_no', 'payment_reference', 'flw_tx_ref'];
+            $matchedRefCol = null;
+            foreach ( $refCols as $rc ) {
+                if ( isset($cols[$rc]) ) {
+                    $matchedRefCol = $cols[$rc];
+                    break;
+                }
+            }
+
+            if ( $matchedRefCol === null ) {
+                return $reconciledRefs;
+            }
+
+            $activeWaOrders = $db->query("
+                SELECT * FROM st_direct_wa_orders
+                WHERE payment_status = 'PAID'
+                  AND fulfillment_status != 'COMPLETED'
+                  AND fulfillment_status != 'CANCELLED'
+                LIMIT 50
+            ")->fetchAll();
+
+            if ( empty($activeWaOrders) ) {
+                return $reconciledRefs;
+            }
+
+            $nStmt = $db->prepare("SELECT * FROM `{$table}` WHERE `{$matchedRefCol}` = :ref LIMIT 1");
+            $waService = new self();
+
+            $handOverStatuses = [
+                'handed_over',
+                'handed over',
+                'hand_over',
+                'completed',
+                'complete',
+                'delivered',
+                'fulfilled',
+                'collected',
+                'picked_up',
+                'done',
+                'closed'
+            ];
+
+            foreach ( $activeWaOrders as $waOrder ) {
+                $txRef = (string) $waOrder['tx_ref'];
+                $nStmt->execute([':ref' => $txRef]);
+                $nativeRow = $nStmt->fetch();
+
+                if ( !is_array($nativeRow) ) {
+                    continue;
+                }
+
+                $isHandedOver = false;
+
+                // Check boolean handover/completion flags
+                foreach ( ['handed_over', 'is_handed_over', 'is_completed', 'is_delivered', 'is_fulfilled'] as $bKey ) {
+                    if ( isset($cols[$bKey]) ) {
+                        $val = $nativeRow[$cols[$bKey]] ?? 0;
+                        if ( (int) $val === 1 || strtolower((string) $val) === 'true' || strtolower((string) $val) === 'yes' ) {
+                            $isHandedOver = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Check timestamp handover columns
+                if ( !$isHandedOver ) {
+                    foreach ( ['handed_over_at', 'completed_at', 'delivered_at', 'fulfilled_at'] as $tKey ) {
+                        if ( isset($cols[$tKey]) && !empty($nativeRow[$cols[$tKey]]) ) {
+                            $isHandedOver = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Check status / order_status / handover_status string columns
+                if ( !$isHandedOver ) {
+                    foreach ( ['status', 'order_status', 'fulfillment_status', 'handover_status', 'delivery_status'] as $sKey ) {
+                        if ( isset($cols[$sKey]) && !empty($nativeRow[$cols[$sKey]]) ) {
+                            $sVal = strtolower(trim((string) $nativeRow[$cols[$sKey]]));
+                            if ( in_array($sVal, $handOverStatuses, true) ) {
+                                $isHandedOver = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ( $isHandedOver ) {
+                    $upd = $db->prepare("UPDATE st_direct_wa_orders SET fulfillment_status = 'COMPLETED' WHERE id = :id");
+                    $upd->execute([':id' => $waOrder['id']]);
+                    $waService->sendFulfillmentStatusUpdate($waOrder, 'COMPLETED');
+                    $reconciledRefs[] = $txRef;
+                }
+            }
+        } catch ( Throwable $e ) {
+        }
+
+        return $reconciledRefs;
+    }
+
+    /**
      * Purges simulated webhook test rows from the mirrored native Web Orders table
      */
     public static function purgeNativeWebOrderTests(object $db): int
@@ -1699,7 +1904,7 @@ class WhatsAppCloudService
             'READY_OR_DISPATCHED' => ($order['delivery_type'] === 'DELIVERY')
                 ? "🛵 *OUT FOR DELIVERY ({$txRef})*\nHi {$name}, your order has left our kitchen and is on its way to *{$order['delivery_address']}*!"
                 : "🛍️ *READY FOR PICKUP ({$txRef})*\nHi {$name}, your order is packed and ready for collection at the counter!",
-            'COMPLETED'           => "🎉 *ORDER COMPLETED ({$txRef})*\nThank you for ordering with us, {$name}! Enjoy your meal.",
+            'COMPLETED'           => "🎉 *ORDER COMPLETED ({$txRef})*\nThank you for ordering with us, {$name}! Your order has been handed over. Enjoy!",
             'CANCELLED'           => "⚠️ *ORDER UPDATE ({$txRef})*\nHi {$name}, your order status has been updated to Cancelled. Please contact us if you need assistance."
         ];
 

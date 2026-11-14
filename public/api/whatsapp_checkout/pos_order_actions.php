@@ -14,11 +14,14 @@ try {
         $branchId      = isset($_GET['branch_id']) ? max(1, (int) $_GET['branch_id']) : 1;
         $paymentFilter = $_GET['payment_status'] ?? 'PAID';
 
+        // Reconcile any ST-FLW-* orders handed over via the native Web Orders UI
+        $autoHandedOver = WhatsAppCloudService::reconcileHandedOverWebOrders($pdo);
+
         $stmt = $pdo->prepare("
             SELECT id, branch_id, tx_ref, flw_transaction_id, customer_name, customer_phone,
                    delivery_type, delivery_address, subtotal_zmw, delivery_fee_zmw, total_zmw,
                    items_json, payment_status, fulfillment_status, zra_fiscal_status,
-                   zra_rcpt_no, zra_qr_url, created_at
+                   zra_rcpt_no, zra_qr_url, zra_sdc_id, zra_rcpt_sign, created_at
             FROM st_direct_wa_orders
             WHERE branch_id = :bid
               AND payment_status = :pstatus
@@ -38,15 +41,16 @@ try {
         }
 
         echo json_encode([
-            'status' => 'success',
-            'count'  => count($orders),
-            'orders' => $orders
+            'status'                 => 'success',
+            'count'                  => count($orders),
+            'reconciled_hand_overs'  => $autoHandedOver,
+            'orders'                 => $orders
         ]);
         exit;
     }
 
     if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
-        $input  = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        $input  = json_decode((string) file_get_contents('php://input'), true) ?: $_POST;
         $action = strtolower(trim((string) ($input['action'] ?? 'update_status')));
 
         // Action A: Purge simulated webhook test orders from both st_direct_wa_orders and native Web Orders
@@ -75,7 +79,16 @@ try {
             exit;
         }
 
-        // Action B: Transition kitchen fulfillment_status, sync native Web Orders Hand Over state, and notify buyer
+        // Action B: Direct Hand Over trigger from native Web Orders UI
+        if ( in_array($action, ['hand_over', 'handover', 'complete'], true) ) {
+            $identifier = $input['tx_ref'] ?? $input['order_id'] ?? $input['web_order_id'] ?? $input['id'] ?? '';
+            $res = WhatsAppCloudService::onNativeHandOver((string) $identifier, $pdo);
+            http_response_code($res['success'] ? 200 : 404);
+            echo json_encode($res);
+            exit;
+        }
+
+        // Action C: Transition kitchen fulfillment_status, sync native Web Orders Hand Over state, and notify buyer
         $txRef     = trim((string) ($input['tx_ref'] ?? ''));
         $newStatus = strtoupper(trim((string) ($input['fulfillment_status'] ?? '')));
 
@@ -102,7 +115,6 @@ try {
             ':id'      => $order['id']
         ]);
 
-        // Mirror status change (e.g., COMPLETED / Hand Over) into native Web Orders table
         $nativeSynced = WhatsAppCloudService::syncNativeWebOrderStatus(
             $pdo,
             $txRef,
@@ -126,7 +138,7 @@ try {
     http_response_code(405);
     echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed']);
 
-} catch ( Exception $e ) {
+} catch ( \Throwable $e ) {
     http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
