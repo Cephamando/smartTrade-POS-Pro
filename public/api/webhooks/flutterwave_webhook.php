@@ -90,6 +90,7 @@ $verifiedAmount = (float) ($verifiedData['amount'] ?? ($eventData['amount'] ?? 0
 $verifiedCurr   = strtoupper((string) ($verifiedData['currency'] ?? ($eventData['currency'] ?? 'ZMW')));
 
 try {
+    // Stage 1: Short atomic transaction to lock order row, verify idempotency, and deduct stock
     $pdo->beginTransaction();
 
     $stmt = $pdo->prepare("SELECT * FROM st_direct_wa_orders WHERE tx_ref = :txref LIMIT 1 FOR UPDATE");
@@ -97,14 +98,18 @@ try {
     $order = $stmt->fetch();
 
     if ( !$order ) {
-        $pdo->rollBack();
+        if ( $pdo->inTransaction() ) {
+            $pdo->rollBack();
+        }
         http_response_code(404);
         echo json_encode(['status' => 'error', 'message' => 'Order not found']);
         exit;
     }
 
     if ( $order['payment_status'] === 'PAID' ) {
-        $pdo->rollBack();
+        if ( $pdo->inTransaction() ) {
+            $pdo->rollBack();
+        }
         http_response_code(200);
         echo json_encode(['status' => 'already_processed']);
         exit;
@@ -113,7 +118,20 @@ try {
     $expectedTotal = (float) $order['total_zmw'];
 
     if ( $verifiedStatus === 'successful' && $verifiedCurr === 'ZMW' && $verifiedAmount >= $expectedTotal ) {
-        // 1. Deduct stock from products table
+        // 1. Mark order PAID immediately inside the lock so concurrent webhooks cannot double-process
+        $lockUpd = $pdo->prepare("
+            UPDATE st_direct_wa_orders
+            SET payment_status = 'PAID',
+                fulfillment_status = 'NEW',
+                flw_transaction_id = :flwid
+            WHERE id = :id
+        ");
+        $lockUpd->execute([
+            ':flwid' => $transactionId,
+            ':id'    => $order['id']
+        ]);
+
+        // 2. Deduct stock from products table
         $hasProductsTable = (bool) $pdo->query("SHOW TABLES LIKE 'products'")->fetchColumn();
         if ( $hasProductsTable ) {
             $colsStmt = $pdo->query("SHOW COLUMNS FROM products");
@@ -142,22 +160,23 @@ try {
             }
         }
 
-        // 2. Fiscalize sale via app/Services/ZraVsdcClient.php and Tomcat ZRA VSDC container
+        if ( $pdo->inTransaction() ) {
+            $pdo->commit();
+        }
+
+        // Stage 2: Fiscalize sale via app/Services/ZraVsdcClient.php / Tomcat VSDC outside row lock
         $vsdcReport   = WhatsAppCloudService::fiscalizeWithZraVsdc($pdo, $order);
         $zraReceiptNo = $vsdcReport['rcpt_no'];
         $zraQrUrl     = $vsdcReport['qr_url'];
 
-        // 3. Persist PAID & ZRA VSDC signature fields (checking column availability dynamically)
+        // Stage 3: Persist ZRA VSDC signature fields on st_direct_wa_orders
         $waColsStmt = $pdo->query("SHOW COLUMNS FROM st_direct_wa_orders");
         $waColNames = array_column($waColsStmt->fetchAll(), 'Field');
 
         if ( in_array('zra_sdc_id', $waColNames, true) && in_array('zra_rcpt_sign', $waColNames, true) ) {
             $upd = $pdo->prepare("
                 UPDATE st_direct_wa_orders
-                SET payment_status = 'PAID',
-                    fulfillment_status = 'NEW',
-                    flw_transaction_id = :flwid,
-                    zra_fiscal_status = :zfstat,
+                SET zra_fiscal_status = :zfstat,
                     zra_rcpt_no = :zrarcp,
                     zra_qr_url = :zraqr,
                     zra_sdc_id = :zsdc,
@@ -168,7 +187,6 @@ try {
                 WHERE id = :id
             ");
             $upd->execute([
-                ':flwid'  => $transactionId,
                 ':zfstat' => $vsdcReport['fiscal_status'],
                 ':zrarcp' => $zraReceiptNo,
                 ':zraqr'  => $zraQrUrl,
@@ -182,16 +200,12 @@ try {
         } else {
             $upd = $pdo->prepare("
                 UPDATE st_direct_wa_orders
-                SET payment_status = 'PAID',
-                    fulfillment_status = 'NEW',
-                    flw_transaction_id = :flwid,
-                    zra_fiscal_status = :zfstat,
+                SET zra_fiscal_status = :zfstat,
                     zra_rcpt_no = :zrarcp,
                     zra_qr_url = :zraqr
                 WHERE id = :id
             ");
             $upd->execute([
-                ':flwid'  => $transactionId,
                 ':zfstat' => $vsdcReport['fiscal_status'],
                 ':zrarcp' => $zraReceiptNo,
                 ':zraqr'  => $zraQrUrl,
@@ -199,12 +213,10 @@ try {
             ]);
         }
 
-        // 4. Mirror paid WhatsApp order into native Web Orders table for Hand Over queue
+        // Stage 4: Mirror paid WhatsApp order into native Web Orders table for Hand Over queue
         $mirrorReport = WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, $zraReceiptNo);
 
-        $pdo->commit();
-
-        // 5. Dispatch WhatsApp receipt with ZRA VSDC signature & notify merchant kitchen
+        // Stage 5: Dispatch WhatsApp receipt with ZRA VSDC signature & notify merchant kitchen
         $waService = new WhatsAppCloudService();
         $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $zraQrUrl, $vsdcReport);
 
@@ -233,7 +245,9 @@ try {
             ':flwid' => $transactionId,
             ':id'    => $order['id']
         ]);
-        $pdo->commit();
+        if ( $pdo->inTransaction() ) {
+            $pdo->commit();
+        }
 
         http_response_code(200);
         echo json_encode(['status' => 'payment_failed_recorded']);
@@ -242,7 +256,10 @@ try {
 
 } catch ( \Throwable $e ) {
     if ( isset($pdo) && $pdo->inTransaction() ) {
-        $pdo->rollBack();
+        try {
+            $pdo->rollBack();
+        } catch ( \Throwable $rbErr ) {
+        }
     }
     http_response_code(500);
     echo json_encode([
