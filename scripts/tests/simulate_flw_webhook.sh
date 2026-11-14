@@ -3,9 +3,7 @@ set -euo pipefail
 
 # ==============================================================================
 # smartTrade — Flutterwave Signed Webhook Simulator (v3 & v4 HMAC-SHA256)
-# Usage:
-#   bash scripts/tests/simulate_flw_webhook.sh
-#   BASE_URL="https://smarTrade.odeliazm.com" FLW_SECRET_HASH="my_secret" bash scripts/tests/simulate_flw_webhook.sh
+# Targets Unified Endpoint: /api/flutterwave_webhook.php
 # ==============================================================================
 
 FLW_SECRET_HASH="${FLW_SECRET_HASH:-024006a8632f4c3b852f4a3ba1596b7d57a78d3298f31c3ef2a8c8734cdc6414}"
@@ -31,9 +29,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# ------------------------------------------------------------------------------
-# Verify candidate container ports or launch ephemeral PHP server (Host or Docker)
-# ------------------------------------------------------------------------------
 if [[ -z "${BASE_URL}" ]]; then
     CANDIDATE_PORTS=()
     if command -v docker >/dev/null 2>&1; then
@@ -83,7 +78,6 @@ if [[ -z "${BASE_URL}" ]]; then
 
         FALLBACK_PORT="${FALLBACK_PORT:-8099}"
 
-        # Check if host PHP has pdo_mysql or mysqli; if not, run PHP server inside a local Docker PHP image
         if php -r 'exit((extension_loaded("pdo_mysql") || extension_loaded("mysqli")) ? 0 : 1);' 2>/dev/null; then
             export DOCKER_MYSQL_HOST="${MYSQL_IP}"
             export DOCKER_MYSQL_ROOT_PASS="${DOCKER_MYSQL_ROOT_PASS}"
@@ -100,7 +94,6 @@ if [[ -z "${BASE_URL}" ]]; then
             echo "[INFO] Host PHP lacks pdo_mysql/mysqli; locating local Docker PHP image..."
             PHP_DOCKER_IMAGE=""
 
-            # 1. Check currently running containers for a PHP runtime with pdo_mysql or mysqli
             for cid in $(docker ps -q 2>/dev/null || true); do
                 if docker exec "${cid}" php -r 'exit((extension_loaded("pdo_mysql") || extension_loaded("mysqli")) ? 0 : 1);' >/dev/null 2>&1; then
                     PHP_DOCKER_IMAGE=$(docker inspect -f '{{.Config.Image}}' "${cid}" 2>/dev/null || true)
@@ -110,7 +103,6 @@ if [[ -z "${BASE_URL}" ]]; then
                 fi
             done
 
-            # 2. Fallback to scanning local Docker images
             if [[ -z "${PHP_DOCKER_IMAGE}" ]]; then
                 while IFS= read -r img; do
                     [[ -z "${img}" ]] && continue
@@ -149,17 +141,14 @@ if [[ -z "${BASE_URL}" ]]; then
 fi
 
 INIT_URL="${BASE_URL%/}/api/whatsapp_checkout/init_order.php"
-WEBHOOK_URL="${BASE_URL%/}/api/webhooks/flutterwave_webhook.php"
+WEBHOOK_URL="${BASE_URL%/}/api/flutterwave_webhook.php"
 QUEUE_URL="${BASE_URL%/}/api/whatsapp_checkout/pos_order_actions.php?branch_id=${BRANCH_ID}&payment_status=PAID"
 
 echo "=================================================================="
-echo " smartTrade -> Flutterwave Webhook Test Suite"
+echo " smartTrade -> Unified Flutterwave Webhook Test Suite"
 echo " Target Webhook : ${WEBHOOK_URL}"
 echo "=================================================================="
 
-# ------------------------------------------------------------------------------
-# STEP 1: Seed a PENDING_PAYMENT order if TX_REF was not manually supplied
-# ------------------------------------------------------------------------------
 if [[ -z "${TX_REF}" || -z "${AMOUNT_ZMW}" ]]; then
     echo ""
     echo "[1/4] Seeding PENDING_PAYMENT order via ${INIT_URL} ..."
@@ -181,7 +170,7 @@ if [[ -z "${TX_REF}" || -z "${AMOUNT_ZMW}" ]]; then
 JSON
 )
 
-    INIT_RESPONSE=$(curl -sS --connect-timeout 5 -w "\n%{http_code}" -X POST "${INIT_URL}" \
+    INIT_RESPONSE=$(curl -sS --connect-timeout 10 -w "\n%{http_code}" -X POST "${INIT_URL}" \
         -H "Content-Type: application/json" \
         -d "${INIT_PAYLOAD}")
 
@@ -209,9 +198,6 @@ else
     echo "[1/4] Using supplied TX_REF=${TX_REF} and AMOUNT_ZMW=${AMOUNT_ZMW}"
 fi
 
-# ------------------------------------------------------------------------------
-# Build realistic Flutterwave Mobile Money Zambia webhook JSON payload
-# ------------------------------------------------------------------------------
 WEBHOOK_PAYLOAD=$(cat <<JSON
 {
   "event": "charge.completed",
@@ -246,16 +232,12 @@ WEBHOOK_PAYLOAD=$(cat <<JSON
 JSON
 )
 
-# Compute Flutterwave v4 Base64 HMAC-SHA256 Signature
 FLW_V4_SIGNATURE=$(printf '%s' "${WEBHOOK_PAYLOAD}" | openssl dgst -sha256 -hmac "${FLW_SECRET_HASH}" -binary | base64 | tr -d '\n')
 
-# ------------------------------------------------------------------------------
-# STEP 2: Negative Security Test (Forged Signature Rejection)
-# ------------------------------------------------------------------------------
 echo ""
 echo "[2/4] Testing forged webhook signature rejection (Expects HTTP 401) ..."
 
-FORGED_RESPONSE=$(curl -sS --connect-timeout 5 -w "\n%{http_code}" -X POST "${WEBHOOK_URL}" \
+FORGED_RESPONSE=$(curl -sS --connect-timeout 10 -w "\n%{http_code}" -X POST "${WEBHOOK_URL}" \
     -H "Content-Type: application/json" \
     -H "verif-hash: INVALID_FORGED_HASH_000" \
     -H "flutterwave-signature: INVALID_FORGED_HMAC_000" \
@@ -267,14 +249,11 @@ FORGED_BODY=$(echo "${FORGED_RESPONSE}" | sed '$d')
 echo "      HTTP Status : ${FORGED_HTTP_CODE}"
 echo "      Response    : ${FORGED_BODY}"
 
-# ------------------------------------------------------------------------------
-# STEP 3: Dispatch Valid Signed Flutterwave Webhook (v3 + v4 headers)
-# ------------------------------------------------------------------------------
 echo ""
 echo "[3/4] Sending validly signed Flutterwave webhook for TX_REF=${TX_REF} ..."
 echo "      Computed v4 HMAC-SHA256 : ${FLW_V4_SIGNATURE}"
 
-VALID_RESPONSE=$(curl -sS --connect-timeout 5 -w "\n%{http_code}" -X POST "${WEBHOOK_URL}" \
+VALID_RESPONSE=$(curl -sS --connect-timeout 10 -w "\n%{http_code}" -X POST "${WEBHOOK_URL}" \
     -H "Content-Type: application/json" \
     -H "verif-hash: ${FLW_SECRET_HASH}" \
     -H "flutterwave-signature: ${FLW_V4_SIGNATURE}" \
@@ -286,13 +265,10 @@ VALID_BODY=$(echo "${VALID_RESPONSE}" | sed '$d')
 echo "      HTTP Status : ${VALID_HTTP_CODE}"
 echo "      Response    : ${VALID_BODY}"
 
-# ------------------------------------------------------------------------------
-# STEP 4: Idempotency Replay Test (Ensure duplicate webhook does not double-process)
-# ------------------------------------------------------------------------------
 echo ""
 echo "[4/4] Replaying identical webhook to verify idempotency lock (Expects 'already_processed') ..."
 
-REPLAY_RESPONSE=$(curl -sS --connect-timeout 5 -w "\n%{http_code}" -X POST "${WEBHOOK_URL}" \
+REPLAY_RESPONSE=$(curl -sS --connect-timeout 10 -w "\n%{http_code}" -X POST "${WEBHOOK_URL}" \
     -H "Content-Type: application/json" \
     -H "verif-hash: ${FLW_SECRET_HASH}" \
     -H "flutterwave-signature: ${FLW_V4_SIGNATURE}" \
@@ -307,5 +283,5 @@ echo "      Response    : ${REPLAY_BODY}"
 echo ""
 echo "=================================================================="
 echo " Active Paid POS Queue Check (${QUEUE_URL}):"
-curl -sS --connect-timeout 5 "${QUEUE_URL}" | php -r '$d = json_decode(stream_get_contents(STDIN), true); echo " Total Active Paid Orders in Queue: " . ($d["count"] ?? 0) . PHP_EOL;'
+curl -sS --connect-timeout 10 "${QUEUE_URL}" | php -r '$d = json_decode(stream_get_contents(STDIN), true); echo " Total Active Paid Orders in Queue: " . ($d["count"] ?? 0) . PHP_EOL;'
 echo "=================================================================="

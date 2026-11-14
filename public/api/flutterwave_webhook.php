@@ -1,34 +1,35 @@
 <?php
+declare(strict_types=1);
+
 /**
- * Flutterwave webhook receiver.
- * Dashboard → Settings → Webhooks → URL: https://<host>/api/flutterwave_webhook.php
- * Secret hash must match Settings → Payments → "Webhook secret hash".
+ * Unified Flutterwave Webhook Router
+ * Endpoint: https://smartrade.odeliazm.com/api/flutterwave_webhook.php
  */
-header('Content-Type: application/json');
-require_once dirname(__DIR__, 2) . '/app/bootstrap.php';
 
-use App\Services\Flutterwave;
+$rawWebhookBody = file_get_contents('php://input');
+$decodedPayload = json_decode((string) $rawWebhookBody, true);
 
-$headers = array_change_key_case(function_exists('getallheaders') ? getallheaders() : [], CASE_LOWER);
-$raw = (string)file_get_contents('php://input');
-$signature = (string)($headers['flutterwave-signature'] ?? $headers['verif-hash'] ?? $_SERVER['HTTP_FLUTTERWAVE_SIGNATURE'] ?? $_SERVER['HTTP_VERIF_HASH'] ?? '');
-
-try {
-    $flw = new Flutterwave($pdo);
-    if (!$flw->webhookHashMatches($raw, $signature)) {
-        http_response_code(401);
-        echo json_encode(['status' => 'error', 'message' => 'Bad signature']);
-        exit;
+$txRef = '';
+if ( is_array($decodedPayload) ) {
+    $eventData = $decodedPayload['data'] ?? $decodedPayload;
+    if ( is_array($eventData) ) {
+        $txRef = trim((string) ($eventData['tx_ref'] ?? $eventData['txRef'] ?? $decodedPayload['tx_ref'] ?? $decodedPayload['txRef'] ?? ''));
     }
-    $payload = json_decode($raw, true);
-    if (!is_array($payload)) {
-        http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
-        exit;
-    }
-    $flw->handleWebhook($payload);
-    echo json_encode(['status' => 'ok']);
-} catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
+
+// 1. Route WhatsApp Express Orders (ST-FLW-*) to the dedicated WhatsApp handler
+if ( $txRef !== '' && str_starts_with(strtoupper($txRef), 'ST-FLW-') ) {
+    require __DIR__ . '/webhooks/flutterwave_webhook.php';
+    exit;
+}
+
+// 2. Route standard Web Orders / Till / Event transactions to the native handler
+$nativeHandler = __DIR__ . '/flutterwave_webhook_native.php';
+if ( is_file($nativeHandler) ) {
+    require $nativeHandler;
+    exit;
+}
+
+// 3. Fallback if native handler file is not present in a standalone test container
+require __DIR__ . '/webhooks/flutterwave_webhook.php';
+exit;
