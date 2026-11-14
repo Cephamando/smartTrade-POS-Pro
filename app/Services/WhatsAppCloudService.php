@@ -475,7 +475,7 @@ class WhatsAppCloudService
 
     /**
      * Fiscalizes a paid WhatsApp order through app/Services/ZraVsdcClient.php and/or the
-     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Automatically handles Turnover Tax (TOT).
+     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Supports TOT and VAT regimes.
      */
     public static function fiscalizeWithZraVsdc(object $db, array $order): array
     {
@@ -517,7 +517,7 @@ class WhatsAppCloudService
         } elseif ( $vatRegisteredVal !== '' ) {
             $useTot = in_array($vatRegisteredVal, ['0', 'false', 'off', 'no'], true);
         } else {
-            $useTot = true; // Sandbox TPIN 1004784338 is TOT by default
+            $useTot = true;
         }
 
         $vsdcClientFile = __DIR__ . '/ZraVsdcClient.php';
@@ -693,14 +693,13 @@ class WhatsAppCloudService
                 ];
             }
 
-            // Correct VSDC 1.0.11.4 TOT Header Mapping:
-            // taxblAmtTot = totAmt (Turnover tax base)
-            // totTaxblAmt = 0.0 (No VAT components)
-            $headerTaxblTot = $isTot ? $totAmt : 0.0;
-            $headerTotTaxbl = $isTot ? 0.0 : $totTaxblAmt;
+            // Correct ZRA VSDC 1.0.11.4 TOT Header Mapping matching working ZraVsdcClient implementation:
+            // taxblAmtTot = 0.0, totTaxblAmt = totAmt
+            $headerTaxblTot = 0.0;
+            $headerTotTaxbl = $isTot ? $totAmt : $totTaxblAmt;
             if ( $mode === 'TOT_ALT_BUCKET' ) {
-                $headerTaxblTot = 0.0;
-                $headerTotTaxbl = $totAmt;
+                $headerTaxblTot = $totAmt;
+                $headerTotTaxbl = 0.0;
             }
 
             return [
@@ -957,7 +956,6 @@ class WhatsAppCloudService
             return [$vsdcResponse, $invokedVia];
         };
 
-        // Modes to try in sequence
         $modesToTry = $useTot
             ? ['TOT_PRIMARY', 'TOT_ALT_BUCKET', 'VAT']
             : ['VAT', 'TOT_PRIMARY', 'TOT_ALT_BUCKET'];
