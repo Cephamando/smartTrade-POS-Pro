@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ==============================================================================
 # smartTrade — Automated Kamatera WhatsApp Stack Deployment & Live Webhook Test
-# Run from local WSL2:
+# Run from local WSL2 project root:
 #   bash scripts/deploy_whatsapp_kamatera.sh
 # ==============================================================================
 
@@ -43,7 +43,7 @@ for f in "${TARGET_FILES[@]}"; do
 done
 
 if ! git diff --cached --quiet; then
-    git commit -m "feat(whatsapp): add ST-FLW prefix router on /api/flutterwave_webhook.php and WhatsApp checkout stack"
+    git commit -m "feat(whatsapp): clean untracked remote files before git pull in Kamatera deploy script"
 fi
 git push origin "${BRANCH}"
 
@@ -53,15 +53,50 @@ ssh "${SSH_TARGET}" "FLW_SECRET_HASH='${FLW_SECRET_HASH}' BRANCH='${BRANCH}' REM
 set -euo pipefail
 eval cd "${REMOTE_DIR}"
 
-if [ -f public/api/flutterwave_webhook.php ] && [ ! -f public/api/flutterwave_webhook_native.php ]; then
-    if ! grep -q "ST-FLW-" public/api/flutterwave_webhook.php; then
-        cp -p public/api/flutterwave_webhook.php public/api/flutterwave_webhook_native.php
-    fi
+# 1. Back up the server's original native webhook outside the Git working tree (/tmp)
+if [ -f public/api/flutterwave_webhook_native.php ] && ! grep -q "ST-FLW-" public/api/flutterwave_webhook_native.php; then
+    cp -p public/api/flutterwave_webhook_native.php /tmp/flutterwave_webhook_native.bak
+elif [ -f public/api/flutterwave_webhook.php ] && ! grep -q "ST-FLW-" public/api/flutterwave_webhook.php; then
+    cp -p public/api/flutterwave_webhook.php /tmp/flutterwave_webhook_native.bak
 fi
 
-git stash push -m "auto-stash-before-wa-deploy-$(date +%s)" || true
+# 2. Remove untracked working tree files that match incoming tracked files in origin/${BRANCH}
+CLEAN_UNTRACKED=(
+    "app/Services/WhatsAppCloudService.php"
+    "public/api/flutterwave_webhook.php"
+    "public/api/flutterwave_webhook_native.php"
+    "public/api/whatsapp_checkout/init_order.php"
+    "public/api/whatsapp_checkout/pos_order_actions.php"
+    "public/api/webhooks/flutterwave_webhook.php"
+    "public/api/webhooks/whatsapp_webhook.php"
+    "public/storefront/index.php"
+    "public/storefront/kds.php"
+    "public/verify_receipt.php"
+    "scripts/tests/simulate_flw_webhook.sh"
+    "scripts/deploy_whatsapp_kamatera.sh"
+)
+
+for uf in "${CLEAN_UNTRACKED[@]}"; do
+    if [ -f "${uf}" ] && ! git ls-files --error-unmatch "${uf}" >/dev/null 2>&1; then
+        rm -f "${uf}"
+        echo "      Removed untracked conflict file: ${uf}"
+    fi
+done
+
+# 3. Stash tracked modifications if dirty, pull latest commit, and restore stashed VPS changes
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    git stash push -m "auto-stash-before-wa-deploy-$(date +%s)" || true
+fi
+
 git pull origin "${BRANCH}"
-git stash pop || true
+
+if [ -f /tmp/flutterwave_webhook_native.bak ]; then
+    cp -p /tmp/flutterwave_webhook_native.bak public/api/flutterwave_webhook_native.php
+fi
+
+if git stash list | head -n1 | grep -q "auto-stash-before-wa-deploy"; then
+    git stash pop || true
+fi
 
 touch .env
 if ! grep -q "^FLW_SECRET_HASH=" .env; then
