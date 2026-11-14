@@ -50,7 +50,6 @@ try {
         }
     }
 
-    // Dynamic Category Resolution (categories table join or direct text column)
     $hasCategoriesTable = (bool) $pdo->query("SHOW TABLES LIKE 'categories'")->fetchColumn();
     $catSelectExpr      = "'General' AS resolved_category_name, 0 AS resolved_category_id";
     $catJoinSql         = "";
@@ -536,7 +535,7 @@ async function startFlutterwaveCheckout() {
     btn.textContent = 'Securing Order...';
 
     try {
-        const res = await fetch('../api/whatsapp_checkout/init_order.php', {
+        const res = await fetch('/api/whatsapp_checkout/init_order.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

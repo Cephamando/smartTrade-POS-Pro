@@ -1,5 +1,16 @@
-<IfModule mod_headers.c>
-    Header always unset Cross-Origin-Embedder-Policy
-    Header always unset Cross-Origin-Opener-Policy
-    Header always unset Cross-Origin-Resource-Policy
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # 1. Clean WhatsApp Express Storefront Short Links:
+    #    https://smartrade.odeliazm.com/order          -> storefront/index.php
+    #    https://smartrade.odeliazm.com/order/2        -> storefront/index.php?branch=2
+    RewriteRule ^order/?$ storefront/index.php [QSA,L]
+    RewriteRule ^order/([0-9]+)/?$ storefront/index.php?branch=$1 [QSA,L]
+
+    # 2. Clean POS Kitchen Display System (KDS) Short Links:
+    #    https://smartrade.odeliazm.com/kds            -> storefront/kds.php
+    #    https://smartrade.odeliazm.com/kds/2          -> storefront/kds.php?branch=2
+    RewriteRule ^kds/?$ storefront/kds.php [QSA,L]
+    RewriteRule ^kds/([0-9]+)/?$ storefront/kds.php?branch=$1 [QSA,L]
 </IfModule>

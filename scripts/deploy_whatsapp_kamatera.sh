@@ -22,6 +22,8 @@ echo "[1/3] Staging, committing, and pushing existing local files to origin/${BR
 
 TARGET_FILES=(
     "app/Services/WhatsAppCloudService.php"
+    "public/.htaccess"
+    "public/order/index.php"
     "public/api/flutterwave_webhook.php"
     "public/api/flutterwave_webhook_native.php"
     "public/api/whatsapp_checkout/init_order.php"
@@ -44,7 +46,7 @@ for f in "${TARGET_FILES[@]}"; do
 done
 
 if ! git diff --cached --quiet; then
-    git commit -m "feat(whatsapp): add VSDC Throwable guard and two-way Web Orders Hand Over sync hook"
+    git commit -m "feat(whatsapp): add /order short-link rewrite rule, category tabs, and instant search"
 fi
 git push origin "${BRANCH}"
 
@@ -62,6 +64,8 @@ fi
 
 CLEAN_UNTRACKED=(
     "app/Services/WhatsAppCloudService.php"
+    "public/.htaccess"
+    "public/order/index.php"
     "public/api/flutterwave_webhook.php"
     "public/api/flutterwave_webhook_native.php"
     "public/api/whatsapp_checkout/init_order.php"
@@ -117,12 +121,15 @@ if [[ -n "${WEB_CID}" ]]; then
     ' || true
 
     docker exec "${WEB_CID}" mkdir -p /var/www/html/app/Services \
+        /var/www/html/public/order \
         /var/www/html/public/api/whatsapp_checkout \
         /var/www/html/public/api/webhooks \
         /var/www/html/public/storefront
 
     SYNC_FILES=(
         "app/Services/WhatsAppCloudService.php"
+        "public/.htaccess"
+        "public/order/index.php"
         "public/api/flutterwave_webhook_native.php"
         "public/api/flutterwave_webhook.php"
         "public/api/whatsapp_checkout/init_order.php"
@@ -143,10 +150,12 @@ if [[ -n "${WEB_CID}" ]]; then
 
     docker cp .env "${WEB_CID}:/var/www/html/.env" || true
     docker exec "${WEB_CID}" chown -R www-data:www-data /var/www/html/app/Services /var/www/html/public || true
-    echo "      Synced router, VSDC bridge, and Hand Over hook into container ${WEB_CID}."
+    echo "      Synced /order short-link, category storefront, and webhooks into container ${WEB_CID}."
 fi
 REMOTE_SCRIPT
 
 echo ""
-echo "[3/3] Running live HTTPS webhook test suite against ${LIVE_URL}/api/flutterwave_webhook.php ..."
+echo "[3/3] Verifying https://smartrade.odeliazm.com/order HTTP status & running webhook test suite ..."
+ORDER_HTTP=$(curl -sS -L -o /dev/null -w "%{http_code}" "${LIVE_URL}/order")
+echo "      GET ${LIVE_URL}/order -> HTTP ${ORDER_HTTP}"
 BASE_URL="${LIVE_URL}" FLW_SECRET_HASH="${FLW_SECRET_HASH}" bash scripts/tests/simulate_flw_webhook.sh

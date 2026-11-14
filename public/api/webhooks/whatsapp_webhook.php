@@ -7,7 +7,6 @@ require_once __DIR__ . '/../../../app/Services/WhatsAppCloudService.php';
 
 use SmartTrade\Services\WhatsAppCloudService;
 
-// 1. GET Request: Meta WhatsApp Cloud API Webhook Verification Challenge
 if ( $_SERVER['REQUEST_METHOD'] === 'GET' ) {
     $mode        = $_GET['hub_mode'] ?? ($_GET['hub.mode'] ?? '');
     $verifyToken = $_GET['hub_verify_token'] ?? ($_GET['hub.verify_token'] ?? '');
@@ -27,7 +26,6 @@ if ( $_SERVER['REQUEST_METHOD'] === 'GET' ) {
     exit;
 }
 
-// 2. POST Request: Inbound Customer WhatsApp Messages (Auto-Menu & Order Status)
 if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) {
     http_response_code(405);
     echo json_encode(['status' => 'error', 'message' => 'Method Not Allowed']);
@@ -64,7 +62,7 @@ if ( $senderPhone === '' || $textBody === '' ) {
 
 $storeTitle = WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
 $publicUrl  = rtrim(WhatsAppCloudService::env('APP_URL', 'https://smartrade.odeliazm.com'), '/');
-$storeLink  = $publicUrl . '/storefront/index.php?branch=1';
+$storeLink  = $publicUrl . '/order';
 $waService  = new WhatsAppCloudService();
 
 try {
@@ -108,7 +106,7 @@ try {
     http_response_code(200);
     echo json_encode(['status' => 'menu_link_sent']);
 
-} catch ( Exception $e ) {
+} catch ( \Throwable $e ) {
     http_response_code(200);
     echo json_encode(['status' => 'error_handled', 'message' => $e->getMessage()]);
 }
