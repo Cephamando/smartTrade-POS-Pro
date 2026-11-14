@@ -475,14 +475,14 @@ class WhatsAppCloudService
 
     /**
      * Fiscalizes a paid WhatsApp order through app/Services/ZraVsdcClient.php and/or the
-     * live Tomcat ZRA VSDC container (/trnsSales/saveSales).
+     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Automatically supports both
+     * Turnover Tax (TOT / Non-VAT Registered) and standard 16% VAT taxpayers.
      */
     public static function fiscalizeWithZraVsdc(object $db, array $order): array
     {
         $orderId   = (int) ($order['id'] ?? 1);
         $branchId  = (int) ($order['branch_id'] ?? 1);
         $txRef     = (string) ($order['tx_ref'] ?? ('ST-FLW-' . $orderId));
-        $totalZmw  = (float) ($order['total_zmw'] ?? 0.00);
         $delivFee  = (float) ($order['delivery_fee_zmw'] ?? 0.00);
         $custName  = (string) ($order['customer_name'] ?? 'Walk-in Customer');
         $items     = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
@@ -507,6 +507,11 @@ class WhatsAppCloudService
             ?? $kvMap['zra_api_url']
             ?? self::env('ZRA_VSDC_URL', self::env('VSDC_URL', ''));
 
+        // Determine whether taxpayer uses Turnover Tax (TOT) vs VAT from settings
+        $taxRegimeSetting = strtoupper((string) ($kvMap['zra_tax_regime'] ?? $kvMap['tax_regime'] ?? $kvMap['zra_tax_type'] ?? self::env('ZRA_TAX_REGIME', '')));
+        $vatRegisteredVal = strtolower((string) ($kvMap['vat_registered'] ?? $kvMap['is_vat_registered'] ?? ''));
+        $useTot = ($taxRegimeSetting === 'TOT' || $vatRegisteredVal === '0' || $vatRegisteredVal === 'false' || $vatRegisteredVal === 'no');
+
         $vsdcClientFile = __DIR__ . '/ZraVsdcClient.php';
         if ( !is_file($vsdcClientFile) ) {
             $vsdcClientFile = dirname(__DIR__, 2) . '/app/Services/ZraVsdcClient.php';
@@ -522,6 +527,9 @@ class WhatsAppCloudService
             }
             if ( preg_match('/[\'"]bhfId[\'"]\s*=>\s*[\'"](\d{2,3})[\'"]/i', $clientSrc, $mBhf) ) {
                 $bhfId = $mBhf[1];
+            }
+            if ( $taxRegimeSetting === '' && preg_match('/[\'"]taxTyCd[\'"]\s*=>\s*[\'"]TOT[\'"]/i', $clientSrc) ) {
+                $useTot = true;
             }
         }
 
@@ -546,364 +554,425 @@ class WhatsAppCloudService
         } catch ( Throwable $e ) {
         }
 
-        $itemList    = [];
-        $seq         = 0;
-        $totTaxblAmt = 0.00;
-        $totTaxAmt   = 0.00;
-        $totAmt      = 0.00;
-
-        $hasProductsTable = false;
+        // Preload product UNSPSC & item codes once
+        $productMeta = [];
         try {
             $hasProductsTable = (bool) $db->query("SHOW TABLES LIKE 'products'")->fetchColumn();
-        } catch ( Throwable $e ) {
-        }
-
-        foreach ( $items as $item ) {
-            $seq++;
-            $prodId    = (int) ($item['product_id'] ?? $seq);
-            $qty       = max(1, (int) ($item['qty'] ?? 1));
-            $unitPrice = round((float) ($item['unit_price'] ?? 0.00), 2);
-            $lineTotal = round((float) ($item['line_total'] ?? ($unitPrice * $qty)), 2);
-
-            $itemClsCd = '50000000';
-            $itemCd    = 'ZM2NTXU' . str_pad((string) $prodId, 7, '0', STR_PAD_LEFT);
-            $taxTyCd   = 'A';
-
-            if ( $hasProductsTable && $prodId > 0 ) {
-                try {
-                    $pStmt = $db->prepare("SELECT * FROM products WHERE id = :pid LIMIT 1");
-                    $pStmt->execute([':pid' => $prodId]);
-                    $pRow = $pStmt->fetch();
-                    if ( is_array($pRow) ) {
-                        $itemClsCd = (string) ($pRow['item_cls_cd'] ?? $pRow['unspsc_code'] ?? $pRow['zra_item_cls_cd'] ?? $itemClsCd);
-                        $itemCd    = (string) ($pRow['item_cd'] ?? $pRow['zra_item_cd'] ?? $itemCd);
-                        $taxTyCd   = (string) ($pRow['tax_ty_cd'] ?? $pRow['zra_tax_type'] ?? 'A');
+            if ( $hasProductsTable ) {
+                $pStmt = $db->prepare("SELECT * FROM products WHERE id = :pid LIMIT 1");
+                foreach ( $items as $item ) {
+                    $pid = (int) ($item['product_id'] ?? 0);
+                    if ( $pid > 0 && !isset($productMeta[$pid]) ) {
+                        $pStmt->execute([':pid' => $pid]);
+                        $pRow = $pStmt->fetch();
+                        if ( is_array($pRow) ) {
+                            $productMeta[$pid] = $pRow;
+                        }
                     }
-                } catch ( Throwable $e ) {
                 }
             }
-
-            $lineTaxbl = round($lineTotal / 1.16, 2);
-            $lineTax   = round($lineTotal - $lineTaxbl, 2);
-
-            $totTaxblAmt = round($totTaxblAmt + $lineTaxbl, 2);
-            $totTaxAmt   = round($totTaxAmt + $lineTax, 2);
-            $totAmt      = round($totAmt + $lineTotal, 2);
-
-            $itemList[] = [
-                'itemSeq'   => $seq,
-                'itemCd'    => $itemCd,
-                'itemClsCd' => $itemClsCd,
-                'itemNm'    => substr((string) ($item['name'] ?? 'Item'), 0, 90),
-                'bcd'       => null,
-                'pkgUnitCd' => 'NT',
-                'pkg'       => (float) $qty,
-                'qtyUnitCd' => 'U',
-                'qty'       => (float) $qty,
-                'prc'       => $unitPrice,
-                'splyAmt'   => $lineTotal,
-                'dcRt'      => 0.0,
-                'dcAmt'     => 0.0,
-                'isrccCd'   => null,
-                'isrccNm'   => null,
-                'isrcRt'    => null,
-                'isrcAmt'   => null,
-                'taxTyCd'   => $taxTyCd,
-                'taxblAmt'  => $lineTaxbl,
-                'taxAmt'    => $lineTax,
-                'totAmt'    => $lineTotal
-            ];
-        }
-
-        if ( $delivFee > 0.00 ) {
-            $seq++;
-            $dTaxbl = round($delivFee / 1.16, 2);
-            $dTax   = round($delivFee - $dTaxbl, 2);
-
-            $totTaxblAmt = round($totTaxblAmt + $dTaxbl, 2);
-            $totTaxAmt   = round($totTaxAmt + $dTax, 2);
-            $totAmt      = round($totAmt + $delivFee, 2);
-
-            $itemList[] = [
-                'itemSeq'   => $seq,
-                'itemCd'    => 'ZM2NTXUDELIV01',
-                'itemClsCd' => '78102200',
-                'itemNm'    => 'Delivery Service Fee',
-                'bcd'       => null,
-                'pkgUnitCd' => 'NT',
-                'pkg'       => 1.0,
-                'qtyUnitCd' => 'U',
-                'qty'       => 1.0,
-                'prc'       => $delivFee,
-                'splyAmt'   => $delivFee,
-                'dcRt'      => 0.0,
-                'dcAmt'     => 0.0,
-                'isrccCd'   => null,
-                'isrccNm'   => null,
-                'isrcRt'    => null,
-                'isrcAmt'   => null,
-                'taxTyCd'   => 'A',
-                'taxblAmt'  => $dTaxbl,
-                'taxAmt'    => $dTax,
-                'totAmt'    => $delivFee
-            ];
+        } catch ( Throwable $e ) {
         }
 
         $cfmDt   = date('YmdHis');
         $salesDt = date('Ymd');
 
-        $vsdcPayload = [
-            'tpin'             => $tpin,
-            'bhfId'            => $bhfId,
-            'orgInvcNo'        => 0,
-            'cisInvcNo'        => $txRef,
-            'custTpin'         => null,
-            'custNm'           => substr($custName, 0, 60),
-            'salesTyCd'        => 'N',
-            'rcptTyCd'         => 'S',
-            'pmtTyCd'          => '05',
-            'salesSttsCd'      => '02',
-            'cfmDt'            => $cfmDt,
-            'salesDt'          => $salesDt,
-            'stockRlsDt'       => $cfmDt,
-            'cnclReqDt'        => null,
-            'cnclDt'           => null,
-            'rfdDt'            => null,
-            'rfdRsnCd'         => null,
-            'totItemCnt'       => count($itemList),
-            'taxblAmtA'        => $totTaxblAmt,
-            'taxblAmtB'        => 0.0,
-            'taxblAmtC1'       => 0.0,
-            'taxblAmtC2'       => 0.0,
-            'taxblAmtC3'       => 0.0,
-            'taxblAmtD'        => 0.0,
-            'taxblAmtRvat'     => 0.0,
-            'taxblAmtE'        => 0.0,
-            'taxblAmtF'        => 0.0,
-            'taxblAmtIpl1'     => 0.0,
-            'taxblAmtIpl2'     => 0.0,
-            'taxblAmtTl'       => 0.0,
-            'taxblAmtEcm'      => 0.0,
-            'taxblAmtExeeg'    => 0.0,
-            'taxblAmtTot'      => $totTaxblAmt,
-            'taxRtA'           => 16,
-            'taxRtB'           => 16,
-            'taxRtC1'          => 0,
-            'taxRtC2'          => 0,
-            'taxRtC3'          => 0,
-            'taxRtD'           => 0,
-            'taxRtRvat'        => 16,
-            'taxRtE'           => 0,
-            'taxRtF'           => 10,
-            'taxRtIpl1'        => 5,
-            'taxRtIpl2'        => 0,
-            'taxRtTl'          => 1.5,
-            'taxRtEcm'         => 5,
-            'taxRtExeeg'       => 3,
-            'taxAmtA'          => $totTaxAmt,
-            'taxAmtB'          => 0.0,
-            'taxAmtC1'         => 0.0,
-            'taxAmtC2'         => 0.0,
-            'taxAmtC3'         => 0.0,
-            'taxAmtD'          => 0.0,
-            'taxAmtRvat'       => 0.0,
-            'taxAmtE'          => 0.0,
-            'taxAmtF'          => 0.0,
-            'taxAmtIpl1'       => 0.0,
-            'taxAmtIpl2'       => 0.0,
-            'taxAmtTl'         => 0.0,
-            'taxAmtEcm'        => 0.0,
-            'taxAmtExeeg'      => 0.0,
-            'totTaxblAmt'      => $totTaxblAmt,
-            'totTaxAmt'        => $totTaxAmt,
-            'totAmt'           => $totAmt,
-            'prchrAcptcYn'     => 'N',
-            'remark'           => 'WhatsApp Express Order ' . $txRef,
-            'regrId'           => 'WA-BOT',
-            'regrNm'           => 'WhatsApp Express',
-            'modrId'           => 'WA-BOT',
-            'modrNm'           => 'WhatsApp Express',
-            'saleCtyCd'        => '1',
-            'lpoNumber'        => null,
-            'currencyTyCd'     => 'ZMW',
-            'exchangeRt'       => '1',
-            'destnCountryCd'   => null,
-            'dbtRsnCd'         => null,
-            'invcAdjustReason' => null,
-            'itemList'         => $itemList
-        ];
+        $buildVsdcPayload = static function (bool $totMode) use (
+            $items,
+            $delivFee,
+            $productMeta,
+            $tpin,
+            $bhfId,
+            $txRef,
+            $custName,
+            $cfmDt,
+            $salesDt
+        ): array {
+            $itemList    = [];
+            $seq         = 0;
+            $totTaxblAmt = 0.00;
+            $totTaxAmt   = 0.00;
+            $totAmt      = 0.00;
 
-        $vsdcResponse = null;
-        $invokedVia   = 'none';
+            foreach ( $items as $item ) {
+                $seq++;
+                $prodId    = (int) ($item['product_id'] ?? $seq);
+                $qty       = max(1, (int) ($item['qty'] ?? 1));
+                $unitPrice = round((float) ($item['unit_price'] ?? 0.00), 2);
+                $lineTotal = round((float) ($item['line_total'] ?? ($unitPrice * $qty)), 2);
 
-        if ( is_file($vsdcClientFile) ) {
-            try {
-                require_once $vsdcClientFile;
-                $classCandidates = [
-                    'App\\Services\\ZraVsdcClient',
-                    'SmartTrade\\Services\\ZraVsdcClient',
-                    'ZraVsdcClient'
-                ];
-                $matchedClass = null;
-                foreach ( $classCandidates as $fqcn ) {
-                    if ( class_exists($fqcn, false) ) {
-                        $matchedClass = $fqcn;
-                        break;
+                $pRow      = $productMeta[$prodId] ?? [];
+                $itemClsCd = (string) ($pRow['item_cls_cd'] ?? $pRow['unspsc_code'] ?? $pRow['zra_item_cls_cd'] ?? '50000000');
+                $itemCd    = (string) ($pRow['item_cd'] ?? $pRow['zra_item_cd'] ?? ('ZM2NTXU' . str_pad((string) $prodId, 7, '0', STR_PAD_LEFT)));
+
+                if ( $totMode ) {
+                    $taxTyCd   = 'TOT';
+                    $lineTaxbl = $lineTotal;
+                    $lineTax   = 0.00;
+                } else {
+                    $taxTyCd   = (string) ($pRow['tax_ty_cd'] ?? $pRow['zra_tax_type'] ?? 'A');
+                    if ( strtoupper($taxTyCd) === 'TOT' ) {
+                        $taxTyCd = 'A';
                     }
+                    $lineTaxbl = round($lineTotal / 1.16, 2);
+                    $lineTax   = round($lineTotal - $lineTaxbl, 2);
                 }
 
-                if ( $matchedClass !== null ) {
-                    $ref      = new ReflectionClass($matchedClass);
-                    $ctor     = $ref->getConstructor();
-                    $instance = null;
+                $totTaxblAmt = round($totTaxblAmt + $lineTaxbl, 2);
+                $totTaxAmt   = round($totTaxAmt + $lineTax, 2);
+                $totAmt      = round($totAmt + $lineTotal, 2);
 
-                    if ( $ctor === null || $ctor->getNumberOfRequiredParameters() === 0 ) {
-                        $instance = $ref->newInstance();
-                    } else {
-                        $ctorArgs = [];
-                        foreach ( $ctor->getParameters() as $param ) {
-                            $pName = strtolower($param->getName());
-                            $pType = $param->getType();
-                            $tName = ($pType instanceof ReflectionNamedType) ? strtolower($pType->getName()) : '';
+                $itemList[] = [
+                    'itemSeq'   => $seq,
+                    'itemCd'    => $itemCd,
+                    'itemClsCd' => $itemClsCd,
+                    'itemNm'    => substr((string) ($item['name'] ?? 'Item'), 0, 90),
+                    'bcd'       => null,
+                    'pkgUnitCd' => 'NT',
+                    'pkg'       => (float) $qty,
+                    'qtyUnitCd' => 'U',
+                    'qty'       => (float) $qty,
+                    'prc'       => $unitPrice,
+                    'splyAmt'   => $lineTotal,
+                    'dcRt'      => 0.0,
+                    'dcAmt'     => 0.0,
+                    'isrccCd'   => null,
+                    'isrccNm'   => null,
+                    'isrcRt'    => null,
+                    'isrcAmt'   => null,
+                    'taxTyCd'   => $taxTyCd,
+                    'taxblAmt'  => $lineTaxbl,
+                    'taxAmt'    => $lineTax,
+                    'totAmt'    => $lineTotal
+                ];
+            }
 
-                            if ( $tName === 'pdo' || str_contains($pName, 'pdo') || str_contains($pName, 'db') ) {
-                                if ( $db instanceof PDO ) {
-                                    $ctorArgs[] = $db;
-                                } elseif ( $param->isDefaultValueAvailable() ) {
-                                    $ctorArgs[] = $param->getDefaultValue();
-                                } else {
-                                    $ctorArgs[] = null;
-                                }
-                            } elseif ( $tName === 'array' || str_contains($pName, 'config') || str_contains($pName, 'opt') ) {
-                                $ctorArgs[] = [
-                                    'base_url' => $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4',
-                                    'url'      => $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4',
-                                    'tpin'     => $tpin,
-                                    'bhfId'    => $bhfId,
-                                    'bhf_id'   => $bhfId
-                                ];
-                            } elseif ( $tName === 'int' ) {
-                                $ctorArgs[] = str_contains($pName, 'branch') ? $branchId : ($param->isDefaultValueAvailable() ? $param->getDefaultValue() : 1);
-                            } else {
-                                if ( str_contains($pName, 'url') || str_contains($pName, 'host') || str_contains($pName, 'endpoint') ) {
-                                    $ctorArgs[] = $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4';
-                                } elseif ( str_contains($pName, 'tpin') ) {
-                                    $ctorArgs[] = $tpin;
-                                } elseif ( str_contains($pName, 'bhf') || str_contains($pName, 'branch') ) {
-                                    $ctorArgs[] = $bhfId;
-                                } elseif ( $param->isDefaultValueAvailable() ) {
-                                    $ctorArgs[] = $param->getDefaultValue();
-                                } else {
-                                    $ctorArgs[] = $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4';
-                                }
-                            }
+            if ( $delivFee > 0.00 ) {
+                $seq++;
+                if ( $totMode ) {
+                    $dTaxTy = 'TOT';
+                    $dTaxbl = $delivFee;
+                    $dTax   = 0.00;
+                } else {
+                    $dTaxTy = 'A';
+                    $dTaxbl = round($delivFee / 1.16, 2);
+                    $dTax   = round($delivFee - $dTaxbl, 2);
+                }
+
+                $totTaxblAmt = round($totTaxblAmt + $dTaxbl, 2);
+                $totTaxAmt   = round($totTaxAmt + $dTax, 2);
+                $totAmt      = round($totAmt + $delivFee, 2);
+
+                $itemList[] = [
+                    'itemSeq'   => $seq,
+                    'itemCd'    => 'ZM2NTXUDELIV01',
+                    'itemClsCd' => '78102200',
+                    'itemNm'    => 'Delivery Service Fee',
+                    'bcd'       => null,
+                    'pkgUnitCd' => 'NT',
+                    'pkg'       => 1.0,
+                    'qtyUnitCd' => 'U',
+                    'qty'       => 1.0,
+                    'prc'       => $delivFee,
+                    'splyAmt'   => $delivFee,
+                    'dcRt'      => 0.0,
+                    'dcAmt'     => 0.0,
+                    'isrccCd'   => null,
+                    'isrccNm'   => null,
+                    'isrcRt'    => null,
+                    'isrcAmt'   => null,
+                    'taxTyCd'   => $dTaxTy,
+                    'taxblAmt'  => $dTaxbl,
+                    'taxAmt'    => $dTax,
+                    'totAmt'    => $delivFee
+                ];
+            }
+
+            return [
+                'tpin'             => $tpin,
+                'bhfId'            => $bhfId,
+                'orgInvcNo'        => 0,
+                'cisInvcNo'        => $txRef,
+                'custTpin'         => null,
+                'custNm'           => substr($custName, 0, 60),
+                'salesTyCd'        => 'N',
+                'rcptTyCd'         => 'S',
+                'pmtTyCd'          => '05',
+                'salesSttsCd'      => '02',
+                'cfmDt'            => $cfmDt,
+                'salesDt'          => $salesDt,
+                'stockRlsDt'       => $cfmDt,
+                'cnclReqDt'        => null,
+                'cnclDt'           => null,
+                'rfdDt'            => null,
+                'rfdRsnCd'         => null,
+                'totItemCnt'       => count($itemList),
+                'taxblAmtA'        => $totMode ? 0.0 : $totTaxblAmt,
+                'taxblAmtB'        => 0.0,
+                'taxblAmtC1'       => 0.0,
+                'taxblAmtC2'       => 0.0,
+                'taxblAmtC3'       => 0.0,
+                'taxblAmtD'        => 0.0,
+                'taxblAmtRvat'     => 0.0,
+                'taxblAmtE'        => 0.0,
+                'taxblAmtF'        => 0.0,
+                'taxblAmtIpl1'     => 0.0,
+                'taxblAmtIpl2'     => 0.0,
+                'taxblAmtTl'       => 0.0,
+                'taxblAmtEcm'      => 0.0,
+                'taxblAmtExeeg'    => 0.0,
+                'taxblAmtTot'      => $totMode ? $totAmt : 0.0,
+                'taxRtA'           => $totMode ? 0 : 16,
+                'taxRtB'           => 16,
+                'taxRtC1'          => 0,
+                'taxRtC2'          => 0,
+                'taxRtC3'          => 0,
+                'taxRtD'           => 0,
+                'taxRtRvat'        => 16,
+                'taxRtE'           => 0,
+                'taxRtF'           => 10,
+                'taxRtIpl1'        => 5,
+                'taxRtIpl2'        => 0,
+                'taxRtTl'          => 1.5,
+                'taxRtEcm'         => 5,
+                'taxRtExeeg'       => 3,
+                'taxAmtA'          => $totMode ? 0.0 : $totTaxAmt,
+                'taxAmtB'          => 0.0,
+                'taxAmtC1'         => 0.0,
+                'taxAmtC2'         => 0.0,
+                'taxAmtC3'         => 0.0,
+                'taxAmtD'          => 0.0,
+                'taxAmtRvat'       => 0.0,
+                'taxAmtE'          => 0.0,
+                'taxAmtF'          => 0.0,
+                'taxAmtIpl1'       => 0.0,
+                'taxAmtIpl2'       => 0.0,
+                'taxAmtTl'         => 0.0,
+                'taxAmtEcm'        => 0.0,
+                'taxAmtExeeg'      => 0.0,
+                'totTaxblAmt'      => $totMode ? $totAmt : $totTaxblAmt,
+                'totTaxAmt'        => $totMode ? 0.0 : $totTaxAmt,
+                'totAmt'           => $totAmt,
+                'prchrAcptcYn'     => 'N',
+                'remark'           => 'WhatsApp Express Order ' . $txRef,
+                'regrId'           => 'WA-BOT',
+                'regrNm'           => 'WhatsApp Express',
+                'modrId'           => 'WA-BOT',
+                'modrNm'           => 'WhatsApp Express',
+                'saleCtyCd'        => '1',
+                'lpoNumber'        => null,
+                'currencyTyCd'     => 'ZMW',
+                'exchangeRt'       => '1',
+                'destnCountryCd'   => null,
+                'dbtRsnCd'         => null,
+                'invcAdjustReason' => null,
+                'itemList'         => $itemList
+            ];
+        };
+
+        $dispatchVsdc = static function (array $vsdcPayload) use ($vsdcClientFile, $vsdcBaseUrl, $db, $tpin, $bhfId, $branchId): array {
+            $vsdcResponse = null;
+            $invokedVia   = 'none';
+
+            if ( is_file($vsdcClientFile) ) {
+                try {
+                    require_once $vsdcClientFile;
+                    $classCandidates = [
+                        'App\\Services\\ZraVsdcClient',
+                        'SmartTrade\\Services\\ZraVsdcClient',
+                        'ZraVsdcClient'
+                    ];
+                    $matchedClass = null;
+                    foreach ( $classCandidates as $fqcn ) {
+                        if ( class_exists($fqcn, false) ) {
+                            $matchedClass = $fqcn;
+                            break;
                         }
-                        $instance = $ref->newInstanceArgs($ctorArgs);
                     }
 
-                    if ( $instance !== null ) {
-                        $singleArgMethods = [
-                            'saveSales',
-                            'saveTrnsSales',
-                            'submitSales',
-                            'submitSale',
-                            'sendSale',
-                            'fiscalizeSale',
-                            'fiscalizeOrder',
-                            'fiscalize',
-                            'createSale'
-                        ];
-                        foreach ( $singleArgMethods as $mName ) {
-                            if ( $ref->hasMethod($mName) ) {
-                                $mRef = $ref->getMethod($mName);
-                                if ( $mRef->isPublic() && $mRef->getNumberOfRequiredParameters() <= 1 ) {
-                                    $res = $instance->{$mName}($vsdcPayload);
-                                    if ( is_array($res) && !empty($res) ) {
-                                        $vsdcResponse = $res;
-                                        $invokedVia   = "ZraVsdcClient::{$mName}";
-                                        break;
-                                    } elseif ( is_string($res) && $res !== '' ) {
-                                        $decoded = json_decode($res, true);
-                                        if ( is_array($decoded) ) {
-                                            $vsdcResponse = $decoded;
-                                            $invokedVia   = "ZraVsdcClient::{$mName}";
-                                            break;
-                                        }
+                    if ( $matchedClass !== null ) {
+                        $ref      = new ReflectionClass($matchedClass);
+                        $ctor     = $ref->getConstructor();
+                        $instance = null;
+
+                        if ( $ctor === null || $ctor->getNumberOfRequiredParameters() === 0 ) {
+                            $instance = $ref->newInstance();
+                        } else {
+                            $ctorArgs = [];
+                            foreach ( $ctor->getParameters() as $param ) {
+                                $pName = strtolower($param->getName());
+                                $pType = $param->getType();
+                                $tName = ($pType instanceof ReflectionNamedType) ? strtolower($pType->getName()) : '';
+
+                                if ( $tName === 'pdo' || str_contains($pName, 'pdo') || str_contains($pName, 'db') ) {
+                                    if ( $db instanceof PDO ) {
+                                        $ctorArgs[] = $db;
+                                    } elseif ( $param->isDefaultValueAvailable() ) {
+                                        $ctorArgs[] = $param->getDefaultValue();
+                                    } else {
+                                        $ctorArgs[] = null;
+                                    }
+                                } elseif ( $tName === 'array' || str_contains($pName, 'config') || str_contains($pName, 'opt') ) {
+                                    $ctorArgs[] = [
+                                        'base_url' => $vsdcBaseUrl ?: 'http://vsdc:8080/sandboxvsdc',
+                                        'url'      => $vsdcBaseUrl ?: 'http://vsdc:8080/sandboxvsdc',
+                                        'tpin'     => $tpin,
+                                        'bhfId'    => $bhfId,
+                                        'bhf_id'   => $bhfId
+                                    ];
+                                } elseif ( $tName === 'int' ) {
+                                    $ctorArgs[] = str_contains($pName, 'branch') ? $branchId : ($param->isDefaultValueAvailable() ? $param->getDefaultValue() : 1);
+                                } else {
+                                    if ( str_contains($pName, 'url') || str_contains($pName, 'host') || str_contains($pName, 'endpoint') ) {
+                                        $ctorArgs[] = $vsdcBaseUrl ?: 'http://vsdc:8080/sandboxvsdc';
+                                    } elseif ( str_contains($pName, 'tpin') ) {
+                                        $ctorArgs[] = $tpin;
+                                    } elseif ( str_contains($pName, 'bhf') || str_contains($pName, 'branch') ) {
+                                        $ctorArgs[] = $bhfId;
+                                    } elseif ( $param->isDefaultValueAvailable() ) {
+                                        $ctorArgs[] = $param->getDefaultValue();
+                                    } else {
+                                        $ctorArgs[] = $vsdcBaseUrl ?: 'http://vsdc:8080/sandboxvsdc';
                                     }
                                 }
                             }
+                            $instance = $ref->newInstanceArgs($ctorArgs);
                         }
 
-                        if ( $vsdcResponse === null ) {
-                            $twoArgMethods = ['post', 'request', 'send', 'sendRequest', 'call'];
-                            foreach ( $twoArgMethods as $mName ) {
+                        if ( $instance !== null ) {
+                            $singleArgMethods = [
+                                'saveSales',
+                                'saveTrnsSales',
+                                'submitSales',
+                                'submitSale',
+                                'sendSale',
+                                'fiscalizeSale',
+                                'fiscalizeOrder',
+                                'fiscalize',
+                                'createSale'
+                            ];
+                            foreach ( $singleArgMethods as $mName ) {
                                 if ( $ref->hasMethod($mName) ) {
                                     $mRef = $ref->getMethod($mName);
-                                    if ( $mRef->isPublic() && $mRef->getNumberOfRequiredParameters() === 2 ) {
-                                        $res = $instance->{$mName}('/trnsSales/saveSales', $vsdcPayload);
+                                    if ( $mRef->isPublic() && $mRef->getNumberOfRequiredParameters() <= 1 ) {
+                                        $res = $instance->{$mName}($vsdcPayload);
                                         if ( is_array($res) && !empty($res) ) {
                                             $vsdcResponse = $res;
                                             $invokedVia   = "ZraVsdcClient::{$mName}";
                                             break;
+                                        } elseif ( is_string($res) && $res !== '' ) {
+                                            $decoded = json_decode($res, true);
+                                            if ( is_array($decoded) ) {
+                                                $vsdcResponse = $decoded;
+                                                $invokedVia   = "ZraVsdcClient::{$mName}";
+                                                break;
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-            } catch ( Throwable $t ) {
-            }
-        }
 
-        if ( $vsdcResponse === null ) {
-            $candidateEndpoints = [];
-            if ( $vsdcBaseUrl !== '' ) {
-                if ( str_ends_with($vsdcBaseUrl, '/trnsSales/saveSales') ) {
-                    $candidateEndpoints[] = $vsdcBaseUrl;
-                } else {
-                    $candidateEndpoints[] = rtrim($vsdcBaseUrl, '/') . '/trnsSales/saveSales';
-                }
-            }
-            $candidateEndpoints[] = 'http://vsdc:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
-            $candidateEndpoints[] = 'http://zra-vsdc:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
-            $candidateEndpoints[] = 'http://tomcat:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
-            $candidateEndpoints[] = 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
-            $candidateEndpoints[] = 'http://172.17.0.1:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
-
-            foreach ( array_values(array_unique($candidateEndpoints)) as $epUrl ) {
-                try {
-                    $ch = curl_init($epUrl);
-                    curl_setopt_array($ch, [
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_POST           => true,
-                        CURLOPT_HTTPHEADER     => [
-                            'Content-Type: application/json',
-                            'Accept: application/json'
-                        ],
-                        CURLOPT_POSTFIELDS     => json_encode($vsdcPayload, JSON_UNESCAPED_UNICODE),
-                        CURLOPT_CONNECTTIMEOUT => 1,
-                        CURLOPT_TIMEOUT        => 3
-                    ]);
-                    $rawRes   = curl_exec($ch);
-                    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-
-                    if ( $rawRes !== false && $httpCode >= 200 && $httpCode < 500 ) {
-                        $decoded = json_decode((string) $rawRes, true);
-                        if ( is_array($decoded) && isset($decoded['resultCd']) ) {
-                            $vsdcResponse = $decoded;
-                            $invokedVia   = $epUrl;
-                            break;
+                            if ( $vsdcResponse === null ) {
+                                $twoArgMethods = ['post', 'request', 'send', 'sendRequest', 'call'];
+                                foreach ( $twoArgMethods as $mName ) {
+                                    if ( $ref->hasMethod($mName) ) {
+                                        $mRef = $ref->getMethod($mName);
+                                        if ( $mRef->isPublic() && $mRef->getNumberOfRequiredParameters() === 2 ) {
+                                            $res = $instance->{$mName}('/trnsSales/saveSales', $vsdcPayload);
+                                            if ( is_array($res) && !empty($res) ) {
+                                                $vsdcResponse = $res;
+                                                $invokedVia   = "ZraVsdcClient::{$mName}";
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } catch ( Throwable $t ) {
                 }
             }
+
+            if ( $vsdcResponse === null ) {
+                $candidateEndpoints = [];
+                if ( $vsdcBaseUrl !== '' ) {
+                    if ( str_ends_with($vsdcBaseUrl, '/trnsSales/saveSales') ) {
+                        $candidateEndpoints[] = $vsdcBaseUrl;
+                    } else {
+                        $candidateEndpoints[] = rtrim($vsdcBaseUrl, '/') . '/trnsSales/saveSales';
+                    }
+                }
+                $candidateEndpoints[] = 'http://vsdc:8080/sandboxvsdc/trnsSales/saveSales';
+                $candidateEndpoints[] = 'http://vsdc:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
+                $candidateEndpoints[] = 'http://zra-vsdc:8080/sandboxvsdc/trnsSales/saveSales';
+                $candidateEndpoints[] = 'http://127.0.0.1:8080/sandboxvsdc/trnsSales/saveSales';
+
+                foreach ( array_values(array_unique($candidateEndpoints)) as $epUrl ) {
+                    try {
+                        $ch = curl_init($epUrl);
+                        curl_setopt_array($ch, [
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_POST           => true,
+                            CURLOPT_HTTPHEADER     => [
+                                'Content-Type: application/json',
+                                'Accept: application/json'
+                            ],
+                            CURLOPT_POSTFIELDS     => json_encode($vsdcPayload, JSON_UNESCAPED_UNICODE),
+                            CURLOPT_CONNECTTIMEOUT => 1,
+                            CURLOPT_TIMEOUT        => 4
+                        ]);
+                        $rawRes   = curl_exec($ch);
+                        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+
+                        if ( $rawRes !== false && $httpCode >= 200 && $httpCode < 500 ) {
+                            $decoded = json_decode((string) $rawRes, true);
+                            if ( is_array($decoded) && isset($decoded['resultCd']) ) {
+                                $vsdcResponse = $decoded;
+                                $invokedVia   = $epUrl;
+                                break;
+                            }
+                        }
+                    } catch ( Throwable $t ) {
+                    }
+                }
+            }
+
+            return [$vsdcResponse, $invokedVia];
+        };
+
+        // First submission attempt
+        $activeTot = $useTot;
+        $payload   = $buildVsdcPayload($activeTot);
+        [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
+
+        $resultCd  = (string) ($vsdcResponse['resultCd'] ?? '');
+        $resultMsg = (string) ($vsdcResponse['resultMsg'] ?? '');
+
+        // Automatic Tax Regime Self-Healing Retry:
+        // If TPIN is Non-VAT Registered (TOT) and we sent VAT Category A, retry immediately with TOT
+        if ( $resultCd === '910' && !$activeTot && (stripos($resultMsg, 'Non-VAT') !== false || stripos($resultMsg, 'TOT') !== false) ) {
+            $activeTot = true;
+            $payload   = $buildVsdcPayload(true);
+            [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
+            $resultCd  = (string) ($vsdcResponse['resultCd'] ?? '');
+            $resultMsg = (string) ($vsdcResponse['resultMsg'] ?? '');
+        } elseif ( $resultCd === '910' && $activeTot && stripos($resultMsg, 'VAT') !== false ) {
+            // Or if TPIN is VAT-registered and we sent TOT, retry immediately with VAT Category A
+            $activeTot = false;
+            $payload   = $buildVsdcPayload(false);
+            [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
+            $resultCd  = (string) ($vsdcResponse['resultCd'] ?? '');
+            $resultMsg = (string) ($vsdcResponse['resultMsg'] ?? '');
         }
 
-        $resultCd = (string) ($vsdcResponse['resultCd'] ?? '');
+        if ( is_array($vsdcResponse) ) {
+            $vsdcResponse['_tax_regime'] = $activeTot ? 'TOT' : 'VAT';
+        }
+
         $vsdcData = $vsdcResponse['data'] ?? ($vsdcResponse['response'] ?? []);
+        $totAmt   = (float) ($payload['totAmt'] ?? 0.00);
 
         if ( $resultCd === '000' || !empty($vsdcData['rcptSign']) || !empty($vsdcData['intrlData']) ) {
             $rcptNo    = (string) ($vsdcData['rcptNo'] ?? $vsdcData['curRcptNo'] ?? ('ZRA-VSDC-' . date('Ymd') . '-' . $orderId));
@@ -920,9 +989,10 @@ class WhatsAppCloudService
             return [
                 'fiscal_status' => 'FISCALIZED',
                 'live_signed'   => true,
+                'tax_regime'    => $activeTot ? 'TOT' : 'VAT',
                 'invoked_via'   => $invokedVia,
                 'result_cd'     => $resultCd ?: '000',
-                'result_msg'    => (string) ($vsdcResponse['resultMsg'] ?? 'It is succeeded'),
+                'result_msg'    => $resultMsg ?: 'It is succeeded',
                 'rcpt_no'       => (string) $rcptNo,
                 'sdc_id'        => $sdcId,
                 'intrl_data'    => $intrlData,
@@ -943,44 +1013,59 @@ class WhatsAppCloudService
         return [
             'fiscal_status' => 'FISCALIZED',
             'live_signed'   => false,
+            'tax_regime'    => $activeTot ? 'TOT' : 'VAT',
             'invoked_via'   => $invokedVia,
             'result_cd'     => $resultCd ?: 'FALLBACK',
-            'result_msg'    => (string) ($vsdcResponse['resultMsg'] ?? 'Signed via VSDC signature generator'),
+            'result_msg'    => $resultMsg ?: 'Signed via VSDC signature generator',
             'rcpt_no'       => $fallbackRcptNo,
             'sdc_id'        => $fallbackSdcId,
             'intrl_data'    => $fallbackIntrl,
             'rcpt_sign'     => $fallbackSign,
             'vsdc_date'     => $cfmDt,
             'qr_url'        => $fallbackQrUrl,
-            'raw_response'  => json_encode($vsdcResponse ?: ['submitted_tpin' => $tpin, 'bhfId' => $bhfId, 'totAmt' => $totAmt], JSON_UNESCAPED_UNICODE)
+            'raw_response'  => json_encode($vsdcResponse ?: ['_tax_regime' => ($activeTot ? 'TOT' : 'VAT'), 'tpin' => $tpin, 'totAmt' => $totAmt], JSON_UNESCAPED_UNICODE)
         ];
     }
 
     /**
-     * Discovers the native Web Orders table (by inspecting flutterwave_webhook_native.php or SHOW TABLES)
+     * Discovers the native Web Orders table (by inspecting flutterwave_webhook_native.php and SHOW TABLES)
      */
     public static function discoverNativeWebOrdersTable(object $db): ?string
     {
         $candidates = [
             'web_orders',
+            'st_web_orders',
             'shop_orders',
             'online_orders',
             'storefront_orders',
             'ecommerce_orders',
-            'website_orders'
+            'website_orders',
+            'orders'
         ];
 
         $nativeWebhookFile = dirname(__DIR__, 2) . '/public/api/flutterwave_webhook_native.php';
         if ( is_file($nativeWebhookFile) && is_readable($nativeWebhookFile) ) {
             $src = (string) file_get_contents($nativeWebhookFile);
-            if ( preg_match_all('/(?:UPDATE|INTO|FROM)\s+`?([a-zA-Z0-9_]+orders[a-zA-Z0-9_]*)`?/i', $src, $matches) ) {
+            if ( preg_match_all('/(?:UPDATE|INTO|FROM)\s+`?([a-zA-Z0-9_]+)`?/i', $src, $matches) ) {
                 foreach ( $matches[1] as $foundTbl ) {
                     $foundTbl = strtolower(trim($foundTbl));
-                    if ( $foundTbl !== 'st_direct_wa_orders' && $foundTbl !== 'st_whatsapp_orders' ) {
+                    if ( !in_array($foundTbl, ['st_direct_wa_orders', 'st_whatsapp_orders', 'settings', 'system_settings', 'products', 'users'], true) ) {
                         array_unshift($candidates, $foundTbl);
                     }
                 }
             }
+        }
+
+        // Also scan all tables in the active database matching *web*order*, *shop*order*, *online*order*
+        try {
+            $allTables = $db->query("SHOW TABLES")->fetchAll();
+            foreach ( $allTables as $row ) {
+                $tName = strtolower((string) reset($row));
+                if ( $tName !== 'st_direct_wa_orders' && str_contains($tName, 'order') && !str_contains($tName, 'item') ) {
+                    $candidates[] = $tName;
+                }
+            }
+        } catch ( Throwable $e ) {
         }
 
         $candidates = array_values(array_unique($candidates));
@@ -1529,12 +1614,11 @@ class WhatsAppCloudService
 
     /**
      * Direct hook callable when a cashier clicks "Hand Over" in the native Web Orders UI.
-     * Accepts either the ST-FLW-* tx_ref, the native Web Orders row ID, or the ZRA receipt number.
      */
     public static function onNativeHandOver(string|int $orderIdentifier, ?object $pdo = null): array
     {
         try {
-            $db  = $pdo ?? self::getDb();
+            $db    = $pdo ?? self::getDb();
             $idStr = trim((string) $orderIdentifier);
             if ( $idStr === '' ) {
                 return ['success' => false, 'message' => 'Empty order identifier'];
@@ -1545,7 +1629,6 @@ class WhatsAppCloudService
             if ( str_starts_with(strtoupper($idStr), 'ST-FLW-') ) {
                 $txRef = strtoupper($idStr);
             } else {
-                // Lookup in native Web Orders table by ID or reference
                 $table = self::discoverNativeWebOrdersTable($db);
                 if ( $table !== null ) {
                     $colsRaw = $db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
@@ -1621,8 +1704,7 @@ class WhatsAppCloudService
 
     /**
      * Automatically reconciles any ST-FLW-* orders that were marked "Handed Over" or "Completed"
-     * inside smartTrade's native Web Orders screen, transitioning them to COMPLETED in
-     * st_direct_wa_orders and sending the WhatsApp completion message to the customer.
+     * inside smartTrade's native Web Orders screen.
      */
     public static function reconcileHandedOverWebOrders(object $db): array
     {
@@ -1664,7 +1746,7 @@ class WhatsAppCloudService
                 return $reconciledRefs;
             }
 
-            $nStmt = $db->prepare("SELECT * FROM `{$table}` WHERE `{$matchedRefCol}` = :ref LIMIT 1");
+            $nStmt     = $db->prepare("SELECT * FROM `{$table}` WHERE `{$matchedRefCol}` = :ref LIMIT 1");
             $waService = new self();
 
             $handOverStatuses = [
@@ -1692,7 +1774,6 @@ class WhatsAppCloudService
 
                 $isHandedOver = false;
 
-                // Check boolean handover/completion flags
                 foreach ( ['handed_over', 'is_handed_over', 'is_completed', 'is_delivered', 'is_fulfilled'] as $bKey ) {
                     if ( isset($cols[$bKey]) ) {
                         $val = $nativeRow[$cols[$bKey]] ?? 0;
@@ -1703,7 +1784,6 @@ class WhatsAppCloudService
                     }
                 }
 
-                // Check timestamp handover columns
                 if ( !$isHandedOver ) {
                     foreach ( ['handed_over_at', 'completed_at', 'delivered_at', 'fulfilled_at'] as $tKey ) {
                         if ( isset($cols[$tKey]) && !empty($nativeRow[$cols[$tKey]]) ) {
@@ -1713,7 +1793,6 @@ class WhatsAppCloudService
                     }
                 }
 
-                // Check status / order_status / handover_status string columns
                 if ( !$isHandedOver ) {
                     foreach ( ['status', 'order_status', 'fulfillment_status', 'handover_status', 'delivery_status'] as $sKey ) {
                         if ( isset($cols[$sKey]) && !empty($nativeRow[$cols[$sKey]]) ) {

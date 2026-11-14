@@ -9,8 +9,8 @@ $rcptNo    = trim((string) ($_GET['rcpt'] ?? ''));
 $txRef     = trim((string) ($_GET['tx_ref'] ?? ''));
 $autoPrint = !empty($_GET['print']);
 
-$order     = null;
-$errorMsg  = null;
+$order      = null;
+$errorMsg   = null;
 $kvSettings = [];
 
 try {
@@ -28,7 +28,7 @@ try {
     } else {
         $order = $pdo->query("SELECT * FROM st_direct_wa_orders WHERE payment_status = 'PAID' ORDER BY id DESC LIMIT 1")->fetch();
     }
-} catch ( Exception $e ) {
+} catch ( \Throwable $e ) {
     $errorMsg = $e->getMessage();
 }
 
@@ -42,14 +42,23 @@ $deliveryFee = 0.00;
 $totalZmw    = 0.00;
 $vatAmount   = 0.00;
 $netExclVat  = 0.00;
+$taxRegime   = 'TOT';
 
 if ( $order ) {
     $items       = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
+    $rawVsdc     = json_decode((string) ($order['zra_raw_response'] ?? '{}'), true) ?: [];
+    $taxRegime   = strtoupper((string) ($rawVsdc['_tax_regime'] ?? 'TOT'));
     $subtotal    = (float) ($order['subtotal_zmw'] ?? 0.00);
     $deliveryFee = (float) ($order['delivery_fee_zmw'] ?? 0.00);
     $totalZmw    = (float) ($order['total_zmw'] ?? 0.00);
-    $netExclVat  = round($totalZmw / 1.16, 2);
-    $vatAmount   = round($totalZmw - $netExclVat, 2);
+
+    if ( $taxRegime === 'VAT' ) {
+        $netExclVat = round($totalZmw / 1.16, 2);
+        $vatAmount  = round($totalZmw - $netExclVat, 2);
+    } else {
+        $netExclVat = $totalZmw;
+        $vatAmount  = 0.00;
+    }
 }
 
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -203,15 +212,27 @@ $qrImageUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' 
         <div class="thermal-dashed"></div>
 
         <div class="font-b-condensed">
-            <div class="fw-bold">TAX BREAKDOWN (VAT 16% INCL.)</div>
-            <div class="d-flex justify-content-between">
-                <span>TAXABLE AMOUNT (A-16%):</span>
-                <span>ZMW <?= number_format($netExclVat, 2) ?></span>
-            </div>
-            <div class="d-flex justify-content-between">
-                <span>VAT AMOUNT (16%):</span>
-                <span>ZMW <?= number_format($vatAmount, 2) ?></span>
-            </div>
+            <?php if ( $taxRegime === 'VAT' ): ?>
+                <div class="fw-bold">TAX BREAKDOWN (VAT 16% INCL.)</div>
+                <div class="d-flex justify-content-between">
+                    <span>TAXABLE AMOUNT (A-16%):</span>
+                    <span>ZMW <?= number_format($netExclVat, 2) ?></span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>VAT AMOUNT (16%):</span>
+                    <span>ZMW <?= number_format($vatAmount, 2) ?></span>
+                </div>
+            <?php else: ?>
+                <div class="fw-bold">TAX REGIME: TURNOVER TAX (TOT)</div>
+                <div class="d-flex justify-content-between">
+                    <span>TAXABLE AMOUNT (TOT):</span>
+                    <span>ZMW <?= number_format($netExclVat, 2) ?></span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>VAT AMOUNT (NON-VAT):</span>
+                    <span>ZMW 0.00</span>
+                </div>
+            <?php endif; ?>
             <div class="d-flex justify-content-between mt-1">
                 <span>PAYMENT:</span>
                 <span class="fw-bold"><?= htmlspecialchars((string) $order['payment_status']) ?> (FLW #<?= htmlspecialchars((string) ($order['flw_transaction_id'] ?? 'N/A')) ?>)</span>
