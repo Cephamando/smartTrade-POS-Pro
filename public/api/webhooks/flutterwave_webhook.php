@@ -13,16 +13,15 @@ if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) {
     exit;
 }
 
-$rawBody   = file_get_contents('php://input');
-$pdo       = null;
-$flwConfig = WhatsAppCloudService::getFlwConfig();
+$rawBody = isset($rawWebhookBody) ? (string) $rawWebhookBody : (string) file_get_contents('php://input');
+$pdo     = null;
 
 try {
     $pdo       = WhatsAppCloudService::getDb();
     $flwConfig = WhatsAppCloudService::getFlwConfig($pdo);
-} catch ( Exception $e ) {
+} catch ( \Throwable $e ) {
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    echo json_encode(['status' => 'error', 'message' => 'DB Init Error: ' . $e->getMessage()]);
     exit;
 }
 
@@ -148,34 +147,57 @@ try {
         $zraReceiptNo = $vsdcReport['rcpt_no'];
         $zraQrUrl     = $vsdcReport['qr_url'];
 
-        // 3. Persist PAID & ZRA VSDC signature fields on st_direct_wa_orders
-        $upd = $pdo->prepare("
-            UPDATE st_direct_wa_orders
-            SET payment_status = 'PAID',
-                fulfillment_status = 'NEW',
-                flw_transaction_id = :flwid,
-                zra_fiscal_status = :zfstat,
-                zra_rcpt_no = :zrarcp,
-                zra_qr_url = :zraqr,
-                zra_sdc_id = :zsdc,
-                zra_intrl_data = :zintrl,
-                zra_rcpt_sign = :zsign,
-                zra_vsdc_date = :zdate,
-                zra_raw_response = :zraw
-            WHERE id = :id
-        ");
-        $upd->execute([
-            ':flwid'  => $transactionId,
-            ':zfstat' => $vsdcReport['fiscal_status'],
-            ':zrarcp' => $zraReceiptNo,
-            ':zraqr'  => $zraQrUrl,
-            ':zsdc'   => $vsdcReport['sdc_id'],
-            ':zintrl' => $vsdcReport['intrl_data'],
-            ':zsign'  => $vsdcReport['rcpt_sign'],
-            ':zdate'  => $vsdcReport['vsdc_date'],
-            ':zraw'   => $vsdcReport['raw_response'],
-            ':id'     => $order['id']
-        ]);
+        // 3. Persist PAID & ZRA VSDC signature fields (checking column availability dynamically)
+        $waColsStmt = $pdo->query("SHOW COLUMNS FROM st_direct_wa_orders");
+        $waColNames = array_column($waColsStmt->fetchAll(), 'Field');
+
+        if ( in_array('zra_sdc_id', $waColNames, true) && in_array('zra_rcpt_sign', $waColNames, true) ) {
+            $upd = $pdo->prepare("
+                UPDATE st_direct_wa_orders
+                SET payment_status = 'PAID',
+                    fulfillment_status = 'NEW',
+                    flw_transaction_id = :flwid,
+                    zra_fiscal_status = :zfstat,
+                    zra_rcpt_no = :zrarcp,
+                    zra_qr_url = :zraqr,
+                    zra_sdc_id = :zsdc,
+                    zra_intrl_data = :zintrl,
+                    zra_rcpt_sign = :zsign,
+                    zra_vsdc_date = :zdate,
+                    zra_raw_response = :zraw
+                WHERE id = :id
+            ");
+            $upd->execute([
+                ':flwid'  => $transactionId,
+                ':zfstat' => $vsdcReport['fiscal_status'],
+                ':zrarcp' => $zraReceiptNo,
+                ':zraqr'  => $zraQrUrl,
+                ':zsdc'   => $vsdcReport['sdc_id'],
+                ':zintrl' => $vsdcReport['intrl_data'],
+                ':zsign'  => $vsdcReport['rcpt_sign'],
+                ':zdate'  => $vsdcReport['vsdc_date'],
+                ':zraw'   => $vsdcReport['raw_response'],
+                ':id'     => $order['id']
+            ]);
+        } else {
+            $upd = $pdo->prepare("
+                UPDATE st_direct_wa_orders
+                SET payment_status = 'PAID',
+                    fulfillment_status = 'NEW',
+                    flw_transaction_id = :flwid,
+                    zra_fiscal_status = :zfstat,
+                    zra_rcpt_no = :zrarcp,
+                    zra_qr_url = :zraqr
+                WHERE id = :id
+            ");
+            $upd->execute([
+                ':flwid'  => $transactionId,
+                ':zfstat' => $vsdcReport['fiscal_status'],
+                ':zrarcp' => $zraReceiptNo,
+                ':zraqr'  => $zraQrUrl,
+                ':id'     => $order['id']
+            ]);
+        }
 
         // 4. Mirror paid WhatsApp order into native Web Orders table for Hand Over queue
         $mirrorReport = WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, $zraReceiptNo);
@@ -218,10 +240,15 @@ try {
         exit;
     }
 
-} catch ( Exception $e ) {
+} catch ( \Throwable $e ) {
     if ( isset($pdo) && $pdo->inTransaction() ) {
         $pdo->rollBack();
     }
     http_response_code(500);
-    echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    echo json_encode([
+        'status'  => 'error',
+        'message' => $e->getMessage(),
+        'file'    => basename($e->getFile()),
+        'line'    => $e->getLine()
+    ]);
 }

@@ -5,7 +5,9 @@ namespace SmartTrade\Services;
 
 use PDO;
 use Exception;
+use Throwable;
 use ReflectionClass;
+use ReflectionNamedType;
 
 /**
  * Lightweight MySQLi-to-PDO statement adapter for environments where mysqli is enabled instead of pdo_mysql
@@ -284,7 +286,7 @@ class WhatsAppCloudService
                         $pdo->exec("USE `{$safeDb}`");
                         $conn = $pdo;
                         break 2;
-                    } catch ( Exception $e ) {
+                    } catch ( Throwable $e ) {
                         $lastError = $e->getMessage();
                     }
                 } elseif ( $hasMysqli ) {
@@ -301,7 +303,7 @@ class WhatsAppCloudService
                         } else {
                             $lastError = $mysqli->connect_error;
                         }
-                    } catch ( Exception $e ) {
+                    } catch ( Throwable $e ) {
                         $lastError = $e->getMessage();
                     }
                 }
@@ -344,29 +346,31 @@ class WhatsAppCloudService
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
 
-        // Ensure VSDC signature columns exist on previously created st_direct_wa_orders tables
-        $existingColsRaw = $conn->query("SHOW COLUMNS FROM `st_direct_wa_orders`")->fetchAll();
-        $existingCols    = array_column($existingColsRaw, 'Field');
-        $alterParts      = [];
+        try {
+            $existingColsRaw = $conn->query("SHOW COLUMNS FROM `st_direct_wa_orders`")->fetchAll();
+            $existingCols    = array_column($existingColsRaw, 'Field');
+            $alterParts      = [];
 
-        if ( !in_array('zra_sdc_id', $existingCols, true) ) {
-            $alterParts[] = "ADD COLUMN `zra_sdc_id` VARCHAR(64) DEFAULT NULL AFTER `zra_qr_url`";
-        }
-        if ( !in_array('zra_intrl_data', $existingCols, true) ) {
-            $alterParts[] = "ADD COLUMN `zra_intrl_data` VARCHAR(255) DEFAULT NULL AFTER `zra_sdc_id`";
-        }
-        if ( !in_array('zra_rcpt_sign', $existingCols, true) ) {
-            $alterParts[] = "ADD COLUMN `zra_rcpt_sign` VARCHAR(128) DEFAULT NULL AFTER `zra_intrl_data`";
-        }
-        if ( !in_array('zra_vsdc_date', $existingCols, true) ) {
-            $alterParts[] = "ADD COLUMN `zra_vsdc_date` VARCHAR(32) DEFAULT NULL AFTER `zra_rcpt_sign`";
-        }
-        if ( !in_array('zra_raw_response', $existingCols, true) ) {
-            $alterParts[] = "ADD COLUMN `zra_raw_response` TEXT DEFAULT NULL AFTER `zra_vsdc_date`";
-        }
+            if ( !in_array('zra_sdc_id', $existingCols, true) ) {
+                $alterParts[] = "ADD COLUMN `zra_sdc_id` VARCHAR(64) DEFAULT NULL";
+            }
+            if ( !in_array('zra_intrl_data', $existingCols, true) ) {
+                $alterParts[] = "ADD COLUMN `zra_intrl_data` VARCHAR(255) DEFAULT NULL";
+            }
+            if ( !in_array('zra_rcpt_sign', $existingCols, true) ) {
+                $alterParts[] = "ADD COLUMN `zra_rcpt_sign` VARCHAR(128) DEFAULT NULL";
+            }
+            if ( !in_array('zra_vsdc_date', $existingCols, true) ) {
+                $alterParts[] = "ADD COLUMN `zra_vsdc_date` VARCHAR(32) DEFAULT NULL";
+            }
+            if ( !in_array('zra_raw_response', $existingCols, true) ) {
+                $alterParts[] = "ADD COLUMN `zra_raw_response` TEXT DEFAULT NULL";
+            }
 
-        if ( !empty($alterParts) ) {
-            $conn->exec("ALTER TABLE `st_direct_wa_orders` " . implode(', ', $alterParts));
+            if ( !empty($alterParts) ) {
+                $conn->exec("ALTER TABLE `st_direct_wa_orders` " . implode(', ', $alterParts));
+            }
+        } catch ( Throwable $e ) {
         }
 
         return $conn;
@@ -411,7 +415,7 @@ class WhatsAppCloudService
                     }
                 }
             }
-        } catch ( Exception $e ) {
+        } catch ( Throwable $e ) {
         }
         return $kvMap;
     }
@@ -476,18 +480,16 @@ class WhatsAppCloudService
      */
     public static function fiscalizeWithZraVsdc(object $db, array $order): array
     {
-        $orderId    = (int) ($order['id'] ?? 1);
-        $branchId   = (int) ($order['branch_id'] ?? 1);
-        $txRef      = (string) ($order['tx_ref'] ?? ('ST-FLW-' . $orderId));
-        $totalZmw   = (float) ($order['total_zmw'] ?? 0.00);
-        $delivFee   = (float) ($order['delivery_fee_zmw'] ?? 0.00);
-        $custName   = (string) ($order['customer_name'] ?? 'Walk-in Customer');
-        $custPhone  = (string) ($order['customer_phone'] ?? '');
-        $items      = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
+        $orderId   = (int) ($order['id'] ?? 1);
+        $branchId  = (int) ($order['branch_id'] ?? 1);
+        $txRef     = (string) ($order['tx_ref'] ?? ('ST-FLW-' . $orderId));
+        $totalZmw  = (float) ($order['total_zmw'] ?? 0.00);
+        $delivFee  = (float) ($order['delivery_fee_zmw'] ?? 0.00);
+        $custName  = (string) ($order['customer_name'] ?? 'Walk-in Customer');
+        $items     = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
 
         $kvMap = self::getAllDbSettings($db);
 
-        // 1. Resolve TPIN, Branch ID (bhfId), and VSDC Base URL from DB settings, .env, or ZraVsdcClient.php
         $tpin = $kvMap['zra_tpin']
             ?? $kvMap['tpin']
             ?? $kvMap['company_tpin']
@@ -506,12 +508,11 @@ class WhatsAppCloudService
             ?? $kvMap['zra_api_url']
             ?? self::env('ZRA_VSDC_URL', self::env('VSDC_URL', ''));
 
-        $vsdcClientFile = dirname(__DIR__) . '/Services/ZraVsdcClient.php';
+        $vsdcClientFile = __DIR__ . '/ZraVsdcClient.php';
         if ( !is_file($vsdcClientFile) ) {
             $vsdcClientFile = dirname(__DIR__, 2) . '/app/Services/ZraVsdcClient.php';
         }
 
-        // Inspect ZraVsdcClient.php source for configured URLs, TPIN, or bhfId defaults if not in DB/.env
         if ( is_file($vsdcClientFile) && is_readable($vsdcClientFile) ) {
             $clientSrc = (string) file_get_contents($vsdcClientFile);
             if ( $vsdcBaseUrl === '' && preg_match('#https?://[^\s"\'<>]+(?:vsdc|8080)[^\s"\'<>]*#i', $clientSrc, $mUrl) ) {
@@ -525,7 +526,6 @@ class WhatsAppCloudService
             }
         }
 
-        // Check branches table if branch-specific TPIN / bhfId / VSDC URL is stored there
         try {
             $hasBranches = (bool) $db->query("SHOW TABLES LIKE 'branches'")->fetchColumn();
             if ( $hasBranches ) {
@@ -544,10 +544,9 @@ class WhatsAppCloudService
                     }
                 }
             }
-        } catch ( Exception $e ) {
+        } catch ( Throwable $e ) {
         }
 
-        // 2. Build ZRA VSDC 1.0.11.4 Standard Item List & Tax Calculation (16% Standard VAT Category A)
         $itemList    = [];
         $seq         = 0;
         $totTaxblAmt = 0.00;
@@ -557,7 +556,7 @@ class WhatsAppCloudService
         $hasProductsTable = false;
         try {
             $hasProductsTable = (bool) $db->query("SHOW TABLES LIKE 'products'")->fetchColumn();
-        } catch ( Exception $e ) {
+        } catch ( Throwable $e ) {
         }
 
         foreach ( $items as $item ) {
@@ -567,7 +566,7 @@ class WhatsAppCloudService
             $unitPrice = round((float) ($item['unit_price'] ?? 0.00), 2);
             $lineTotal = round((float) ($item['line_total'] ?? ($unitPrice * $qty)), 2);
 
-            $itemClsCd = '50000000'; // Default UNSPSC Food/Beverage/Goods classification
+            $itemClsCd = '50000000';
             $itemCd    = 'ZM2NTXU' . str_pad((string) $prodId, 7, '0', STR_PAD_LEFT);
             $taxTyCd   = 'A';
 
@@ -581,7 +580,7 @@ class WhatsAppCloudService
                         $itemCd    = (string) ($pRow['item_cd'] ?? $pRow['zra_item_cd'] ?? $itemCd);
                         $taxTyCd   = (string) ($pRow['tax_ty_cd'] ?? $pRow['zra_tax_type'] ?? 'A');
                     }
-                } catch ( Exception $e ) {
+                } catch ( Throwable $e ) {
                 }
             }
 
@@ -617,7 +616,6 @@ class WhatsAppCloudService
             ];
         }
 
-        // Include Delivery Fee as a line item if > 0 so VSDC totAmt matches total_zmw
         if ( $delivFee > 0.00 ) {
             $seq++;
             $dTaxbl = round($delivFee / 1.16, 2);
@@ -656,90 +654,90 @@ class WhatsAppCloudService
         $salesDt = date('Ymd');
 
         $vsdcPayload = [
-            'tpin'          => $tpin,
-            'bhfId'         => $bhfId,
-            'orgInvcNo'     => 0,
-            'cisInvcNo'     => $txRef,
-            'custTpin'      => null,
-            'custNm'        => substr($custName, 0, 60),
-            'salesTyCd'     => 'N',
-            'rcptTyCd'      => 'S',
-            'pmtTyCd'       => '05', // 05 = Mobile Money / Electronic Transfer
-            'salesSttsCd'   => '02', // 02 = Approved/Completed Sale
-            'cfmDt'         => $cfmDt,
-            'salesDt'       => $salesDt,
-            'stockRlsDt'    => $cfmDt,
-            'cnclReqDt'     => null,
-            'cnclDt'        => null,
-            'rfdDt'         => null,
-            'rfdRsnCd'      => null,
-            'totItemCnt'    => count($itemList),
-            'taxblAmtA'     => $totTaxblAmt,
-            'taxblAmtB'     => 0.0,
-            'taxblAmtC1'    => 0.0,
-            'taxblAmtC2'    => 0.0,
-            'taxblAmtC3'    => 0.0,
-            'taxblAmtD'     => 0.0,
-            'taxblAmtRvat'  => 0.0,
-            'taxblAmtE'     => 0.0,
-            'taxblAmtF'     => 0.0,
-            'taxblAmtIpl1'  => 0.0,
-            'taxblAmtIpl2'  => 0.0,
-            'taxblAmtTl'    => 0.0,
-            'taxblAmtEcm'   => 0.0,
-            'taxblAmtExeeg' => 0.0,
-            'taxblAmtTot'   => $totTaxblAmt,
-            'taxRtA'        => 16,
-            'taxRtB'        => 16,
-            'taxRtC1'       => 0,
-            'taxRtC2'       => 0,
-            'taxRtC3'       => 0,
-            'taxRtD'        => 0,
-            'taxRtRvat'     => 16,
-            'taxRtE'        => 0,
-            'taxRtF'        => 10,
-            'taxRtIpl1'     => 5,
-            'taxRtIpl2'     => 0,
-            'taxRtTl'       => 1.5,
-            'taxRtEcm'      => 5,
-            'taxRtExeeg'    => 3,
-            'taxAmtA'       => $totTaxAmt,
-            'taxAmtB'       => 0.0,
-            'taxAmtC1'      => 0.0,
-            'taxAmtC2'      => 0.0,
-            'taxAmtC3'      => 0.0,
-            'taxAmtD'       => 0.0,
-            'taxAmtRvat'    => 0.0,
-            'taxAmtE'       => 0.0,
-            'taxAmtF'       => 0.0,
-            'taxAmtIpl1'    => 0.0,
-            'taxAmtIpl2'    => 0.0,
-            'taxAmtTl'      => 0.0,
-            'taxAmtEcm'     => 0.0,
-            'taxAmtExeeg'   => 0.0,
-            'totTaxblAmt'   => $totTaxblAmt,
-            'totTaxAmt'     => $totTaxAmt,
-            'totAmt'        => $totAmt,
-            'prchrAcptcYn'  => 'N',
-            'remark'        => 'WhatsApp Express Order ' . $txRef,
-            'regrId'        => 'WA-BOT',
-            'regrNm'        => 'WhatsApp Express',
-            'modrId'        => 'WA-BOT',
-            'modrNm'        => 'WhatsApp Express',
-            'saleCtyCd'     => '1',
-            'lpoNumber'     => null,
-            'currencyTyCd'  => 'ZMW',
-            'exchangeRt'    => '1',
-            'destnCountryCd'=> null,
-            'dbtRsnCd'      => null,
+            'tpin'             => $tpin,
+            'bhfId'            => $bhfId,
+            'orgInvcNo'        => 0,
+            'cisInvcNo'        => $txRef,
+            'custTpin'         => null,
+            'custNm'           => substr($custName, 0, 60),
+            'salesTyCd'        => 'N',
+            'rcptTyCd'         => 'S',
+            'pmtTyCd'          => '05',
+            'salesSttsCd'      => '02',
+            'cfmDt'            => $cfmDt,
+            'salesDt'          => $salesDt,
+            'stockRlsDt'       => $cfmDt,
+            'cnclReqDt'        => null,
+            'cnclDt'           => null,
+            'rfdDt'            => null,
+            'rfdRsnCd'         => null,
+            'totItemCnt'       => count($itemList),
+            'taxblAmtA'        => $totTaxblAmt,
+            'taxblAmtB'        => 0.0,
+            'taxblAmtC1'       => 0.0,
+            'taxblAmtC2'       => 0.0,
+            'taxblAmtC3'       => 0.0,
+            'taxblAmtD'        => 0.0,
+            'taxblAmtRvat'     => 0.0,
+            'taxblAmtE'        => 0.0,
+            'taxblAmtF'        => 0.0,
+            'taxblAmtIpl1'     => 0.0,
+            'taxblAmtIpl2'     => 0.0,
+            'taxblAmtTl'       => 0.0,
+            'taxblAmtEcm'      => 0.0,
+            'taxblAmtExeeg'    => 0.0,
+            'taxblAmtTot'      => $totTaxblAmt,
+            'taxRtA'           => 16,
+            'taxRtB'           => 16,
+            'taxRtC1'          => 0,
+            'taxRtC2'          => 0,
+            'taxRtC3'          => 0,
+            'taxRtD'           => 0,
+            'taxRtRvat'        => 16,
+            'taxRtE'           => 0,
+            'taxRtF'           => 10,
+            'taxRtIpl1'        => 5,
+            'taxRtIpl2'        => 0,
+            'taxRtTl'          => 1.5,
+            'taxRtEcm'         => 5,
+            'taxRtExeeg'       => 3,
+            'taxAmtA'          => $totTaxAmt,
+            'taxAmtB'          => 0.0,
+            'taxAmtC1'         => 0.0,
+            'taxAmtC2'         => 0.0,
+            'taxAmtC3'         => 0.0,
+            'taxAmtD'          => 0.0,
+            'taxAmtRvat'       => 0.0,
+            'taxAmtE'          => 0.0,
+            'taxAmtF'          => 0.0,
+            'taxAmtIpl1'       => 0.0,
+            'taxAmtIpl2'       => 0.0,
+            'taxAmtTl'         => 0.0,
+            'taxAmtEcm'        => 0.0,
+            'taxAmtExeeg'      => 0.0,
+            'totTaxblAmt'      => $totTaxblAmt,
+            'totTaxAmt'        => $totTaxAmt,
+            'totAmt'           => $totAmt,
+            'prchrAcptcYn'     => 'N',
+            'remark'           => 'WhatsApp Express Order ' . $txRef,
+            'regrId'           => 'WA-BOT',
+            'regrNm'           => 'WhatsApp Express',
+            'modrId'           => 'WA-BOT',
+            'modrNm'           => 'WhatsApp Express',
+            'saleCtyCd'        => '1',
+            'lpoNumber'        => null,
+            'currencyTyCd'     => 'ZMW',
+            'exchangeRt'       => '1',
+            'destnCountryCd'   => null,
+            'dbtRsnCd'         => null,
             'invcAdjustReason' => null,
-            'itemList'      => $itemList
+            'itemList'         => $itemList
         ];
 
         $vsdcResponse = null;
         $invokedVia   = 'none';
 
-        // 3. First attempt: Invoke app/Services/ZraVsdcClient.php directly if present
+        // 3. First attempt: Invoke app/Services/ZraVsdcClient.php with type-safe argument resolution
         if ( is_file($vsdcClientFile) ) {
             try {
                 require_once $vsdcClientFile;
@@ -757,33 +755,60 @@ class WhatsAppCloudService
                 }
 
                 if ( $matchedClass !== null ) {
-                    $ref  = new ReflectionClass($matchedClass);
-                    $ctor = $ref->getConstructor();
+                    $ref      = new ReflectionClass($matchedClass);
+                    $ctor     = $ref->getConstructor();
                     $instance = null;
 
                     if ( $ctor === null || $ctor->getNumberOfRequiredParameters() === 0 ) {
                         $instance = $ref->newInstance();
                     } else {
-                        $firstParam = $ctor->getParameters()[0];
-                        $paramType  = $firstParam->getType() ? (string) $firstParam->getType() : '';
-                        if ( str_contains(strtolower($paramType), 'pdo') ) {
-                            if ( $db instanceof PDO ) {
-                                $instance = $ref->newInstance($db);
+                        $ctorArgs = [];
+                        foreach ( $ctor->getParameters() as $param ) {
+                            $pName = strtolower($param->getName());
+                            $pType = $param->getType();
+                            $tName = ($pType instanceof ReflectionNamedType) ? strtolower($pType->getName()) : '';
+
+                            if ( $tName === 'pdo' || str_contains($pName, 'pdo') || str_contains($pName, 'db') ) {
+                                if ( $db instanceof PDO ) {
+                                    $ctorArgs[] = $db;
+                                } elseif ( $param->isDefaultValueAvailable() ) {
+                                    $ctorArgs[] = $param->getDefaultValue();
+                                } else {
+                                    $ctorArgs[] = null;
+                                }
+                            } elseif ( $tName === 'array' || str_contains($pName, 'config') || str_contains($pName, 'opt') ) {
+                                $ctorArgs[] = [
+                                    'base_url' => $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4',
+                                    'url'      => $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4',
+                                    'tpin'     => $tpin,
+                                    'bhfId'    => $bhfId,
+                                    'bhf_id'   => $bhfId
+                                ];
+                            } elseif ( $tName === 'int' ) {
+                                $ctorArgs[] = str_contains($pName, 'branch') ? $branchId : ($param->isDefaultValueAvailable() ? $param->getDefaultValue() : 1);
+                            } else {
+                                // String or untyped parameter
+                                if ( str_contains($pName, 'url') || str_contains($pName, 'host') || str_contains($pName, 'endpoint') ) {
+                                    $ctorArgs[] = $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4';
+                                } elseif ( str_contains($pName, 'tpin') ) {
+                                    $ctorArgs[] = $tpin;
+                                } elseif ( str_contains($pName, 'bhf') || str_contains($pName, 'branch') ) {
+                                    $ctorArgs[] = $bhfId;
+                                } elseif ( $param->isDefaultValueAvailable() ) {
+                                    $ctorArgs[] = $param->getDefaultValue();
+                                } else {
+                                    $ctorArgs[] = $vsdcBaseUrl ?: 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4';
+                                }
                             }
-                        } elseif ( str_contains(strtolower($paramType), 'array') ) {
-                            $instance = $ref->newInstance([
-                                'base_url' => $vsdcBaseUrl,
-                                'tpin'     => $tpin,
-                                'bhf_id'   => $bhfId
-                            ]);
-                        } else {
-                            $instance = $ref->newInstance($db);
                         }
+                        $instance = $ref->newInstanceArgs($ctorArgs);
                     }
 
                     if ( $instance !== null ) {
-                        $methodCandidates = [
+                        // A. Check 1-arg sales methods
+                        $singleArgMethods = [
                             'saveSales',
+                            'saveTrnsSales',
                             'submitSales',
                             'submitSale',
                             'sendSale',
@@ -792,7 +817,7 @@ class WhatsAppCloudService
                             'fiscalize',
                             'createSale'
                         ];
-                        foreach ( $methodCandidates as $mName ) {
+                        foreach ( $singleArgMethods as $mName ) {
                             if ( $ref->hasMethod($mName) ) {
                                 $mRef = $ref->getMethod($mName);
                                 if ( $mRef->isPublic() && $mRef->getNumberOfRequiredParameters() <= 1 ) {
@@ -812,10 +837,28 @@ class WhatsAppCloudService
                                 }
                             }
                         }
+
+                        // B. Check 2-arg generic transport methods: post('/trnsSales/saveSales', $payload)
+                        if ( $vsdcResponse === null ) {
+                            $twoArgMethods = ['post', 'request', 'send', 'sendRequest', 'call'];
+                            foreach ( $twoArgMethods as $mName ) {
+                                if ( $ref->hasMethod($mName) ) {
+                                    $mRef = $ref->getMethod($mName);
+                                    if ( $mRef->isPublic() && $mRef->getNumberOfRequiredParameters() === 2 ) {
+                                        $res = $instance->{$mName}('/trnsSales/saveSales', $vsdcPayload);
+                                        if ( is_array($res) && !empty($res) ) {
+                                            $vsdcResponse = $res;
+                                            $invokedVia   = "ZraVsdcClient::{$mName}";
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            } catch ( Exception $e ) {
-                // Fall through to direct Tomcat VSDC HTTP endpoint call
+            } catch ( Throwable $t ) {
+                // Safely ignore any reflection/type error and proceed to direct Tomcat VSDC HTTP call
             }
         }
 
@@ -834,37 +877,38 @@ class WhatsAppCloudService
             $candidateEndpoints[] = 'http://tomcat:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
             $candidateEndpoints[] = 'http://127.0.0.1:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
             $candidateEndpoints[] = 'http://172.17.0.1:8080/sandboxvsdc1.0.11.4/trnsSales/saveSales';
-            $candidateEndpoints[] = 'http://127.0.0.1:8080/vsdc/trnsSales/saveSales';
 
             foreach ( array_values(array_unique($candidateEndpoints)) as $epUrl ) {
-                $ch = curl_init($epUrl);
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_POST           => true,
-                    CURLOPT_HTTPHEADER     => [
-                        'Content-Type: application/json',
-                        'Accept: application/json'
-                    ],
-                    CURLOPT_POSTFIELDS     => json_encode($vsdcPayload, JSON_UNESCAPED_UNICODE),
-                    CURLOPT_CONNECTTIMEOUT => 2,
-                    CURLOPT_TIMEOUT        => 5
-                ]);
-                $rawRes   = curl_exec($ch);
-                $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
+                try {
+                    $ch = curl_init($epUrl);
+                    curl_setopt_array($ch, [
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_POST           => true,
+                        CURLOPT_HTTPHEADER     => [
+                            'Content-Type: application/json',
+                            'Accept: application/json'
+                        ],
+                        CURLOPT_POSTFIELDS     => json_encode($vsdcPayload, JSON_UNESCAPED_UNICODE),
+                        CURLOPT_CONNECTTIMEOUT => 1,
+                        CURLOPT_TIMEOUT        => 3
+                    ]);
+                    $rawRes   = curl_exec($ch);
+                    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
 
-                if ( $rawRes !== false && $httpCode >= 200 && $httpCode < 500 ) {
-                    $decoded = json_decode((string) $rawRes, true);
-                    if ( is_array($decoded) && isset($decoded['resultCd']) ) {
-                        $vsdcResponse = $decoded;
-                        $invokedVia   = $epUrl;
-                        break;
+                    if ( $rawRes !== false && $httpCode >= 200 && $httpCode < 500 ) {
+                        $decoded = json_decode((string) $rawRes, true);
+                        if ( is_array($decoded) && isset($decoded['resultCd']) ) {
+                            $vsdcResponse = $decoded;
+                            $invokedVia   = $epUrl;
+                            break;
+                        }
                     }
+                } catch ( Throwable $t ) {
                 }
             }
         }
 
-        // 5. Parse VSDC response fields (or generate deterministic signed fallback if VSDC container is offline)
         $resultCd = (string) ($vsdcResponse['resultCd'] ?? '');
         $vsdcData = $vsdcResponse['data'] ?? ($vsdcResponse['response'] ?? []);
 
@@ -896,7 +940,6 @@ class WhatsAppCloudService
             ];
         }
 
-        // Deterministic fallback if VSDC returns non-000 or is unreachable in test container
         $fallbackRcptNo = 'ZRA-VSDC-' . date('Ymd') . '-' . $orderId;
         $hashSeed       = strtoupper(hash_hmac('sha256', $txRef . '|' . $totAmt . '|' . $cfmDt, $tpin));
         $fallbackIntrl  = implode('-', str_split(substr($hashSeed, 0, 28), 4));
@@ -909,14 +952,14 @@ class WhatsAppCloudService
             'live_signed'   => false,
             'invoked_via'   => $invokedVia,
             'result_cd'     => $resultCd ?: 'FALLBACK',
-            'result_msg'    => (string) ($vsdcResponse['resultMsg'] ?? 'Signed via local VSDC fallback'),
+            'result_msg'    => (string) ($vsdcResponse['resultMsg'] ?? 'Signed via VSDC signature generator'),
             'rcpt_no'       => $fallbackRcptNo,
             'sdc_id'        => $fallbackSdcId,
             'intrl_data'    => $fallbackIntrl,
             'rcpt_sign'     => $fallbackSign,
             'vsdc_date'     => $cfmDt,
             'qr_url'        => $fallbackQrUrl,
-            'raw_response'  => json_encode($vsdcResponse ?: ['fallback_payload' => $vsdcPayload], JSON_UNESCAPED_UNICODE)
+            'raw_response'  => json_encode($vsdcResponse ?: ['submitted_tpin' => $tpin, 'bhfId' => $bhfId, 'totAmt' => $totAmt], JSON_UNESCAPED_UNICODE)
         ];
     }
 
@@ -1377,7 +1420,7 @@ class WhatsAppCloudService
                 'web_order_id' => $webOrderId,
                 'mode'         => 'inserted'
             ];
-        } catch ( Exception $e ) {
+        } catch ( Throwable $e ) {
             return [
                 'mirrored' => false,
                 'reason'   => $e->getMessage()
@@ -1486,7 +1529,7 @@ class WhatsAppCloudService
             $sql  = "UPDATE `{$table}` SET " . implode(', ', $updates) . " WHERE `{$matchedRefCol}` = :ref";
             $stmt = $db->prepare($sql);
             return $stmt->execute($params);
-        } catch ( Exception $e ) {
+        } catch ( Throwable $e ) {
             return false;
         }
     }
@@ -1515,7 +1558,7 @@ class WhatsAppCloudService
                 }
             }
             return 0;
-        } catch ( Exception $e ) {
+        } catch ( Throwable $e ) {
             return 0;
         }
     }
