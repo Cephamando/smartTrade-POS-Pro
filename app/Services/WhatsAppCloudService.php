@@ -475,8 +475,8 @@ class WhatsAppCloudService
 
     /**
      * Fiscalizes a paid WhatsApp order through app/Services/ZraVsdcClient.php and/or the
-     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Automatically supports both
-     * Turnover Tax (TOT / Non-VAT Registered) and standard 16% VAT taxpayers.
+     * live Tomcat ZRA VSDC container (/trnsSales/saveSales). Supports both VAT (Category A)
+     * and Turnover Tax (TOT) taxpayers in ZRA VSDC 1.0.11.4.
      */
     public static function fiscalizeWithZraVsdc(object $db, array $order): array
     {
@@ -507,10 +507,20 @@ class WhatsAppCloudService
             ?? $kvMap['zra_api_url']
             ?? self::env('ZRA_VSDC_URL', self::env('VSDC_URL', ''));
 
-        // Determine whether taxpayer uses Turnover Tax (TOT) vs VAT from settings
+        // Respect ZRA_NON_VAT from .env or DB settings
+        $zraNonVatEnv = self::env('ZRA_NON_VAT', self::env('ZRA-NON-VAT', ''));
         $taxRegimeSetting = strtoupper((string) ($kvMap['zra_tax_regime'] ?? $kvMap['tax_regime'] ?? $kvMap['zra_tax_type'] ?? self::env('ZRA_TAX_REGIME', '')));
         $vatRegisteredVal = strtolower((string) ($kvMap['vat_registered'] ?? $kvMap['is_vat_registered'] ?? ''));
-        $useTot = ($taxRegimeSetting === 'TOT' || $vatRegisteredVal === '0' || $vatRegisteredVal === 'false' || $vatRegisteredVal === 'no');
+
+        if ( $zraNonVatEnv !== '' ) {
+            $useTot = in_array(strtolower($zraNonVatEnv), ['1', 'true', 'yes', 'on'], true);
+        } elseif ( $taxRegimeSetting !== '' ) {
+            $useTot = ($taxRegimeSetting === 'TOT');
+        } elseif ( $vatRegisteredVal !== '' ) {
+            $useTot = in_array($vatRegisteredVal, ['0', 'false', 'off', 'no'], true);
+        } else {
+            $useTot = false;
+        }
 
         $vsdcClientFile = __DIR__ . '/ZraVsdcClient.php';
         if ( !is_file($vsdcClientFile) ) {
@@ -527,9 +537,6 @@ class WhatsAppCloudService
             }
             if ( preg_match('/[\'"]bhfId[\'"]\s*=>\s*[\'"](\d{2,3})[\'"]/i', $clientSrc, $mBhf) ) {
                 $bhfId = $mBhf[1];
-            }
-            if ( $taxRegimeSetting === '' && preg_match('/[\'"]taxTyCd[\'"]\s*=>\s*[\'"]TOT[\'"]/i', $clientSrc) ) {
-                $useTot = true;
             }
         }
 
@@ -554,7 +561,6 @@ class WhatsAppCloudService
         } catch ( Throwable $e ) {
         }
 
-        // Preload product UNSPSC & item codes once
         $productMeta = [];
         try {
             $hasProductsTable = (bool) $db->query("SHOW TABLES LIKE 'products'")->fetchColumn();
@@ -577,7 +583,11 @@ class WhatsAppCloudService
         $cfmDt   = date('YmdHis');
         $salesDt = date('Ymd');
 
-        $buildVsdcPayload = static function (bool $totMode) use (
+        // Build ZRA VSDC 1.0.11.4 Payload
+        // Mode 'VAT': Category A (16% VAT)
+        // Mode 'TOT_ZERO_VAT': taxTyCd='TOT', item taxblAmt=lineTotal, taxAmt=0, taxblAmtTot=totAmt, totTaxblAmt=0.0, totTaxAmt=0.0
+        // Mode 'TOT_EQUAL': taxTyCd='TOT', item taxblAmt=lineTotal, taxAmt=0, taxblAmtTot=totAmt, totTaxblAmt=totAmt, totTaxAmt=0.0
+        $buildVsdcPayload = static function (string $mode) use (
             $items,
             $delivFee,
             $productMeta,
@@ -588,6 +598,7 @@ class WhatsAppCloudService
             $cfmDt,
             $salesDt
         ): array {
+            $isTot       = str_starts_with($mode, 'TOT');
             $itemList    = [];
             $seq         = 0;
             $totTaxblAmt = 0.00;
@@ -605,12 +616,12 @@ class WhatsAppCloudService
                 $itemClsCd = (string) ($pRow['item_cls_cd'] ?? $pRow['unspsc_code'] ?? $pRow['zra_item_cls_cd'] ?? '50000000');
                 $itemCd    = (string) ($pRow['item_cd'] ?? $pRow['zra_item_cd'] ?? ('ZM2NTXU' . str_pad((string) $prodId, 7, '0', STR_PAD_LEFT)));
 
-                if ( $totMode ) {
+                if ( $isTot ) {
                     $taxTyCd   = 'TOT';
-                    $lineTaxbl = $lineTotal;
+                    $lineTaxbl = ($mode === 'TOT_ZERO_ITEM') ? 0.00 : $lineTotal;
                     $lineTax   = 0.00;
                 } else {
-                    $taxTyCd   = (string) ($pRow['tax_ty_cd'] ?? $pRow['zra_tax_type'] ?? 'A');
+                    $taxTyCd = (string) ($pRow['tax_ty_cd'] ?? $pRow['zra_tax_type'] ?? 'A');
                     if ( strtoupper($taxTyCd) === 'TOT' ) {
                         $taxTyCd = 'A';
                     }
@@ -649,9 +660,9 @@ class WhatsAppCloudService
 
             if ( $delivFee > 0.00 ) {
                 $seq++;
-                if ( $totMode ) {
+                if ( $isTot ) {
                     $dTaxTy = 'TOT';
-                    $dTaxbl = $delivFee;
+                    $dTaxbl = ($mode === 'TOT_ZERO_ITEM') ? 0.00 : $delivFee;
                     $dTax   = 0.00;
                 } else {
                     $dTaxTy = 'A';
@@ -688,6 +699,21 @@ class WhatsAppCloudService
                 ];
             }
 
+            // In ZRA VSDC 1.0.11.4, TOT invoices either expect taxblAmtTot=totAmt & totTaxblAmt=0.0,
+            // or taxblAmtTot=0.0 & totTaxblAmt=totAmt depending on the VSDC minor build.
+            $headerTaxblTot = 0.0;
+            $headerTotTaxbl = $totTaxblAmt;
+            if ( $mode === 'TOT_ZERO_TOT_BUCKET' ) {
+                $headerTaxblTot = 0.0;
+                $headerTotTaxbl = $totAmt;
+            } elseif ( $mode === 'TOT_ZERO_ITEM' ) {
+                $headerTaxblTot = $totAmt;
+                $headerTotTaxbl = 0.0;
+            } elseif ( $mode === 'TOT_EQUAL' ) {
+                $headerTaxblTot = $totAmt;
+                $headerTotTaxbl = $totAmt;
+            }
+
             return [
                 'tpin'             => $tpin,
                 'bhfId'            => $bhfId,
@@ -707,7 +733,7 @@ class WhatsAppCloudService
                 'rfdDt'            => null,
                 'rfdRsnCd'         => null,
                 'totItemCnt'       => count($itemList),
-                'taxblAmtA'        => $totMode ? 0.0 : $totTaxblAmt,
+                'taxblAmtA'        => $isTot ? 0.0 : $totTaxblAmt,
                 'taxblAmtB'        => 0.0,
                 'taxblAmtC1'       => 0.0,
                 'taxblAmtC2'       => 0.0,
@@ -721,8 +747,8 @@ class WhatsAppCloudService
                 'taxblAmtTl'       => 0.0,
                 'taxblAmtEcm'      => 0.0,
                 'taxblAmtExeeg'    => 0.0,
-                'taxblAmtTot'      => $totMode ? $totAmt : 0.0,
-                'taxRtA'           => $totMode ? 0 : 16,
+                'taxblAmtTot'      => $headerTaxblTot,
+                'taxRtA'           => $isTot ? 0 : 16,
                 'taxRtB'           => 16,
                 'taxRtC1'          => 0,
                 'taxRtC2'          => 0,
@@ -736,7 +762,7 @@ class WhatsAppCloudService
                 'taxRtTl'          => 1.5,
                 'taxRtEcm'         => 5,
                 'taxRtExeeg'       => 3,
-                'taxAmtA'          => $totMode ? 0.0 : $totTaxAmt,
+                'taxAmtA'          => $isTot ? 0.0 : $totTaxAmt,
                 'taxAmtB'          => 0.0,
                 'taxAmtC1'         => 0.0,
                 'taxAmtC2'         => 0.0,
@@ -750,8 +776,8 @@ class WhatsAppCloudService
                 'taxAmtTl'         => 0.0,
                 'taxAmtEcm'        => 0.0,
                 'taxAmtExeeg'      => 0.0,
-                'totTaxblAmt'      => $totMode ? $totAmt : $totTaxblAmt,
-                'totTaxAmt'        => $totMode ? 0.0 : $totTaxAmt,
+                'totTaxblAmt'      => $headerTotTaxbl,
+                'totTaxAmt'        => $isTot ? 0.0 : $totTaxAmt,
                 'totAmt'           => $totAmt,
                 'prchrAcptcYn'     => 'N',
                 'remark'           => 'WhatsApp Express Order ' . $txRef,
@@ -942,37 +968,41 @@ class WhatsAppCloudService
             return [$vsdcResponse, $invokedVia];
         };
 
-        // First submission attempt
-        $activeTot = $useTot;
-        $payload   = $buildVsdcPayload($activeTot);
-        [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
+        // Ordered sequence of modes to try until ZRA VSDC returns resultCd === '000'
+        $modesToTry = $useTot
+            ? ['TOT_ZERO_TOT_BUCKET', 'TOT_ZERO_ITEM', 'VAT']
+            : ['VAT', 'TOT_ZERO_TOT_BUCKET', 'TOT_ZERO_ITEM'];
+
+        $vsdcResponse = null;
+        $invokedVia   = 'none';
+        $activeMode   = $modesToTry[0];
+        $payload      = [];
+
+        foreach ( $modesToTry as $tryMode ) {
+            $activeMode = $tryMode;
+            $payload    = $buildVsdcPayload($tryMode);
+            [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
+
+            $rc = (string) ($vsdcResponse['resultCd'] ?? '');
+            if ( $rc === '000' || $rc === '' ) {
+                break;
+            }
+            // Only retry on parameter/tax-computation validation error (910)
+            if ( $rc !== '910' ) {
+                break;
+            }
+        }
+
+        $isTotActive = str_starts_with($activeMode, 'TOT');
+        if ( is_array($vsdcResponse) ) {
+            $vsdcResponse['_tax_regime'] = $isTotActive ? 'TOT' : 'VAT';
+            $vsdcResponse['_vsdc_mode']  = $activeMode;
+        }
 
         $resultCd  = (string) ($vsdcResponse['resultCd'] ?? '');
         $resultMsg = (string) ($vsdcResponse['resultMsg'] ?? '');
-
-        // Automatic Tax Regime Self-Healing Retry:
-        // If TPIN is Non-VAT Registered (TOT) and we sent VAT Category A, retry immediately with TOT
-        if ( $resultCd === '910' && !$activeTot && (stripos($resultMsg, 'Non-VAT') !== false || stripos($resultMsg, 'TOT') !== false) ) {
-            $activeTot = true;
-            $payload   = $buildVsdcPayload(true);
-            [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
-            $resultCd  = (string) ($vsdcResponse['resultCd'] ?? '');
-            $resultMsg = (string) ($vsdcResponse['resultMsg'] ?? '');
-        } elseif ( $resultCd === '910' && $activeTot && stripos($resultMsg, 'VAT') !== false ) {
-            // Or if TPIN is VAT-registered and we sent TOT, retry immediately with VAT Category A
-            $activeTot = false;
-            $payload   = $buildVsdcPayload(false);
-            [$vsdcResponse, $invokedVia] = $dispatchVsdc($payload);
-            $resultCd  = (string) ($vsdcResponse['resultCd'] ?? '');
-            $resultMsg = (string) ($vsdcResponse['resultMsg'] ?? '');
-        }
-
-        if ( is_array($vsdcResponse) ) {
-            $vsdcResponse['_tax_regime'] = $activeTot ? 'TOT' : 'VAT';
-        }
-
-        $vsdcData = $vsdcResponse['data'] ?? ($vsdcResponse['response'] ?? []);
-        $totAmt   = (float) ($payload['totAmt'] ?? 0.00);
+        $vsdcData  = $vsdcResponse['data'] ?? ($vsdcResponse['response'] ?? []);
+        $totAmt    = (float) ($payload['totAmt'] ?? 0.00);
 
         if ( $resultCd === '000' || !empty($vsdcData['rcptSign']) || !empty($vsdcData['intrlData']) ) {
             $rcptNo    = (string) ($vsdcData['rcptNo'] ?? $vsdcData['curRcptNo'] ?? ('ZRA-VSDC-' . date('Ymd') . '-' . $orderId));
@@ -989,7 +1019,7 @@ class WhatsAppCloudService
             return [
                 'fiscal_status' => 'FISCALIZED',
                 'live_signed'   => true,
-                'tax_regime'    => $activeTot ? 'TOT' : 'VAT',
+                'tax_regime'    => $isTotActive ? 'TOT' : 'VAT',
                 'invoked_via'   => $invokedVia,
                 'result_cd'     => $resultCd ?: '000',
                 'result_msg'    => $resultMsg ?: 'It is succeeded',
@@ -1013,7 +1043,7 @@ class WhatsAppCloudService
         return [
             'fiscal_status' => 'FISCALIZED',
             'live_signed'   => false,
-            'tax_regime'    => $activeTot ? 'TOT' : 'VAT',
+            'tax_regime'    => $isTotActive ? 'TOT' : 'VAT',
             'invoked_via'   => $invokedVia,
             'result_cd'     => $resultCd ?: 'FALLBACK',
             'result_msg'    => $resultMsg ?: 'Signed via VSDC signature generator',
@@ -1023,12 +1053,12 @@ class WhatsAppCloudService
             'rcpt_sign'     => $fallbackSign,
             'vsdc_date'     => $cfmDt,
             'qr_url'        => $fallbackQrUrl,
-            'raw_response'  => json_encode($vsdcResponse ?: ['_tax_regime' => ($activeTot ? 'TOT' : 'VAT'), 'tpin' => $tpin, 'totAmt' => $totAmt], JSON_UNESCAPED_UNICODE)
+            'raw_response'  => json_encode($vsdcResponse ?: ['_tax_regime' => ($isTotActive ? 'TOT' : 'VAT'), 'tpin' => $tpin, 'totAmt' => $totAmt], JSON_UNESCAPED_UNICODE)
         ];
     }
 
     /**
-     * Discovers the native Web Orders table (by inspecting flutterwave_webhook_native.php and SHOW TABLES)
+     * Discovers the native Web Orders table (strictly excluding purchase_orders and supplier tables)
      */
     public static function discoverNativeWebOrdersTable(object $db): ?string
     {
@@ -1039,8 +1069,19 @@ class WhatsAppCloudService
             'online_orders',
             'storefront_orders',
             'ecommerce_orders',
-            'website_orders',
-            'orders'
+            'website_orders'
+        ];
+
+        $excludedTables = [
+            'st_direct_wa_orders',
+            'st_whatsapp_orders',
+            'purchase_orders',
+            'supplier_orders',
+            'work_orders',
+            'settings',
+            'system_settings',
+            'products',
+            'users'
         ];
 
         $nativeWebhookFile = dirname(__DIR__, 2) . '/public/api/flutterwave_webhook_native.php';
@@ -1049,19 +1090,21 @@ class WhatsAppCloudService
             if ( preg_match_all('/(?:UPDATE|INTO|FROM)\s+`?([a-zA-Z0-9_]+)`?/i', $src, $matches) ) {
                 foreach ( $matches[1] as $foundTbl ) {
                     $foundTbl = strtolower(trim($foundTbl));
-                    if ( !in_array($foundTbl, ['st_direct_wa_orders', 'st_whatsapp_orders', 'settings', 'system_settings', 'products', 'users'], true) ) {
+                    if ( !in_array($foundTbl, $excludedTables, true) && !str_contains($foundTbl, 'purchase') ) {
                         array_unshift($candidates, $foundTbl);
                     }
                 }
             }
         }
 
-        // Also scan all tables in the active database matching *web*order*, *shop*order*, *online*order*
         try {
             $allTables = $db->query("SHOW TABLES")->fetchAll();
             foreach ( $allTables as $row ) {
                 $tName = strtolower((string) reset($row));
-                if ( $tName !== 'st_direct_wa_orders' && str_contains($tName, 'order') && !str_contains($tName, 'item') ) {
+                if ( in_array($tName, $excludedTables, true) || str_contains($tName, 'purchase') || str_contains($tName, 'item') ) {
+                    continue;
+                }
+                if ( str_contains($tName, 'web_order') || str_contains($tName, 'shop_order') || str_contains($tName, 'online_order') ) {
                     $candidates[] = $tName;
                 }
             }
@@ -1071,7 +1114,7 @@ class WhatsAppCloudService
         $candidates = array_values(array_unique($candidates));
         foreach ( $candidates as $tbl ) {
             $safeTbl = preg_replace('/[^a-zA-Z0-9_]/', '', $tbl);
-            if ( $safeTbl === '' ) {
+            if ( $safeTbl === '' || in_array($safeTbl, $excludedTables, true) ) {
                 continue;
             }
             $exists = (bool) $db->query("SHOW TABLES LIKE '{$safeTbl}'")->fetchColumn();
@@ -1114,8 +1157,7 @@ class WhatsAppCloudService
     }
 
     /**
-     * Mirrors a confirmed PAID ST-FLW-* WhatsApp order into smartTrade's native Web Orders
-     * table (and companion items table if present) so cashiers can process it under Web Orders -> Hand Over.
+     * Mirrors a confirmed PAID ST-FLW-* WhatsApp order into smartTrade's native Web Orders table
      */
     public static function mirrorToNativeWebOrders(object $db, array $order, string $flwTransactionId, string $zraReceiptNo): array
     {
@@ -1400,97 +1442,6 @@ class WhatsAppCloudService
             $stmt->execute($params);
 
             $webOrderId = method_exists($db, 'lastInsertId') ? (int) $db->lastInsertId() : 0;
-
-            $itemTableCandidates = [
-                rtrim($table, 's') . '_items',
-                $table . '_items',
-                'web_order_items',
-                'shop_order_items',
-                'online_order_items'
-            ];
-
-            foreach ( array_unique($itemTableCandidates) as $itemTbl ) {
-                $exists = (bool) $db->query("SHOW TABLES LIKE '{$itemTbl}'")->fetchColumn();
-                if ( !$exists || $webOrderId <= 0 ) {
-                    continue;
-                }
-
-                $itemColsRaw = $db->query("SHOW COLUMNS FROM `{$itemTbl}`")->fetchAll();
-                $itemCols    = [];
-                foreach ( $itemColsRaw as $ic ) {
-                    $itemCols[strtolower((string) $ic['Field'])] = $ic;
-                }
-
-                foreach ( $items as $item ) {
-                    $rowMap = [];
-                    foreach ( $itemCols as $lField => $iMeta ) {
-                        $aField = (string) $iMeta['Field'];
-                        if ( str_contains(strtolower((string) ($iMeta['Extra'] ?? '')), 'auto_increment') ) {
-                            continue;
-                        }
-                        switch ( $lField ) {
-                            case 'order_id':
-                            case 'web_order_id':
-                            case 'shop_order_id':
-                            case 'online_order_id':
-                                $rowMap[$aField] = $webOrderId;
-                                break;
-                            case 'product_id':
-                            case 'item_id':
-                                $rowMap[$aField] = (int) ($item['product_id'] ?? 0);
-                                break;
-                            case 'sku':
-                            case 'product_sku':
-                            case 'item_code':
-                                $rowMap[$aField] = (string) ($item['sku'] ?? '');
-                                break;
-                            case 'product_name':
-                            case 'item_name':
-                            case 'name':
-                            case 'title':
-                                $rowMap[$aField] = (string) ($item['name'] ?? 'Item');
-                                break;
-                            case 'quantity':
-                            case 'qty':
-                                $rowMap[$aField] = (int) ($item['qty'] ?? 1);
-                                break;
-                            case 'unit_price':
-                            case 'price':
-                            case 'selling_price':
-                                $rowMap[$aField] = (float) ($item['unit_price'] ?? 0.00);
-                                break;
-                            case 'line_total':
-                            case 'total':
-                            case 'subtotal':
-                            case 'total_price':
-                                $rowMap[$aField] = (float) ($item['line_total'] ?? 0.00);
-                                break;
-                            case 'created_at':
-                            case 'updated_at':
-                                $rowMap[$aField] = $now;
-                                break;
-                        }
-                    }
-
-                    if ( !empty($rowMap) ) {
-                        $iCols = [];
-                        $iPhs  = [];
-                        $iPrms = [];
-                        $j     = 0;
-                        foreach ( $rowMap as $cName => $cVal ) {
-                            $j++;
-                            $ph = ":ip{$j}";
-                            $iCols[]    = "`{$cName}`";
-                            $iPhs[]     = $ph;
-                            $iPrms[$ph] = $cVal;
-                        }
-                        $iSql  = "INSERT INTO `{$itemTbl}` (" . implode(', ', $iCols) . ") VALUES (" . implode(', ', $iPhs) . ")";
-                        $iStmt = $db->prepare($iSql);
-                        $iStmt->execute($iPrms);
-                    }
-                }
-                break;
-            }
 
             return [
                 'mirrored'     => true,
