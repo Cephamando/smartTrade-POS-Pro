@@ -3,7 +3,9 @@ set -euo pipefail
 
 # ==============================================================================
 # smartTrade — Flutterwave Signed Webhook Simulator (v3 & v4 HMAC-SHA256)
-# Targets Unified Endpoint: /api/flutterwave_webhook.php
+# Usage:
+#   bash scripts/tests/simulate_flw_webhook.sh
+#   BASE_URL="https://smartrade.odeliazm.com" bash scripts/tests/simulate_flw_webhook.sh --cleanup
 # ==============================================================================
 
 FLW_SECRET_HASH="${FLW_SECRET_HASH:-024006a8632f4c3b852f4a3ba1596b7d57a78d3298f31c3ef2a8c8734cdc6414}"
@@ -16,6 +18,12 @@ TX_REF="${TX_REF:-}"
 AMOUNT_ZMW="${AMOUNT_ZMW:-}"
 FLW_TX_ID="${FLW_TX_ID:-99$(date +%s)}"
 BASE_URL="${BASE_URL:-}"
+CLEANUP_ONLY=false
+
+if [[ "${1:-}" == "--cleanup" ]]; then
+    CLEANUP_ONLY=true
+fi
+
 PHP_SERVER_PID=""
 DOCKER_PHP_CID=""
 
@@ -142,7 +150,18 @@ fi
 
 INIT_URL="${BASE_URL%/}/api/whatsapp_checkout/init_order.php"
 WEBHOOK_URL="${BASE_URL%/}/api/flutterwave_webhook.php"
-QUEUE_URL="${BASE_URL%/}/api/whatsapp_checkout/pos_order_actions.php?branch_id=${BRANCH_ID}&payment_status=PAID"
+ACTIONS_URL="${BASE_URL%/}/api/whatsapp_checkout/pos_order_actions.php"
+QUEUE_URL="${ACTIONS_URL}?branch_id=${BRANCH_ID}&payment_status=PAID"
+
+if [[ "${CLEANUP_ONLY}" == "true" ]]; then
+    echo "Purging simulated webhook test orders via ${ACTIONS_URL} ..."
+    curl -sS --connect-timeout 10 -X POST "${ACTIONS_URL}" \
+        -H "Content-Type: application/json" \
+        -H "verif-hash: ${FLW_SECRET_HASH}" \
+        -d '{"action":"purge_test_orders"}'
+    echo ""
+    exit 0
+fi
 
 echo "=================================================================="
 echo " smartTrade -> Unified Flutterwave Webhook Test Suite"

@@ -143,7 +143,7 @@ try {
         }
 
         $zraReceiptNo = 'ZRA-VSDC-' . date('Ymd') . '-' . $order['id'];
-        $zraQrUrl     = 'https://smarTrade.odeliazm.com/verify_receipt.php?rcpt=' . urlencode($zraReceiptNo);
+        $zraQrUrl     = 'https://smartrade.odeliazm.com/verify_receipt.php?rcpt=' . urlencode($zraReceiptNo);
 
         $upd = $pdo->prepare("
             UPDATE st_direct_wa_orders
@@ -162,6 +162,9 @@ try {
             ':id'     => $order['id']
         ]);
 
+        // Mirror paid WhatsApp order into native Web Orders table for Hand Over queue
+        $mirrorReport = WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, $zraReceiptNo);
+
         $pdo->commit();
 
         $waService = new WhatsAppCloudService();
@@ -169,10 +172,11 @@ try {
 
         http_response_code(200);
         echo json_encode([
-            'status'         => 'success',
-            'tx_ref'         => $txRef,
-            'zra_receipt_no' => $zraReceiptNo,
-            'zra_qr_url'     => $zraQrUrl
+            'status'             => 'success',
+            'tx_ref'             => $txRef,
+            'zra_receipt_no'     => $zraReceiptNo,
+            'zra_qr_url'         => $zraQrUrl,
+            'web_order_mirrored' => $mirrorReport
         ]);
         exit;
     } else {

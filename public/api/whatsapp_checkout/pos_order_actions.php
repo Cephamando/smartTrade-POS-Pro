@@ -46,7 +46,36 @@ try {
     }
 
     if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
-        $input     = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        $input  = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        $action = strtolower(trim((string) ($input['action'] ?? 'update_status')));
+
+        // Action A: Purge simulated webhook test orders from both st_direct_wa_orders and native Web Orders
+        if ( $action === 'purge_test_orders' ) {
+            $flwConfig    = WhatsAppCloudService::getFlwConfig($pdo);
+            $expectedHash = $flwConfig['secret_hash'];
+            $providedHash = $_SERVER['HTTP_VERIF_HASH'] ?? (string) ($input['secret_hash'] ?? '');
+
+            if ( $expectedHash !== 'YOUR_FLW_WEBHOOK_SECRET_HASH' && $expectedHash !== '' ) {
+                if ( !hash_equals($expectedHash, $providedHash) ) {
+                    http_response_code(401);
+                    echo json_encode(['status' => 'error', 'message' => 'Unauthorized purge request']);
+                    exit;
+                }
+            }
+
+            $deletedWa     = $pdo->exec("DELETE FROM st_direct_wa_orders WHERE customer_name LIKE '%Webhook Test%' OR flw_transaction_id LIKE '9917%'");
+            $deletedNative = WhatsAppCloudService::purgeNativeWebOrderTests($pdo);
+
+            echo json_encode([
+                'status'               => 'success',
+                'action'               => 'purge_test_orders',
+                'deleted_wa_count'     => $deletedWa,
+                'deleted_native_count' => $deletedNative
+            ]);
+            exit;
+        }
+
+        // Action B: Transition kitchen fulfillment_status, sync native Web Orders Hand Over state, and notify buyer
         $txRef     = trim((string) ($input['tx_ref'] ?? ''));
         $newStatus = strtoupper(trim((string) ($input['fulfillment_status'] ?? '')));
 
@@ -73,6 +102,14 @@ try {
             ':id'      => $order['id']
         ]);
 
+        // Mirror status change (e.g., COMPLETED / Hand Over) into native Web Orders table
+        $nativeSynced = WhatsAppCloudService::syncNativeWebOrderStatus(
+            $pdo,
+            $txRef,
+            $newStatus,
+            (string) ($order['flw_transaction_id'] ?? '')
+        );
+
         $waService = new WhatsAppCloudService();
         $waResult  = $waService->sendFulfillmentStatusUpdate($order, $newStatus);
 
@@ -80,6 +117,7 @@ try {
             'status'             => 'success',
             'tx_ref'             => $txRef,
             'fulfillment_status' => $newStatus,
+            'native_web_synced'  => $nativeSynced,
             'whatsapp_notified'  => $waResult['success']
         ]);
         exit;

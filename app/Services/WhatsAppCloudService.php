@@ -140,6 +140,11 @@ class MysqliBridgeConnection
         return new MysqliBridgeStatement($this->mysqli, $sql);
     }
 
+    public function lastInsertId(): string
+    {
+        return (string) $this->mysqli->insert_id;
+    }
+
     public function beginTransaction(): bool
     {
         $this->inTx = $this->mysqli->begin_transaction();
@@ -337,9 +342,7 @@ class WhatsAppCloudService
     }
 
     /**
-     * Reads the in-app Flutterwave configuration (Public Key, Secret Key, Encryption Key,
-     * Webhook Secret Hash, Subaccount ID RS_..., and Website Enabled toggle) directly from
-     * smartTrade's database settings table, with .env fallback.
+     * Reads the in-app Flutterwave configuration directly from smartTrade's database settings
      */
     public static function getFlwConfig(?object $pdo = null): array
     {
@@ -366,13 +369,11 @@ class WhatsAppCloudService
 
                 $rows = $db->query("SELECT * FROM `{$tbl}` LIMIT 250")->fetchAll();
                 foreach ( $rows as $r ) {
-                    // Case A: Key-Value rows (setting_key/setting_value, key/value, name/value)
                     $k = $r['setting_key'] ?? $r['key'] ?? $r['name'] ?? $r['config_key'] ?? $r['option_name'] ?? null;
                     $v = $r['setting_value'] ?? $r['value'] ?? $r['val'] ?? $r['config_value'] ?? $r['option_value'] ?? null;
                     if ( $k !== null && $v !== null ) {
                         $kvMap[strtolower(trim((string) $k))] = trim((string) $v);
                     } else {
-                        // Case B: Wide single-row settings table
                         foreach ( $r as $colName => $colVal ) {
                             if ( $colVal !== null && $colVal !== '' ) {
                                 $kvMap[strtolower(trim((string) $colName))] = trim((string) $colVal);
@@ -405,7 +406,6 @@ class WhatsAppCloudService
                 }
             }
         } catch ( Exception $e ) {
-            // Gracefully retain .env fallback values if settings table lookup fails
         }
 
         if ( $config['public_key'] === '' ) {
@@ -419,6 +419,612 @@ class WhatsAppCloudService
         }
 
         return $config;
+    }
+
+    /**
+     * Discovers the native Web Orders table (by inspecting flutterwave_webhook_native.php or SHOW TABLES)
+     */
+    public static function discoverNativeWebOrdersTable(object $db): ?string
+    {
+        $candidates = [
+            'web_orders',
+            'shop_orders',
+            'online_orders',
+            'storefront_orders',
+            'ecommerce_orders',
+            'website_orders'
+        ];
+
+        $nativeWebhookFile = dirname(__DIR__, 2) . '/public/api/flutterwave_webhook_native.php';
+        if ( is_file($nativeWebhookFile) && is_readable($nativeWebhookFile) ) {
+            $src = (string) file_get_contents($nativeWebhookFile);
+            if ( preg_match_all('/(?:UPDATE|INTO|FROM)\s+`?([a-zA-Z0-9_]+orders[a-zA-Z0-9_]*)`?/i', $src, $matches) ) {
+                foreach ( $matches[1] as $foundTbl ) {
+                    $foundTbl = strtolower(trim($foundTbl));
+                    if ( $foundTbl !== 'st_direct_wa_orders' && $foundTbl !== 'st_whatsapp_orders' ) {
+                        array_unshift($candidates, $foundTbl);
+                    }
+                }
+            }
+        }
+
+        $candidates = array_values(array_unique($candidates));
+        foreach ( $candidates as $tbl ) {
+            $safeTbl = preg_replace('/[^a-zA-Z0-9_]/', '', $tbl);
+            if ( $safeTbl === '' ) {
+                continue;
+            }
+            $exists = (bool) $db->query("SHOW TABLES LIKE '{$safeTbl}'")->fetchColumn();
+            if ( $exists ) {
+                return $safeTbl;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Helper to select a valid ENUM value when a target column is an ENUM
+     */
+    private static function resolveColumnValue(array $colMeta, array $preferredValues, mixed $fallback): mixed
+    {
+        $type = strtolower((string) ($colMeta['Type'] ?? ''));
+        if ( str_starts_with($type, 'enum(') ) {
+            if ( preg_match_all("/'([^']*)'/", (string) $colMeta['Type'], $m) && !empty($m[1]) ) {
+                $allowed = $m[1];
+                foreach ( $preferredValues as $pref ) {
+                    foreach ( $allowed as $allowedVal ) {
+                        if ( strcasecmp((string) $pref, $allowedVal) === 0 ) {
+                            return $allowedVal;
+                        }
+                    }
+                }
+                return $allowed[0];
+            }
+        }
+        if ( str_contains($type, 'int') ) {
+            foreach ( $preferredValues as $pref ) {
+                if ( is_int($pref) || ctype_digit((string) $pref) ) {
+                    return (int) $pref;
+                }
+            }
+            return is_numeric($fallback) ? (int) $fallback : 1;
+        }
+        return $fallback;
+    }
+
+    /**
+     * Mirrors a confirmed PAID ST-FLW-* WhatsApp order into smartTrade's native Web Orders
+     * table (and companion items table if present) so cashiers can process it under Web Orders -> Hand Over.
+     */
+    public static function mirrorToNativeWebOrders(object $db, array $order, string $flwTransactionId, string $zraReceiptNo): array
+    {
+        try {
+            $table = self::discoverNativeWebOrdersTable($db);
+            if ( $table === null ) {
+                return ['mirrored' => false, 'reason' => 'No separate native web_orders table detected'];
+            }
+
+            $colsRaw = $db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
+            if ( empty($colsRaw) ) {
+                return ['mirrored' => false, 'reason' => "Could not inspect columns on {$table}"];
+            }
+
+            $cols = [];
+            foreach ( $colsRaw as $c ) {
+                $cols[strtolower((string) $c['Field'])] = $c;
+            }
+
+            $txRef = (string) $order['tx_ref'];
+
+            // 1. Check if this tx_ref already exists in the native Web Orders table
+            $refCols = ['tx_ref', 'order_number', 'order_ref', 'reference', 'order_code', 'invoice_no', 'payment_reference', 'flw_tx_ref'];
+            $matchedRefCol = null;
+            foreach ( $refCols as $rc ) {
+                if ( isset($cols[$rc]) ) {
+                    $matchedRefCol = $cols[$rc]['Field'];
+                    break;
+                }
+            }
+
+            if ( $matchedRefCol !== null ) {
+                $chk = $db->prepare("SELECT id FROM `{$table}` WHERE `{$matchedRefCol}` = :ref LIMIT 1");
+                $chk->execute([':ref' => $txRef]);
+                $existingRow = $chk->fetch();
+                if ( $existingRow ) {
+                    // Ensure existing row is marked paid
+                    self::syncNativeWebOrderStatus($db, $txRef, 'NEW', $flwTransactionId);
+                    return [
+                        'mirrored'      => true,
+                        'table'         => $table,
+                        'web_order_id'  => $existingRow['id'] ?? null,
+                        'mode'          => 'updated_existing'
+                    ];
+                }
+            }
+
+            $now   = date('Y-m-d H:i:s');
+            $items = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
+
+            // 2. Build dynamic column -> value map for INSERT
+            $insertData = [];
+
+            foreach ( $cols as $lowerField => $meta ) {
+                $actualField = (string) $meta['Field'];
+                $extra       = strtolower((string) ($meta['Extra'] ?? ''));
+                if ( str_contains($extra, 'auto_increment') ) {
+                    continue;
+                }
+
+                switch ( $lowerField ) {
+                    case 'branch_id':
+                    case 'location_id':
+                    case 'store_id':
+                        $insertData[$actualField] = (int) ($order['branch_id'] ?? 1);
+                        break;
+
+                    case 'tx_ref':
+                    case 'order_number':
+                    case 'order_ref':
+                    case 'reference':
+                    case 'order_code':
+                    case 'invoice_no':
+                    case 'flw_tx_ref':
+                    case 'payment_reference':
+                        $insertData[$actualField] = $txRef;
+                        break;
+
+                    case 'flw_transaction_id':
+                    case 'transaction_id':
+                    case 'gateway_ref':
+                    case 'flw_ref':
+                    case 'payment_ref':
+                        $insertData[$actualField] = $flwTransactionId;
+                        break;
+
+                    case 'customer_name':
+                    case 'client_name':
+                    case 'buyer_name':
+                    case 'recipient_name':
+                    case 'full_name':
+                    case 'name':
+                        $insertData[$actualField] = (string) $order['customer_name'];
+                        break;
+
+                    case 'customer_phone':
+                    case 'client_phone':
+                    case 'buyer_phone':
+                    case 'recipient_phone':
+                    case 'phone_number':
+                    case 'phone':
+                    case 'msisdn':
+                    case 'mobile':
+                        $insertData[$actualField] = (string) $order['customer_phone'];
+                        break;
+
+                    case 'customer_email':
+                    case 'email':
+                        $insertData[$actualField] = $order['customer_phone'] . '@whatsapp.odeliazm.com';
+                        break;
+
+                    case 'delivery_type':
+                    case 'fulfillment_type':
+                    case 'order_type':
+                    case 'shipping_method':
+                    case 'delivery_method':
+                        $dtype = strtoupper((string) ($order['delivery_type'] ?? 'DELIVERY'));
+                        $prefs = ($dtype === 'PICKUP')
+                            ? ['PICKUP', 'pickup', 'collection', 'collect', 'in_store']
+                            : ['DELIVERY', 'delivery', 'shipping', 'dispatch'];
+                        $insertData[$actualField] = self::resolveColumnValue($meta, $prefs, strtolower($dtype));
+                        break;
+
+                    case 'delivery_address':
+                    case 'shipping_address':
+                    case 'address':
+                    case 'location':
+                        $insertData[$actualField] = (string) ($order['delivery_address'] ?? '');
+                        break;
+
+                    case 'subtotal':
+                    case 'sub_total':
+                    case 'subtotal_zmw':
+                    case 'items_total':
+                        $insertData[$actualField] = (float) ($order['subtotal_zmw'] ?? 0.00);
+                        break;
+
+                    case 'delivery_fee':
+                    case 'shipping_fee':
+                    case 'delivery_cost':
+                    case 'delivery_fee_zmw':
+                        $insertData[$actualField] = (float) ($order['delivery_fee_zmw'] ?? 0.00);
+                        break;
+
+                    case 'total':
+                    case 'total_amount':
+                    case 'grand_total':
+                    case 'amount':
+                    case 'order_total':
+                    case 'total_zmw':
+                    case 'amount_paid':
+                    case 'paid_amount':
+                        $insertData[$actualField] = (float) ($order['total_zmw'] ?? 0.00);
+                        break;
+
+                    case 'currency':
+                    case 'currency_code':
+                        $insertData[$actualField] = 'ZMW';
+                        break;
+
+                    case 'payment_status':
+                    case 'pay_status':
+                        $insertData[$actualField] = self::resolveColumnValue(
+                            $meta,
+                            ['paid', 'PAID', 'successful', 'completed', 'confirmed', 1],
+                            'paid'
+                        );
+                        break;
+
+                    case 'is_paid':
+                    case 'paid':
+                        $insertData[$actualField] = 1;
+                        break;
+
+                    case 'payment_method':
+                    case 'payment_gateway':
+                    case 'gateway':
+                    case 'payment_channel':
+                    case 'payment_type':
+                        $insertData[$actualField] = self::resolveColumnValue(
+                            $meta,
+                            ['flutterwave', 'Flutterwave', 'FLUTTERWAVE', 'mobile_money', 'mobilemoney', 'online', 'card'],
+                            'flutterwave'
+                        );
+                        break;
+
+                    case 'status':
+                    case 'order_status':
+                    case 'fulfillment_status':
+                    case 'handover_status':
+                        // Keep order active on Web Orders until Hand Over
+                        $insertData[$actualField] = self::resolveColumnValue(
+                            $meta,
+                            ['paid', 'PAID', 'pending_handover', 'awaiting_handover', 'pending', 'PENDING', 'new', 'NEW', 'processing', 'confirmed', 'ready'],
+                            'paid'
+                        );
+                        break;
+
+                    case 'handed_over':
+                    case 'is_handed_over':
+                    case 'is_completed':
+                        $insertData[$actualField] = 0;
+                        break;
+
+                    case 'source':
+                    case 'order_source':
+                    case 'channel':
+                    case 'platform':
+                        $insertData[$actualField] = self::resolveColumnValue(
+                            $meta,
+                            ['whatsapp', 'WHATSAPP', 'WhatsApp', 'web', 'WEB', 'online', 'take_app'],
+                            'whatsapp'
+                        );
+                        break;
+
+                    case 'items':
+                    case 'items_json':
+                    case 'cart_json':
+                    case 'order_items':
+                    case 'products_json':
+                    case 'line_items':
+                        $insertData[$actualField] = (string) ($order['items_json'] ?? '[]');
+                        break;
+
+                    case 'zra_rcpt_no':
+                    case 'zra_receipt_no':
+                    case 'fiscal_receipt_no':
+                    case 'receipt_no':
+                        $insertData[$actualField] = $zraReceiptNo;
+                        break;
+
+                    case 'notes':
+                    case 'note':
+                    case 'remarks':
+                    case 'customer_note':
+                        $insertData[$actualField] = "WhatsApp Express Order ({$txRef}) | ZRA: {$zraReceiptNo}";
+                        break;
+
+                    case 'paid_at':
+                    case 'created_at':
+                    case 'updated_at':
+                    case 'order_date':
+                        $insertData[$actualField] = $now;
+                        break;
+
+                    default:
+                        // Provide safe defaults for any NOT NULL column without a default value
+                        $isNotNull  = (strtoupper((string) ($meta['Null'] ?? 'YES')) === 'NO');
+                        $hasDefault = ($meta['Default'] !== null);
+                        if ( $isNotNull && !$hasDefault ) {
+                            $colType = strtolower((string) ($meta['Type'] ?? ''));
+                            if ( str_contains($colType, 'int') || str_contains($colType, 'decimal') || str_contains($colType, 'float') || str_contains($colType, 'double') ) {
+                                $insertData[$actualField] = 0;
+                            } elseif ( str_contains($colType, 'json') ) {
+                                $insertData[$actualField] = '[]';
+                            } elseif ( str_contains($colType, 'date') || str_contains($colType, 'time') ) {
+                                $insertData[$actualField] = $now;
+                            } elseif ( str_starts_with($colType, 'enum(') ) {
+                                $insertData[$actualField] = self::resolveColumnValue($meta, [], '');
+                            } else {
+                                $insertData[$actualField] = '';
+                            }
+                        }
+                        break;
+                }
+            }
+
+            if ( empty($insertData) ) {
+                return ['mirrored' => false, 'reason' => "No mappable columns found on {$table}"];
+            }
+
+            $colIdentifiers = [];
+            $placeholders   = [];
+            $params         = [];
+            $idx            = 0;
+
+            foreach ( $insertData as $colName => $val ) {
+                $idx++;
+                $ph = ":p{$idx}";
+                $colIdentifiers[] = "`{$colName}`";
+                $placeholders[]   = $ph;
+                $params[$ph]      = $val;
+            }
+
+            $sql  = "INSERT INTO `{$table}` (" . implode(', ', $colIdentifiers) . ") VALUES (" . implode(', ', $placeholders) . ")";
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+
+            $webOrderId = method_exists($db, 'lastInsertId') ? (int) $db->lastInsertId() : 0;
+
+            // 3. Mirror line items if a companion *_items table exists
+            $itemTableCandidates = [
+                rtrim($table, 's') . '_items',
+                $table . '_items',
+                'web_order_items',
+                'shop_order_items',
+                'online_order_items'
+            ];
+
+            foreach ( array_unique($itemTableCandidates) as $itemTbl ) {
+                $exists = (bool) $db->query("SHOW TABLES LIKE '{$itemTbl}'")->fetchColumn();
+                if ( !$exists || $webOrderId <= 0 ) {
+                    continue;
+                }
+
+                $itemColsRaw = $db->query("SHOW COLUMNS FROM `{$itemTbl}`")->fetchAll();
+                $itemCols    = [];
+                foreach ( $itemColsRaw as $ic ) {
+                    $itemCols[strtolower((string) $ic['Field'])] = $ic;
+                }
+
+                foreach ( $items as $item ) {
+                    $rowMap = [];
+                    foreach ( $itemCols as $lField => $iMeta ) {
+                        $aField = (string) $iMeta['Field'];
+                        if ( str_contains(strtolower((string) ($iMeta['Extra'] ?? '')), 'auto_increment') ) {
+                            continue;
+                        }
+                        switch ( $lField ) {
+                            case 'order_id':
+                            case 'web_order_id':
+                            case 'shop_order_id':
+                            case 'online_order_id':
+                                $rowMap[$aField] = $webOrderId;
+                                break;
+                            case 'product_id':
+                            case 'item_id':
+                                $rowMap[$aField] = (int) ($item['product_id'] ?? 0);
+                                break;
+                            case 'sku':
+                            case 'product_sku':
+                            case 'item_code':
+                                $rowMap[$aField] = (string) ($item['sku'] ?? '');
+                                break;
+                            case 'product_name':
+                            case 'item_name':
+                            case 'name':
+                            case 'title':
+                                $rowMap[$aField] = (string) ($item['name'] ?? 'Item');
+                                break;
+                            case 'quantity':
+                            case 'qty':
+                                $rowMap[$aField] = (int) ($item['qty'] ?? 1);
+                                break;
+                            case 'unit_price':
+                            case 'price':
+                            case 'selling_price':
+                                $rowMap[$aField] = (float) ($item['unit_price'] ?? 0.00);
+                                break;
+                            case 'line_total':
+                            case 'total':
+                            case 'subtotal':
+                            case 'total_price':
+                                $rowMap[$aField] = (float) ($item['line_total'] ?? 0.00);
+                                break;
+                            case 'created_at':
+                            case 'updated_at':
+                                $rowMap[$aField] = $now;
+                                break;
+                        }
+                    }
+
+                    if ( !empty($rowMap) ) {
+                        $iCols = [];
+                        $iPhs  = [];
+                        $iPrms = [];
+                        $j     = 0;
+                        foreach ( $rowMap as $cName => $cVal ) {
+                            $j++;
+                            $ph = ":ip{$j}";
+                            $iCols[]    = "`{$cName}`";
+                            $iPhs[]     = $ph;
+                            $iPrms[$ph] = $cVal;
+                        }
+                        $iSql  = "INSERT INTO `{$itemTbl}` (" . implode(', ', $iCols) . ") VALUES (" . implode(', ', $iPhs) . ")";
+                        $iStmt = $db->prepare($iSql);
+                        $iStmt->execute($iPrms);
+                    }
+                }
+                break;
+            }
+
+            return [
+                'mirrored'     => true,
+                'table'        => $table,
+                'web_order_id' => $webOrderId,
+                'mode'         => 'inserted'
+            ];
+        } catch ( Exception $e ) {
+            return [
+                'mirrored' => false,
+                'reason'   => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Synchronizes status changes (such as COMPLETED / Hand Over) to the mirrored native Web Orders row
+     */
+    public static function syncNativeWebOrderStatus(object $db, string $txRef, string $fulfillmentStatus, ?string $flwTransactionId = null): bool
+    {
+        try {
+            $table = self::discoverNativeWebOrdersTable($db);
+            if ( $table === null ) {
+                return false;
+            }
+
+            $colsRaw = $db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
+            $cols    = [];
+            foreach ( $colsRaw as $c ) {
+                $cols[strtolower((string) $c['Field'])] = $c;
+            }
+
+            $refCols = ['tx_ref', 'order_number', 'order_ref', 'reference', 'order_code', 'invoice_no', 'payment_reference', 'flw_tx_ref'];
+            $matchedRefCol = null;
+            foreach ( $refCols as $rc ) {
+                if ( isset($cols[$rc]) ) {
+                    $matchedRefCol = $cols[$rc]['Field'];
+                    break;
+                }
+            }
+
+            if ( $matchedRefCol === null ) {
+                return false;
+            }
+
+            $updates = [];
+            $params  = [':ref' => $txRef];
+
+            if ( isset($cols['payment_status']) ) {
+                $f = $cols['payment_status']['Field'];
+                $updates[] = "`{$f}` = :pstat";
+                $params[':pstat'] = self::resolveColumnValue(
+                    $cols['payment_status'],
+                    ['paid', 'PAID', 'successful', 'completed', 1],
+                    'paid'
+                );
+            }
+
+            foreach ( ['status', 'order_status', 'fulfillment_status', 'handover_status'] as $stCol ) {
+                if ( isset($cols[$stCol]) ) {
+                    $f = $cols[$stCol]['Field'];
+                    if ( $fulfillmentStatus === 'COMPLETED' ) {
+                        $prefs = ['handed_over', 'HANDED_OVER', 'completed', 'COMPLETED', 'delivered', 'fulfilled', 'done', 'closed'];
+                        $def   = 'completed';
+                    } elseif ( $fulfillmentStatus === 'CANCELLED' ) {
+                        $prefs = ['cancelled', 'CANCELLED', 'canceled', 'void'];
+                        $def   = 'cancelled';
+                    } elseif ( $fulfillmentStatus === 'READY_OR_DISPATCHED' ) {
+                        $prefs = ['ready', 'READY', 'dispatched', 'shipped', 'out_for_delivery', 'processing', 'paid'];
+                        $def   = 'ready';
+                    } elseif ( $fulfillmentStatus === 'PREPARING' ) {
+                        $prefs = ['preparing', 'PREPARING', 'processing', 'PROCESSING', 'in_progress', 'paid'];
+                        $def   = 'preparing';
+                    } else {
+                        $prefs = ['paid', 'PAID', 'pending_handover', 'awaiting_handover', 'pending', 'new'];
+                        $def   = 'paid';
+                    }
+                    $updates[] = "`{$f}` = :ostat_{$stCol}";
+                    $params[":ostat_{$stCol}"] = self::resolveColumnValue($cols[$stCol], $prefs, $def);
+                }
+            }
+
+            if ( $fulfillmentStatus === 'COMPLETED' ) {
+                foreach ( ['handed_over', 'is_handed_over', 'is_completed'] as $boolCol ) {
+                    if ( isset($cols[$boolCol]) ) {
+                        $f = $cols[$boolCol]['Field'];
+                        $updates[] = "`{$f}` = 1";
+                    }
+                }
+                foreach ( ['handed_over_at', 'completed_at'] as $timeCol ) {
+                    if ( isset($cols[$timeCol]) ) {
+                        $f = $cols[$timeCol]['Field'];
+                        $updates[] = "`{$f}` = :ho_time";
+                        $params[':ho_time'] = date('Y-m-d H:i:s');
+                    }
+                }
+            }
+
+            if ( $flwTransactionId !== null && $flwTransactionId !== '' ) {
+                foreach ( ['flw_transaction_id', 'transaction_id', 'gateway_ref', 'flw_ref', 'payment_ref'] as $txCol ) {
+                    if ( isset($cols[$txCol]) ) {
+                        $f = $cols[$txCol]['Field'];
+                        $updates[] = "`{$f}` = :flwid";
+                        $params[':flwid'] = $flwTransactionId;
+                        break;
+                    }
+                }
+            }
+
+            if ( empty($updates) ) {
+                return false;
+            }
+
+            $sql  = "UPDATE `{$table}` SET " . implode(', ', $updates) . " WHERE `{$matchedRefCol}` = :ref";
+            $stmt = $db->prepare($sql);
+            return $stmt->execute($params);
+        } catch ( Exception $e ) {
+            return false;
+        }
+    }
+
+    /**
+     * Purges simulated webhook test rows from the mirrored native Web Orders table
+     */
+    public static function purgeNativeWebOrderTests(object $db): int
+    {
+        try {
+            $table = self::discoverNativeWebOrdersTable($db);
+            if ( $table === null ) {
+                return 0;
+            }
+
+            $colsRaw = $db->query("SHOW COLUMNS FROM `{$table}`")->fetchAll();
+            $cols    = [];
+            foreach ( $colsRaw as $c ) {
+                $cols[strtolower((string) $c['Field'])] = $c['Field'];
+            }
+
+            foreach ( ['customer_name', 'client_name', 'buyer_name', 'name'] as $nameCol ) {
+                if ( isset($cols[$nameCol]) ) {
+                    $f = $cols[$nameCol];
+                    return $db->exec("DELETE FROM `{$table}` WHERE `{$f}` LIKE '%Webhook Test%'");
+                }
+            }
+            return 0;
+        } catch ( Exception $e ) {
+            return 0;
+        }
     }
 
     /**
