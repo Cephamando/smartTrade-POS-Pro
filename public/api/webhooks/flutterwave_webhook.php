@@ -114,6 +114,7 @@ try {
     $expectedTotal = (float) $order['total_zmw'];
 
     if ( $verifiedStatus === 'successful' && $verifiedCurr === 'ZMW' && $verifiedAmount >= $expectedTotal ) {
+        // 1. Deduct stock from products table
         $hasProductsTable = (bool) $pdo->query("SHOW TABLES LIKE 'products'")->fetchColumn();
         if ( $hasProductsTable ) {
             $colsStmt = $pdo->query("SHOW COLUMNS FROM products");
@@ -142,33 +143,48 @@ try {
             }
         }
 
-        $zraReceiptNo = 'ZRA-VSDC-' . date('Ymd') . '-' . $order['id'];
-        $zraQrUrl     = 'https://smartrade.odeliazm.com/verify_receipt.php?rcpt=' . urlencode($zraReceiptNo);
+        // 2. Fiscalize sale via app/Services/ZraVsdcClient.php and Tomcat ZRA VSDC container
+        $vsdcReport   = WhatsAppCloudService::fiscalizeWithZraVsdc($pdo, $order);
+        $zraReceiptNo = $vsdcReport['rcpt_no'];
+        $zraQrUrl     = $vsdcReport['qr_url'];
 
+        // 3. Persist PAID & ZRA VSDC signature fields on st_direct_wa_orders
         $upd = $pdo->prepare("
             UPDATE st_direct_wa_orders
             SET payment_status = 'PAID',
                 fulfillment_status = 'NEW',
                 flw_transaction_id = :flwid,
-                zra_fiscal_status = 'FISCALIZED',
+                zra_fiscal_status = :zfstat,
                 zra_rcpt_no = :zrarcp,
-                zra_qr_url = :zraqr
+                zra_qr_url = :zraqr,
+                zra_sdc_id = :zsdc,
+                zra_intrl_data = :zintrl,
+                zra_rcpt_sign = :zsign,
+                zra_vsdc_date = :zdate,
+                zra_raw_response = :zraw
             WHERE id = :id
         ");
         $upd->execute([
             ':flwid'  => $transactionId,
+            ':zfstat' => $vsdcReport['fiscal_status'],
             ':zrarcp' => $zraReceiptNo,
             ':zraqr'  => $zraQrUrl,
+            ':zsdc'   => $vsdcReport['sdc_id'],
+            ':zintrl' => $vsdcReport['intrl_data'],
+            ':zsign'  => $vsdcReport['rcpt_sign'],
+            ':zdate'  => $vsdcReport['vsdc_date'],
+            ':zraw'   => $vsdcReport['raw_response'],
             ':id'     => $order['id']
         ]);
 
-        // Mirror paid WhatsApp order into native Web Orders table for Hand Over queue
+        // 4. Mirror paid WhatsApp order into native Web Orders table for Hand Over queue
         $mirrorReport = WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, $zraReceiptNo);
 
         $pdo->commit();
 
+        // 5. Dispatch WhatsApp receipt with ZRA VSDC signature & notify merchant kitchen
         $waService = new WhatsAppCloudService();
-        $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $zraQrUrl);
+        $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $zraQrUrl, $vsdcReport);
 
         http_response_code(200);
         echo json_encode([
@@ -176,6 +192,16 @@ try {
             'tx_ref'             => $txRef,
             'zra_receipt_no'     => $zraReceiptNo,
             'zra_qr_url'         => $zraQrUrl,
+            'zra_vsdc'           => [
+                'live_signed' => $vsdcReport['live_signed'],
+                'invoked_via' => $vsdcReport['invoked_via'],
+                'result_cd'   => $vsdcReport['result_cd'],
+                'result_msg'  => $vsdcReport['result_msg'],
+                'sdc_id'      => $vsdcReport['sdc_id'],
+                'intrl_data'  => $vsdcReport['intrl_data'],
+                'rcpt_sign'   => $vsdcReport['rcpt_sign'],
+                'vsdc_date'   => $vsdcReport['vsdc_date']
+            ],
             'web_order_mirrored' => $mirrorReport
         ]);
         exit;

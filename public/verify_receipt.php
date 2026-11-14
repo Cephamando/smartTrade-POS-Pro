@@ -5,19 +5,18 @@ require_once __DIR__ . '/../app/Services/WhatsAppCloudService.php';
 
 use SmartTrade\Services\WhatsAppCloudService;
 
-$rcptNo   = trim((string) ($_GET['rcpt'] ?? ''));
-$txRef    = trim((string) ($_GET['tx_ref'] ?? ''));
+$rcptNo    = trim((string) ($_GET['rcpt'] ?? ''));
+$txRef     = trim((string) ($_GET['tx_ref'] ?? ''));
 $autoPrint = !empty($_GET['print']);
 
-$storeName = WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
-$storeTpin = WhatsAppCloudService::env('ZRA_TPIN', '1002345678');
-$storePhone = WhatsAppCloudService::env('MERCHANT_WHATSAPP_NUMBER', '260970000000');
-
-$order = null;
-$errorMsg = null;
+$order     = null;
+$errorMsg  = null;
+$kvSettings = [];
 
 try {
-    $pdo = WhatsAppCloudService::getDb();
+    $pdo        = WhatsAppCloudService::getDb();
+    $kvSettings = WhatsAppCloudService::getAllDbSettings($pdo);
+
     if ( $rcptNo !== '' ) {
         $stmt = $pdo->prepare("SELECT * FROM st_direct_wa_orders WHERE zra_rcpt_no = :rcpt LIMIT 1");
         $stmt->execute([':rcpt' => $rcptNo]);
@@ -33,27 +32,32 @@ try {
     $errorMsg = $e->getMessage();
 }
 
-$items = [];
-$subtotal = 0.00;
+$storeName  = $kvSettings['company_name'] ?? $kvSettings['store_name'] ?? WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
+$storeTpin  = $kvSettings['zra_tpin'] ?? $kvSettings['tpin'] ?? WhatsAppCloudService::env('ZRA_TPIN', '1002345678');
+$storePhone = $kvSettings['company_phone'] ?? $kvSettings['phone'] ?? WhatsAppCloudService::env('MERCHANT_WHATSAPP_NUMBER', '260970000000');
+
+$items       = [];
+$subtotal    = 0.00;
 $deliveryFee = 0.00;
-$totalZmw = 0.00;
-$vatAmount = 0.00;
-$netExclVat = 0.00;
+$totalZmw    = 0.00;
+$vatAmount   = 0.00;
+$netExclVat  = 0.00;
 
 if ( $order ) {
     $items       = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
     $subtotal    = (float) ($order['subtotal_zmw'] ?? 0.00);
     $deliveryFee = (float) ($order['delivery_fee_zmw'] ?? 0.00);
     $totalZmw    = (float) ($order['total_zmw'] ?? 0.00);
-    // Standard 16% Zambian VAT inclusive breakdown
     $netExclVat  = round($totalZmw / 1.16, 2);
     $vatAmount   = round($totalZmw - $netExclVat, 2);
 }
 
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host   = $_SERVER['HTTP_HOST'] ?? 'smarTrade.odeliazm.com';
-$currentVerifyUrl = $scheme . '://' . $host . '/verify_receipt.php?rcpt=' . urlencode((string) ($order['zra_rcpt_no'] ?? $rcptNo));
-$qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' . urlencode($currentVerifyUrl);
+$host   = $_SERVER['HTTP_HOST'] ?? 'smartrade.odeliazm.com';
+$qrTargetUrl = !empty($order['zra_qr_url'])
+    ? (string) $order['zra_qr_url']
+    : ($scheme . '://' . $host . '/verify_receipt.php?rcpt=' . urlencode((string) ($order['zra_rcpt_no'] ?? $rcptNo)));
+$qrImageUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' . urlencode($qrTargetUrl);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -68,7 +72,7 @@ $qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' .
             font-family: 'Courier New', Courier, monospace;
         }
         .thermal-slip {
-            width: 302px; /* 80mm thermal paper printable width */
+            width: 302px;
             margin: 24px auto;
             background: #fff;
             padding: 14px 12px;
@@ -84,6 +88,7 @@ $qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' .
         .font-b-condensed {
             font-size: 11px;
             letter-spacing: -0.3px;
+            word-break: break-all;
         }
         @media print {
             @page {
@@ -134,9 +139,9 @@ $qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' .
 <?php else: ?>
     <div class="thermal-slip">
         <div class="text-center">
-            <div class="fw-bold fs-6"><?= htmlspecialchars(strtoupper($storeName)) ?></div>
-            <div class="font-b-condensed">TPIN: <?= htmlspecialchars($storeTpin) ?> | BRANCH #<?= (int) $order['branch_id'] ?></div>
-            <div class="font-b-condensed">TEL/WA: +<?= htmlspecialchars($storePhone) ?></div>
+            <div class="fw-bold fs-6"><?= htmlspecialchars(strtoupper((string) $storeName)) ?></div>
+            <div class="font-b-condensed">TPIN: <?= htmlspecialchars((string) $storeTpin) ?> | BRANCH #<?= (int) $order['branch_id'] ?></div>
+            <div class="font-b-condensed">TEL/WA: +<?= htmlspecialchars((string) $storePhone) ?></div>
             <div class="fw-bold mt-1">*** ZRA SMART INVOICE (VSDC) ***</div>
         </div>
 
@@ -208,9 +213,23 @@ $qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' .
                 <span>ZMW <?= number_format($vatAmount, 2) ?></span>
             </div>
             <div class="d-flex justify-content-between mt-1">
-                <span>PAYMENT STATUS:</span>
+                <span>PAYMENT:</span>
                 <span class="fw-bold"><?= htmlspecialchars((string) $order['payment_status']) ?> (FLW #<?= htmlspecialchars((string) ($order['flw_transaction_id'] ?? 'N/A')) ?>)</span>
             </div>
+        </div>
+
+        <div class="thermal-dashed"></div>
+
+        <div class="font-b-condensed">
+            <div class="fw-bold text-center mb-1">--- SDC FISCAL INFORMATION ---</div>
+            <div><strong>SDC ID      :</strong> <?= htmlspecialchars((string) ($order['zra_sdc_id'] ?? 'SDC0010000001')) ?></div>
+            <div><strong>VSDC DATE   :</strong> <?= htmlspecialchars((string) ($order['zra_vsdc_date'] ?? $order['created_at'])) ?></div>
+            <?php if ( !empty($order['zra_intrl_data']) ): ?>
+                <div><strong>INTRL DATA  :</strong> <?= htmlspecialchars((string) $order['zra_intrl_data']) ?></div>
+            <?php endif; ?>
+            <?php if ( !empty($order['zra_rcpt_sign']) ): ?>
+                <div><strong>RCPT SIGN   :</strong> <?= htmlspecialchars((string) $order['zra_rcpt_sign']) ?></div>
+            <?php endif; ?>
         </div>
 
         <div class="thermal-dashed"></div>
