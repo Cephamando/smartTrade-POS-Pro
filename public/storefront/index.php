@@ -6,7 +6,7 @@ require_once __DIR__ . '/../../app/Services/WhatsAppCloudService.php';
 use SmartTrade\Services\WhatsAppCloudService;
 
 $branchId         = isset($_GET['branch']) ? max(1, (int) $_GET['branch']) : 1;
-$merchantWhatsApp = WhatsAppCloudService::env('MERCHANT_WHATSAPP_NUMBER', '260970000000');
+$merchantWhatsApp = '';
 $storeTitle       = WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
 
 $products   = [];
@@ -14,21 +14,13 @@ $categories = [];
 $flwConfig  = WhatsAppCloudService::getFlwConfig();
 
 try {
-    $pdo       = WhatsAppCloudService::getDb();
-    $flwConfig = WhatsAppCloudService::getFlwConfig($pdo);
-    $kvMap     = WhatsAppCloudService::getAllDbSettings($pdo);
+    $pdo              = WhatsAppCloudService::getDb();
+    $flwConfig        = WhatsAppCloudService::getFlwConfig($pdo);
+    $kvMap            = WhatsAppCloudService::getAllDbSettings($pdo);
+    $merchantWhatsApp = WhatsAppCloudService::resolveMerchantWhatsApp($pdo, $branchId);
 
-    if ( !empty($kvMap['company_name']) || !empty($kvMap['store_name']) ) {
-        $storeTitle = (string) ($kvMap['company_name'] ?? $kvMap['store_name']);
-    }
-    if ( !empty($kvMap['company_phone']) || !empty($kvMap['phone']) ) {
-        $cleanM = preg_replace('/\D+/', '', (string) ($kvMap['company_phone'] ?? $kvMap['phone']));
-        if ( strlen($cleanM) === 10 && str_starts_with($cleanM, '0') ) {
-            $cleanM = '260' . substr($cleanM, 1);
-        }
-        if ( strlen($cleanM) >= 9 ) {
-            $merchantWhatsApp = $cleanM;
-        }
+    if ( !empty($kvMap['company_name']) || !empty($kvMap['store_name']) || !empty($kvMap['business_name']) ) {
+        $storeTitle = (string) ($kvMap['company_name'] ?? $kvMap['store_name'] ?? $kvMap['business_name']);
     }
 
     $colsStmt = $pdo->query("SHOW COLUMNS FROM products");
@@ -68,7 +60,7 @@ try {
     } elseif ( in_array('category', $colNames, true) ) {
         $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
     } elseif ( in_array('category_name', $colNames, true) ) {
-        $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category_name`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
+        $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
     }
 
     $whereParts = ["1=1"];
@@ -154,7 +146,6 @@ try {
         ];
     }
 } catch ( \Throwable $e ) {
-    // Fallback only if database is unreachable
 }
 
 if ( empty($products) ) {
@@ -247,7 +238,6 @@ $websiteEnabled  = (bool) $flwConfig['website_enabled'];
         </div>
     <?php endif; ?>
 
-    <!-- Instant Search & Category Filter Bar -->
     <div class="card border-0 shadow-sm rounded-3 p-3 mb-3">
         <div class="row g-2 align-items-center">
             <div class="col-12 col-md-5">
@@ -568,11 +558,33 @@ async function startFlutterwaveCheckout() {
                 title: STORE_TITLE,
                 description: 'WhatsApp Express Order #' + orderData.tx_ref
             },
-            callback: function (payment) {
+            callback: async function (payment) {
+                let zraRcptUrl = `${window.location.origin}/verify_receipt.php?tx_ref=${encodeURIComponent(orderData.tx_ref)}`;
+                let zraRcptNo  = '';
+
+                // Immediately confirm order server-side so it appears in Web Orders / Pickup Handoff & generates ZRA receipt
+                try {
+                    const confirmRes = await fetch('/api/whatsapp_checkout/complete_order.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            tx_ref: orderData.tx_ref,
+                            transaction_id: String(payment.transaction_id || '')
+                        })
+                    });
+                    const confirmData = await confirmRes.json();
+                    if (confirmData && confirmData.zra_qr_url) {
+                        zraRcptUrl = confirmData.zra_qr_url;
+                    }
+                    if (confirmData && confirmData.zra_receipt_no) {
+                        zraRcptNo = confirmData.zra_receipt_no;
+                    }
+                } catch (e) {}
+
                 let msgLines = [
-                    `*NEW PAID ORDER (${orderData.tx_ref})*`,
+                    `✅ *NEW PAID ORDER (${orderData.tx_ref})*`,
                     `Customer: ${orderData.customer_name}`,
-                    `Phone: ${orderData.customer_phone}`,
+                    `Phone: +${orderData.customer_phone}`,
                     `Fulfillment: ${deliveryType}`,
                 ];
                 if (deliveryType === 'DELIVERY' && deliveryAddress) {
@@ -580,13 +592,19 @@ async function startFlutterwaveCheckout() {
                 }
                 msgLines.push(`---`);
                 orderData.verified_items.forEach(i => {
-                    msgLines.push(`${i.qty}x ${i.name} - ZMW ${i.line_total.toFixed(2)}`);
+                    msgLines.push(`• ${i.qty}x ${i.name} - ZMW ${i.line_total.toFixed(2)}`);
                 });
                 msgLines.push(`---`);
                 msgLines.push(`*Total Paid: ZMW ${orderData.amount_zmw.toFixed(2)}*`);
                 msgLines.push(`Flutterwave Ref: #${payment.transaction_id}`);
+                if (zraRcptNo) {
+                    msgLines.push(`🧾 ZRA Smart Invoice: ${zraRcptNo}`);
+                }
+                msgLines.push(`🔗 Receipt: ${zraRcptUrl}`);
 
-                const waUrl = `https://wa.me/${MERCHANT_WA}?text=${encodeURIComponent(msgLines.join('\n'))}`;
+                // Use resolved Merchant WhatsApp number (or fallback to customer's own WhatsApp if merchant number not set)
+                const targetPhone = (MERCHANT_WA && MERCHANT_WA.length >= 10) ? MERCHANT_WA : orderData.customer_phone;
+                const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(msgLines.join('\n'))}`;
                 window.location.href = waUrl;
             },
             onclose: function() {
