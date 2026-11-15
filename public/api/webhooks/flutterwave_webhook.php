@@ -109,7 +109,9 @@ try {
         if ( $pdo->inTransaction() ) {
             $pdo->rollBack();
         }
-        // Ensure native sales & pickup_notifications mirror exists even if complete_order.php ran first
+        if ( empty($order['receipt_token']) ) {
+            WhatsAppCloudService::ensureOrderReceiptToken($pdo, (int) $order['id']);
+        }
         if ( empty($order['native_sale_id']) ) {
             WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, (string) ($order['zra_rcpt_no'] ?? ''));
         }
@@ -133,7 +135,6 @@ try {
             ':id'    => $order['id']
         ]);
 
-        // Deduct stock from products or inventory table
         $hasProductsTable = (bool) $pdo->query("SHOW TABLES LIKE 'products'")->fetchColumn();
         if ( $hasProductsTable ) {
             $colsStmt = $pdo->query("SHOW COLUMNS FROM products");
@@ -179,7 +180,11 @@ try {
             $pdo->commit();
         }
 
-        // Mirror into native `sales`, `sale_items`, `pickup_notifications`, and `payment_transactions` first
+        // Generate 128-bit receipt token & short URL (/r/<token>)
+        $receiptToken     = WhatsAppCloudService::ensureOrderReceiptToken($pdo, (int) $order['id'], $order['receipt_token'] ?? null);
+        $hostedReceiptUrl = WhatsAppCloudService::buildHostedReceiptUrl($receiptToken);
+
+        // Mirror into native `sales`, `sale_items`, `pickup_notifications`, and `payment_transactions`
         $mirrorReport = WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, '');
         $nativeSaleId = (int) ($mirrorReport['web_order_id'] ?? 0);
 
@@ -213,12 +218,14 @@ try {
         ]);
 
         $waService = new WhatsAppCloudService($pdo);
-        $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $zraQrUrl, $vsdcReport);
+        $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $hostedReceiptUrl, $vsdcReport);
 
         http_response_code(200);
         echo json_encode([
             'status'             => 'success',
             'tx_ref'             => $txRef,
+            'receipt_token'      => $receiptToken,
+            'hosted_receipt_url' => $hostedReceiptUrl,
             'zra_receipt_no'     => $zraReceiptNo,
             'zra_qr_url'         => $zraQrUrl,
             'zra_vsdc'           => [

@@ -559,10 +559,8 @@ async function startFlutterwaveCheckout() {
                 description: 'WhatsApp Express Order #' + orderData.tx_ref
             },
             callback: async function (payment) {
-                let zraRcptUrl = `${window.location.origin}/verify_receipt.php?tx_ref=${encodeURIComponent(orderData.tx_ref)}`;
-                let zraRcptNo  = '';
+                let hostedReceiptUrl = '';
 
-                // Immediately confirm order server-side so it appears in Web Orders / Pickup Handoff & generates ZRA receipt
                 try {
                     const confirmRes = await fetch('/api/whatsapp_checkout/complete_order.php', {
                         method: 'POST',
@@ -573,36 +571,23 @@ async function startFlutterwaveCheckout() {
                         })
                     });
                     const confirmData = await confirmRes.json();
-                    if (confirmData && confirmData.zra_qr_url) {
-                        zraRcptUrl = confirmData.zra_qr_url;
-                    }
-                    if (confirmData && confirmData.zra_receipt_no) {
-                        zraRcptNo = confirmData.zra_receipt_no;
+                    if (confirmData && confirmData.hosted_receipt_url) {
+                        hostedReceiptUrl = confirmData.hosted_receipt_url;
                     }
                 } catch (e) {}
 
+                // Short, PII-safe WhatsApp message with 1-line tokenized receipt link (/r/<token>)
                 let msgLines = [
-                    `✅ *NEW PAID ORDER (${orderData.tx_ref})*`,
-                    `Customer: ${orderData.customer_name}`,
-                    `Phone: +${orderData.customer_phone}`,
-                    `Fulfillment: ${deliveryType}`,
+                    `✅ *PAYMENT CONFIRMED — ZMW ${orderData.amount_zmw.toFixed(2)}*`,
+                    `Reference: ${orderData.tx_ref}`,
+                    `Fulfillment: ${deliveryType}`
                 ];
-                if (deliveryType === 'DELIVERY' && deliveryAddress) {
-                    msgLines.push(`Address: ${deliveryAddress}`);
+                if (hostedReceiptUrl) {
+                    msgLines.push(``);
+                    msgLines.push(`🧾 *View / Download PDF Receipt:*`);
+                    msgLines.push(hostedReceiptUrl);
                 }
-                msgLines.push(`---`);
-                orderData.verified_items.forEach(i => {
-                    msgLines.push(`• ${i.qty}x ${i.name} - ZMW ${i.line_total.toFixed(2)}`);
-                });
-                msgLines.push(`---`);
-                msgLines.push(`*Total Paid: ZMW ${orderData.amount_zmw.toFixed(2)}*`);
-                msgLines.push(`Flutterwave Ref: #${payment.transaction_id}`);
-                if (zraRcptNo) {
-                    msgLines.push(`🧾 ZRA Smart Invoice: ${zraRcptNo}`);
-                }
-                msgLines.push(`🔗 Receipt: ${zraRcptUrl}`);
 
-                // Use resolved Merchant WhatsApp number (or fallback to customer's own WhatsApp if merchant number not set)
                 const targetPhone = (MERCHANT_WA && MERCHANT_WA.length >= 10) ? MERCHANT_WA : orderData.customer_phone;
                 const waUrl = `https://wa.me/${targetPhone}?text=${encodeURIComponent(msgLines.join('\n'))}`;
                 window.location.href = waUrl;

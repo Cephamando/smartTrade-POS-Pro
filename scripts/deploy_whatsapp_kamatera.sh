@@ -25,6 +25,7 @@ TARGET_FILES=(
     "app/Services/WhatsAppCloudService.php"
     "public/.htaccess"
     "public/order/index.php"
+    "public/r/index.php"
     "public/api/flutterwave_webhook.php"
     "public/api/flutterwave_webhook_native.php"
     "public/api/whatsapp_checkout/init_order.php"
@@ -48,7 +49,7 @@ for f in "${TARGET_FILES[@]}"; do
 done
 
 if ! git diff --cached --quiet; then
-    git commit -m "feat(whatsapp): mirror paid WhatsApp orders into native sales/pickup_notifications and resolve merchant WhatsApp"
+    git commit -m "feat(receipt): add 128-bit tokenized /r/<token> receipt page with OG tags, PDF download, and PII masking"
 fi
 git push origin "${BRANCH}"
 
@@ -68,6 +69,7 @@ CLEAN_UNTRACKED=(
     "app/Services/WhatsAppCloudService.php"
     "public/.htaccess"
     "public/order/index.php"
+    "public/r/index.php"
     "public/api/flutterwave_webhook.php"
     "public/api/flutterwave_webhook_native.php"
     "public/api/whatsapp_checkout/init_order.php"
@@ -108,6 +110,9 @@ touch .env
 if ! grep -q "^FLW_SECRET_HASH=" .env; then
     echo "FLW_SECRET_HASH=\"${FLW_SECRET_HASH}\"" >> .env
 fi
+if ! grep -q "^RECEIPT_TOKEN_TTL_DAYS=" .env; then
+    echo "RECEIPT_TOKEN_TTL_DAYS=\"0\"" >> .env
+fi
 if [[ -n "${MERCHANT_WA}" ]]; then
     sed -i '/^MERCHANT_WHATSAPP_NUMBER=/d' .env || true
     echo "MERCHANT_WHATSAPP_NUMBER=\"${MERCHANT_WA}\"" >> .env
@@ -129,6 +134,8 @@ if [[ -n "${WEB_CID}" ]]; then
 
     docker exec "${WEB_CID}" mkdir -p /var/www/html/app/Services \
         /var/www/html/public/order \
+        /var/www/html/public/r \
+        /var/www/html/public/assets \
         /var/www/html/public/api/whatsapp_checkout \
         /var/www/html/public/api/webhooks \
         /var/www/html/public/storefront
@@ -137,6 +144,7 @@ if [[ -n "${WEB_CID}" ]]; then
         "app/Services/WhatsAppCloudService.php"
         "public/.htaccess"
         "public/order/index.php"
+        "public/r/index.php"
         "public/api/flutterwave_webhook_native.php"
         "public/api/flutterwave_webhook.php"
         "public/api/whatsapp_checkout/init_order.php"
@@ -157,30 +165,33 @@ if [[ -n "${WEB_CID}" ]]; then
     done
 
     docker cp .env "${WEB_CID}:/var/www/html/.env" || true
-    docker exec "${WEB_CID}" chown -R www-data:www-data /var/www/html/app/Services /var/www/html/public || true
 
-    # Backfill any existing K2 / real customer orders in st_direct_wa_orders into native sales & pickup_notifications
+    # Generate 1200x630 OpenGraph Logo (< 30 KB) and backfill 128-bit receipt tokens for existing orders
     docker exec "${WEB_CID}" php -r '
         require "/var/www/html/app/Services/WhatsAppCloudService.php";
         $db = \SmartTrade\Services\WhatsAppCloudService::getDb();
-        $waPhone = \SmartTrade\Services\WhatsAppCloudService::resolveMerchantWhatsApp($db, 1);
-        echo "      Resolved Merchant WhatsApp Number: " . ($waPhone ?: "(not set in settings yet - will fallback to customer phone)") . "\n";
 
-        $rows = $db->query("SELECT * FROM st_direct_wa_orders WHERE customer_name NOT LIKE \"%Webhook Test%\" ORDER BY id DESC LIMIT 5")->fetchAll();
+        $logoPath = "/var/www/html/public/assets/receipt-og-logo.png";
+        if (!is_file($logoPath) && function_exists("imagecreatetruecolor")) {
+            $im = imagecreatetruecolor(1200, 630);
+            $bg = imagecolorallocate($im, 7, 94, 84);
+            $fg = imagecolorallocate($im, 255, 255, 255);
+            imagefilledrectangle($im, 0, 0, 1200, 630, $bg);
+            imagestring($im, 5, 460, 295, "OFFICIAL PAYMENT RECEIPT", $fg);
+            imagepng($im, $logoPath, 9);
+            imagedestroy($im);
+        }
+
+        $rows = $db->query("SELECT id, tx_ref, receipt_token FROM st_direct_wa_orders WHERE payment_status = \"PAID\" ORDER BY id DESC LIMIT 20")->fetchAll();
         foreach ($rows as $r) {
-            if ($r["payment_status"] !== "PAID") {
-                $db->prepare("UPDATE st_direct_wa_orders SET payment_status = \"PAID\", fulfillment_status = \"NEW\" WHERE id = ?")->execute([$r["id"]]);
-                $r["payment_status"] = "PAID";
-            }
-            if (empty($r["native_sale_id"])) {
-                $m = \SmartTrade\Services\WhatsAppCloudService::mirrorToNativeWebOrders($db, $r, (string)($r["flw_transaction_id"] ?: "FLW-LIVE"), (string)($r["zra_rcpt_no"] ?: ""));
-                echo "      Backfilled Order " . $r["tx_ref"] . " into native sales ID #" . ($m["web_order_id"] ?? 0) . " (pickup ID #" . ($m["pickup_notification_id"] ?? 0) . ")\n";
-            }
+            $tok = \SmartTrade\Services\WhatsAppCloudService::ensureOrderReceiptToken($db, (int)$r["id"], $r["receipt_token"] ?? null);
         }
     ' || true
+
+    docker exec "${WEB_CID}" chown -R www-data:www-data /var/www/html/app/Services /var/www/html/public || true
 fi
 REMOTE_SCRIPT
 
 echo ""
-echo "[3/3] Verifying https://smartrade.odeliazm.com/order & running webhook test suite ..."
+echo "[3/3] Running live webhook test & verifying /r/<token> OpenGraph receipt route ..."
 BASE_URL="${LIVE_URL}" FLW_SECRET_HASH="${FLW_SECRET_HASH}" bash scripts/tests/simulate_flw_webhook.sh

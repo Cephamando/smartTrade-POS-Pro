@@ -2,13 +2,17 @@
     RewriteEngine On
     RewriteBase /
 
-    # 1. Clean WhatsApp Express Storefront Short Links:
+    # 1. Tokenized Hosted Receipt Short Link:
+    #    https://smartrade.odeliazm.com/r/<token>      -> r/index.php?t=<token>
+    RewriteRule ^r/([A-Za-z0-9_-]+)/?$ r/index.php?t=$1 [QSA,L]
+
+    # 2. Clean WhatsApp Express Storefront Short Links:
     #    https://smartrade.odeliazm.com/order          -> storefront/index.php
     #    https://smartrade.odeliazm.com/order/2        -> storefront/index.php?branch=2
     RewriteRule ^order/?$ storefront/index.php [QSA,L]
     RewriteRule ^order/([0-9]+)/?$ storefront/index.php?branch=$1 [QSA,L]
 
-    # 2. Clean POS Kitchen Display System (KDS) Short Links:
+    # 3. Clean POS Kitchen Display System (KDS) Short Links:
     #    https://smartrade.odeliazm.com/kds            -> storefront/kds.php
     #    https://smartrade.odeliazm.com/kds/2          -> storefront/kds.php?branch=2
     RewriteRule ^kds/?$ storefront/kds.php [QSA,L]

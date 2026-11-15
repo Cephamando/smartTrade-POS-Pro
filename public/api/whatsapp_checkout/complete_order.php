@@ -28,7 +28,6 @@ try {
     $flwConfig = WhatsAppCloudService::getFlwConfig($pdo);
     $flwSecret = $flwConfig['secret_key'];
 
-    // 1. Server-to-Server verify transaction with Flutterwave API
     $verifiedStatus = 'successful';
     $verifiedAmount = 0.00;
     $verifiedCurr   = 'ZMW';
@@ -69,18 +68,19 @@ try {
         exit;
     }
 
-    // If webhook already processed it, return the existing receipt & native sale ID
-    if ( $order['payment_status'] === 'PAID' && !empty($order['native_sale_id']) ) {
+    if ( $order['payment_status'] === 'PAID' && !empty($order['native_sale_id']) && !empty($order['receipt_token']) ) {
         if ( $pdo->inTransaction() ) {
             $pdo->rollBack();
         }
+        $token     = (string) $order['receipt_token'];
+        $hostedUrl = WhatsAppCloudService::buildHostedReceiptUrl($token);
         echo json_encode([
-            'status'         => 'success',
-            'mode'           => 'already_paid',
-            'tx_ref'         => $txRef,
-            'zra_receipt_no' => $order['zra_rcpt_no'] ?? ('ZRA-VSDC-' . date('Ymd') . '-' . $order['id']),
-            'zra_qr_url'     => $order['zra_qr_url'] ?? ('https://smartrade.odeliazm.com/verify_receipt.php?tx_ref=' . urlencode($txRef)),
-            'native_sale_id' => (int) $order['native_sale_id']
+            'status'             => 'success',
+            'mode'               => 'already_paid',
+            'tx_ref'             => $txRef,
+            'receipt_token'      => $token,
+            'hosted_receipt_url' => $hostedUrl,
+            'native_sale_id'     => (int) $order['native_sale_id']
         ]);
         exit;
     }
@@ -118,6 +118,10 @@ try {
         $pdo->commit();
     }
 
+    // 1. Ensure 128-bit unguessable receipt_token exists
+    $receiptToken     = WhatsAppCloudService::ensureOrderReceiptToken($pdo, (int) $order['id'], $order['receipt_token'] ?? null);
+    $hostedReceiptUrl = WhatsAppCloudService::buildHostedReceiptUrl($receiptToken);
+
     // 2. Mirror into native `sales`, `sale_items`, `pickup_notifications`, and `payment_transactions`
     $mirrorReport = WhatsAppCloudService::mirrorToNativeWebOrders($pdo, $order, $transactionId, '');
     $nativeSaleId = (int) ($mirrorReport['web_order_id'] ?? 0);
@@ -152,15 +156,14 @@ try {
 
     if ( !$wasAlreadyPaid ) {
         $waService = new WhatsAppCloudService($pdo);
-        $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $zraQrUrl, $vsdcReport);
+        $waService->sendOrderPaidNotifications($order, $zraReceiptNo, $hostedReceiptUrl, $vsdcReport);
     }
 
     echo json_encode([
         'status'             => 'success',
         'tx_ref'             => $txRef,
-        'zra_receipt_no'     => $zraReceiptNo,
-        'zra_qr_url'         => $zraQrUrl,
-        'zra_vsdc'           => $vsdcReport,
+        'receipt_token'      => $receiptToken,
+        'hosted_receipt_url' => $hostedReceiptUrl,
         'web_order_mirrored' => $mirrorReport
     ]);
 
