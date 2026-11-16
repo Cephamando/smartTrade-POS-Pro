@@ -7,7 +7,7 @@ use SmartTrade\Services\WhatsAppCloudService;
 
 $branchId         = isset($_GET['branch']) ? max(1, (int) $_GET['branch']) : 1;
 $merchantWhatsApp = '';
-$storeTitle       = WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express Store');
+$storeTitle       = 'Queen Bee';
 
 $products   = [];
 $categories = [];
@@ -16,12 +16,8 @@ $flwConfig  = WhatsAppCloudService::getFlwConfig();
 try {
     $pdo              = WhatsAppCloudService::getDb();
     $flwConfig        = WhatsAppCloudService::getFlwConfig($pdo);
-    $kvMap            = WhatsAppCloudService::getAllDbSettings($pdo);
     $merchantWhatsApp = WhatsAppCloudService::resolveMerchantWhatsApp($pdo, $branchId);
-
-    if ( !empty($kvMap['company_name']) || !empty($kvMap['store_name']) || !empty($kvMap['business_name']) ) {
-        $storeTitle = (string) ($kvMap['company_name'] ?? $kvMap['store_name'] ?? $kvMap['business_name']);
-    }
+    $storeTitle       = WhatsAppCloudService::resolveStoreBrandName($pdo, $branchId);
 
     $colsStmt = $pdo->query("SHOW COLUMNS FROM products");
     $colNames = array_column($colsStmt->fetchAll(), 'Field');
@@ -60,7 +56,7 @@ try {
     } elseif ( in_array('category', $colNames, true) ) {
         $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
     } elseif ( in_array('category_name', $colNames, true) ) {
-        $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
+        $catSelectExpr = "COALESCE(NULLIF(TRIM(p.`category_name`), ''), 'General') AS resolved_category_name, 0 AS resolved_category_id";
     }
 
     $whereParts = ["1=1"];
@@ -245,7 +241,7 @@ $websiteEnabled  = (bool) $flwConfig['website_enabled'];
                     <input type="search"
                            id="catalogSearchInput"
                            class="form-control form-control-sm pe-4"
-                           placeholder="🔍 Search item name, SKU, or category..."
+                           placeholder="Search item name, SKU, or category..."
                            oninput="applyCatalogFilters()">
                     <button type="button" class="search-clear-btn" id="clearSearchBtn" onclick="clearCatalogSearch()" title="Clear search">&times;</button>
                 </div>
@@ -555,8 +551,8 @@ async function startFlutterwaveCheckout() {
                 name: orderData.customer_name
             },
             customizations: {
-                title: STORE_TITLE,
-                description: 'WhatsApp Express Order #' + orderData.tx_ref
+                title: STORE_TITLE.replace(/#/g, ''),
+                description: 'WhatsApp Express Order ' + orderData.tx_ref
             },
             callback: async function (payment) {
                 let hostedReceiptUrl = '';
@@ -576,15 +572,15 @@ async function startFlutterwaveCheckout() {
                     }
                 } catch (e) {}
 
-                // Short, PII-safe WhatsApp message with 1-line tokenized receipt link (/r/<token>)
+                // Clean UTF-8 text without surrogate-pair emoji corruption
                 let msgLines = [
-                    `✅ *PAYMENT CONFIRMED — ZMW ${orderData.amount_zmw.toFixed(2)}*`,
+                    `*PAYMENT CONFIRMED - ZMW ${orderData.amount_zmw.toFixed(2)}*`,
                     `Reference: ${orderData.tx_ref}`,
                     `Fulfillment: ${deliveryType}`
                 ];
                 if (hostedReceiptUrl) {
                     msgLines.push(``);
-                    msgLines.push(`🧾 *View / Download PDF Receipt:*`);
+                    msgLines.push(`*View / Download PDF Receipt:*`);
                     msgLines.push(hostedReceiptUrl);
                 }
 

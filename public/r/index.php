@@ -9,9 +9,6 @@ require_once __DIR__ . '/../../app/Services/WhatsAppCloudService.php';
 
 use SmartTrade\Services\WhatsAppCloudService;
 
-/**
- * Renders the identical generic 404 page for any missing, malformed, or expired token
- */
 function renderGeneric404(): never
 {
     http_response_code(404);
@@ -41,7 +38,6 @@ function renderGeneric404(): never
     exit;
 }
 
-// 1. Per-IP Rate Limiting (Max 30 requests per 60 seconds per IP)
 $clientIp = $_SERVER['HTTP_CF_CONNECTING_IP']
     ?? $_SERVER['HTTP_X_FORWARDED_FOR']
     ?? $_SERVER['REMOTE_ADDR']
@@ -77,7 +73,6 @@ if ( count($hits) >= $maxReq ) {
 $hits[] = $nowTs;
 @file_put_contents($rlFile, json_encode($hits), LOCK_EX);
 
-// 2. Extract Token from /r/<token> or ?t=<token>
 $token = trim((string) ($_GET['t'] ?? ''));
 if ( $token === '' ) {
     $reqPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
@@ -86,14 +81,14 @@ if ( $token === '' ) {
     }
 }
 
-// Strict 128-bit+ token format check (at least 22 base64url chars)
 if ( !preg_match('/^[A-Za-z0-9_-]{22,64}$/', $token) ) {
     renderGeneric404();
 }
 
-$order      = null;
-$kvSettings = [];
-$ttlDays    = 0;
+$order        = null;
+$kvSettings   = [];
+$ttlDays      = 0;
+$businessName = 'Queen Bee';
 
 try {
     $pdo        = WhatsAppCloudService::getDb();
@@ -109,6 +104,10 @@ try {
     ");
     $stmt->execute([':tok' => $token]);
     $order = $stmt->fetch();
+
+    if ( is_array($order) ) {
+        $businessName = WhatsAppCloudService::resolveStoreBrandName($pdo, (int) ($order['branch_id'] ?? 1));
+    }
 } catch ( \Throwable $e ) {
     renderGeneric404();
 }
@@ -117,7 +116,6 @@ if ( !is_array($order) || empty($order['tx_ref']) ) {
     renderGeneric404();
 }
 
-// 3. Enforce single-config expiry if RECEIPT_TOKEN_TTL_DAYS > 0
 if ( $ttlDays > 0 && !empty($order['created_at']) ) {
     $createdTs = strtotime((string) $order['created_at']);
     if ( $createdTs !== false && ($nowTs - $createdTs) > ($ttlDays * 86400) ) {
@@ -125,19 +123,15 @@ if ( $ttlDays > 0 && !empty($order['created_at']) ) {
     }
 }
 
-$businessName = $kvSettings['company_name']
-    ?? $kvSettings['store_name']
-    ?? $kvSettings['business_name']
-    ?? WhatsAppCloudService::env('STORE_BRAND_NAME', 'smartTrade Express');
+$storeTpin = trim((string) ($kvSettings['zra_tpin'] ?? $kvSettings['tpin'] ?? ''));
+if ( $storeTpin === '' ) {
+    $storeTpin = WhatsAppCloudService::env('ZRA_TPIN', '1004784338');
+}
 
-$storeTpin = $kvSettings['zra_tpin']
-    ?? $kvSettings['tpin']
-    ?? WhatsAppCloudService::env('ZRA_TPIN', '1004784338');
-
-$txRef       = (string) $order['tx_ref'];
-$subtotal    = (float) ($order['subtotal_zmw'] ?? 0.00);
-$deliveryFee = (float) ($order['delivery_fee_zmw'] ?? 0.00);
-$totalZmw    = (float) ($order['total_zmw'] ?? 0.00);
+$txRef           = (string) $order['tx_ref'];
+$subtotal        = (float) ($order['subtotal_zmw'] ?? 0.00);
+$deliveryFee     = (float) ($order['delivery_fee_zmw'] ?? 0.00);
+$totalZmw        = (float) ($order['total_zmw'] ?? 0.00);
 $amountFormatted = 'ZMW ' . number_format($totalZmw, 2);
 
 $items     = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
@@ -152,7 +146,6 @@ if ( $taxRegime === 'VAT' ) {
     $vatAmount  = 0.00;
 }
 
-// Mask customer name (First name + last initial only) and omit phone number / internal IDs
 $rawNameParts = preg_split('/\s+/', trim((string) ($order['customer_name'] ?? 'Customer'))) ?: ['Customer'];
 $maskedBuyer  = $rawNameParts[0];
 if ( count($rawNameParts) > 1 ) {
@@ -163,13 +156,11 @@ $baseUrl      = rtrim(WhatsAppCloudService::env('APP_URL', 'https://smartrade.od
 $canonicalUrl = $baseUrl . '/r/' . rawurlencode($token);
 $ogLogoUrl    = $baseUrl . '/assets/receipt-og-logo.png';
 
-// Official ZRA verification URL for QR code inside the receipt body
 $zraVerifyUrl = !empty($order['zra_qr_url'])
     ? (string) $order['zra_qr_url']
     : $canonicalUrl;
 $qrImageUrl   = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' . rawurlencode($zraVerifyUrl);
 
-// Generic, PII-free OpenGraph tags (No buyer name, no phone number, no sequential receipt number)
 $ogTitle       = 'Receipt from ' . $businessName;
 $ogDescription = 'Payment of ' . $amountFormatted . ' received. Ref ' . $txRef . '.';
 ?>
@@ -181,7 +172,6 @@ $ogDescription = 'Payment of ' . $amountFormatted . ' received. Ref ' . $txRef .
     <meta name="robots" content="noindex, nofollow">
     <title><?= htmlspecialchars($ogTitle) ?> — <?= htmlspecialchars($txRef) ?></title>
 
-    <!-- Server-Rendered OpenGraph & Twitter Preview Tags for WhatsApp Crawler -->
     <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
     <meta property="og:description" content="<?= htmlspecialchars($ogDescription) ?>">
     <meta property="og:image" content="<?= htmlspecialchars($ogLogoUrl) ?>">
@@ -425,18 +415,18 @@ $ogDescription = 'Payment of ' . $amountFormatted . ' received. Ref ' . $txRef .
 
 <div class="action-bar no-print">
     <button type="button" class="btn-action btn-primary-pdf" id="downloadPdfBtn" onclick="downloadReceiptPdf()">
-        ⬇ Download PDF
+        Download PDF
     </button>
     <button type="button" class="btn-action btn-secondary-print" onclick="window.print()">
-        🖨️ Print Receipt
+        Print Receipt
     </button>
 </div>
 
 <div class="receipt-card" id="receiptPrintable">
     <div class="receipt-banner">
-        <div class="paid-pill">✓ Payment Confirmed</div>
-        <h1 class="store-title"><?= htmlspecialchars((string) $businessName) ?></h1>
-        <p class="store-sub">TPIN: <?= htmlspecialchars((string) $storeTpin) ?> &bull; ZRA Smart Invoice</p>
+        <div class="paid-pill">Payment Confirmed</div>
+        <h1 class="store-title"><?= htmlspecialchars($businessName) ?></h1>
+        <p class="store-sub">TPIN: <?= htmlspecialchars($storeTpin) ?> &bull; ZRA Smart Invoice</p>
     </div>
 
     <div class="receipt-body">
