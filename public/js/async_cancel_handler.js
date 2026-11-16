@@ -1,29 +1,47 @@
 /**
- * Intercepts POS Online Web Order cancellations to execute them asynchronously via AJAX
- * without refreshing the page.
+ * Fully robust AJAX cancellation handler for POS Online / Web Orders
  */
 document.addEventListener('click', function (e) {
-    const cancelBtn = e.target.closest('#onlineTabDetailContainer button[name="cancel_online_order"], #onlineTabDetailContainer form.js-confirm-form button[type="submit"]');
-    if (!cancelBtn) return;
+    const trigger = e.target.closest('button, input[type="submit"]');
+    if (!trigger) return;
 
-    const form = cancelBtn.closest('form');
-    if (!form) return;
+    const text = (trigger.textContent || trigger.value || '').toLowerCase();
+    if (!text.includes('cancel')) return;
 
-    // Check if this is a web order view
+    const form = trigger.closest('form');
     const detailContainer = document.getElementById('onlineTabDetailContainer');
     if (!detailContainer) return;
-
-    const txRefInput = detailContainer.querySelector('input[name="tx_ref"]') || form.querySelector('input[name="sale_id"], input[name="order_id"]');
-    if (!txRefInput && !form.dataset.saleId) return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    const identifier = txRefInput ? txRefInput.value : form.dataset.saleId;
-    if (!identifier) return;
+    // Extract tx_ref or sale identifier from the active details pane or form
+    let identifier = '';
+    const refEl = detailContainer.querySelector('.badge, strong, .small');
+    if (refEl) {
+        const m = detailContainer.textContent.match(/ST-FLW-[A-Z0-9-]+/i);
+        if (m) identifier = m[0];
+    }
+    if (!identifier && form) {
+        const input = form.querySelector('input[name="sale_id"], input[name="order_id"], input[name="tx_ref"]');
+        if (input) identifier = input.value;
+    }
+    if (!identifier) {
+        // Fallback: grab first active item reference in the list
+        const activeItem = document.querySelector('#onlineTabsModal .list-group-item.active, #onlineTabsModal .list-group-item');
+        if (activeItem) {
+            const m = activeItem.textContent.match(/ST-FLW-[A-Z0-9-]+/i);
+            if (m) identifier = m[0];
+        }
+    }
 
-    cancelBtn.disabled = true;
-    cancelBtn.textContent = 'Cancelling...';
+    if (!identifier) {
+        alert('Could not determine order reference for cancellation.');
+        return;
+    }
+
+    trigger.disabled = true;
+    trigger.textContent = 'Cancelling...';
 
     fetch('/api/whatsapp_checkout/cancel_order.php', {
         method: 'POST',
@@ -33,15 +51,20 @@ document.addEventListener('click', function (e) {
     .then(r => r.json())
     .then(data => {
         if (data && data.status === 'success') {
-            // Remove item from sidebar list
             document.querySelectorAll('#onlineTabsModal .list-group-item').forEach(row => {
-                if ((row.getAttribute('onclick') || '').includes(identifier)) {
-                    row.remove();
+                if (row.textContent.includes(identifier)) {
+                    row.classList.remove('bg-success-subtle', 'bg-warning-subtle');
+                    row.classList.add('bg-danger-subtle');
+                    const badge = row.querySelector('.badge');
+                    if (badge) {
+                        badge.className = 'badge bg-danger';
+                        badge.textContent = 'CANCELLED BY TILL';
+                    }
                 }
             });
             detailContainer.innerHTML = '<p class="text-center text-muted mt-5"><i class="bi bi-x-circle fs-1 text-danger"></i><br>Order successfully cancelled.</p>';
             
-            // Refresh counts
+            // Decrement badge counts
             document.querySelectorAll('[data-live-count="web"]').forEach(badge => {
                 const n = Math.max(0, (parseInt(badge.textContent, 10) || 0) - 1);
                 badge.textContent = String(n);
@@ -49,13 +72,13 @@ document.addEventListener('click', function (e) {
             });
         } else {
             alert((data && data.message) || 'Failed to cancel order.');
-            cancelBtn.disabled = false;
-            cancelBtn.textContent = 'Cancel Order';
+            trigger.disabled = false;
+            trigger.textContent = 'Cancel Order';
         }
     })
     .catch(() => {
         alert('Network error while cancelling order.');
-        cancelBtn.disabled = false;
-        cancelBtn.textContent = 'Cancel Order';
+        trigger.disabled = false;
+        trigger.textContent = 'Cancel Order';
     });
 }, true);

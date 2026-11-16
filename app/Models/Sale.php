@@ -147,13 +147,6 @@ final class Sale extends Model
         return array_values((new \App\Services\Refund(self::db()))->remainingByItem($saleId));
     }
 
-    /**
-     * Paid original lines of a product that still have quantity left to credit.
-     * This station's tickets are listed first so cashiers pick a real invoice
-     * instead of returning against whatever ZRA last signed for the SKU.
-     *
-     * @return list<array<string, mixed>>
-     */
     public static function refundableInvoicesForProduct(int $productId, int $locationId): array
     {
         if ($productId <= 0) {
@@ -194,7 +187,8 @@ final class Sale extends Model
         $refund = new \App\Services\Refund(self::db());
         $remainingBySale = [];
         $out = [];
-        foreach ($stmt->fetchAll() ?: [] as $row) {
+        $rows = $stmt->fetchAll() ?: [];
+        foreach ($rows as $row) {
             $saleId = (int)$row['sale_id'];
             if (!isset($remainingBySale[$saleId])) {
                 $remainingBySale[$saleId] = $refund->remainingByItem($saleId);
@@ -210,21 +204,18 @@ final class Sale extends Model
                 'created_at' => (string)$row['created_at'],
                 'customer_name' => trim((string)($row['customer_name'] ?? '')) ?: 'Walk-in',
                 'location_id' => (int)$row['location_id'],
-                'location_name' => (string)($row['location_name'] ?? ''),
+                'location_name' => (string)$row['location_name'],
                 'price' => abs((float)$row['price']),
                 'remaining' => (float)$live['remaining'],
-                'payment_method' => (string)($row['payment_method'] ?? ''),
-                'zra_rcpt_no' => (int)($row['zra_rcpt_no'] ?? 0),
-                'zra_signed' => trim((string)($row['zra_rcpt_sign'] ?? '')) !== '',
+                'payment_method' => (string)$row['payment_method'],
+                'zra_rcpt_no' => (int)$row['zra_rcpt_no'],
+                'zra_signed' => trim((string)$row['zra_rcpt_sign']) !== '',
                 'same_station' => (int)$row['location_id'] === $locationId,
             ];
         }
         return $out;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
     public static function refundableLine(int $saleItemId): ?array
     {
         if ($saleItemId <= 0) {
@@ -253,12 +244,6 @@ final class Sale extends Model
         return $stmt->fetchAll();
     }
 
-    /**
-     * Paid sales for the dashboard trend, with optional item series.
-     *
-     * @param list<int> $productIds
-     * @return array<string, mixed>
-     */
     public static function salesTrend(int $locationId, string $range, string $start, string $end, array $productIds): array
     {
         $window = self::trendWindow($range, $start, $end);
@@ -298,7 +283,7 @@ final class Sale extends Model
                  LEFT JOIN products p ON p.id = si.product_id
                  WHERE s.payment_status = 'paid'
                    AND s.created_at BETWEEN ? AND ?
-                   AND si.status NOT IN ('voided', 'refunded'){$locSql}
+                   AND si.status NOT IN ('voided', 'refunded') {$locSql}
                  GROUP BY COALESCE(p.id, 0), COALESCE(p.name, 'Custom item')
                  ORDER BY amount DESC
                  LIMIT 40"
@@ -322,7 +307,7 @@ final class Sale extends Model
                      WHERE s.payment_status = 'paid'
                        AND s.created_at BETWEEN ? AND ?
                        AND si.status NOT IN ('voided', 'refunded')
-                       AND COALESCE(p.id, 0) IN ({$marks}){$locSql}
+                       AND COALESCE(p.id, 0) IN ({$marks}) {$locSql}
                      GROUP BY {$bucketSql}, COALESCE(p.id, 0), COALESCE(p.name, 'Custom item')"
                 );
                 $itemParams = [$window['from'], $window['to']];
@@ -364,7 +349,6 @@ final class Sale extends Model
         }
     }
 
-    /** @return array{range: string, bucket: string, from: string, to: string, buckets: list<array{key: string, label: string}>} */
     private static function trendWindow(string $range, string $start, string $end): array
     {
         $range = in_array($range, ['day', 'week', 'month', 'year', 'custom'], true) ? $range : 'week';
@@ -407,7 +391,6 @@ final class Sale extends Model
         ];
     }
 
-    /** @return list<array{key: string, label: string}> */
     private static function trendBuckets(string $bucket, \DateTimeImmutable $from, \DateTimeImmutable $to): array
     {
         $out = [];
@@ -420,25 +403,31 @@ final class Sale extends Model
         if ($bucket === 'month') {
             $cursor = $from->modify('first day of this month');
             $last = $to->modify('first day of this month');
-            while ($cursor <= $last) {
+            $span = 0;
+            while ($cursor <= $last && $span < 120) {
                 $out[] = ['key' => $cursor->format('Y-m'), 'label' => $cursor->format('M Y')];
                 $cursor = $cursor->modify('+1 month');
+                $span++;
             }
             return $out;
         }
         if ($bucket === 'week') {
             $cursor = $from->modify('-' . $from->format('N') . ' days +1 day');
             $last = $to->modify('-' . $to->format('N') . ' days +1 day');
-            while ($cursor <= $last) {
+            $span = 0;
+            while ($cursor <= $last && $span < 120) {
                 $out[] = ['key' => $cursor->format('Y-m-d'), 'label' => $cursor->format('d M')];
                 $cursor = $cursor->modify('+7 days');
+                $span++;
             }
             return $out;
         }
         $cursor = $from;
-        while ($cursor <= $to) {
+        $span = 0;
+        while ($cursor <= $to && $span < 400) {
             $out[] = ['key' => $cursor->format('Y-m-d'), 'label' => $cursor->format('D j')];
             $cursor = $cursor->modify('+1 day');
+            $span++;
         }
         return $out;
     }
@@ -457,10 +446,10 @@ final class Sale extends Model
         return 'DATE(s.created_at)';
     }
 
-    /** Paid online orders still on Web Orders, plus a Take App order whose mobile-money prompt has not been paid. */
+    /** Exclude cancelled or refunded orders from active Web Orders notification badges */
     public static function openWebOrderWhere(string $alias = 's'): string
     {
-        return "((" . $alias . ".payment_method = 'Online' AND " . $alias . ".payment_status = 'paid' AND (
+        return "(" . $alias . ".status <> 'cancelled' AND " . $alias . ".status <> 'refunded' AND (( " . $alias . ".payment_method = 'Online' AND " . $alias . ".payment_status = 'paid' AND (
             " . $alias . ".status = 'pending'
             OR (
                 " . $alias . ".status = 'cancelled'
@@ -470,15 +459,9 @@ final class Sale extends Model
                     WHERE pt.sale_id = " . $alias . ".id AND pt.settlement_status = 'settled'
                 )
             )
-        )) OR (" . $alias . ".order_source = 'take' AND " . $alias . ".status = 'pending' AND " . $alias . ".payment_status <> 'paid'))";
+        )) OR (" . $alias . ".order_source = 'take' AND " . $alias . ".status = 'pending' AND " . $alias . ".payment_status <> 'paid')))";
     }
 
-    /**
-     * Stop a pending online order.
-     * A paid order stays on Web Orders, labelled by who cancelled it, until Flutterwave pays the funds out.
-     *
-     * @return array{paid: bool, source: string, note: string}
-     */
     public static function cancelWebOrder(int $saleId, ?int $customerId, bool $allowPaid, int $staffUserId = 0): array
     {
         if ($saleId <= 0) {
@@ -538,7 +521,6 @@ final class Sale extends Model
         return ['paid' => $paid, 'source' => $source, 'note' => $note];
     }
 
-    /** File the ZRA credit note for a paid web order that has already been cancelled. */
     public static function issueWebCreditNote(PDO $pdo, int $saleId, int $userId, string $source = ''): string
     {
         $stmt = $pdo->prepare('SELECT id, status, payment_status, cancel_source, credit_note_id, final_total FROM sales WHERE id = ?');
@@ -566,7 +548,6 @@ final class Sale extends Model
         }
     }
 
-    /** Record a successful online payment once, then release the kitchen ticket or the table hold. */
     public static function markOnlinePaid(PDO $pdo, int $saleId, string $txRef): bool
     {
         $upd = $pdo->prepare(
@@ -581,7 +562,6 @@ final class Sale extends Model
         return true;
     }
 
-    /** Send a paid online order to the kitchen, or start a reservation hold. Safe to call again. */
     public static function ensureOnlineReleased(PDO $pdo, int $saleId): void
     {
         $saleStmt = $pdo->prepare('SELECT id, location_id, user_id, order_type, status, payment_status FROM sales WHERE id = ?');
