@@ -7,171 +7,6 @@ use PDO;
 use Exception;
 use Throwable;
 
-/**
- * Lightweight MySQLi-to-PDO statement adapter for environments where mysqli is enabled instead of pdo_mysql
- */
-class MysqliBridgeStatement
-{
-    private \mysqli $mysqli;
-    private string $sql;
-    private array $paramOrder = [];
-    private array $boundValues = [];
-    private ?\mysqli_result $lastResult = null;
-
-    public function __construct(\mysqli $mysqli, string $sql)
-    {
-        $this->mysqli = $mysqli;
-        $order = [];
-        $this->sql = (string) preg_replace_callback('/:[a-zA-Z0-9_]+/', static function (array $m) use (&$order): string {
-            $order[] = $m[0];
-            return '?';
-        }, $sql);
-        $this->paramOrder = $order;
-    }
-
-    public function bindValue(string $param, mixed $value, int $type = 0): void
-    {
-        $key = str_starts_with($param, ':') ? $param : ':' . $param;
-        $this->boundValues[$key] = $value;
-    }
-
-    public function execute(?array $params = null): bool
-    {
-        if ( $params !== null ) {
-            foreach ( $params as $k => $v ) {
-                $key = str_starts_with((string) $k, ':') ? (string) $k : ':' . $k;
-                $this->boundValues[$key] = $v;
-            }
-        }
-
-        $stmt = $this->mysqli->prepare($this->sql);
-        if ( !$stmt ) {
-            throw new Exception('MySQLi prepare error: ' . $this->mysqli->error);
-        }
-
-        if ( !empty($this->paramOrder) ) {
-            $types = '';
-            $vals  = [];
-            foreach ( $this->paramOrder as $pName ) {
-                $val = $this->boundValues[$pName] ?? null;
-                if ( is_int($val) ) {
-                    $types .= 'i';
-                } elseif ( is_float($val) ) {
-                    $types .= 'd';
-                } else {
-                    $types .= 's';
-                    if ( $val !== null ) {
-                        $val = (string) $val;
-                    }
-                }
-                $vals[] = $val;
-            }
-            $stmt->bind_param($types, ...$vals);
-        }
-
-        if ( !$stmt->execute() ) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new Exception('MySQLi execute error: ' . $err);
-        }
-
-        $res = $stmt->get_result();
-        $this->lastResult = ($res instanceof \mysqli_result) ? $res : null;
-        $stmt->close();
-        return true;
-    }
-
-    public function fetch(int $mode = 0): array|false
-    {
-        if ( !$this->lastResult ) {
-            return false;
-        }
-        $row = $this->lastResult->fetch_assoc();
-        return $row ?: false;
-    }
-
-    public function fetchAll(int $mode = 0): array
-    {
-        if ( !$this->lastResult ) {
-            return [];
-        }
-        return $this->lastResult->fetch_all(MYSQLI_ASSOC);
-    }
-
-    public function fetchColumn(int $col = 0): mixed
-    {
-        if ( !$this->lastResult ) {
-            return false;
-        }
-        $row = $this->lastResult->fetch_row();
-        return $row[$col] ?? false;
-    }
-}
-
-/**
- * Lightweight MySQLi-to-PDO connection adapter
- */
-class MysqliBridgeConnection
-{
-    private \mysqli $mysqli;
-    private bool $inTx = false;
-
-    public function __construct(\mysqli $mysqli)
-    {
-        $this->mysqli = $mysqli;
-    }
-
-    public function exec(string $sql): int
-    {
-        if ( !$this->mysqli->query($sql) ) {
-            throw new Exception('MySQLi exec error: ' . $this->mysqli->error);
-        }
-        return (int) $this->mysqli->affected_rows;
-    }
-
-    public function query(string $sql): MysqliBridgeStatement
-    {
-        $stmt = new MysqliBridgeStatement($this->mysqli, $sql);
-        $stmt->execute();
-        return $stmt;
-    }
-
-    public function prepare(string $sql): MysqliBridgeStatement
-    {
-        return new MysqliBridgeStatement($this->mysqli, $sql);
-    }
-
-    public function lastInsertId(): string
-    {
-        return (string) $this->mysqli->insert_id;
-    }
-
-    public function beginTransaction(): bool
-    {
-        $this->inTx = $this->mysqli->begin_transaction();
-        return $this->inTx;
-    }
-
-    public function commit(): bool
-    {
-        $res = $this->mysqli->commit();
-        $this->inTx = false;
-        return $res;
-    }
-
-    public function rollBack(): bool
-    {
-        $res = $this->mysqli->rollback();
-        $this->inTx = false;
-        return $res;
-    }
-
-    public function inTransaction(): bool
-    {
-        return $this->inTx;
-    }
-}
-
 class WhatsAppCloudService
 {
     private string $phoneNumberId;
@@ -212,17 +47,11 @@ class WhatsAppCloudService
         return $parsedEnv[$key] ?? $default;
     }
 
-    /**
-     * Generates a cryptographically random 128-bit URL-safe base64url receipt token (22 chars)
-     */
     public static function generateReceiptToken(): string
     {
         return rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
     }
 
-    /**
-     * Ensures an order has a unique 128-bit receipt_token stored in st_direct_wa_orders and returns it
-     */
     public static function ensureOrderReceiptToken(object $db, int $orderId, ?string $existingToken = null): string
     {
         if ( $existingToken !== null && preg_match('/^[A-Za-z0-9_-]{22,64}$/', $existingToken) ) {
@@ -252,18 +81,12 @@ class WhatsAppCloudService
         return $fallback;
     }
 
-    /**
-     * Builds the canonical public short receipt URL (/r/<token>)
-     */
     public static function buildHostedReceiptUrl(string $receiptToken): string
     {
         $baseUrl = rtrim(self::env('APP_URL', 'https://smartrade.odeliazm.com'), '/');
         return $baseUrl . '/r/' . rawurlencode($receiptToken);
     }
 
-    /**
-     * Single configuration value for receipt token expiry in days (0 = never expires)
-     */
     public static function getReceiptTokenTtlDays(?object $pdo = null): int
     {
         $envTtl = self::env('RECEIPT_TOKEN_TTL_DAYS', '');
@@ -277,25 +100,13 @@ class WhatsAppCloudService
         return 0;
     }
 
-    /**
-     * Resolves the non-empty Business / Store Brand Name (checking business_name, company_name, store_name, vsdc_taxprNm, and locations)
-     */
     public static function resolveStoreBrandName(?object $pdo = null, int $branchId = 1): string
     {
         try {
             $db    = $pdo ?? self::getDb();
             $kvMap = self::getAllDbSettings($db);
 
-            $nameKeys = [
-                'business_name',
-                'company_name',
-                'store_name',
-                'shop_name',
-                'restaurant_name',
-                'brand_name',
-                'receipt_header',
-                'vsdc_taxprnm'
-            ];
+            $nameKeys = ['business_name', 'company_name', 'store_name', 'shop_name', 'restaurant_name', 'brand_name', 'receipt_header', 'vsdc_taxprnm'];
             foreach ( $nameKeys as $k ) {
                 $val = trim((string) ($kvMap[$k] ?? ''));
                 if ( $val !== '' ) {
@@ -318,9 +129,6 @@ class WhatsAppCloudService
         return $envBrand !== '' ? $envBrand : 'Queen Bee';
     }
 
-    /**
-     * Normalizes any Zambian or international phone string into a clean MSISDN (e.g., 260977123456)
-     */
     public static function normalizeMsisdn(string $rawPhone): string
     {
         $digits = preg_replace('/\D+/', '', $rawPhone) ?? '';
@@ -335,35 +143,18 @@ class WhatsAppCloudService
         return $digits;
     }
 
-    /**
-     * Resolves the real Merchant WhatsApp number from .env, settings table, locations table, or admin users table
-     */
     public static function resolveMerchantWhatsApp(?object $pdo = null, int $branchId = 1): string
     {
-        $envCandidates = [
-            self::env('MERCHANT_WHATSAPP_NUMBER', ''),
-            self::env('WHATSAPP_NUMBER', ''),
-            self::env('STORE_WHATSAPP', ''),
-            self::env('COMPANY_PHONE', ''),
-            self::env('SUPPORT_PHONE', '')
-        ];
-        foreach ( $envCandidates as $cand ) {
-            $norm = self::normalizeMsisdn($cand);
-            if ( $norm !== '' ) {
-                return $norm;
-            }
-        }
-
         try {
             $db    = $pdo ?? self::getDb();
             $kvMap = self::getAllDbSettings($db);
 
             $priorityKeys = [
                 'merchant_whatsapp_number',
+                'store_whatsapp',
                 'whatsapp_number',
                 'whatsapp_phone',
                 'wa_number',
-                'store_whatsapp',
                 'business_whatsapp',
                 'company_whatsapp',
                 'company_phone',
@@ -385,57 +176,25 @@ class WhatsAppCloudService
                     }
                 }
             }
-
-            foreach ( $kvMap as $k => $v ) {
-                if ( preg_match('/whatsapp|phone|mobile|tel|msisdn/i', (string) $k) ) {
-                    $norm = self::normalizeMsisdn((string) $v);
-                    if ( $norm !== '' ) {
-                        return $norm;
-                    }
-                }
-            }
-
-            if ( (bool) $db->query("SHOW TABLES LIKE 'locations'")->fetchColumn() ) {
-                $locStmt = $db->prepare("SELECT * FROM locations WHERE id = :id LIMIT 1");
-                $locStmt->execute([':id' => $branchId]);
-                $locRow = $locStmt->fetch();
-                if ( !$locRow ) {
-                    $locRow = $db->query("SELECT * FROM locations ORDER BY id ASC LIMIT 1")->fetch();
-                }
-                if ( is_array($locRow) ) {
-                    foreach ( ['whatsapp', 'whatsapp_number', 'phone', 'contact_phone', 'mobile', 'telephone'] as $lk ) {
-                        if ( !empty($locRow[$lk]) ) {
-                            $norm = self::normalizeMsisdn((string) $locRow[$lk]);
-                            if ( $norm !== '' ) {
-                                return $norm;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if ( (bool) $db->query("SHOW TABLES LIKE 'users'")->fetchColumn() ) {
-                $uRows = $db->query("SELECT * FROM users ORDER BY id ASC LIMIT 10")->fetchAll();
-                foreach ( $uRows as $uRow ) {
-                    foreach ( ['whatsapp', 'phone', 'mobile', 'phone_number', 'contact'] as $uk ) {
-                        if ( !empty($uRow[$uk]) ) {
-                            $norm = self::normalizeMsisdn((string) $uRow[$uk]);
-                            if ( $norm !== '' ) {
-                                return $norm;
-                            }
-                        }
-                    }
-                }
-            }
         } catch ( Throwable $e ) {
+        }
+
+        $envCandidates = [
+            self::env('MERCHANT_WHATSAPP_NUMBER', ''),
+            self::env('WHATSAPP_NUMBER', ''),
+            self::env('STORE_WHATSAPP', ''),
+            self::env('COMPANY_PHONE', '')
+        ];
+        foreach ( $envCandidates as $cand ) {
+            $norm = self::normalizeMsisdn($cand);
+            if ( $norm !== '' ) {
+                return $norm;
+            }
         }
 
         return '';
     }
 
-    /**
-     * Connects to MySQL using either pdo_mysql or mysqli, auto-creating and upgrading the schema
-     */
     public static function getDb(): PDO|MysqliBridgeConnection
     {
         $hosts = array_values(array_unique(array_filter([
@@ -576,21 +335,6 @@ class WhatsAppCloudService
             if ( !in_array('receipt_token', $existingCols, true) ) {
                 $alterParts[] = "ADD COLUMN `receipt_token` VARCHAR(64) DEFAULT NULL UNIQUE";
             }
-            if ( !in_array('zra_sdc_id', $existingCols, true) ) {
-                $alterParts[] = "ADD COLUMN `zra_sdc_id` VARCHAR(64) DEFAULT NULL";
-            }
-            if ( !in_array('zra_intrl_data', $existingCols, true) ) {
-                $alterParts[] = "ADD COLUMN `zra_intrl_data` VARCHAR(255) DEFAULT NULL";
-            }
-            if ( !in_array('zra_rcpt_sign', $existingCols, true) ) {
-                $alterParts[] = "ADD COLUMN `zra_rcpt_sign` VARCHAR(128) DEFAULT NULL";
-            }
-            if ( !in_array('zra_vsdc_date', $existingCols, true) ) {
-                $alterParts[] = "ADD COLUMN `zra_vsdc_date` VARCHAR(32) DEFAULT NULL";
-            }
-            if ( !in_array('zra_raw_response', $existingCols, true) ) {
-                $alterParts[] = "ADD COLUMN `zra_raw_response` TEXT DEFAULT NULL";
-            }
             if ( !in_array('native_sale_id', $existingCols, true) ) {
                 $alterParts[] = "ADD COLUMN `native_sale_id` BIGINT UNSIGNED DEFAULT NULL";
             }
@@ -604,23 +348,12 @@ class WhatsAppCloudService
         return $conn;
     }
 
-    /**
-     * Reads all key-value or wide-row settings from smartTrade's database settings tables
-     */
     public static function getAllDbSettings(?object $pdo = null): array
     {
         $kvMap = [];
         try {
             $db = $pdo ?? self::getDb();
-            $candidateTables = [
-                'settings',
-                'system_settings',
-                'app_settings',
-                'pos_settings',
-                'company_settings',
-                'zra_settings',
-                'vsdc_settings'
-            ];
+            $candidateTables = ['settings', 'system_settings', 'app_settings', 'pos_settings', 'company_settings', 'zra_settings', 'vsdc_settings'];
 
             foreach ( $candidateTables as $tbl ) {
                 $exists = (bool) $db->query("SHOW TABLES LIKE '{$tbl}'")->fetchColumn();
@@ -648,9 +381,6 @@ class WhatsAppCloudService
         return $kvMap;
     }
 
-    /**
-     * Reads the in-app Flutterwave configuration directly from smartTrade's database settings
-     */
     public static function getFlwConfig(?object $pdo = null): array
     {
         $config = [
@@ -701,10 +431,6 @@ class WhatsAppCloudService
         return $config;
     }
 
-    /**
-     * Fiscalizes a paid WhatsApp order through app/Services/ZraVsdcClient.php and/or the
-     * live Tomcat ZRA VSDC container (/trnsSales/saveSales).
-     */
     public static function fiscalizeWithZraVsdc(object $db, array $order, ?int $nativeSaleId = null): array
     {
         $orderId   = (int) ($order['id'] ?? 1);
@@ -1015,9 +741,6 @@ class WhatsAppCloudService
         ];
     }
 
-    /**
-     * Helper to select a valid ENUM value when a target column is an ENUM
-     */
     private static function resolveColumnValue(array $colMeta, array $preferredValues, mixed $fallback): mixed
     {
         $type = strtolower((string) ($colMeta['Type'] ?? ''));
@@ -1045,9 +768,6 @@ class WhatsAppCloudService
         return $fallback;
     }
 
-    /**
-     * Dynamically inserts a row into any smartTrade table
-     */
     private static function dynamicInsertRow(object $db, string $table, array $candidateValues): int
     {
         $exists = (bool) $db->query("SHOW TABLES LIKE '{$table}'")->fetchColumn();
@@ -1125,32 +845,32 @@ class WhatsAppCloudService
     }
 
     /**
-     * Mirrors a confirmed PAID ST-FLW-* WhatsApp order into smartTrade's native `sales`, `sale_items`,
-     * `payment_transactions`, and `pickup_notifications` tables matching Sale::openWebOrderWhere('s')
-     * (`payment_method = 'Online'`, `payment_status = 'paid'`, `status = 'pending'`) and
-     * Pos.php's `$openTabs` (`si.fulfillment_status = 'uncollected'`).
+     * Mirrors confirmed PAID ST-FLW-* WhatsApp orders into native `sales`, `sale_items`,
+     * `payment_transactions`, and `pickup_notifications` matching Sale::openWebOrderWhere('s')
+     * and Pos.php's `$openTabs` (`fulfillment_status = 'uncollected'`).
      */
     public static function mirrorToNativeWebOrders(object $db, array $order, string $flwTransactionId, string $zraReceiptNo = ''): array
     {
         try {
-            $txRef      = (string) $order['tx_ref'];
-            $branchId   = (int) ($order['branch_id'] ?? 1);
-            $custName   = (string) ($order['customer_name'] ?? 'WhatsApp Customer');
-            $custPhone  = (string) ($order['customer_phone'] ?? '');
-            $delivType  = strtoupper((string) ($order['delivery_type'] ?? 'PICKUP'));
-            $delivAddr  = (string) ($order['delivery_address'] ?? '');
-            $subtotal   = (float) ($order['subtotal_zmw'] ?? 0.00);
-            $delivFee   = (float) ($order['delivery_fee_zmw'] ?? 0.00);
-            $totalZmw   = (float) ($order['total_zmw'] ?? 0.00);
-            $items      = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
-            $now        = date('Y-m-d H:i:s');
+            $txRef     = (string) $order['tx_ref'];
+            $branchId  = (int) ($order['branch_id'] ?? 1);
+            $custName  = (string) ($order['customer_name'] ?? 'WhatsApp Customer');
+            $custPhone = (string) ($order['customer_phone'] ?? '');
+            $delivType = strtoupper((string) ($order['delivery_type'] ?? 'PICKUP'));
+            $delivAddr = (string) ($order['delivery_address'] ?? '');
+            $subtotal  = (float) ($order['subtotal_zmw'] ?? 0.00);
+            $delivFee  = (float) ($order['delivery_fee_zmw'] ?? 0.00);
+            $totalZmw  = (float) ($order['total_zmw'] ?? 0.00);
+            $items     = json_decode((string) ($order['items_json'] ?? '[]'), true) ?: [];
+            $now       = date('Y-m-d H:i:s');
 
             if ( !empty($order['native_sale_id']) && (int) $order['native_sale_id'] > 0 ) {
                 $existingSaleId = (int) $order['native_sale_id'];
-                // Ensure existing mirrored sale matches Sale::openWebOrderWhere('s')
                 $db->prepare("
                     UPDATE sales
                     SET payment_method = 'Online',
+                        payment_status = 'paid',
+                        status = 'pending',
                         order_source = 'web',
                         order_type = :otype,
                         gateway_ref = :gref,
@@ -1176,13 +896,11 @@ class WhatsAppCloudService
                 return ['mirrored' => false, 'reason' => 'sales table not found'];
             }
 
-            // Ensure `shop_enabled = 1` in settings so the Web Orders button & modal are always active on POS
             try {
                 $db->exec("INSERT INTO settings (setting_key, setting_value) VALUES ('shop_enabled', '1') ON DUPLICATE KEY UPDATE setting_value = '1'");
             } catch ( Throwable $e ) {
             }
 
-            // Check if gateway_ref or split_group_id already exists in sales
             $chk = $db->prepare("SELECT id FROM `sales` WHERE gateway_ref = :ref1 OR split_group_id = :ref2 LIMIT 1");
             $chk->execute([':ref1' => $txRef, ':ref2' => $txRef]);
             $foundSaleId = (int) $chk->fetchColumn();
@@ -1212,34 +930,32 @@ class WhatsAppCloudService
 
             $orderNotes = 'WhatsApp Order (' . $delivType . ')' . ($delivAddr !== '' ? ' - Address: ' . $delivAddr : '');
 
-            // Matches Sale::openWebOrderWhere('s') -> payment_method = 'Online', payment_status = 'paid', status = 'pending'
             $saleCandidateMap = [
-                'user_id'           => $defaultUserId,
-                'location_id'       => $branchId,
-                'customer_name'     => $custName,
-                'customer_phone'    => $custPhone,
-                'subtotal'          => $subtotal,
-                'total_amount'      => $totalZmw,
-                'final_total'       => $totalZmw,
-                'amount_tendered'   => $totalZmw,
-                'change_due'        => 0.00,
-                'surcharge_amount'  => $delivFee,
-                'surcharge_reason'  => $delivFee > 0 ? 'Delivery Fee' : null,
-                'payment_method'    => 'Online',
-                'payment_status'    => 'paid',
-                'status'            => ['__prefs' => ['pending'], '__fallback' => 'pending'],
-                'order_source'      => 'web',
-                'order_type'        => strtolower($delivType),
-                'order_notes'       => $orderNotes,
-                'gateway_ref'       => $txRef,
-                'split_group_id'    => $txRef,
-                'momo_ref'          => substr($flwTransactionId, 0, 24),
-                'created_at'        => $now
+                'user_id'          => $defaultUserId,
+                'location_id'      => $branchId,
+                'customer_name'    => $custName,
+                'customer_phone'   => $custPhone,
+                'subtotal'         => $subtotal,
+                'total_amount'     => $totalZmw,
+                'final_total'      => $totalZmw,
+                'amount_tendered'  => $totalZmw,
+                'change_due'       => 0.00,
+                'surcharge_amount' => $delivFee,
+                'surcharge_reason' => $delivFee > 0 ? 'Delivery Fee' : null,
+                'payment_method'   => 'Online',
+                'payment_status'   => 'paid',
+                'status'           => ['__prefs' => ['pending'], '__fallback' => 'pending'],
+                'order_source'     => 'web',
+                'order_type'       => strtolower($delivType),
+                'order_notes'      => $orderNotes,
+                'gateway_ref'      => $txRef,
+                'split_group_id'   => $txRef,
+                'momo_ref'         => substr($flwTransactionId, 0, 24),
+                'created_at'       => $now
             ];
 
             $saleId = self::dynamicInsertRow($db, 'sales', $saleCandidateMap);
 
-            // Insert line items into `sale_items` with fulfillment_status = 'uncollected' so Active Tabs & Kitchen see it
             if ( $saleId > 0 && (bool) $db->query("SHOW TABLES LIKE 'sale_items'")->fetchColumn() ) {
                 foreach ( $items as $item ) {
                     $prodId    = (int) ($item['product_id'] ?? 1);
@@ -1268,7 +984,6 @@ class WhatsAppCloudService
                 }
             }
 
-            // Insert into `pickup_notifications`
             $pickupId = 0;
             if ( $saleId > 0 && (bool) $db->query("SHOW TABLES LIKE 'pickup_notifications'")->fetchColumn() ) {
                 $pickupId = self::dynamicInsertRow($db, 'pickup_notifications', [
@@ -1294,7 +1009,6 @@ class WhatsAppCloudService
                 ]);
             }
 
-            // Insert into `payment_transactions` matching App\Services\Flutterwave::detailsForSales() (`provider = 'flutterwave'`, `status = 'successful'`)
             if ( $saleId > 0 && (bool) $db->query("SHOW TABLES LIKE 'payment_transactions'")->fetchColumn() ) {
                 self::dynamicInsertRow($db, 'payment_transactions', [
                     'provider'          => 'flutterwave',
@@ -1342,9 +1056,6 @@ class WhatsAppCloudService
         }
     }
 
-    /**
-     * Synchronizes status changes (such as COMPLETED / Hand Over) to `sales`, `sale_items`, and `pickup_notifications`
-     */
     public static function syncNativeWebOrderStatus(object $db, string $txRef, string $fulfillmentStatus, ?string $flwTransactionId = null): bool
     {
         try {
@@ -1376,9 +1087,6 @@ class WhatsAppCloudService
         }
     }
 
-    /**
-     * Direct hook callable when a cashier clicks "Hand Over" in the native Web Orders / Pickup Handoff UI.
-     */
     public static function onNativeHandOver(string|int $orderIdentifier, ?object $pdo = null): array
     {
         try {
@@ -1434,9 +1142,6 @@ class WhatsAppCloudService
         }
     }
 
-    /**
-     * Automatically reconciles any ST-FLW-* orders handed over via `sales` (`status = 'completed'`)
-     */
     public static function reconcileHandedOverWebOrders(object $db): array
     {
         $reconciledRefs = [];
@@ -1484,9 +1189,6 @@ class WhatsAppCloudService
         return $reconciledRefs;
     }
 
-    /**
-     * Purges simulated webhook test rows from `sales`, `sale_items`, `pickup_notifications`, and `payment_transactions`
-     */
     public static function purgeNativeWebOrderTests(object $db): int
     {
         $deleted = 0;
@@ -1518,9 +1220,6 @@ class WhatsAppCloudService
         return $deleted;
     }
 
-    /**
-     * Sends a plain-text WhatsApp message via Meta WhatsApp Cloud API
-     */
     public function sendTextMessage(string $recipientMsisdn, string $messageBody): array
     {
         $cleanPhone = self::normalizeMsisdn($recipientMsisdn);
@@ -1579,9 +1278,6 @@ class WhatsAppCloudService
         ];
     }
 
-    /**
-     * Dispatches short WhatsApp message with the hosted /r/<token> receipt link
-     */
     public function sendOrderPaidNotifications(array $order, string $zraReceiptNo, ?string $hostedReceiptUrl = null, ?array $vsdcReport = null): void
     {
         $totalFormatted = number_format((float) ($order['total_zmw'] ?? 0.00), 2);
@@ -1623,9 +1319,6 @@ class WhatsAppCloudService
         }
     }
 
-    /**
-     * Notifies the customer on WhatsApp when the cashier updates kitchen fulfillment status
-     */
     public function sendFulfillmentStatusUpdate(array $order, string $newStatus): array
     {
         $txRef = (string) $order['tx_ref'];
