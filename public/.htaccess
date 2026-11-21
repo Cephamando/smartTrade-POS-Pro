@@ -17,4 +17,8 @@
     #    https://smartrade.odeliazm.com/kds/2          -> storefront/kds.php?branch=2
     RewriteRule ^kds/?$ storefront/kds.php [QSA,L]
     RewriteRule ^kds/([0-9]+)/?$ storefront/kds.php?branch=$1 [QSA,L]
+
+    # 4. Microsoft Teams join link:
+    #    https://smartrade.odeliazm.com/teams/join/<token> -> teams/join.php?t=<token>
+    RewriteRule ^teams/join/([A-Za-z0-9_-]+)/?$ teams/join.php?t=$1 [QSA,L]
 </IfModule>
