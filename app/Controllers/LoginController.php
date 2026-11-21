@@ -175,6 +175,16 @@ final class LoginController extends Controller
         $_SESSION['force_change'] = (int)($user['force_password_change'] ?? 0);
         $_SESSION['session_rev'] = (int)($user['session_rev'] ?? User::sessionRev((int)$user['id']));
         $_SESSION['last_seen'] = time();
+        try {
+            $_SESSION['session_token'] = \App\Models\StaffSession::begin(
+                (int)$user['id'],
+                (string)$user['role'],
+                (int)($user['location_id'] ?? 0),
+                trim((string)($user['location_name'] ?? ''))
+            );
+        } catch (\Throwable $e) {
+            error_log('staff session: ' . $e->getMessage());
+        }
         \App\Services\Activity::log($this->pdo(), 'login', 'ok', [
             'user_id' => (int)$user['id'],
             'username' => (string)$user['username'],

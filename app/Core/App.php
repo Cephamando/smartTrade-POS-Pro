@@ -103,9 +103,47 @@ final class App
         if ($seen > 0 && time() - $seen > $limit) {
             $this->endSession();
         }
-        if (!$this->isBackgroundPoll()) {
+
+        $token = (string)($_SESSION['session_token'] ?? '');
+        $poll = $this->isBackgroundPoll();
+        try {
+            if ($token === '') {
+                $_SESSION['session_token'] = \App\Models\StaffSession::begin(
+                    (int)$_SESSION['user_id'],
+                    $role,
+                    $this->workstationId(),
+                    $this->workstationName()
+                );
+            } elseif (!\App\Models\StaffSession::alive($token)) {
+                $this->endSession();
+            } elseif (!$poll) {
+                \App\Models\StaffSession::touch($token, $role, $this->workstationId(), $this->workstationName());
+            }
+        } catch (\Throwable $e) {
+            error_log('staff session: ' . $e->getMessage());
+        }
+
+        if (!$poll) {
             $_SESSION['last_seen'] = time();
         }
+    }
+
+    private function workstationId(): int
+    {
+        $id = (int)($_SESSION['pos_location_id'] ?? 0);
+        if ($id <= 0) {
+            $id = (int)($_SESSION['location_id'] ?? 0);
+        }
+        return $id;
+    }
+
+    private function workstationName(): string
+    {
+        $name = trim((string)($_SESSION['location_name'] ?? ''));
+        if ($this->workstationId() <= 0) {
+            return 'No workstation';
+        }
+        return $name !== '' ? $name : 'Workstation';
     }
 
     private function isBackgroundPoll(): bool
@@ -115,6 +153,10 @@ final class App
 
     private function endSession(): void
     {
+        $token = (string)($_SESSION['session_token'] ?? '');
+        if ($token !== '') {
+            \App\Models\StaffSession::forget($token);
+        }
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();

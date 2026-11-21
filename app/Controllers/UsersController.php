@@ -3,7 +3,9 @@
 namespace App\Controllers;
 
 use App\Models\Location;
+use App\Models\StaffSession;
 use App\Models\User;
+use App\Services\Activity;
 
 final class UsersController extends Controller
 {
@@ -15,6 +17,9 @@ final class UsersController extends Controller
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (isset($_POST['sign_out_session']) || isset($_POST['sign_out_location']) || isset($_POST['sign_out_everyone'])) {
+                $this->signOutStaff();
+            }
             if (($_POST['bulk_action'] ?? '') === 'delete') {
                 $deleted = 0;
                 $deactivated = 0;
@@ -170,9 +175,72 @@ final class UsersController extends Controller
             }
         }
 
+        $signedIn = [];
+        if ($this->role() === 'dev') {
+            try {
+                $keep = (string)($_SESSION['session_token'] ?? '');
+                foreach (StaffSession::online() as $row) {
+                    $row['yours'] = $keep !== '' && $row['token'] === $keep;
+                    unset($row['token']);
+                    $signedIn[] = $row;
+                }
+            } catch (\Throwable $e) {
+                $signedIn = [];
+            }
+        }
+
         $this->render([
             'users' => User::activeStaff(),
             'locations' => Location::names(),
+            'signedIn' => $signedIn,
         ]);
+    }
+
+    /** A developer ends one browser, every browser at a workstation, or every browser but their own. */
+    private function signOutStaff(): void
+    {
+        if ($this->role() !== 'dev') {
+            $this->flash('error', 'Only a developer can sign staff out.');
+            $this->redirect('users');
+        }
+        $keep = (string)($_SESSION['session_token'] ?? '');
+        try {
+            if (isset($_POST['sign_out_session'])) {
+                $row = StaffSession::signOutOne((int)($_POST['session_id'] ?? 0));
+                if (!$row) {
+                    $this->flash('info', 'That sign-in has already ended.');
+                } else {
+                    Activity::log($this->pdo(), 'sign_out', 'ok', [
+                        'subject' => 'Signed out',
+                        'detail' => $row['who'],
+                    ]);
+                    $this->flash('success', $row['who'] . ' was signed out.');
+                }
+            } elseif (isset($_POST['sign_out_location']) && (string)($_POST['location_id'] ?? '') === '') {
+                $this->flash('error', 'Choose a workstation first.');
+            } else {
+                $locationId = isset($_POST['sign_out_everyone']) ? null : (int)$_POST['location_id'];
+                $names = StaffSession::signOutGroup($keep, $locationId);
+                $place = '';
+                if ($locationId !== null) {
+                    $place = $locationId > 0 ? Location::nameById($locationId) : 'No workstation';
+                }
+                if (!$names) {
+                    $this->flash('info', $place === '' ? 'Nobody else is signed in.' : 'Nobody else is signed in at ' . $place . '.');
+                } else {
+                    $count = count($names);
+                    $who = $count === 1 ? $names[0] . ' was' : $count . ' people were';
+                    $where = $place === '' ? '' : ' at ' . $place;
+                    Activity::log($this->pdo(), 'sign_out', 'ok', [
+                        'subject' => 'Signed out',
+                        'detail' => ($place === '' ? 'Everyone else' : $place) . ': ' . implode(', ', $names),
+                    ]);
+                    $this->flash('success', $who . ' signed out' . $where . '.');
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->flash('error', 'Unable to sign them out.');
+        }
+        $this->redirect('users');
     }
 }

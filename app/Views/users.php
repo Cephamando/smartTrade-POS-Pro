@@ -3,6 +3,97 @@
     <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#userModal" onclick="resetUserForm()"><i class="bi bi-person-plus-fill"></i> Add New User</button>
 </div>
 
+<?php if (($_SESSION['role'] ?? '') === 'dev'): ?>
+<?php
+$signedInPlaces = [];
+foreach ($signedIn as $open) {
+    $signedInPlaces[(int)$open['location_id']] = (string)$open['location_name'];
+}
+?>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3">
+        <div class="fw-bold"><i class="bi bi-person-check text-success"></i> Signed in now</div>
+        <div class="small text-muted">Each open browser on this server. Signing someone out does not close their shift. They sign in again to continue.</div>
+    </div>
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">Person</th>
+                    <th>Workstation</th>
+                    <th>Signed in</th>
+                    <th>Last seen</th>
+                    <th class="text-end pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (!$signedIn): ?>
+                <tr><td colspan="5" class="text-center text-muted py-4">Nobody is signed in.</td></tr>
+                <?php endif; ?>
+                <?php foreach ($signedIn as $open): ?>
+                <tr>
+                    <td class="ps-4">
+                        <span class="fw-bold"><?= htmlspecialchars((string)$open['who']) ?></span>
+                        <?php if (!empty($open['yours'])): ?><span class="badge bg-success ms-1">You</span><?php endif; ?>
+                        <span class="d-block small text-muted">@<?= htmlspecialchars((string)$open['username']) ?> · <?= htmlspecialchars(str_replace('_', ' ', (string)$open['role'])) ?></span>
+                    </td>
+                    <td><?= htmlspecialchars((string)$open['location_name']) ?></td>
+                    <td class="text-nowrap"><?= htmlspecialchars((string)$open['started_label']) ?></td>
+                    <td>
+                        <span class="text-nowrap"><?= htmlspecialchars((string)$open['seen_label']) ?></span>
+                        <?php if (!empty($open['ip'])): ?><span class="d-block small text-muted"><?= htmlspecialchars((string)$open['ip']) ?></span><?php endif; ?>
+                    </td>
+                    <td class="text-end pe-4">
+                        <form method="POST" class="d-inline js-confirm-form"
+                            data-swal-title="<?= !empty($open['yours']) ? 'Sign yourself out?' : 'Sign out ' . htmlspecialchars((string)$open['who']) . '?' ?>"
+                            data-swal-text="<?= !empty($open['yours']) ? 'You will leave this page and need to sign in again.' : 'They will need to sign in again. Their shift stays open.' ?>"
+                            data-swal-confirm="Sign out"
+                            data-swal-cancel="Cancel"
+                            data-swal-icon="warning"
+                            data-swal-confirm-color="#dc3545">
+                            <input type="hidden" name="sign_out_session" value="1">
+                            <input type="hidden" name="session_id" value="<?= (int)$open['id'] ?>">
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Sign out</button>
+                        </form>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php if ($signedIn): ?>
+    <div class="card-footer bg-white d-flex flex-wrap gap-2 align-items-center">
+        <form method="POST" class="d-flex flex-wrap gap-2 align-items-center js-confirm-form"
+            data-swal-title="Sign out this workstation?"
+            data-swal-text="Everyone signed in at the workstation you chose is signed out, except you. Their shifts stay open."
+            data-swal-confirm="Sign out"
+            data-swal-cancel="Cancel"
+            data-swal-icon="warning"
+            data-swal-confirm-color="#dc3545">
+            <input type="hidden" name="sign_out_location" value="1">
+            <select name="location_id" class="form-select form-select-sm no-search" style="width:auto" required>
+                <option value="">Choose a workstation</option>
+                <?php foreach ($signedInPlaces as $placeId => $placeName): ?>
+                <option value="<?= (int)$placeId ?>"><?= htmlspecialchars($placeName) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <button class="btn btn-sm btn-outline-dark" type="submit">Sign out this workstation</button>
+        </form>
+        <form method="POST" class="ms-auto js-confirm-form"
+            data-swal-title="Sign everyone else out?"
+            data-swal-text="Every open browser except yours is signed out. Their shifts stay open."
+            data-swal-confirm="Sign everyone out"
+            data-swal-cancel="Cancel"
+            data-swal-icon="warning"
+            data-swal-confirm-color="#dc3545">
+            <input type="hidden" name="sign_out_everyone" value="1">
+            <button class="btn btn-sm btn-danger" type="submit">Sign out everyone else</button>
+        </form>
+    </div>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <?php
 $bulkFormId = 'bulkUsers';
 $bulkAction = 'index.php?page=users';

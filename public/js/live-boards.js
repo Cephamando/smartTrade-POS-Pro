@@ -316,7 +316,13 @@
 
     function tick() {
         fetch('index.php?action=live_status', { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (r.status === 401) {
+                    window.location.href = 'index.php?page=login';
+                    return null;
+                }
+                return r.json();
+            })
             .then(function (data) {
                 if (!data) return;
                 paint('web', data.web_orders || 0);

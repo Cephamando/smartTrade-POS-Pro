@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 24;
+    public const VERSION = 25;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -473,6 +473,23 @@ final class Schema
         // --- A disabled location is hidden from pickers and takes no sales or stock
         self::addColumn($pdo, 'locations', 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1');
         self::addColumn($pdo, 'inventory_logs', 'reason', 'VARCHAR(255) NULL');
+
+        // --- One row per open browser, so a developer can see who is signed in and end it
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS staff_sessions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token CHAR(32) NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT '',
+                location_id INT NULL,
+                location_name VARCHAR(120) NOT NULL DEFAULT '',
+                ip VARCHAR(45) NULL,
+                started_at DATETIME NOT NULL,
+                last_seen_at DATETIME NOT NULL,
+                UNIQUE KEY uq_staff_sessions_token (token),
+                KEY idx_staff_sessions_seen (last_seen_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
         self::seedReceiptLogo($pdo);
     }
 

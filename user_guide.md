@@ -545,6 +545,8 @@ Open the account menu, then **Staff**.
 
 Add a person with full name, username, role, primary workstation, and password (at least 6 characters). A manager, administrator, developer, or head chef also needs a till approval code, 4 to 12 characters and different from the password. Edit the same fields later. Leave the password or the approval code blank on edit to keep the current one. **Reset code** on an office account clears the authenticator sign-in and signs that person out everywhere. Delete asks for confirmation (see section 3 for deactivate versus delete).
 
+**Signed in now** is on this page for a developer. It lists every open browser on this server: the person, the workstation they are using, when they signed in, and when this server last heard from that browser. The till's background refresh does not count as activity. **Sign out** ends that one browser. **Sign out this workstation** ends everyone currently using the workstation you choose. **Sign out everyone else** ends every sign-in except yours. A shift is not closed, and the person signs in again to continue. A till that keeps its own database shows its own list.
+
 ### 14.2 Change password
 
 Any signed-in user can open Change Password. Enter the current password, the new one, and a confirmation. The new password must be at least 6 characters and must not be the till approval code. Saving it signs out every other browser still using that account. When the system forced the change, Cancel is hidden until it is updated. A manager, administrator, developer, or head chef can save a till approval code on the same page. It asks for the current password, and it must not be the login password.
