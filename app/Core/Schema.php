@@ -13,7 +13,7 @@ use PDO;
  */
 final class Schema
 {
-    public const VERSION = 23;
+    public const VERSION = 24;
 
     public static function ensure(PDO $pdo, array $settings): void
     {
@@ -469,6 +469,10 @@ final class Schema
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
         self::addColumn($pdo, 'sales', 'momo_ref', 'VARCHAR(24) NULL');
+
+        // --- A disabled location is hidden from pickers and takes no sales or stock
+        self::addColumn($pdo, 'locations', 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1');
+        self::addColumn($pdo, 'inventory_logs', 'reason', 'VARCHAR(255) NULL');
         self::seedReceiptLogo($pdo);
     }
 

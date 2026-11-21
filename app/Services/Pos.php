@@ -30,6 +30,12 @@ final class Pos
             return $this->voidItem($post, $locationId, $userId);
         }
         if (isset($post['set_pos_location'])) {
+            $target = Location::find((int)$post['set_pos_location']);
+            if ($target && (int)$target['is_active'] !== 1) {
+                $session['swal_type'] = 'error';
+                $session['swal_msg'] = $target['name'] . ' is disabled. Choose another workstation.';
+                return ['redirect' => true];
+            }
             $session['pos_location_id'] = (int)$post['set_pos_location'];
             $session['location_name'] = Location::nameById($session['pos_location_id']);
             return ['redirect' => true];

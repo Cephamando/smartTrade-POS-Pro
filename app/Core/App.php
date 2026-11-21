@@ -17,6 +17,7 @@ final class App
         }
         $this->loadSettings();
         $this->guardSession();
+        $this->releaseDisabledLocation();
         $this->handleLocationSwitch();
         
         // If it's a global JSON polling action, handle it and stop.
@@ -150,6 +151,64 @@ final class App
         define('SYSTEM_LOCKED', (!empty(LOCKOUT_DATE) && strtotime(LOCKOUT_DATE) <= time()));
     }
 
+    /**
+     * A workstation that was disabled while someone was signed in at it is
+     * dropped from their session, so the next screen asks for another one.
+     */
+    private function releaseDisabledLocation(): void
+    {
+        if (empty($_SESSION['user_id'])) {
+            return;
+        }
+        $posId = (int)($_SESSION['pos_location_id'] ?? 0);
+        $homeId = (int)($_SESSION['location_id'] ?? 0);
+        $ids = array_values(array_unique(array_filter([$posId, $homeId])));
+        if (!$ids) {
+            return;
+        }
+        $pdo = Database::connection();
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT id, name FROM locations WHERE is_active = 0 AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')'
+            );
+            $stmt->execute($ids);
+            $disabled = $stmt->fetchAll();
+        } catch (\Throwable $e) {
+            error_log('disabled location check: ' . $e->getMessage());
+            return;
+        }
+        if (!$disabled) {
+            return;
+        }
+        $names = [];
+        foreach ($disabled as $row) {
+            $names[] = (string)$row['name'];
+            if ($posId === (int)$row['id']) {
+                unset($_SESSION['pos_location_id']);
+                $posId = 0;
+            }
+            if ($homeId === (int)$row['id']) {
+                $_SESSION['location_id'] = null;
+                $homeId = 0;
+            }
+        }
+        unset($_SESSION['location_name']);
+        $current = $posId ?: $homeId;
+        if ($current > 0) {
+            $name = $pdo->prepare('SELECT name FROM locations WHERE id = ?');
+            $name->execute([$current]);
+            $found = $name->fetchColumn();
+            if ($found !== false) {
+                $_SESSION['location_name'] = (string)$found;
+            }
+        }
+        if (!isset($_SESSION['swal_msg'])) {
+            $_SESSION['swal_type'] = 'warning';
+            $_SESSION['swal_msg'] = implode(' and ', $names) . (count($names) === 1 ? ' has' : ' have')
+                . ' been disabled. Choose another workstation.';
+        }
+    }
+
     private function handleLocationSwitch(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['global_switch_location'])) {
@@ -157,12 +216,18 @@ final class App
         }
         if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'dev'], true)) {
             $newLocId = (int)$_POST['target_location_id'];
-            $_SESSION['location_id'] = $newLocId;
-            $_SESSION['pos_location_id'] = $newLocId;
-            $_SESSION['manual_location_override'] = true;
-            $stmt = Database::connection()->prepare('SELECT name FROM locations WHERE id = ?');
+            $stmt = Database::connection()->prepare('SELECT name, is_active FROM locations WHERE id = ?');
             $stmt->execute([$newLocId]);
-            $_SESSION['location_name'] = $stmt->fetchColumn() ?: 'Unknown';
+            $target = $stmt->fetch();
+            if ($target && (int)$target['is_active'] !== 1) {
+                $_SESSION['swal_type'] = 'error';
+                $_SESSION['swal_msg'] = $target['name'] . ' is disabled. Choose another workstation.';
+            } else {
+                $_SESSION['location_id'] = $newLocId;
+                $_SESSION['pos_location_id'] = $newLocId;
+                $_SESSION['manual_location_override'] = true;
+                $_SESSION['location_name'] = $target ? $target['name'] : 'Unknown';
+            }
         }
         $page = $_GET['page'] ?? 'dashboard';
         header('Location: index.php?page=' . urlencode((string)$page));

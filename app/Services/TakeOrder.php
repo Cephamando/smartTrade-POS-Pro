@@ -125,8 +125,15 @@ final class TakeOrder
         $phone = trim((string)($customer['phone'] ?? ''));
         $built = self::lines($pdo, $order);
         $loc = (int)($settings['shop_location_id'] ?? 0);
+        if ($loc > 0) {
+            $live = $pdo->prepare('SELECT is_active FROM locations WHERE id = ?');
+            $live->execute([$loc]);
+            if ((int)$live->fetchColumn() !== 1) {
+                $loc = 0;
+            }
+        }
         if ($loc <= 0) {
-            $loc = (int)$pdo->query('SELECT id FROM locations ORDER BY id LIMIT 1')->fetchColumn();
+            $loc = (int)$pdo->query('SELECT id FROM locations WHERE is_active = 1 ORDER BY id LIMIT 1')->fetchColumn();
         }
         $tableId = self::tableId($pdo, $loc, $order);
         $address = self::address($order);

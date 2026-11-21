@@ -94,6 +94,12 @@ Each location has:
 
 Adding, editing, or deleting a location requires a developer password unless you are already signed in as the developer. Edits made by an administrator or manager sit in a pending state (highlighted row) until the developer opens **Review Pending Edits** and approves or rejects them. The Office menu shows a warning badge while any edit is waiting.
 
+**Disabling a location** takes it out of use without deleting it. Use this when a branch closes or pauses. Press the crossed-circle button on its row. A disabled location no longer appears when anyone chooses a workstation, a store, or a report filter, and it cannot sell, receive, or move stock. Its past sales stay in the reports under all locations. Anyone signed in at it is asked to choose another workstation.
+
+If the location holds stock, you must choose what happens to it: send all of it to another active location, or leave it where it is. Sent stock arrives at once as finished transfers and is written to the stock movement log. It does not go through inspection. Raw material can only go to a kitchen or warehouse. If the place you chose cannot take every item, nothing moves and the location stays active. Stock left behind is not shown on the stock screens until the location is enabled again. The row shows how many products it still holds.
+
+A location cannot be disabled while it has an open shift, while a stock transfer to or from it is waiting or on the way, or when it is the only active location. Disabled locations sit at the bottom of the list with an **Enable** button. Disabling and enabling need a developer password, the same as deleting.
+
 The navbar pin (administrators and developers) switches the workstation used by the dashboard and stock screens. On the POS, the pencil next to the location name switches only among locations that can sell. If the POS has no station yet, it forces a choice before the till opens.
 
 ---

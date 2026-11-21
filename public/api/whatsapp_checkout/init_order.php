@@ -44,6 +44,18 @@ if ( strlen($customerPhone) === 10 && str_starts_with($customerPhone, '0') ) {
 try {
     $pdo = WhatsAppCloudService::getDb();
 
+    // A branch disabled on the Locations page takes no new orders.
+    try {
+        $branchStmt = $pdo->prepare("SELECT is_active FROM locations WHERE id = :id LIMIT 1");
+        $branchStmt->execute([':id' => $branchId]);
+        $branchActive = $branchStmt->fetchColumn();
+    } catch ( Throwable $e ) {
+        $branchActive = false;
+    }
+    if ( $branchActive !== false && (int) $branchActive === 0 ) {
+        throw new Exception('This branch is not taking orders right now.');
+    }
+
     $hasProductsTable = (bool) $pdo->query("SHOW TABLES LIKE 'products'")->fetchColumn();
 
     $subtotalZmw   = 0.00;

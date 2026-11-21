@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\GuestNote;
 use App\Models\Location;
+use App\Services\Activity;
 
 final class LocationsController extends Controller
 {
@@ -121,6 +122,39 @@ final class LocationsController extends Controller
                     } else {
                         $this->flash('success', 'Location deleted.');
                     }
+                } elseif (isset($_POST['disable_location'])) {
+                    $this->verifyDevAuth($userRole);
+                    $result = Location::disable(
+                        (int)$_POST['location_id'],
+                        (int)($_POST['dest_location_id'] ?? 0),
+                        $this->userId()
+                    );
+                    if ($result['dest'] === '') {
+                        $outcome = 'Its stock was left where it is.';
+                    } elseif ($result['lines'] === 0) {
+                        $outcome = 'It had no stock to move.';
+                    } else {
+                        $outcome = $result['lines'] . ' product' . ($result['lines'] === 1 ? '' : 's')
+                            . ' moved to ' . $result['dest'] . '.';
+                    }
+                    Activity::log($this->pdo(), 'location', 'ok', [
+                        'location_id' => (int)$_POST['location_id'],
+                        'location_name' => $result['name'],
+                        'subject' => 'Location disabled',
+                        'detail' => $outcome,
+                    ]);
+                    $this->flash('success', $result['name'] . ' is disabled. ' . $outcome);
+                } elseif (isset($_POST['enable_location'])) {
+                    $this->verifyDevAuth($userRole);
+                    $name = Location::enable((int)$_POST['location_id']);
+                    if ($name !== '') {
+                        Activity::log($this->pdo(), 'location', 'ok', [
+                            'location_id' => (int)$_POST['location_id'],
+                            'location_name' => $name,
+                            'subject' => 'Location enabled',
+                        ]);
+                        $this->flash('success', $name . ' is back in use.');
+                    }
                 }
             } catch (\Throwable $e) {
                 $this->flash('error', $e->getMessage());
@@ -129,19 +163,24 @@ final class LocationsController extends Controller
         }
 
         // Fetch locations and decode any pending requests for the UI
-        $locations = Location::all();
+        $locations = Location::allWithDisabled();
         $pendingCount = 0;
+        $activeLocations = [];
         foreach ($locations as &$l) {
             $l['pending'] = null;
             if (!empty($l['pending_edits'])) {
                 $l['pending'] = json_decode($l['pending_edits'], true);
                 $pendingCount++;
             }
+            if ((int)$l['is_active'] === 1) {
+                $activeLocations[] = ['id' => (int)$l['id'], 'name' => (string)$l['name'], 'type' => (string)$l['type']];
+            }
         }
         unset($l);
 
         $this->render([
             'locations' => $locations,
+            'activeLocations' => $activeLocations,
             'userRole' => $userRole,
             'pendingCount' => $pendingCount
         ]);
@@ -172,11 +211,11 @@ final class LocationsController extends Controller
             throw new \Exception('Developer authorization credentials are required for this action.');
         }
 
-        $stmt = $this->pdo()->prepare('SELECT password, role FROM users WHERE username = ? AND is_active = 1');
+        $stmt = $this->pdo()->prepare('SELECT password_hash, role FROM users WHERE username = ? AND is_active = 1');
         $stmt->execute([$user]);
         $row = $stmt->fetch();
 
-        if (!$row || $row['role'] !== 'dev' || !password_verify($pass, $row['password'])) {
+        if (!$row || $row['role'] !== 'dev' || !password_verify($pass, (string)$row['password_hash'])) {
             throw new \Exception('Developer authorization failed. Incorrect credentials.');
         }
     }

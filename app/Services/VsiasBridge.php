@@ -47,7 +47,7 @@ final class VsiasBridge
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $locations = $this->pdo->query(
-            "SELECT id, name, type, can_sell FROM locations ORDER BY name ASC"
+            "SELECT id, name, type, can_sell FROM locations WHERE is_active = 1 ORDER BY name ASC"
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         $categories = $this->pdo->query(

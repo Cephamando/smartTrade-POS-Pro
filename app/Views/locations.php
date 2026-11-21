@@ -42,10 +42,17 @@ include __DIR__ . '/partials/bulk_bar.php';
             </thead>
             <tbody>
                 <?php foreach ($locations as $l): ?>
-                <tr class="<?= !empty($l['pending']) ? 'table-warning bg-opacity-10' : '' ?>">
+                <?php $isDisabled = (int)($l['is_active'] ?? 1) !== 1; $stockLines = (int)($l['stock_lines'] ?? 0); ?>
+                <tr class="<?= $isDisabled ? 'table-secondary' : (!empty($l['pending']) ? 'table-warning bg-opacity-10' : '') ?>">
                     <td><input type="checkbox" class="form-check-input bulk-one" name="ids[]" value="<?= (int)$l['id'] ?>" form="bulkLocations"></td>
                     <td>
-                        <span class="fw-bold d-block"><?= htmlspecialchars($l['name']) ?></span>
+                        <span class="fw-bold d-block <?= $isDisabled ? 'text-muted' : '' ?>"><?= htmlspecialchars($l['name']) ?></span>
+                        <?php if ($isDisabled): ?>
+                            <span class="badge bg-dark mt-1"><i class="bi bi-slash-circle"></i> Disabled</span>
+                            <?php if ($stockLines > 0): ?>
+                                <span class="badge bg-light text-dark border mt-1">Still holds <?= $stockLines ?> product<?= $stockLines === 1 ? '' : 's' ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <?php if (!empty($l['pending'])): ?>
                             <span class="badge bg-warning text-dark mt-1"><i class="bi bi-hourglass-split"></i> Edit Pending (<?= htmlspecialchars($l['pending']['requested_by']) ?>)</span>
                         <?php endif; ?>
@@ -69,7 +76,7 @@ include __DIR__ . '/partials/bulk_bar.php';
                     </td>
                     <td class="text-muted small"><?= htmlspecialchars($l['address'] ?? '-') ?></td>
                     <td class="text-end text-nowrap">
-                        <?php if (!empty($l['can_sell'])): ?>
+                        <?php if (!empty($l['can_sell']) && !$isDisabled): ?>
                             <form method="POST" action="index.php?page=pos" class="d-inline">
                                 <input type="hidden" name="set_pos_location" value="<?= $l['id'] ?>">
                                 <button type="submit" class="btn btn-outline-success btn-sm me-1" title="Launch POS"><i class="bi bi-shop"></i></button>
@@ -85,6 +92,26 @@ include __DIR__ . '/partials/bulk_bar.php';
                         <?php else: ?>
                             <button class="btn btn-outline-primary btn-sm me-1" onclick="editLocation(<?= htmlspecialchars(json_encode($l, JSON_UNESCAPED_UNICODE)) ?>)">
                                 <i class="bi bi-pencil"></i> <?= !empty($l['pending']) ? 'Overwrite Edit' : 'Edit' ?>
+                            </button>
+                        <?php endif; ?>
+
+                        <?php if ($isDisabled): ?>
+                            <form method="POST" action="index.php?page=locations" class="d-inline" id="enableForm_<?= $l['id'] ?>">
+                                <input type="hidden" name="enable_location" value="1">
+                                <input type="hidden" name="location_id" value="<?= $l['id'] ?>">
+                                <?php if ($userRole !== 'dev'): ?>
+                                    <input type="hidden" name="dev_username" class="enable-user-<?= $l['id'] ?>">
+                                    <input type="hidden" name="dev_password" class="enable-pass-<?= $l['id'] ?>">
+                                <?php endif; ?>
+                                <button type="button" class="btn btn-success btn-sm me-1 fw-bold" onclick="promptEnable(<?= (int)$l['id'] ?>, <?= htmlspecialchars(json_encode((string)$l['name'], JSON_UNESCAPED_UNICODE)) ?>)" title="Put this location back in use">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Enable
+                                </button>
+                            </form>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-outline-dark btn-sm me-1"
+                                <?= count($activeLocations) < 2 ? 'disabled title="This is the only active location"' : 'title="Disable location"' ?>
+                                onclick="promptDisable(<?= htmlspecialchars(json_encode(['id' => (int)$l['id'], 'name' => (string)$l['name'], 'stock_lines' => $stockLines], JSON_UNESCAPED_UNICODE)) ?>)">
+                                <i class="bi bi-slash-circle"></i>
                             </button>
                         <?php endif; ?>
 
@@ -231,8 +258,127 @@ include __DIR__ . '/partials/bulk_bar.php';
 </div>
 <?php endif; ?>
 
+<!-- Modal to take a location out of use -->
+<div class="modal fade" id="disableModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-dark border-top border-4 shadow-lg">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="disableTitle">Disable location</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="index.php?page=locations" id="disableForm">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="disable_location" value="1">
+                    <input type="hidden" name="location_id" id="disableLocId" value="">
+
+                    <p class="mb-3">It will no longer appear when staff choose a workstation, and it cannot sell, receive, or move stock. Its past sales stay in the reports. You can enable it again from this page.</p>
+
+                    <div class="mb-3" id="disableStockBlock">
+                        <label class="form-label small fw-bold text-muted" for="disableDest">STOCK ON HAND</label>
+                        <p class="small mb-2" id="disableStockNote"></p>
+                        <select name="dest_location_id" id="disableDest" class="form-select fw-bold no-search" required></select>
+                        <div class="form-text">Sent stock arrives at once as finished transfers, with no inspection step. Raw material can only go to a kitchen or warehouse.</div>
+                    </div>
+                    <p class="small text-muted mb-0 d-none" id="disableNoStock">This location holds no stock.</p>
+
+                    <?php if ($userRole !== 'dev'): ?>
+                    <div class="p-3 bg-dark rounded shadow-sm border border-danger mt-4">
+                        <label class="form-label small fw-bold text-danger mb-3 d-block border-bottom border-danger pb-2">
+                            <i class="bi bi-shield-lock-fill"></i> DEVELOPER AUTHORIZATION REQUIRED
+                        </label>
+                        <input type="text" name="dev_username" class="form-control mb-2" placeholder="Developer Username" required autocomplete="off">
+                        <input type="password" name="dev_password" class="form-control" placeholder="Developer Password" required autocomplete="off">
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="submit" class="btn btn-dark w-100 fw-bold py-2 shadow-sm" id="disableSubmit">Disable location</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
     const isDev = <?= json_encode($userRole === 'dev') ?>;
+    const activeLocations = <?= json_encode($activeLocations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
+    const locationTypeLabels = { store: 'Store', bar: 'Bar', kitchen: 'Kitchen', warehouse: 'Warehouse' };
+
+    function promptDisable(loc) {
+        const form = document.getElementById('disableForm');
+        form.reset();
+        document.getElementById('disableLocId').value = loc.id;
+        document.getElementById('disableTitle').innerText = 'Disable ' + loc.name + '?';
+
+        const stockLines = parseInt(loc.stock_lines || 0);
+        const select = document.getElementById('disableDest');
+        select.innerHTML = '';
+        const hasStock = stockLines > 0;
+        document.getElementById('disableStockBlock').classList.toggle('d-none', !hasStock);
+        document.getElementById('disableNoStock').classList.toggle('d-none', hasStock);
+        select.disabled = !hasStock;
+
+        if (hasStock) {
+            document.getElementById('disableStockNote').innerText =
+                loc.name + ' holds stock of ' + stockLines + ' product' + (stockLines === 1 ? '' : 's') + '. Choose what happens to it.';
+            const addOption = function (value, label) {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                select.appendChild(option);
+                return option;
+            };
+            addOption('', 'Choose…');
+            activeLocations.forEach(function (other) {
+                if (parseInt(other.id) === parseInt(loc.id)) return;
+                addOption(other.id, 'Send it all to ' + other.name + ' (' + (locationTypeLabels[other.type] || other.type) + ')');
+            });
+            addOption('0', 'Leave it at ' + loc.name);
+        }
+
+        new bootstrap.Modal(document.getElementById('disableModal')).show();
+    }
+
+    function promptEnable(id, name) {
+        if (isDev) {
+            AppAlert.confirm({
+                title: 'Enable ' + name + '?',
+                text: 'Staff will be able to choose it as a workstation again.',
+                icon: 'question',
+                confirmText: 'Enable',
+                confirmColor: '#198754'
+            }).then((result) => {
+                if (result) document.getElementById('enableForm_' + id).submit();
+            });
+            return;
+        }
+        Swal.fire({
+            title: 'Developer Auth Required',
+            html: '<p class="text-muted small">Putting a location back in use requires developer authorization.</p>' +
+                  '<input id="swal-dev-user" class="swal2-input" placeholder="Developer Username">' +
+                  '<input id="swal-dev-pass" type="password" class="swal2-input" placeholder="Developer Password">',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',
+            confirmButtonText: 'Authorize Enable',
+            preConfirm: () => {
+                return {
+                    user: document.getElementById('swal-dev-user').value,
+                    pass: document.getElementById('swal-dev-pass').value
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                if (!result.value.user || !result.value.pass) {
+                    AppAlert.notify({ icon: 'error', text: 'Credentials required.' });
+                    return;
+                }
+                document.querySelector('.enable-user-' + id).value = result.value.user;
+                document.querySelector('.enable-pass-' + id).value = result.value.pass;
+                document.getElementById('enableForm_' + id).submit();
+            }
+        });
+    }
 
     function openLocationModal() {
         document.getElementById('locForm').reset();

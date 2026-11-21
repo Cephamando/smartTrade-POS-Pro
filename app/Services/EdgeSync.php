@@ -880,9 +880,9 @@ final class EdgeSync
 
             foreach ((array)($data['locations'] ?? []) as $loc) {
                 $this->pdo->prepare(
-                    'INSERT INTO locations (id, name, type, can_sell, can_receive_from_vendor, address, phone, can_receive, google_review_url)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     ON DUPLICATE KEY UPDATE name = VALUES(name), type = VALUES(type), can_sell = VALUES(can_sell), can_receive_from_vendor = VALUES(can_receive_from_vendor), address = VALUES(address), phone = VALUES(phone), can_receive = VALUES(can_receive), google_review_url = VALUES(google_review_url)'
+                    'INSERT INTO locations (id, name, type, can_sell, can_receive_from_vendor, address, phone, can_receive, google_review_url, is_active)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE name = VALUES(name), type = VALUES(type), can_sell = VALUES(can_sell), can_receive_from_vendor = VALUES(can_receive_from_vendor), address = VALUES(address), phone = VALUES(phone), can_receive = VALUES(can_receive), google_review_url = VALUES(google_review_url), is_active = VALUES(is_active)'
                 )->execute([
                     (int)$loc['id'],
                     (string)$loc['name'],
@@ -893,6 +893,7 @@ final class EdgeSync
                     $loc['phone'] ?? '',
                     (int)($loc['can_receive'] ?? 0),
                     $loc['google_review_url'] ?? null,
+                    (int)($loc['is_active'] ?? 1),
                 ]);
             }
 

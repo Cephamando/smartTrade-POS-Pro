@@ -1,7 +1,7 @@
 <?php
 if (isset($_POST['change_global_location']) && isset($_SESSION['user_id']) && isset($pdo)) {
     $newLocId = (int)$_POST['change_global_location'];
-    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name FROM locations WHERE id = ? AND is_active = 1");
     $stmt->execute([$newLocId]);
     $newLocName = $stmt->fetchColumn();
     if ($newLocName) {
@@ -25,7 +25,7 @@ $pendingLocEdits = 0;
 $openGuestNotes = 0;
 
 if (isset($pdo)) {
-    $allGlobalLocations = $pdo->query("SELECT id, name, can_sell FROM locations ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $allGlobalLocations = $pdo->query("SELECT id, name, can_sell FROM locations WHERE is_active = 1 ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $currentLocId = $_SESSION['location_id'] ?? 0;
     if ($currentLocId) {
         $stmtLoc = $pdo->prepare("SELECT can_sell FROM locations WHERE id = ?");

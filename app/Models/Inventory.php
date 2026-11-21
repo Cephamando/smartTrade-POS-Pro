@@ -71,7 +71,7 @@ final class Inventory extends Model
     {
         $sql = "SELECT l.id AS location_id, l.name AS location_name, GREATEST(i.quantity, 0) AS quantity
                 FROM inventory i
-                JOIN locations l ON l.id = i.location_id
+                JOIN locations l ON l.id = i.location_id AND l.is_active = 1
                 WHERE i.product_id = ? AND i.quantity > 0";
         $params = [$productId];
         if ($excludeLocationId > 0) {
@@ -98,7 +98,7 @@ final class Inventory extends Model
                 c.name AS category_name, l.name AS location_name, GREATEST(i.quantity, 0) AS quantity, (GREATEST(i.quantity, 0) * p.price) AS stock_value
             FROM inventory i
             JOIN products p ON p.id = i.product_id
-            JOIN locations l ON l.id = i.location_id
+            JOIN locations l ON l.id = i.location_id AND l.is_active = 1
             LEFT JOIN categories c ON c.id = p.category_id
             WHERE 1=1
         ";

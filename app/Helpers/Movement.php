@@ -20,6 +20,19 @@ final class Movement
         return in_array(strtolower((string)($loc['type'] ?? '')), ['kitchen', 'warehouse'], true);
     }
 
+    /** A disabled location sends no stock out and takes none in. Rows without the flag count as active. */
+    public static function isDisabled(?array $loc): bool
+    {
+        return $loc !== null && array_key_exists('is_active', $loc) && (int)$loc['is_active'] === 0;
+    }
+
+    private static function disabledReason(array $loc): string
+    {
+        return trim((string)($loc['name'] ?? '')) !== ''
+            ? $loc['name'] . ' is disabled. Choose another location.'
+            : 'That location is disabled. Choose another location.';
+    }
+
     public static function isRawProduct(?array $product): bool
     {
         if (!$product) {
@@ -66,6 +79,11 @@ final class Movement
         if ((int)$source['id'] === (int)$dest['id']) {
             return ['ok' => false, 'reason' => 'Source and destination must be different locations.'];
         }
+        foreach ([$source, $dest] as $loc) {
+            if (self::isDisabled($loc)) {
+                return ['ok' => false, 'reason' => self::disabledReason($loc)];
+            }
+        }
         if (self::isRawProduct($product) && self::isFrontOfHouse($dest)) {
             return [
                 'ok' => false,
@@ -77,6 +95,9 @@ final class Movement
 
     public static function receiveAt(?array $product, ?array $location): array
     {
+        if (self::isDisabled($location)) {
+            return ['ok' => false, 'reason' => self::disabledReason($location)];
+        }
         if (!$product || !$location) {
             return ['ok' => true, 'reason' => null];
         }
@@ -102,6 +123,9 @@ final class Movement
         }
         if (!$dest) {
             return ['ok' => false, 'reason' => 'Select a destination workstation.'];
+        }
+        if (self::isDisabled($dest)) {
+            return ['ok' => false, 'reason' => self::disabledReason($dest)];
         }
         return ['ok' => true, 'reason' => null];
     }

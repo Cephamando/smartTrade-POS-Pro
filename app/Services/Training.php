@@ -580,7 +580,7 @@ final class Training
             $row = $stmt->fetch() ?: null;
         }
         if (!$row) {
-            $row = $prod->query("SELECT * FROM locations WHERE can_sell = 1 ORDER BY id LIMIT 1")->fetch() ?: null;
+            $row = $prod->query("SELECT * FROM locations WHERE can_sell = 1 AND is_active = 1 ORDER BY id LIMIT 1")->fetch() ?: null;
         }
         if (!$row) {
             $this->insert($box, 'locations', [
