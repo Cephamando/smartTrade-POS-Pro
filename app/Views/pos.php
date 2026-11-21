@@ -66,14 +66,12 @@ function getCategoryStyle($name) {
     <script src="js/app-alerts.js?v=20260905b"></script>
     <style>
         :root { --pos-main-color: <?= htmlspecialchars($sysSettings['theme_color'] ?? '#2c2c2c') ?>; --pos-accent-color: <?= htmlspecialchars($sysSettings['theme_accent'] ?? '#ffc107') ?>; --pos-cart-color: <?= htmlspecialchars($sysSettings['theme_cart'] ?? '#3e2723') ?>; }
-        body { background-color: #f6f1ea; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; transition: background-color 0.3s; color: #2c241c; }
-        .header-custom { background: #fff !important; color: #2c241c !important; border-bottom: 1px solid #efe7dc !important; box-shadow: 0 8px 24px rgba(80, 48, 20, 0.04); }
+        body { background-color: #f6f1ea; height: 100vh; overflow: hidden; display: flex; flex-direction: column; margin: 0; color: #2c241c; font-family: "Segoe UI", Nunito, sans-serif; }
+        .header-custom { background: #fff !important; color: #2c241c !important; border-bottom: 1px solid #efe7dc !important; box-shadow: 0 8px 24px rgba(80, 48, 20, 0.04); flex: 0 0 auto; z-index: 1050; }
         .header-custom .text-light, #headerPosLabel, #headerLocIcon { color: #2c241c !important; }
-        .header-custom .text-warning, .header-custom .btn-link.text-warning { color: #ef6c00 !important; }
+        .header-custom .text-warning, .header-custom .btn-link.text-warning, #headerPosLabel { color: #ef6c00 !important; }
         .header-custom .btn-outline-light { color: #3d342c; border-color: #e4d9cc; background: #fff; }
-        .header-custom .btn-outline-light:hover { color: #fff; background: #2c241c; border-color: #2c241c; }
-        .header-custom { background-color: var(--pos-main-color) !important; border-bottom: 4px solid var(--pos-accent-color) !important; color: white; flex: 0 0 auto; z-index: 1050; transition: background-color 0.3s, border-color 0.3s; }
-        #headerPosLabel, #headerLocIcon { color: var(--pos-accent-color) !important; }
+        .header-custom .btn-outline-light:hover { color: #fff; background: #ef6c00; border-color: #ef6c00; }
         .workspace { flex: 1 1 auto; display: flex; overflow: hidden; position: relative; min-height: 0; }
         .product-section { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         
@@ -145,8 +143,8 @@ function getCategoryStyle($name) {
         .product-list-wrapper { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
         .product-list { flex: 1 1 auto; overflow-y: auto; padding: 16px; }
         .pagination-bar { flex: 0 0 auto; background: transparent; border-top: 0; padding: 10px 15px 14px; display: flex; justify-content: center; align-items: center; gap: 15px; }
-        .item-card { background: #fff; border: 0; border-radius: 22px; box-shadow: 0 10px 24px rgba(80, 48, 20, 0.06); transition: transform 0.15s, box-shadow 0.15s; cursor: pointer; overflow: hidden; position: relative; height: 100%; display: block; width: 100%; text-align: left; }
-        .item-photo { height: 128px; margin: 10px 10px 0; border-radius: 16px; overflow: hidden; background: #f4efe8; display: flex; align-items: center; justify-content: center; color: #c5b8aa; }
+        .item-card { background: #fff; border: 0; border-radius: 24px; box-shadow: 0 10px 24px rgba(80, 48, 20, 0.07); transition: transform 0.15s, box-shadow 0.15s; cursor: pointer; overflow: hidden; position: relative; height: 100%; display: block; width: 100%; text-align: left; }
+        .item-photo { height: 132px; margin: 10px 10px 0; border-radius: 18px; overflow: hidden; background: #f7f2eb; display: flex; align-items: center; justify-content: center; color: #c5b8aa; }
         .item-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .item-photo i { font-size: 1.7rem; }
         .item-copy { padding: 10px 12px 12px; }
@@ -158,20 +156,20 @@ function getCategoryStyle($name) {
         .pos-filter-bar, #drilldown-header, #main-category-grid, #sub-category-grid { background: transparent !important; border-color: transparent !important; }
         .pos-search { border: 0 !important; border-radius: 16px; background: #fff; box-shadow: 0 8px 20px rgba(80, 48, 20, 0.05); }
         .cat-card-modern { border: 0; border-radius: 20px; box-shadow: 0 8px 20px rgba(80, 48, 20, 0.05); }
-        .cart-panel { border-left: 0; box-shadow: -12px 0 32px rgba(80, 48, 20, 0.08); }
         .bg-low { background-color: #dc3545; color: white; }
-        .bg-ok { background-color: #198754; color: white; }
+        .bg-ok { background-color: #2e9b57; color: white; }
         .bg-recipe { background-color: #0dcaf0; color: #000; }
-        .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 1px solid #ccc; display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.1); z-index: 1020; height: 100%; min-height: 0; }
+        .cart-panel { flex: 0 0 400px; width: 400px; background: #fff; border-left: 0; display: flex; flex-direction: column; box-shadow: -12px 0 32px rgba(80, 48, 20, 0.08); z-index: 1020; height: 100%; min-height: 0; }
         .cart-compact { display: none; }
-        .cart-header { padding: 15px; background-color: var(--pos-cart-color) !important; color: white; flex: 0 0 auto; }
-        .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #f8f9fa; min-height: 0; }
-        .cart-footer { padding: 20px; background: #fff; border-top: 2px solid #eee; flex: 0 0 auto; }
-        .cart-item { background: white; border-radius: 6px; padding: 10px; margin-bottom: 10px; border: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; }
+        .cart-header { padding: 16px 18px; background: #fff !important; color: #2c241c !important; border-bottom: 1px solid #f3ebe1; flex: 0 0 auto; }
+        .cart-header .btn-outline-light { color: #3d342c; border-color: #eadfd2; background: #fff; }
+        .cart-items { flex: 1 1 auto; overflow-y: auto; padding: 15px; background: #faf6f1; min-height: 0; }
+        .cart-footer { padding: 18px; background: #fff; border-top: 1px solid #f3ebe1; flex: 0 0 auto; }
+        .cart-item { background: white; border-radius: 16px; padding: 10px; margin-bottom: 10px; border: 0; box-shadow: 0 6px 16px rgba(80, 48, 20, 0.05); display: flex; justify-content: space-between; align-items: center; }
         .btn-fulfillment { font-size: 0.7rem; font-weight: bold; text-transform: uppercase; padding: 2px 6px; }
         .badge-uncollected { background: #fd7e14; color: white; cursor: pointer; }
         .badge-collected { background: #198754; color: white; cursor: default; }
-        .btn-charge { background-color: #fd7e14 !important; border-color: #fd7e14 !important; color: #fff !important; font-size: 1.25rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 6px rgba(253, 126, 20, 0.3); }
+        .btn-charge { background-color: #ef6c00 !important; border-color: #ef6c00 !important; color: #fff !important; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.4px; border-radius: 16px; box-shadow: 0 10px 18px rgba(239, 108, 0, 0.28); }
         .btn-charge:hover { background-color: #e66b0d !important; }
         .btn-charge:disabled { background-color: #ccc !important; border-color: #ccc !important; box-shadow: none; cursor: not-allowed; }
         .table-box { border-radius: 12px; height: 120px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden; }
@@ -418,7 +416,7 @@ function getCategoryStyle($name) {
 
             <div class="product-list-wrapper" id="product-list-wrapper" style="display:none;">
                 <div class="product-list">
-                    <div id="items-grid" class="row g-2">
+                    <div id="items-grid" class="row g-3">
                         <?php foreach($products as $p):
                             $hasRecipe = ($p['is_recipe'] > 0);
                             $sellBlock = \App\Helpers\Movement::sellOnPos($p);
