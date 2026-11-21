@@ -87,8 +87,15 @@
     
     <?php if($shift['status'] === 'closed'): ?>
         <div class="line"></div>
+        <?php if ($shift['variance'] === null): ?>
+        <div class="flex bold"><span>ACTUAL CASH:</span> <span>Not counted</span></div>
+        <?php if (!empty($shift['variance_reason'])): ?>
+        <div><?= htmlspecialchars((string)$shift['variance_reason']) ?></div>
+        <?php endif; ?>
+        <?php else: ?>
         <div class="flex bold"><span>ACTUAL CASH:</span> <span>ZMW <?= number_format($shift['closing_cash'], 2) ?></span></div>
         <div class="flex bold"><span>VARIANCE:</span> <span>ZMW <?= number_format($shift['variance'], 2) ?></span></div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <div class="line"></div>

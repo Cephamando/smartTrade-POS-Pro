@@ -203,4 +203,115 @@ final class Shift extends Model
         }
         return $expected;
     }
+
+    /**
+     * Every shift that is still open, with the cash the drawer should hold.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function openNow(): array
+    {
+        $rows = self::db()->query(
+            "SELECT s.id, s.user_id, s.location_id, s.start_time, s.starting_cash,
+                    COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS who, u.username, u.role,
+                    l.name AS location_name
+             FROM shifts s
+             JOIN users u ON u.id = s.user_id
+             JOIN locations l ON l.id = s.location_id
+             WHERE s.status = 'open'
+             ORDER BY l.name ASC, s.start_time ASC"
+        )->fetchAll();
+        foreach ($rows as &$row) {
+            $row['id'] = (int)$row['id'];
+            $row['user_id'] = (int)$row['user_id'];
+            $row['location_id'] = (int)$row['location_id'];
+            $row['expected'] = self::expectedCash($row['id'], (float)$row['starting_cash']);
+            $ts = strtotime((string)$row['start_time']);
+            $row['started_label'] = $ts === false
+                ? ''
+                : (date('Y-m-d', $ts) === date('Y-m-d') ? 'Today, ' : date('j M, ', $ts)) . date('H:i', $ts);
+        }
+        unset($row);
+        return $rows;
+    }
+
+    /**
+     * Closes one open shift without a drawer count. No variance is stored, so the
+     * books do not treat the till as balanced or short. Returns who and where, or null.
+     *
+     * @return array{who: string, location: string}|null
+     */
+    public static function closeUncounted(int $shiftId, int $developerId): ?array
+    {
+        $stmt = self::db()->prepare(
+            "SELECT s.id, s.starting_cash, l.name AS location_name,
+                    COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS who
+             FROM shifts s
+             JOIN users u ON u.id = s.user_id
+             JOIN locations l ON l.id = s.location_id
+             WHERE s.id = ? AND s.status = 'open'"
+        );
+        $stmt->execute([$shiftId]);
+        $shift = $stmt->fetch();
+        if (!$shift) {
+            return null;
+        }
+        $expected = self::expectedCash($shiftId, (float)$shift['starting_cash']);
+        $reason = 'Closed by the developer without a drawer count.';
+        $update = self::db()->prepare(
+            "UPDATE shifts SET
+                end_time = NOW(),
+                status = 'closed',
+                expected_cash = ?,
+                closing_cash = NULL,
+                manager_closing_cash = NULL,
+                variance = NULL,
+                variance_reason = ?,
+                handover_notes = ?,
+                end_verified_by = ?,
+                end_verified_at = NOW()
+             WHERE id = ? AND status = 'open'"
+        );
+        $update->execute([$expected, $reason, $reason, $developerId > 0 ? $developerId : null, $shiftId]);
+        if ($update->rowCount() < 1) {
+            return null;
+        }
+        return ['who' => (string)$shift['who'], 'location' => (string)$shift['location_name']];
+    }
+
+    /**
+     * Closes every open shift, or only those at one workstation.
+     *
+     * @return list<array{who: string, location: string}>
+     */
+    public static function closeUncountedGroup(?int $locationId, int $developerId): array
+    {
+        $sql = "SELECT id FROM shifts WHERE status = 'open'";
+        $params = [];
+        if ($locationId !== null) {
+            $sql .= ' AND location_id = ?';
+            $params[] = $locationId;
+        }
+        $stmt = self::db()->prepare($sql);
+        $stmt->execute($params);
+        $ids = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+        $pdo = self::db();
+        $pdo->beginTransaction();
+        try {
+            $closed = [];
+            foreach ($ids as $id) {
+                $row = self::closeUncounted($id, $developerId);
+                if ($row) {
+                    $closed[] = $row;
+                }
+            }
+            $pdo->commit();
+            return $closed;
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
 }

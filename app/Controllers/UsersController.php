@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\Location;
+use App\Models\Shift;
 use App\Models\StaffSession;
 use App\Models\User;
 use App\Services\Activity;
@@ -19,6 +20,9 @@ final class UsersController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_POST['sign_out_session']) || isset($_POST['sign_out_location']) || isset($_POST['sign_out_everyone'])) {
                 $this->signOutStaff();
+            }
+            if (isset($_POST['end_open_shift']) || isset($_POST['end_open_shifts_location']) || isset($_POST['end_open_shifts_all'])) {
+                $this->endOpenShifts();
             }
             if (($_POST['bulk_action'] ?? '') === 'delete') {
                 $deleted = 0;
@@ -176,6 +180,7 @@ final class UsersController extends Controller
         }
 
         $signedIn = [];
+        $openShifts = [];
         if ($this->role() === 'dev') {
             try {
                 $keep = (string)($_SESSION['session_token'] ?? '');
@@ -187,12 +192,18 @@ final class UsersController extends Controller
             } catch (\Throwable $e) {
                 $signedIn = [];
             }
+            try {
+                $openShifts = Shift::openNow();
+            } catch (\Throwable $e) {
+                $openShifts = [];
+            }
         }
 
         $this->render([
             'users' => User::activeStaff(),
             'locations' => Location::names(),
             'signedIn' => $signedIn,
+            'openShifts' => $openShifts,
         ]);
     }
 
@@ -240,6 +251,56 @@ final class UsersController extends Controller
             }
         } catch (\Throwable $e) {
             $this->flash('error', 'Unable to sign them out.');
+        }
+        $this->redirect('users');
+    }
+
+    /** A developer closes open shifts without a drawer count. Staff stay signed in. */
+    private function endOpenShifts(): void
+    {
+        if ($this->role() !== 'dev') {
+            $this->flash('error', 'Only a developer can end someone else\'s shift.');
+            $this->redirect('users');
+        }
+        try {
+            if (isset($_POST['end_open_shift'])) {
+                $row = Shift::closeUncounted((int)($_POST['shift_id'] ?? 0), $this->userId());
+                if (!$row) {
+                    $this->flash('info', 'That shift is no longer open.');
+                } else {
+                    Activity::log($this->pdo(), 'shift', 'ok', [
+                        'subject' => 'Shift closed',
+                        'detail' => $row['who'] . ' at ' . $row['location'] . '. Drawer not counted.',
+                    ]);
+                    $this->flash('success', $row['who'] . ' at ' . $row['location'] . ' was ended. The drawer was not counted.');
+                }
+            } elseif (isset($_POST['end_open_shifts_location']) && (string)($_POST['shift_location_id'] ?? '') === '') {
+                $this->flash('error', 'Choose a workstation first.');
+            } else {
+                $locationId = isset($_POST['end_open_shifts_all']) ? null : (int)$_POST['shift_location_id'];
+                $rows = Shift::closeUncountedGroup($locationId, $this->userId());
+                $place = $locationId !== null && $locationId > 0 ? Location::nameById($locationId) : '';
+                if (!$rows) {
+                    $this->flash('info', $place === '' ? 'There are no open shifts.' : 'There are no open shifts at ' . $place . '.');
+                } else {
+                    $count = count($rows);
+                    $names = array_map(static fn(array $row): string => $row['who'] . ' at ' . $row['location'], $rows);
+                    Activity::log($this->pdo(), 'shift', 'ok', [
+                        'subject' => 'Shifts closed',
+                        'detail' => ($place === '' ? 'Every open shift' : $place) . ': ' . implode(', ', $names),
+                    ]);
+                    if ($count === 1) {
+                        $sentence = $names[0] . ' was ended.';
+                    } elseif ($place !== '') {
+                        $sentence = $count . ' shifts at ' . $place . ' were ended.';
+                    } else {
+                        $sentence = $count . ' shifts were ended.';
+                    }
+                    $this->flash('success', $sentence . ' The drawer was not counted.');
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->flash('error', 'Unable to end the shift.');
         }
         $this->redirect('users');
     }

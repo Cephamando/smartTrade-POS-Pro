@@ -547,6 +547,8 @@ Add a person with full name, username, role, primary workstation, and password (
 
 **Signed in now** is on this page for a developer. It lists every open browser on this server: the person, the workstation they are using, when they signed in, and when this server last heard from that browser. The till's background refresh does not count as activity. **Sign out** ends that one browser. **Sign out this workstation** ends everyone currently using the workstation you choose. **Sign out everyone else** ends every sign-in except yours. A shift is not closed, and the person signs in again to continue. A till that keeps its own database shows its own list.
 
+**Open shifts** is on the same page for a developer. It lists every shift that is still open, including someone who is not signed in. **End shift** closes that one. **End shifts at this workstation** closes every open shift there. **End every open shift** closes them all. The drawer is not counted: the shift report shows the cash that should be in the till and records no difference. The person stays signed in, and unpaid tabs stay open. A shift that is only waiting for approval is left as it is.
+
 ### 14.2 Change password
 
 Any signed-in user can open Change Password. Enter the current password, the new one, and a confirmation. The new password must be at least 6 characters and must not be the till approval code. Saving it signs out every other browser still using that account. When the system forced the change, Cancel is hidden until it is updated. A manager, administrator, developer, or head chef can save a till approval code on the same page. It asks for the current password, and it must not be the login password.
