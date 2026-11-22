@@ -259,29 +259,33 @@ final class UsersController extends Controller
     private function endOpenShifts(): void
     {
         if ($this->role() !== 'dev') {
-            $this->flash('error', 'Only a developer can end someone else\'s shift.');
-            $this->redirect('users');
+            $this->answerEndShift('error', 'Only a developer can end someone else\'s shift.');
         }
+        $type = 'error';
+        $message = 'Unable to end the shift.';
         try {
             if (isset($_POST['end_open_shift'])) {
                 $row = Shift::closeUncounted((int)($_POST['shift_id'] ?? 0), $this->userId());
                 if (!$row) {
-                    $this->flash('info', 'That shift is no longer open.');
+                    $type = 'info';
+                    $message = 'That shift is no longer open.';
                 } else {
                     Activity::log($this->pdo(), 'shift', 'ok', [
                         'subject' => 'Shift closed',
                         'detail' => $row['who'] . ' at ' . $row['location'] . '. Drawer not counted.',
                     ]);
-                    $this->flash('success', $row['who'] . ' at ' . $row['location'] . ' was ended. The drawer was not counted.');
+                    $type = 'success';
+                    $message = $row['who'] . ' at ' . $row['location'] . ' was ended. The drawer was not counted.';
                 }
             } elseif (isset($_POST['end_open_shifts_location']) && (string)($_POST['shift_location_id'] ?? '') === '') {
-                $this->flash('error', 'Choose a workstation first.');
+                $message = 'Choose a workstation first.';
             } else {
                 $locationId = isset($_POST['end_open_shifts_all']) ? null : (int)$_POST['shift_location_id'];
                 $rows = Shift::closeUncountedGroup($locationId, $this->userId());
                 $place = $locationId !== null && $locationId > 0 ? Location::nameById($locationId) : '';
                 if (!$rows) {
-                    $this->flash('info', $place === '' ? 'There are no open shifts.' : 'There are no open shifts at ' . $place . '.');
+                    $type = 'info';
+                    $message = $place === '' ? 'There are no open shifts.' : 'There are no open shifts at ' . $place . '.';
                 } else {
                     $count = count($rows);
                     $names = array_map(static fn(array $row): string => $row['who'] . ' at ' . $row['location'], $rows);
@@ -296,12 +300,35 @@ final class UsersController extends Controller
                     } else {
                         $sentence = $count . ' shifts were ended.';
                     }
-                    $this->flash('success', $sentence . ' The drawer was not counted.');
+                    $type = 'success';
+                    $message = $sentence . ' The drawer was not counted.';
                 }
             }
         } catch (\Throwable $e) {
-            $this->flash('error', 'Unable to end the shift.');
+            $type = 'error';
+            $message = 'Unable to end the shift.';
         }
-        $this->redirect('users');
+        $this->answerEndShift($type, $message);
+    }
+
+    /**
+     * A background request gets the result and the refreshed Open shifts card,
+     * so the page updates in place. A plain form post still reloads the page.
+     */
+    private function answerEndShift(string $type, string $message): never
+    {
+        if (!$this->wantsAjax()) {
+            $this->flash($type, $message);
+            $this->redirect('users');
+        }
+        $answer = ['status' => $type, 'msg' => $message];
+        if ($this->role() === 'dev') {
+            try {
+                $answer['html'] = $this->renderPartial('open_shifts', ['openShifts' => Shift::openNow()]);
+            } catch (\Throwable $e) {
+                // Leave the card as it is. The message still reports what happened.
+            }
+        }
+        $this->jsonExit($answer);
     }
 }

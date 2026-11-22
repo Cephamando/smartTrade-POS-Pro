@@ -6,9 +6,12 @@
         ['Z', 'X', 'C', 'V', 'B', 'N', 'M', '.', '@'],
     ];
     const NUM_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '00'];
-    const STORAGE_KEY = 'posVirtualKeyboard';
+    // Holds only what a person chose with the Keyboard button on this device.
+    const STORAGE_KEY = 'posVirtualKeyboardChoice';
+    // The earlier key was rewritten to "on" at every page load, so it never held a choice.
+    const LEGACY_KEY = 'posVirtualKeyboard';
 
-    let enabled = true;
+    let enabled = false;
     let target = null;
     let root = null;
     let keysEl = null;
@@ -110,10 +113,34 @@
         updateSpace();
     }
 
+    /** The saved choice for this device: true, false, or null when nobody has chosen. */
+    function savedChoice() {
+        try {
+            localStorage.removeItem(LEGACY_KEY);
+            const value = localStorage.getItem(STORAGE_KEY);
+            return value === '1' ? true : (value === '0' ? false : null);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * A browser cannot report whether a keyboard is plugged in. Touch as the main
+     * pointer, or touch with no mouse or trackpad at all, is the closest signal:
+     * tablets, phones and touch-only tills match, desktops and laptops do not.
+     */
+    function touchOnlyDevice() {
+        const touch = (navigator.maxTouchPoints || 0) > 0;
+        if (!window.matchMedia) return touch;
+        if (window.matchMedia('(pointer: coarse)').matches) return true;
+        return touch && !window.matchMedia('(any-pointer: fine)').matches;
+    }
+
     function syncToggleButtons() {
         document.querySelectorAll('#posKeyboardToggle, [data-pos-vk-toggle], #posKeyboardFab').forEach(function (btn) {
             btn.classList.toggle('active', enabled);
             btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            btn.title = enabled ? 'Hide on-screen keyboard' : 'Show on-screen keyboard';
         });
     }
 
@@ -163,9 +190,12 @@
         document.body.style.setProperty('--pos-vk-space', '0px');
     }
 
-    function setEnabled(on) {
+    /** remember is true only when a person pressed a button, so a default is never saved as a choice. */
+    function setEnabled(on, remember) {
         enabled = !!on;
-        localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0');
+        if (remember) {
+            try { localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0'); } catch (e) {}
+        }
         document.body.classList.toggle('pos-vk-on', enabled);
         syncToggleButtons();
         if (!enabled) {
@@ -215,7 +245,7 @@
         });
         root.querySelector('[data-act="hide"]').addEventListener('mousedown', function (e) {
             e.preventDefault();
-            setEnabled(false);
+            setEnabled(false, true);
         });
         root.querySelector('[data-act="abc"]').addEventListener('mousedown', function (e) {
             e.preventDefault();
@@ -235,14 +265,14 @@
         fab.title = 'On-screen keyboard';
         fab.setAttribute('aria-label', 'Toggle on-screen keyboard');
         fab.innerHTML = '<i class="bi bi-keyboard-fill"></i>';
-        fab.addEventListener('click', function () { setEnabled(!enabled); });
+        fab.addEventListener('click', function () { setEnabled(!enabled, true); });
         document.body.appendChild(fab);
     }
 
     document.addEventListener('DOMContentLoaded', function () {
         build();
         document.querySelectorAll('#posKeyboardToggle, [data-pos-vk-toggle]').forEach(function (btn) {
-            btn.addEventListener('click', function () { setEnabled(!enabled); });
+            btn.addEventListener('click', function () { setEnabled(!enabled, true); });
         });
         document.addEventListener('focusin', function (e) { attach(e.target); });
         ['shown.bs.modal', 'shown.bs.collapse'].forEach(function (evt) {
@@ -259,7 +289,9 @@
             });
         });
         window.addEventListener('resize', updateSpace);
-        setEnabled(true);
+        // Off unless this device has no keyboard, or someone turned it on here before.
+        const choice = savedChoice();
+        setEnabled(choice === null ? touchOnlyDevice() : choice, false);
         const field = document.querySelector('#startShiftModal input[name="starting_cash"]')
             || document.querySelector('#pendingShiftModal input[name="mgr_username"]')
             || document.getElementById('search');

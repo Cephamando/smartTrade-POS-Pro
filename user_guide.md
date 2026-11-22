@@ -126,7 +126,7 @@ Until that approval, the screen says the shift is pending. **Go to Dashboard** i
 
 **Customer name** defaults to Walk-in. Type a name when the receipt should say who it was.
 
-**On-screen keyboard** is on by default (the yellow Keyboard button). Turn it off on a till that has a hardware keyboard.
+**On-screen keyboard** starts off on a computer that has a keyboard and mouse. It starts on by itself on a tablet or a touch-only till. Tap the Keyboard button to turn it on or off; the button is yellow while it is on. Each device remembers its own choice.
 
 **In-stock** filter hides products that have no quantity at this station, so the grid shows only what you can actually sell.
 
